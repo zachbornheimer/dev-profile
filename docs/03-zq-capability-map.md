@@ -40,6 +40,22 @@ Binary: `/Users/zbornheimer/.local/bin/zq` → mise go 1.27.1 install. Version: 
 | `worktree`                                            | still-custom until Worktrunk default | Canonical path `~/Developer/<Org>/.worktrees/<repo>-<slug>/`. Worktrunk `wt switch` should honor that layout, not replace cowtree compact |
 | pre-push / introduced-vs-existing / affected-Go-tests | still-custom                         | Do not recreate the whole gate framework. Extract later only if still used                                                                |
 
-## Phase 1 implication
+## After Personal prototype (`01fa958`)
 
-zq remains the hook/gate while Personal directory selection moves to mise. Success is `cd` + `mise run fmt|test`, not `zq` going away.
+Directory selection, generic format, dependency freshness, and worktree path are no longer ZQ jobs on Personal. `eval "$(zq activate zsh)"` still runs on every interactive shell. zq stays installed.
+
+Missed **capabilities** (not commands) if you stop reaching for zq today:
+
+| Still needed                                   | Owner now       | Gap                                                                       |
+| ---------------------------------------------- | --------------- | ------------------------------------------------------------------------- |
+| Cross-worktree live-edit collision             | zq `coordinate` | No Worktrunk/mise equivalent                                              |
+| Land verdict reuse / expensive-gate coalescing | zq `land`       | Keep                                                                      |
+| Introduced-vs-existing / affected-Go-tests     | zq pre-push     | Do not recreate the whole gate                                            |
+| Named URL for a worktree HTTP service          | zq `port`       | Needs Portless or hash_port+Caddy on one Personal app with `mise run dev` |
+| Crash recovery of a format stash               | zq `restore`    | Unused unless you still run `zq fix`                                      |
+| Voice/clarity rewrite                          | zq `clarify`    | Not a Dev Profile job                                                     |
+| Hook install on cd                             | zq `activate`   | Lefthook via `mise run setup` is the later owner                          |
+
+Already covered without zq: profile (`cd`), `mise run fmt`/`test`/`ci`/`scan`/`doctor`, `mise exec`, `mise trust`, `dprint`, `wt switch` at `~/Developer/<Org>/.worktrees/<repo>-<slug>/`, cowtree compact (agentmux 373 already compacted).
+
+The week-long experiment is: live on Personal with `mise run …` and `wt`, and add a row here only when a real miss appears.

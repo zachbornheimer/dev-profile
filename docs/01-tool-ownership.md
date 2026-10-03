@@ -28,7 +28,7 @@ Inspected 2026-10-03 on this Mac. `mise` is 2026.9.15 at `/opt/homebrew/bin/mise
 - Language/system: composer (`/opt/homebrew/bin/composer`), trunk (`/opt/homebrew/bin/trunk`)
 - `mise` itself is Homebrew-installed (self-update disabled)
 
-Absent today: `dprint`, `portless`, `worktrunk` as a binary name (the CLI is `wt`).
+dprint 0.59.0 is mise-managed via the Personal overlay. Absent: `portless`. The Worktrunk CLI is `wt` (v0.80.0).
 
 php is `~/.local/bin/php` (not Homebrew).
 
