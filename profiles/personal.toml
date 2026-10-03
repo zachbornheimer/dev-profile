@@ -27,4 +27,7 @@ auto = true
 
 [tasks.fmt]
 description = "Format with dprint using the Personal ancestor config"
+# Parent mise.toml would otherwise run this in ~/Developer/Personal
+# and format every sibling repo and worktree.
+dir = "{{cwd}}"
 run = "dprint fmt"

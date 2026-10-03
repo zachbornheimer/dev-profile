@@ -1,6 +1,8 @@
 package devprofile_test
 
 import (
+	"bytes"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -62,6 +64,49 @@ func runEnv(t *testing.T, dir, bin string, env []string, timeout time.Duration, 
 		_ = cmd.Process.Kill()
 		return b.String(), os.ErrDeadlineExceeded
 	}
+}
+
+func TestParentFmtTaskRunsInInvokingRepo(t *testing.T) {
+	src, err := os.ReadFile("profiles/personal.toml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(src), `dir = "{{cwd}}"`) {
+		t.Fatal(`profiles/personal.toml missing dir = "{{cwd}}"`)
+	}
+
+	const agentmuxDir = "/Users/zbornheimer/Developer/Personal/agentmux"
+	miseToml, err := os.ReadFile(filepath.Join(agentmuxDir, ".mise.toml"))
+	if err != nil {
+		t.Fatalf("read agentmux .mise.toml: %v", err)
+	}
+	if bytes.Contains(miseToml, []byte("[tasks.fmt]")) {
+		t.Skip("agentmux .mise.toml has [tasks.fmt]; parent cwd test does not apply")
+	}
+
+	mise := lookPath(t, "mise")
+	out, err := run(t, agentmuxDir, mise, 30*time.Second, "tasks", "--json")
+	if err != nil {
+		t.Fatalf("mise tasks --json in agentmux: %v\n%s", err, out)
+	}
+
+	var tasks []struct {
+		Name string `json:"name"`
+		Dir  string `json:"dir"`
+	}
+	if err := json.Unmarshal([]byte(out), &tasks); err != nil {
+		t.Fatalf("decode mise tasks --json: %v\n%s", err, out)
+	}
+	for _, task := range tasks {
+		if task.Name != "fmt" {
+			continue
+		}
+		if task.Dir != agentmuxDir {
+			t.Fatalf("fmt task dir = %q, want %q", task.Dir, agentmuxDir)
+		}
+		return
+	}
+	t.Fatal("mise tasks --json in agentmux missing task named fmt")
 }
 
 func TestPersonalDirectorySelectsPersonalOverlay(t *testing.T) {

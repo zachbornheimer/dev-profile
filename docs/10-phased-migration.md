@@ -10,7 +10,7 @@
 
 ## This prototype (Personal dprint, deps, Worktrunk)
 
-- Overlay adds `[settings] experimental`, `[tools] dprint`, `[deps]` auto for aube/uv/composer/go, parent `[tasks.fmt] = dprint fmt`
+- Overlay adds `[settings] experimental`, `[tools] dprint`, `[deps]` auto for aube/uv/composer/go, parent `[tasks.fmt]` with `dir = "{{cwd}}"` so `mise run fmt` in a Personal repo formats that repo
 - `format/personal.jsonc` copied to `~/Developer/Personal/dprint.jsonc`
 - `worktrunk/config.toml` copied to `~/.config/worktrunk/config.toml`
 - This repo dogfoods `dprint fmt` / `dprint check`. attention-mail fmt/test unchanged

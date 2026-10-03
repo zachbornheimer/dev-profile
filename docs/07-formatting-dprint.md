@@ -4,7 +4,7 @@ Requirement: one command formats a Perl-heavy repo that also has Python, Go, she
 
 ## Decision
 
-dprint is the Personal frontend. The overlay pins it (`[tools] dprint = "latest"`). This repo's `mise run fmt` is `dprint fmt`. attention-mail keeps trunk + ruff; do not run `dprint fmt` there or in agentmux.
+dprint is the Personal frontend. The overlay pins it (`[tools] dprint = "latest"`). Parent `[tasks.fmt]` uses `dir = "{{cwd}}"` so `mise run fmt` in a Personal repo formats that repo. This repo's `mise run fmt` is `dprint fmt`. attention-mail keeps trunk + ruff; do not run `dprint fmt` there.
 
 ## Split (required by dprint security)
 

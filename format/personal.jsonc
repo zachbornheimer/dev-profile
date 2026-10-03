@@ -10,7 +10,11 @@
     "**/vendor",
     "**/target",
     "**/.git",
-    "**/dist"
+    "**/dist",
+    "**/.worktrees",
+    "**/.runners",
+    "**/testdata",
+    "**/*malformed*"
   ],
   "exec": {
     "cwd": "${configDir}",
