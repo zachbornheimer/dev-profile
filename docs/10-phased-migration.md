@@ -1,6 +1,6 @@
 # 10. Phased migration and rollback
 
-## Phase 1 (this change)
+## Phase 1 (landed)
 
 - Twelve artifacts in this repo
 - `profiles/personal.toml` copied to `~/Developer/Personal/mise.toml`
@@ -8,22 +8,30 @@
 - Dogfood: attention-mail `mise run fmt` / `mise run test`
 - zq stays; zsh stays; no SAH fleet copies; no new CLI
 
+## This prototype (Personal dprint, deps, Worktrunk)
+
+- Overlay adds `[settings] experimental`, `[tools] dprint`, `[deps]` auto for aube/uv/composer/go, parent `[tasks.fmt] = dprint fmt`
+- `format/personal.jsonc` copied to `~/Developer/Personal/dprint.jsonc`
+- `worktrunk/config.toml` copied to `~/.config/worktrunk/config.toml`
+- This repo dogfoods `dprint fmt` / `dprint check`. attention-mail fmt/test unchanged
+- `wt config show` sees the canonical worktree-path. `cowtree compact --all --dry-run` in this repo
+- Still no Freelance/Company, no zq uninstall, no zsh rewrite, no SAH overlay, no Portless/Caddy
+
 ## Later (ordered)
 
 1. Move `AGENTMUX_INSTALL_STRICT` out of global mise and `~/.zshrc` into agentmux
 2. Optional `git::` include once this repo has a remote
-3. Local trusted dprint exec map + Wasm share; point Personal `mise run fmt` at dprint where it is a win
-4. Worktrunk post-create: copy-ignored (except uv venvs) + canonical worktree path
-5. Portless or hash_port+Caddy on one Personal app with a durable `dev` task
-6. Zsh cleanup: drop duplicate zoxide/PATH/aliases; autoload functions; keep q/* until zq hooks go
-7. SAH parent overlay (company policy once, not 70 copies)
-8. Employee `mise bootstrap --from <profile>`
-9. Remove zq responsibilities that the above made redundant; keep survivors (coordinate, land verdicts, leftover specialized gates)
+3. Portless or hash_port+Caddy on one Personal app with a durable `dev` task
+4. Zsh cleanup: drop duplicate zoxide/PATH/aliases; autoload functions; keep q/* until zq hooks go
+5. SAH parent overlay (company policy once, not 70 copies)
+6. Employee `mise bootstrap --from <profile>`
+7. Remove zq responsibilities that the above made redundant; keep survivors (coordinate, land verdicts, leftover specialized gates)
 
-## Rollback (phase 1)
+## Rollback
 
-1. `rm ~/Developer/Personal/mise.toml` (or restore previous absence)
-2. `git -C ~/Developer/Personal/dev-profile revert` / reset this commit
-3. zq and zsh are untouched, so the previous environment is still there
+1. `rm ~/Developer/Personal/mise.toml ~/Developer/Personal/dprint.jsonc` (or restore previous absence)
+2. `rm ~/.config/worktrunk/config.toml` if this profile created it
+3. `git -C ~/Developer/Personal/dev-profile revert` / reset this commit
+4. zq and zsh are untouched, so the previous environment is still there
 
 No Freelance root was created. No Company rename. No zq uninstall.

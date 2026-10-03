@@ -10,9 +10,12 @@ import (
 )
 
 const (
-	personalRepo = "/Users/zbornheimer/Developer/Personal/attention-mail"
-	companyRepo  = "/Users/zbornheimer/Developer/Software-Automation-Holdings/dev-config"
-	overlayPath  = "/Users/zbornheimer/Developer/Personal/mise.toml"
+	personalRepo    = "/Users/zbornheimer/Developer/Personal/attention-mail"
+	companyRepo     = "/Users/zbornheimer/Developer/Software-Automation-Holdings/dev-config"
+	overlayPath     = "/Users/zbornheimer/Developer/Personal/mise.toml"
+	dprintConfig    = "/Users/zbornheimer/Developer/Personal/dprint.jsonc"
+	worktrunkConfig = "/Users/zbornheimer/.config/worktrunk/config.toml"
+	worktreePath    = `{{ repo_path }}/../.worktrees/{{ repo }}-{{ branch | sanitize }}`
 )
 
 func lookPath(t *testing.T, name string) string {
@@ -109,17 +112,135 @@ func TestDogfoodMiseRunTest(t *testing.T) {
 	}
 }
 
+func mustEqualFiles(t *testing.T, src, dst string) {
+	t.Helper()
+	want, err := os.ReadFile(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(dst)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(want) != string(got) {
+		t.Fatalf("live file %s does not match %s", dst, src)
+	}
+}
+
 func TestInstalledOverlayMatchesSource(t *testing.T) {
-	src, err := os.ReadFile("profiles/personal.toml")
+	mustEqualFiles(t, "profiles/personal.toml", overlayPath)
+}
+
+func TestDprintAvailableInPersonalCheckouts(t *testing.T) {
+	mise := lookPath(t, "mise")
+	here, err := os.Getwd()
 	if err != nil {
 		t.Fatal(err)
 	}
-	dst, err := os.ReadFile(overlayPath)
+	for _, dir := range []string{personalRepo, here} {
+		t.Run(filepath.Base(dir), func(t *testing.T) {
+			which, err := run(t, dir, mise, 30*time.Second, "which", "dprint")
+			if err != nil {
+				t.Fatalf("mise which dprint in %s: %v\n%s", dir, err, which)
+			}
+			if strings.TrimSpace(which) == "" {
+				t.Fatalf("mise which dprint empty in %s", dir)
+			}
+			if _, lookErr := exec.LookPath("dprint"); lookErr != nil {
+				t.Fatalf("command -v dprint failed in %s: %v", dir, lookErr)
+			}
+		})
+	}
+}
+
+func TestInstalledDprintConfigMatchesSource(t *testing.T) {
+	mustEqualFiles(t, "format/personal.jsonc", dprintConfig)
+}
+
+func TestDprintCheckThisRepo(t *testing.T) {
+	dprint := lookPath(t, "dprint")
+	here, err := os.Getwd()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(src) != string(dst) {
-		t.Fatalf("live overlay %s does not match profiles/personal.toml", overlayPath)
+	out, err := run(t, here, dprint, 3*time.Minute, "check")
+	if err != nil {
+		t.Fatalf("dprint check: %v\n%s", err, out)
+	}
+}
+
+func TestMiseDepsListsUvForPersonalOverlay(t *testing.T) {
+	mise := lookPath(t, "mise")
+	overlayRoot := filepath.Dir(overlayPath)
+	rootList, err := run(t, overlayRoot, mise, 30*time.Second, "deps", "install", "--list")
+	if err != nil {
+		t.Fatalf("mise deps install --list in overlay root: %v\n%s", err, rootList)
+	}
+	if !strings.Contains(rootList, "uv") {
+		t.Fatalf("personal overlay deps list missing uv\n%s", rootList)
+	}
+	cfg, err := run(t, personalRepo, mise, 30*time.Second, "config", "get", "--file", overlayPath, "deps")
+	if err != nil {
+		t.Fatalf("mise config get deps from attention-mail: %v\n%s", err, cfg)
+	}
+	if !strings.Contains(cfg, "uv") {
+		t.Fatalf("personal overlay deps from attention-mail missing uv\n%s", cfg)
+	}
+	list, err := run(t, personalRepo, mise, 30*time.Second, "deps", "install", "--list")
+	if err != nil {
+		t.Fatalf("mise deps install --list in attention-mail: %v\n%s", err, list)
+	}
+	if !strings.Contains(list, "uv") && !strings.Contains(cfg, "[uv]") {
+		t.Fatalf("attention-mail did not see uv from the Personal overlay\nlist:\n%s\ncfg:\n%s", list, cfg)
+	}
+}
+
+func TestCompanyDepsDoesNotLeakPersonalOverlay(t *testing.T) {
+	mise := lookPath(t, "mise")
+	ls, err := run(t, companyRepo, mise, 30*time.Second, "config", "ls")
+	if err != nil {
+		t.Fatalf("mise config ls in company repo: %v\n%s", err, ls)
+	}
+	if strings.Contains(ls, "Developer/Personal/mise.toml") {
+		t.Fatalf("personal overlay leaked into company mise config ls\n%s", ls)
+	}
+	list, err := run(t, companyRepo, mise, 30*time.Second, "deps", "install", "--list")
+	if err != nil {
+		t.Fatalf("mise deps install --list in company repo: %v\n%s", err, list)
+	}
+	if strings.Contains(list, "Developer/Personal") {
+		t.Fatalf("personal overlay leaked into company deps list\n%s", list)
+	}
+}
+
+func TestWorktrunkConfigInstalled(t *testing.T) {
+	mustEqualFiles(t, "worktrunk/config.toml", worktrunkConfig)
+	wt := lookPath(t, "wt")
+	here, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := run(t, here, wt, 30*time.Second, "config", "show")
+	if err != nil {
+		t.Fatalf("wt config show: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "USER CONFIG") || !strings.Contains(out, "worktrunk/config.toml") {
+		t.Fatalf("wt config show did not find ~/.config/worktrunk/config.toml\n%s", out)
+	}
+	if !strings.Contains(out, worktreePath) {
+		t.Fatalf("wt config show missing worktree-path template\n%s", out)
+	}
+}
+
+func TestCowtreeCompactDryRunThisRepo(t *testing.T) {
+	cowtree := lookPath(t, "cowtree")
+	here, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := run(t, here, cowtree, 30*time.Second, "compact", "--all", "--dry-run")
+	if err != nil {
+		t.Fatalf("cowtree compact --all --dry-run: %v\n%s", err, out)
 	}
 }
 

@@ -4,12 +4,12 @@ The objective's sketch `~/Developer/{Company,Freelance,Personal}` is not this di
 
 ## Live roots
 
-| Role | Path | Status |
-|------|------|--------|
-| Personal | `~/Developer/Personal` | Real. Git checkouts live here (agentmux, attention-mail, zq, dotfiles, …) |
-| Company | `~/Developer/Software-Automation-Holdings` | Real. Do not rename to `Company` |
-| Freelance | — | Absent. Do not create a folder to match the sketch |
-| Base | `~/.config/mise/config.toml` | Global. Chezmoi-managed |
+| Role      | Path                                       | Status                                                                    |
+| --------- | ------------------------------------------ | ------------------------------------------------------------------------- |
+| Personal  | `~/Developer/Personal`                     | Real. Git checkouts live here (agentmux, attention-mail, zq, dotfiles, …) |
+| Company   | `~/Developer/Software-Automation-Holdings` | Real. Do not rename to `Company`                                          |
+| Freelance | —                                          | Absent. Do not create a folder to match the sketch                        |
+| Base      | `~/.config/mise/config.toml`               | Global. Chezmoi-managed                                                   |
 
 `~/Developer` also contains other trees (Zysys, ninja-quoter, artifacts, …). Those are not profile roots.
 

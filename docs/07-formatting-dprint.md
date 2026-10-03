@@ -4,7 +4,7 @@ Requirement: one command formats a Perl-heavy repo that also has Python, Go, she
 
 ## Decision
 
-dprint is the common frontend **later**. Phase 1 uses each repo's existing `mise run fmt` (attention-mail: trunk + ruff). dprint is not installed today (`command -v dprint` → absent).
+dprint is the Personal frontend. The overlay pins it (`[tools] dprint = "latest"`). This repo's `mise run fmt` is `dprint fmt`. attention-mail keeps trunk + ruff; do not run `dprint fmt` there or in agentmux.
 
 ## Split (required by dprint security)
 
@@ -12,18 +12,20 @@ From dprint config docs: when using `extends`, **non-Wasm plugins in remote conf
 
 Therefore:
 
-| Layer | Lives where | Contains |
-|-------|-------------|----------|
-| Shareable policy | this repo / git:: / HTTPS extends | Wasm plugins: json, markdown, toml, typescript, yaml; indent/line-width |
-| Trusted exec map | local profile installed by bootstrap (`~/Developer/Personal/.dprint.json` or similar, not a remote URL) | `dprint-plugin-exec` commands: shfmt, perltidy, gofmt/gofumpt, php-cs-fixer |
-| Repo override | optional `.dprint.json` `extends` + excludes | genuine local exceptions only |
+| Layer            | Lives where                                                           | Contains                                                                                               |
+| ---------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Shareable Wasm   | `format/personal.jsonc` copied to `~/Developer/Personal/dprint.jsonc` | typescript, json, markdown, toml, dockerfile, yaml, ruff, gofumpt, mago, kachick/sh                    |
+| Trusted exec map | same local file (not a remote URL)                                    | `npm:@dprint/exec` checksum from `dprint add exec`: perltidy (`pl`/`pm`/`t`), `terraform fmt -` (`tf`) |
+| Repo override    | optional `.dprint.json` `extends` + excludes                          | genuine local exceptions only                                                                          |
 
-Formatter **binaries** (shfmt, perltidy, …) are pinned through mise/Homebrew in the profile, not by copying configs into ~70 company repos.
+Ancestor discovery finds `~/Developer/Personal/dprint.jsonc` from any Personal checkout. Shell uses the kachick/sh Wasm plugin (`dprint add npm:@kachick/dprint-plugin-sh`), not exec.
+
+Formatter **binaries** for exec (perltidy, terraform) stay on PATH via Homebrew/mise. Do not copy dprint config into ~70 company repos.
 
 ## Incremental
 
-dprint formats incrementally. Broad multi-language runs stay cheap once installed.
+dprint formats incrementally. Broad multi-language runs stay cheap.
 
-## Phase 1
+## Dogfood
 
-Do not install dprint. Do not add `.dprint.json` to the SAH fleet. attention-mail `mise run fmt` is the dogfood command.
+`dprint fmt` / `dprint check` only inside this repo. attention-mail `mise run fmt` is unchanged.

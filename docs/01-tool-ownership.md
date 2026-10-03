@@ -4,20 +4,20 @@ Inspected 2026-10-03 on this Mac. `mise` is 2026.9.15 at `/opt/homebrew/bin/mise
 
 ## 1. mise-managed versioned tools
 
-| Tool | Path / source | Notes |
-|------|----------------|-------|
-| go 1.27.1 | mise shim | Global `[tools]` |
-| govulncheck 1.8.0 | mise `go:…` | Global |
-| hadolint latest (2.15.1) | mise | Global |
-| node 22 (22.23.3) | mise shim | Global; `idiomatic_version_file_enable_tools = ["node"]` |
-| semgrep 1.168.0 | mise | Global |
-| aube | mise shim | Node package manager; preferred over npm/pnpm for agents |
-| uv | mise shim | Owns Python. Not listed in global `[tools]` but shim is on PATH |
-| rustc / cargo | mise shim | Per-repo (e.g. sleep-until) |
-| ruby | mise shim | |
-| perl | mise shim | Homebrew perl also exists; zsh local::lib uses Homebrew perl |
-| lefthook | mise shim | Also pinned per-repo |
-| zq | `~/.local/bin/zq` → mise go 1.27.1 bin | Keep installed |
+| Tool                     | Path / source                          | Notes                                                           |
+| ------------------------ | -------------------------------------- | --------------------------------------------------------------- |
+| go 1.27.1                | mise shim                              | Global `[tools]`                                                |
+| govulncheck 1.8.0        | mise `go:…`                            | Global                                                          |
+| hadolint latest (2.15.1) | mise                                   | Global                                                          |
+| node 22 (22.23.3)        | mise shim                              | Global; `idiomatic_version_file_enable_tools = ["node"]`        |
+| semgrep 1.168.0          | mise                                   | Global                                                          |
+| aube                     | mise shim                              | Node package manager; preferred over npm/pnpm for agents        |
+| uv                       | mise shim                              | Owns Python. Not listed in global `[tools]` but shim is on PATH |
+| rustc / cargo            | mise shim                              | Per-repo (e.g. sleep-until)                                     |
+| ruby                     | mise shim                              |                                                                 |
+| perl                     | mise shim                              | Homebrew perl also exists; zsh local::lib uses Homebrew perl    |
+| lefthook                 | mise shim                              | Also pinned per-repo                                            |
+| zq                       | `~/.local/bin/zq` → mise go 1.27.1 bin | Keep installed                                                  |
 
 ## 2. Homebrew / system (bootstrap later)
 
@@ -36,14 +36,14 @@ php is `~/.local/bin/php` (not Homebrew).
 
 Do not rebuild these. Humans and agents use `mise run …`.
 
-| Ecosystem | Manager | Evidence |
-|-----------|---------|----------|
-| Node | aube preferred; npm and pnpm still on PATH | zsh wrappers on npm/pnpm; aube shim |
-| Python | uv (`uv run`, `uv sync`, `uv tool`) | zsh python fence; `UV_PYTHON_PREFERENCE=only-managed` |
-| PHP | Composer | Homebrew composer |
-| Go | native modules / `go install` | |
-| Rust | cargo | sleep-until `mise run test` = `cargo test --locked` |
-| Perl | CPAN / local::lib | `$HOME/perl5` |
+| Ecosystem | Manager                                    | Evidence                                              |
+| --------- | ------------------------------------------ | ----------------------------------------------------- |
+| Node      | aube preferred; npm and pnpm still on PATH | zsh wrappers on npm/pnpm; aube shim                   |
+| Python    | uv (`uv run`, `uv sync`, `uv tool`)        | zsh python fence; `UV_PYTHON_PREFERENCE=only-managed` |
+| PHP       | Composer                                   | Homebrew composer                                     |
+| Go        | native modules / `go install`              |                                                       |
+| Rust      | cargo                                      | sleep-until `mise run test` = `cargo test --locked`   |
+| Perl      | CPAN / local::lib                          | `$HOME/perl5`                                         |
 
 ## 4. Shell-only convenience
 

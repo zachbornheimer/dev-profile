@@ -21,11 +21,11 @@ Plus the existing devops set when the repo has it: `setup`, `lint`, `scan`, `ci`
 
 ## attention-mail (phase 1 dogfood)
 
-| Task | Exists | Command inside |
-|------|--------|----------------|
-| fmt | yes | trunk fmt + `uv run ruff` |
-| test | yes | `uv run pytest` |
-| dev | **no** | Do not add a server |
+| Task | Exists | Command inside            |
+| ---- | ------ | ------------------------- |
+| fmt  | yes    | trunk fmt + `uv run ruff` |
+| test | yes    | `uv run pytest`           |
+| dev  | **no** | Do not add a server       |
 
 Proven 2026-10-03: `mise run fmt` exit 0; `mise run test` 221 passed in 2.37s.
 

@@ -2,6 +2,29 @@
 # Installed as ~/Developer/Personal/mise.toml (copy of this file).
 # Do not put one-repo env here. AGENTMUX_INSTALL_STRICT belongs in
 # agentmux's own config, not a parent overlay.
+# Do not pin node/python versions here.
 
 [env]
 DEV_PROFILE = "personal"
+
+[settings]
+experimental = true
+
+[tools]
+dprint = "latest"
+
+[deps.aube]
+auto = true
+
+[deps.uv]
+auto = true
+
+[deps.composer]
+auto = true
+
+[deps.go]
+auto = true
+
+[tasks.fmt]
+description = "Format with dprint using the Personal ancestor config"
+run = "dprint fmt"

@@ -1,20 +1,29 @@
 [tasks.fmt]
-description = "Format Go sources in this repository"
-run = "gofmt -w ."
+description = "Format with dprint using the Personal ancestor config"
+run = "dprint fmt"
 
 [tasks.test]
 description = "Run profile-selection and dogfood tests against live mise"
 run = "go test ./..."
 
 [tasks.install-profile]
-description = "Install the personal overlay at ~/Developer/Personal/mise.toml and trust it"
+description = "Install the personal overlay, dprint ancestor, and worktrunk config"
 run = '''
 #!/usr/bin/env bash
 set -euo pipefail
 root="$(git rev-parse --show-toplevel)"
-src="${root}/profiles/personal.toml"
+
 dest="${HOME}/Developer/Personal/mise.toml"
-cp "${src}" "${dest}"
+cp "${root}/profiles/personal.toml" "${dest}"
 mise trust --yes "${dest}" || mise trust "${dest}"
 echo "installed ${dest}"
+
+dprint_dest="${HOME}/Developer/Personal/dprint.jsonc"
+cp "${root}/format/personal.jsonc" "${dprint_dest}"
+echo "installed ${dprint_dest}"
+
+mkdir -p "${HOME}/.config/worktrunk"
+wt_dest="${HOME}/.config/worktrunk/config.toml"
+cp "${root}/worktrunk/config.toml" "${wt_dest}"
+echo "installed ${wt_dest}"
 '''

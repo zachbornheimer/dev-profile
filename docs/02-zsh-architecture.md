@@ -4,17 +4,17 @@ Phase 1 does not rewrite the shell. This is the map so later cleanup is local.
 
 ## Sourced tree
 
-| File | Role |
-|------|------|
-| `~/.zshenv` | Every zsh. uv/pip policy, MAILCHECK=0, Colima/Docker socket |
-| `~/.zprofile` | Login: re-assert `~/.local/bin` after path_helper |
-| `~/.zshrc` | Interactive body (~26k, 11 numbered sections) |
-| `~/.config/zsh/startup-fast.zsh` | Cached inits (`_zsh_eval_cached`), no `mise activate` |
-| `~/.config/zsh/prompt.zsh` | Async git prompt |
-| `~/.config/zsh/nvim-perf.zsh` | nvim timing |
-| `~/.config/zsh/ssh.zsh` | kitten ssh + ssh-nas |
-| `~/.zshrc.local` | q/qf/qa, extra aliases, second zoxide init, `kp` |
-| `~/.zlogin` | Present, tiny |
+| File                             | Role                                                        |
+| -------------------------------- | ----------------------------------------------------------- |
+| `~/.zshenv`                      | Every zsh. uv/pip policy, MAILCHECK=0, Colima/Docker socket |
+| `~/.zprofile`                    | Login: re-assert `~/.local/bin` after path_helper           |
+| `~/.zshrc`                       | Interactive body (~26k, 11 numbered sections)               |
+| `~/.config/zsh/startup-fast.zsh` | Cached inits (`_zsh_eval_cached`), no `mise activate`       |
+| `~/.config/zsh/prompt.zsh`       | Async git prompt                                            |
+| `~/.config/zsh/nvim-perf.zsh`    | nvim timing                                                 |
+| `~/.config/zsh/ssh.zsh`          | kitten ssh + ssh-nas                                        |
+| `~/.zshrc.local`                 | q/qf/qa, extra aliases, second zoxide init, `kp`            |
+| `~/.zlogin`                      | Present, tiny                                               |
 
 Do not invent `~/.config/zsh/{env,tools,aliases,functions,completion,interactive}.zsh`. That tree already has four real modules.
 
@@ -38,16 +38,16 @@ Do not invent `~/.config/zsh/{env,tools,aliases,functions,completion,interactive
 
 ## Duplicates and shadows
 
-| Finding | Where |
-|---------|--------|
-| `ll` defined twice | `~/.zshrc` eza alias; `~/.zshrc.local` eza alias |
-| `dns`, `copy-ssh` | both files |
-| `clean-pyc` / `clean_pyc` / `clear-pyc` / `clear_pyc` | four aliases, same body, `.zshrc.local` |
-| `q` `qf` `qa` `qd` `qr` | `.zshrc.local` → zq. Keep while zq stays |
-| `qs` | `.zshrc.local`; body uses escaped `\$files` so it is currently broken |
-| `ls` `cat` `du` `df` `htop` `grep` `vi` `vim` `view` `gh` | interactive shadows; scripts keep POSIX names if they do not source aliases |
-| `npm` `pnpm` functions | Dropbox xattr after install |
-| `kp <port>` | `kill -9` whatever is on that port — agents must never use this for collisions |
+| Finding                                                   | Where                                                                          |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `ll` defined twice                                        | `~/.zshrc` eza alias; `~/.zshrc.local` eza alias                               |
+| `dns`, `copy-ssh`                                         | both files                                                                     |
+| `clean-pyc` / `clean_pyc` / `clear-pyc` / `clear_pyc`     | four aliases, same body, `.zshrc.local`                                        |
+| `q` `qf` `qa` `qd` `qr`                                   | `.zshrc.local` → zq. Keep while zq stays                                       |
+| `qs`                                                      | `.zshrc.local`; body uses escaped `\$files` so it is currently broken          |
+| `ls` `cat` `du` `df` `htop` `grep` `vi` `vim` `view` `gh` | interactive shadows; scripts keep POSIX names if they do not source aliases    |
+| `npm` `pnpm` functions                                    | Dropbox xattr after install                                                    |
+| `kp <port>`                                               | `kill -9` whatever is on that port — agents must never use this for collisions |
 
 ## Env managers
 
