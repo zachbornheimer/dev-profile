@@ -109,6 +109,20 @@ func TestDogfoodMiseRunTest(t *testing.T) {
 	}
 }
 
+func TestInstalledOverlayMatchesSource(t *testing.T) {
+	src, err := os.ReadFile("profiles/personal.toml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dst, err := os.ReadFile(overlayPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(src) != string(dst) {
+		t.Fatalf("live overlay %s does not match profiles/personal.toml", overlayPath)
+	}
+}
+
 func TestZQStillInstalled(t *testing.T) {
 	first := lookPath(t, "zq")
 	second := lookPath(t, "zq")
