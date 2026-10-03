@@ -26,7 +26,7 @@
 - `~/.zshrc`, `~/.zshrc.local`, `~/.config/zsh/*`
 - any file under `~/Developer/Personal/zq`
 - any Software-Automation-Holdings repository policy file (no bulk copy)
-- `~/.config/mise/config.toml` / chezmoi mise source (leave AGENTMUX_INSTALL_STRICT leak documented)
+- `~/.config/mise/config.toml` / chezmoi mise source (STRICT leak removed; agentmux `.mise.toml` owns it)
 - Portless, Caddy config
 - `wt config shell install` or Worktrunk LLM/plugin install
 - a new binary on PATH besides the mise-pinned dprint

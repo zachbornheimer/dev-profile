@@ -19,13 +19,14 @@
 
 ## Later (ordered)
 
-1. Move `AGENTMUX_INSTALL_STRICT` out of global mise and `~/.zshrc` into agentmux
-2. Optional `git::` include once this repo has a remote
-3. Portless or hash_port+Caddy on one Personal app with a durable `dev` task
-4. Zsh cleanup: drop duplicate zoxide/PATH/aliases; autoload functions; keep q/* until zq hooks go
-5. SAH parent overlay (company policy once, not 70 copies)
-6. Employee `mise bootstrap --from <profile>`
-7. Remove zq responsibilities that the above made redundant; keep survivors (coordinate, land verdicts, leftover specialized gates)
+`AGENTMUX_INSTALL_STRICT` is out of global mise and `~/.zshrc` (chezmoi main `ad33364`; agentmux origin/main already had the env).
+
+1. Optional `git::` include once this repo has a remote
+2. Portless or hash_port+Caddy on one Personal app with a durable `dev` task
+3. Zsh cleanup: drop duplicate zoxide/PATH/aliases; autoload functions; keep q/* until zq hooks go
+4. SAH parent overlay (company policy once, not 70 copies)
+5. Employee `mise bootstrap --from <profile>`
+6. Remove zq responsibilities that the above made redundant; keep survivors (coordinate, land verdicts, leftover specialized gates)
 
 ## Rollback
 

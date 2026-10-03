@@ -27,11 +27,29 @@ func lookPath(t *testing.T, name string) string {
 	return p
 }
 
+func envWithout(name string) []string {
+	prefix := name + "="
+	env := os.Environ()
+	out := make([]string, 0, len(env))
+	for _, e := range env {
+		if strings.HasPrefix(e, prefix) {
+			continue
+		}
+		out = append(out, e)
+	}
+	return out
+}
+
 func run(t *testing.T, dir, bin string, timeout time.Duration, args ...string) (string, error) {
+	t.Helper()
+	return runEnv(t, dir, bin, os.Environ(), timeout, args...)
+}
+
+func runEnv(t *testing.T, dir, bin string, env []string, timeout time.Duration, args ...string) (string, error) {
 	t.Helper()
 	cmd := exec.Command(bin, args...)
 	cmd.Dir = dir
-	cmd.Env = os.Environ()
+	cmd.Env = env
 	var b strings.Builder
 	cmd.Stdout = &b
 	cmd.Stderr = &b
@@ -88,6 +106,35 @@ func TestCompanyDirectoryDoesNotApplyPersonalOverlay(t *testing.T) {
 	if strings.Contains(env, "DEV_PROFILE=personal") {
 		t.Fatalf("DEV_PROFILE=personal leaked into company mise env\n%s", env)
 	}
+}
+
+func TestInstallStrictDoesNotLeak(t *testing.T) {
+	mise := lookPath(t, "mise")
+	childEnv := envWithout("AGENTMUX_INSTALL_STRICT")
+	for _, dir := range []string{companyRepo, personalRepo} {
+		t.Run(filepath.Base(dir), func(t *testing.T) {
+			out, err := runEnv(t, dir, mise, childEnv, 30*time.Second, "env")
+			if err != nil {
+				t.Fatalf("mise env in %s: %v\n%s", dir, err, out)
+			}
+			if strings.Contains(out, "AGENTMUX_INSTALL_STRICT") {
+				t.Fatalf("AGENTMUX_INSTALL_STRICT leaked from mise env in %s\n%s", dir, out)
+			}
+		})
+	}
+	t.Run("agentmux-install-main", func(t *testing.T) {
+		const agentmuxDir = "/Users/zbornheimer/Developer/Personal/.worktrees/agentmux-install-main"
+		if _, err := os.Stat(filepath.Join(agentmuxDir, ".mise.toml")); err != nil {
+			t.Skip("agentmux-install-main worktree or .mise.toml absent")
+		}
+		out, err := runEnv(t, agentmuxDir, mise, childEnv, 30*time.Second, "env")
+		if err != nil {
+			t.Fatalf("mise env in agentmux-install-main: %v\n%s", err, out)
+		}
+		if !strings.Contains(out, "AGENTMUX_INSTALL_STRICT") {
+			t.Fatalf("AGENTMUX_INSTALL_STRICT missing from mise env in agentmux-install-main\n%s", out)
+		}
+	})
 }
 
 func TestDogfoodMiseRunFmt(t *testing.T) {

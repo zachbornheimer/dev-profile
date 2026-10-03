@@ -58,4 +58,4 @@ See artifact 2. Keep: git aliases, zoxide, atuin, fzf, opr/denv, opssh, teleport
 
 ## Leak
 
-Global `[env] AGENTMUX_INSTALL_STRICT = "1"` applies under Software-Automation-Holdings as well (`mise env` from `dev-config` exports it). That is one-repo policy in the base layer. Move it into agentmux's repo config in a later phase. Phase 1 does not copy it into the Personal overlay.
+`AGENTMUX_INSTALL_STRICT` no longer leaks from global mise or `~/.zshrc` (chezmoi main `ad33364`). It lives in agentmux `.mise.toml` (`[env] AGENTMUX_INSTALL_STRICT = "1"` on origin/main). The Personal overlay still must not carry it.

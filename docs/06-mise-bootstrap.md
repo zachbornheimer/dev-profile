@@ -11,7 +11,7 @@ Keep **shims**, not `mise activate`. Parent-directory merge is the profile selec
 3. `mise trust ~/Developer/Personal/mise.toml`.
 4. Repo `mise.toml` files stay as they are. A child's `[tasks.fmt]` still wins (attention-mail: trunk + ruff).
 
-The Personal overlay now also pins `dprint`, enables experimental mise, and declares `[deps]` auto-providers. Do not put node/python versions or one-repo `[env]` (including `AGENTMUX_INSTALL_STRICT`) in the parent.
+The Personal overlay now also pins `dprint`, enables experimental mise, and declares `[deps]` auto-providers. Do not put node/python versions or one-repo `[env]` (including `AGENTMUX_INSTALL_STRICT`) in the parent. Global mise and `~/.zshrc` no longer export it; agentmux `.mise.toml` owns it.
 
 ## `include`
 

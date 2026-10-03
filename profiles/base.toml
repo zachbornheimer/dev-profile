@@ -9,10 +9,6 @@
 #   hadolint = "latest"
 #   node = "22"
 #   semgrep = "1.168.0"
-#
-# Known leak to remove later: [env] AGENTMUX_INSTALL_STRICT = "1"
-# is in the global file and therefore applies under Software-Automation-Holdings
-# as well. Move it into agentmux's repo config.
 
 [env]
 DEV_PROFILE = "base"

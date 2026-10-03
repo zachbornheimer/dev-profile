@@ -53,8 +53,6 @@ Do not invent `~/.config/zsh/{env,tools,aliases,functions,completion,interactive
 
 mise shims + uv + direnv hook + zq activate + (optional) perlbrew function. No asdf/nvm/pyenv on the interactive PATH.
 
-`AGENTMUX_INSTALL_STRICT=1` is exported at the end of `~/.zshrc` **and** in global mise. Two sources of the same leak.
-
 ## Startup cost
 
 `startup-fast.zsh` exists specifically to avoid `brew shellenv` and `mise activate`. Completions rebuild at most daily (`compinit -C`). Phase 1 leaves this. Timing capture is skipped until a Zsh edit happens (`zsh-startup-unchanged.txt`).
