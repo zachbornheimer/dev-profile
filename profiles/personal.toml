@@ -1,0 +1,7 @@
+# Personal overlay. Directory location is the selector.
+# Installed as ~/Developer/Personal/mise.toml (copy of this file).
+# Do not put one-repo env here. AGENTMUX_INSTALL_STRICT belongs in
+# agentmux's own config, not a parent overlay.
+
+[env]
+DEV_PROFILE = "personal"

@@ -1,0 +1,12 @@
+# Allowlist
+*
+!/.gitignore
+!/README.md
+!/go.mod
+!/go.sum
+!/mise.toml
+!/*.go
+!/docs/
+!/docs/**
+!/profiles/
+!/profiles/**

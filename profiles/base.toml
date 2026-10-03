@@ -1,0 +1,18 @@
+# Base layer (universal). Phase 1 keeps this as documentation of today's
+# global ~/.config/mise/config.toml (chezmoi:
+# ~/Developer/Personal/dotfiles/home/dot_config/mise/config.toml).
+# Do not install this as ~/Developer/mise.toml in phase 1.
+#
+# Live global tools (2026-10-03):
+#   go = "1.27.1"
+#   go:golang.org/x/vuln/cmd/govulncheck = "1.8.0"
+#   hadolint = "latest"
+#   node = "22"
+#   semgrep = "1.168.0"
+#
+# Known leak to remove later: [env] AGENTMUX_INSTALL_STRICT = "1"
+# is in the global file and therefore applies under Software-Automation-Holdings
+# as well. Move it into agentmux's repo config.
+
+[env]
+DEV_PROFILE = "base"
