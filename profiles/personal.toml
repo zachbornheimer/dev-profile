@@ -11,7 +11,7 @@ DEV_PROFILE = "personal"
 experimental = true
 
 [tools]
-dprint = "latest"
+dprint = "0.59.0"
 
 [deps.aube]
 auto = true
