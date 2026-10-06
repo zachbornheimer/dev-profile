@@ -68,6 +68,13 @@ liveTargets: Mapping<String, String> = new {
 
 phase: types.Policy = new {}
 
+/// Global git hooks (git 2.54+ config-based hooks), written by bootstrap.
+/// No `--from-hook`: that mode skips every repo without its own hk.pkl.
+gitHooks: Mapping<String, String> = new {
+  ["pre-commit"] = "hk run pre-commit --staged"
+  ["pre-push"] = "hk run pre-push"
+}
+
 settings: types.Settings = new {}
 
 deps: Listing<types.DepProvider> = new {
