@@ -436,11 +436,11 @@ output {
     // Linked as ~/.config/hk/config.pkl. Absolute, because Pkl resolves relative
     // imports from the symlink's directory, not its target's.
     ["hk-config.pkl"] { text = "amends \"\(installPath)/src/lib/hk.pkl\"\n" }
-    ["dprint.jsonc"] { text = render.dprint() }
+    ["dprint.jsonc"] { text = render.jsoncFile(render.dprint) }
     // Not named mise.toml: tools run from this dir must not auto-load it as a project config.
-    ["mise-profile.toml"] { text = render.mise() }
-    ["worktrunk.toml"] { text = render.worktrunk() }
-    ["personal-overlay.toml"] { text = render.personalOverlay() }
+    ["mise-profile.toml"] { text = render.tomlFile(render.mise) }
+    ["worktrunk.toml"] { text = render.tomlFile(render.worktrunk) }
+    ["personal-overlay.toml"] { text = render.tomlFile(render.personalOverlay) }
     // Hand-written adapter; copied so install-live links one directory.
     ["conform.lua"] { text = read("conform.lua").text }
     ["profile.json"] {
