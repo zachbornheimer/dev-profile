@@ -1,29 +1,150 @@
-[tasks.fmt]
-description = "Format with dprint using the Personal ancestor config"
-run = "dprint fmt"
+# Dev Profile kernel. `mise bootstrap --from <this repo>` installs Pkl, then the
+# bootstrap task renders profile.pkl into DEV_PROFILE_OUT, backs up live configs,
+# and re-runs `mise bootstrap` on the generated config, which installs the tools
+# and links the live configs. `mise run rollback` restores the originals.
 
-[tasks.test]
-description = "Run profile-selection and dogfood tests against live mise"
-run = "go test ./..."
+min_version = "2026.10.0"
 
-[tasks.install-profile]
-description = "Install the personal overlay, dprint ancestor, and worktrunk config"
-run = '''
+[tools]
+pkl = "0.32.1"
+
+[env]
+DEV_PROFILE_OUT = "{{env.HOME}}/.local/share/dev-profile"
+DEV_PROFILE_BACKUPS = "{{env.HOME}}/.local/state/dev-profile/backups"
+
+[bootstrap.packages]
+"brew:git" = "latest"
+
+[tasks.generate]
+description = "Render profile.pkl into DEV_PROFILE_OUT"
+run = """
 #!/usr/bin/env bash
 set -euo pipefail
-root="$(git rev-parse --show-toplevel)"
+# Render fresh, then swap, so files dropped from profile.pkl do not linger.
+next="$DEV_PROFILE_OUT.next"
+rm -rf "$next"
+pkl eval -m "$next" profile.pkl >/dev/null
+chmod +x "$next"/bin/*
+rm -rf "$DEV_PROFILE_OUT"
+mv "$next" "$DEV_PROFILE_OUT"
+echo "generated $DEV_PROFILE_OUT"
+"""
 
-dest="${HOME}/Developer/Personal/mise.toml"
-cp "${root}/profiles/personal.toml" "${dest}"
-mise trust --yes "${dest}" || mise trust "${dest}"
-echo "installed ${dest}"
+[tasks.bootstrap]
+description = "Generate, back up live configs, then re-bootstrap on the generated config"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+mise run generate
+mise run backup-live
+MISE_GLOBAL_CONFIG_FILE="$DEV_PROFILE_OUT/mise-profile.toml" \\
+  mise bootstrap --yes --skip task,final-hook --force-dotfiles
+"""
 
-dprint_dest="${HOME}/Developer/Personal/dprint.jsonc"
-cp "${root}/format/personal.jsonc" "${dprint_dest}"
-echo "installed ${dprint_dest}"
+[tasks.setup]
+description = "Same as `mise bootstrap`"
+run = "mise bootstrap --yes"
 
-mkdir -p "${HOME}/.config/worktrunk"
-wt_dest="${HOME}/.config/worktrunk/config.toml"
-cp "${root}/worktrunk/config.toml" "${wt_dest}"
-echo "installed ${wt_dest}"
-'''
+[tasks.diff-live]
+description = "Show what install-live would change in live configs"
+run = 'MISE_GLOBAL_CONFIG_FILE="$DEV_PROFILE_OUT/mise-profile.toml" mise bootstrap dotfiles diff'
+
+[tasks.backup-live]
+description = "Copy live configs that install would replace (skips ones already linked)"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+backup="$DEV_PROFILE_BACKUPS/$(date -u +%Y%m%dT%H%M%SZ)"
+mkdir -p "$backup"
+pkl eval -x 'liveTargets.keys.join("\\n")' profile.pkl >"$backup/targets"
+saved=0
+while IFS= read -r target || [[ -n "$target" ]]; do
+  live="${target/#\\~/$HOME}"
+  [[ "$(readlink "$live" 2>/dev/null)" == "$DEV_PROFILE_OUT"/* ]] && continue
+  if [[ -e "$live" || -L "$live" ]]; then
+    mkdir -p "$backup$(dirname "$live")"
+    cp -pP "$live" "$backup$live"
+    saved=$((saved + 1))
+  fi
+done <"$backup/targets"
+if [[ "$saved" -eq 0 && -n "$(ls -1 "$DEV_PROFILE_BACKUPS" | grep -v '\\.restored$' | grep -v "^${backup##*/}$" || true)" ]]; then
+  rm -rf "$backup"  # already installed; keep the earlier backup as the rollback point
+  echo "live configs already linked; no new backup"
+else
+  echo "backed up $saved live config(s) to $backup"
+fi
+"""
+
+[tasks.install-live]
+description = "Re-link generated configs into live paths (bootstrap already does this)"
+depends = ["doctor", "backup-live"]
+run = 'MISE_GLOBAL_CONFIG_FILE="$DEV_PROFILE_OUT/mise-profile.toml" mise bootstrap dotfiles apply --yes --force'
+
+[tasks.rollback]
+description = "Restore live configs from the newest install-live backup"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+latest="$(ls -1 "$DEV_PROFILE_BACKUPS" 2>/dev/null | grep -v '\\.restored$' | tail -1 || true)"
+[[ -n "$latest" ]] || { echo "no install-live backup to restore" >&2; exit 1; }
+backup="$DEV_PROFILE_BACKUPS/$latest"
+while IFS= read -r target || [[ -n "$target" ]]; do
+  live="${target/#\\~/$HOME}"
+  rm -f "$live"
+  if [[ -e "$backup$live" || -L "$backup$live" ]]; then
+    cp -pP "$backup$live" "$live"
+  fi
+done <"$backup/targets"
+mv "$backup" "$backup.restored"
+echo "restored live configs from $backup"
+"""
+
+[tasks.doctor]
+description = "Validate generated configs without touching live paths"
+depends = ["generate"]
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+out="$DEV_PROFILE_OUT"
+tmp="$(cd "$(mktemp -d)" && pwd -P)"  # resolve /var -> /private/var for pkl -m
+trap 'rm -rf "$tmp"' EXIT
+fail() { echo "FAIL: $*" >&2; exit 1; }
+
+pkl eval -m "$tmp/out" profile.pkl >/dev/null
+chmod +x "$tmp"/out/bin/*
+diff -r "$out" "$tmp/out" >/dev/null || fail "generation is not deterministic"
+hk --cd "$out" validate >/dev/null || fail "hk validate"
+wt --config "$out/worktrunk.toml" config show >/dev/null || fail "worktrunk config"
+luac -p "$out/conform.lua" || fail "conform.lua syntax"
+jq -e '.filetypes | .python and .php and .go' "$out/profile.json" >/dev/null || fail "profile.json filetypes"
+! rg -n '\\bzq\\b' "$out" || fail "generated files reference zq"
+! rg -n '/Users/' "$out" | rg -v '/\\.local/bin/_llm' || fail "unexpected absolute path"
+
+ctx="$out/bin/dev-profile-php-context"
+mkdir -p "$tmp/wp/wp-content" "$tmp/fixer" "$tmp/both"
+echo '<?php' | tee "$tmp/wp/p.php" "$tmp/fixer/.php-cs-fixer.php" "$tmp/fixer/s.php" \\
+  "$tmp/both/.php-cs-fixer.php" "$tmp/both/p.php" >/dev/null
+echo '<ruleset><rule ref="WordPress"/></ruleset>' >"$tmp/both/phpcs.xml"
+[[ "$("$ctx" "$tmp/wp/p.php")" == wordpress* ]] || fail "wp-content should select wordpress"
+[[ "$("$ctx" "$tmp/fixer/s.php")" == php-cs-fixer* ]] || fail ".php-cs-fixer.php should select php-cs-fixer"
+[[ "$("$ctx" "$tmp/both/p.php")" == wordpress* ]] || fail "WordPress phpcs.xml must beat php-cs-fixer"
+echo "doctor ok"
+"""
+
+[tasks.fmt]
+description = "Format this repo with the generated dprint config"
+depends = ["generate"]
+run = 'dprint fmt --config "$DEV_PROFILE_OUT/dprint.jsonc" "**/*"'
+
+[tasks.lint]
+description = "Check formatting"
+depends = ["generate"]
+run = 'dprint check --config "$DEV_PROFILE_OUT/dprint.jsonc" "**/*"'
+
+[tasks.test]
+description = "Validate generated configs"
+run = "mise run doctor"
+
+[tasks.ci]
+description = "lint, then test (sequential: both regenerate DEV_PROFILE_OUT)"
+run = ["mise run lint", "mise run test"]

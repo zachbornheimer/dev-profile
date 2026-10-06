@@ -1,28 +1,30 @@
 # Dev Profile
 
-Version-controlled personal development profile. Not an orchestration tool.
+`profile.pkl` is the source of truth. hk, dprint, mise, Worktrunk, and Conform
+configs are rendered from it into `~/.local/share/dev-profile`.
 
-`cd` into a git checkout under `~/Developer/Personal` selects this overlay. There is no `profile` command.
+Fresh machine (after mise is installed):
 
-```
-mise run fmt
-mise run test
-```
-
-are the canonical commands. Agents do not pick npm, pnpm, aube, uv, or Composer.
-
-Install the overlay on this machine:
-
-```
-mise run install-profile
+```bash
+mise bootstrap --from git@github.com:zachbornheimer/dev-profile.git
 ```
 
-That copies:
+Bootstrap installs Pkl, renders the profile into `~/.local/share/dev-profile`,
+backs up any live configs it would replace to `~/.local/state/dev-profile/backups`,
+then re-runs `mise bootstrap` on the generated config. That second pass installs
+the tools and links hk, dprint, Worktrunk, mise, and Conform configs.
 
-- `profiles/personal.toml` → `~/Developer/Personal/mise.toml` (trusted)
-- `format/personal.jsonc` → `~/Developer/Personal/dprint.jsonc`
-- `worktrunk/config.toml` → `~/.config/worktrunk/config.toml`
+```bash
+mise run diff-live   # what linking would change
+mise run rollback    # restore the backed-up originals
+```
 
-This repo's `mise run fmt` is `dprint fmt`. attention-mail keeps its own `fmt` and `test`.
+| Path             | Role                                 |
+| ---------------- | ------------------------------------ |
+| `mise.toml`      | kernel: Pkl pin and tasks            |
+| `profile.pkl`    | languages, tools, phases, live paths |
+| `lib/types.pkl`  | types                                |
+| `lib/render.pkl` | one renderer per generated file      |
 
-Design: `docs/01-tool-ownership.md` through `docs/12-not-rebuilt.md`.
+Phases: save formats; commit converges (format, autofix, modernize, stage) and
+never blocks on leftover lint; push and CI judge correctness.
