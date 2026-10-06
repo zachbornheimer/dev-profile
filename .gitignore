@@ -1,16 +1,9 @@
-# Allowlist
+# Sources only. `mise run generate` writes outputs to ~/.local/share/dev-profile.
 *
 !/.gitignore
 !/README.md
-!/go.mod
-!/go.sum
 !/mise.toml
-!/*.go
-!/docs/
-!/docs/**
-!/profiles/
-!/profiles/**
-!/format/
-!/format/**
-!/worktrunk/
-!/worktrunk/**
+!/profile.pkl
+!/conform.lua
+!/lib/
+!/lib/*.pkl
