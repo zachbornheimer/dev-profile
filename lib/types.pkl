@@ -23,15 +23,13 @@ class Spec {
   /// dprint coverage for this language.
   dprint: DprintBinding = new DprintBinding {}
 
-
-
   /// mise tool ids to install when this language is globally supported.
   tools: Listing<String> = new {}
 }
 
 class DprintBinding {
   /// `wasm` uses a dprint plugin. `exec` uses a process plugin command. `none` is unsupported.
-  kind: "wasm"|"exec"|"none" = "none"
+  kind: "wasm" | "exec" | "none" = "none"
 
   /// Logical plugin group (typescript, json, markdown, toml, dockerfile, yaml, ruff, gofumpt, sh).
   plugin: String?

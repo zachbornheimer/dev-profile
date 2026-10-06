@@ -2,10 +2,11 @@
 /// Consumers (hk, dprint, mise, worktrunk, Conform) are generated from this file.
 module profile
 
-import "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pkl" as hk
 import "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Builtins.pkl"
-import "lib/types.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pkl" as hk
+
 import "lib/render.pkl"
+import "lib/types.pkl"
 
 exclude: Listing<String> = new {
   "node_modules"
@@ -51,7 +52,8 @@ dprintPlugins: Listing<String> = new {
 }
 
 /// Where `mise run generate` writes outputs. Set once in mise.toml [env].
-installPath: String = read?("env:DEV_PROFILE_OUT") ?? throw("DEV_PROFILE_OUT is unset; run `mise run generate`")
+installPath: String =
+  read?("env:DEV_PROFILE_OUT") ?? throw("DEV_PROFILE_OUT is unset; run `mise run generate`")
 
 /// installPath with ~ for consumers that expand it (mise, dotfiles, Neovim).
 installDir: String = installPath.replaceFirst(read("env:HOME"), "~")
@@ -80,14 +82,36 @@ shellInit: Mapping<String, String> = new {
 /// Commit: each fixer rewrites what it safely can (modernize included) and is
 /// staged. Fixers never fail on what they cannot fix; checks judge that at push.
 fixers: Mapping<String, hk.Step> = new {
-  ["ruff-fix"] { types = List("python"); fix = "ruff check --force-exclude --fix-only --unsafe-fixes {{files}}" }
+  ["ruff-fix"] {
+    types = List("python")
+    fix = "ruff check --force-exclude --fix-only --unsafe-fixes {{files}}"
+  }
   ["php-fmt"] { glob = List("**/*.php"); fix = "dev-profile-php-fmt {{files}}" }
   ["go-imports"] = Builtins.go_imports
   // go fix needs compiling code, so goimports adds missing imports first.
   ["go-fix"] = (Builtins.go_fix) { depends = List("go-imports") }
-  ["oxlint-fix"] { glob = List("**/*.js", "**/*.mjs", "**/*.cjs", "**/*.ts", "**/*.mts", "**/*.cts", "**/*.jsx", "**/*.tsx", "**/*.vue", "**/*.svelte", "**/*.astro"); fix = "dev-profile-oxlint-fix {{files}}" }
+  ["oxlint-fix"] {
+    glob =
+      List(
+        "**/*.js",
+        "**/*.mjs",
+        "**/*.cjs",
+        "**/*.ts",
+        "**/*.mts",
+        "**/*.cts",
+        "**/*.jsx",
+        "**/*.tsx",
+        "**/*.vue",
+        "**/*.svelte",
+        "**/*.astro",
+      )
+    fix = "dev-profile-oxlint-fix {{files}}"
+  }
   ["rubocop-fix"] { glob = List("**/*.rb", "**/*.rake"); fix = "dev-profile-rubocop-fix {{files}}" }
-  ["perltidy"] { glob = List("**/*.pl", "**/*.pm", "**/*.t"); check_diff = "hk util format-diff {{files}} -- perltidy -st -q" }
+  ["perltidy"] {
+    glob = List("**/*.pl", "**/*.pm", "**/*.t")
+    check_diff = "hk util format-diff {{files}} -- perltidy -st -q"
+  }
   ["shellharden"] = Builtins.shellharden
   ["swiftlint-fix"] { glob = List("**/*.swift"); fix = "dev-profile-swiftlint-fix {{files}}" }
 }
@@ -183,7 +207,12 @@ languages: Listing<types.Spec> = new {
     nvimFiletypes { "go" }
     nativeConfigs { "go.mod"; ".golangci.yml"; ".golangci.yaml"; ".golangci.toml" }
     dprint { kind = "wasm"; plugin = "gofumpt" }
-    tools { "go"; "go:golang.org/x/tools/cmd/goimports"; "go:golang.org/x/vuln/cmd/govulncheck"; "golangci-lint" }
+    tools {
+      "go"
+      "go:golang.org/x/tools/cmd/goimports"
+      "go:golang.org/x/vuln/cmd/govulncheck"
+      "golangci-lint"
+    }
   }
   new {
     id = "python"
@@ -221,7 +250,16 @@ languages: Listing<types.Spec> = new {
     extensions { "js"; "mjs"; "cjs"; "jsx" }
     nvimFiletypes { "javascript"; "javascriptreact" }
     shebangs { ["#!/usr/bin/env node"] = "js" }
-    nativeConfigs { "package.json"; "eslint.config.js"; "eslint.config.mjs"; "eslint.config.ts"; ".oxlintrc.json"; ".oxlintrc.jsonc"; "oxlint.config.ts"; "tsconfig.json" }
+    nativeConfigs {
+      "package.json"
+      "eslint.config.js"
+      "eslint.config.mjs"
+      "eslint.config.ts"
+      ".oxlintrc.json"
+      ".oxlintrc.jsonc"
+      "oxlint.config.ts"
+      "tsconfig.json"
+    }
     dprint { kind = "wasm"; plugin = "typescript" }
     tools { "oxlint"; "node" }
   }
@@ -229,7 +267,13 @@ languages: Listing<types.Spec> = new {
     id = "typescript"
     extensions { "ts"; "mts"; "cts"; "tsx" }
     nvimFiletypes { "typescript"; "typescriptreact" }
-    nativeConfigs { "tsconfig.json"; "package.json"; ".oxlintrc.json"; ".oxlintrc.jsonc"; "oxlint.config.ts" }
+    nativeConfigs {
+      "tsconfig.json"
+      "package.json"
+      ".oxlintrc.json"
+      ".oxlintrc.jsonc"
+      "oxlint.config.ts"
+    }
     dprint { kind = "wasm"; plugin = "typescript" }
     tools { "oxlint"; "node" }
   }
@@ -335,6 +379,17 @@ languages: Listing<types.Spec> = new {
       exts { "lua" }
     }
     tools { "stylua" }
+  }
+  new {
+    id = "pkl"
+    extensions { "pkl" }
+    nvimFiletypes { "pkl" }
+    dprint {
+      kind = "exec"
+      command = "dev-profile-pkl-fmt"
+      exts { "pkl" }
+    }
+    tools { "pkl" }
   }
   new {
     id = "rust"
