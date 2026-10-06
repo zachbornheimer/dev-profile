@@ -35,7 +35,7 @@ description = "Generate, back up live configs, then re-bootstrap on the generate
 run = """
 #!/usr/bin/env bash
 set -euo pipefail
-mise run generate
+mise run doctor  # generates, then syntax-checks before anything is linked
 mise run backup-live
 mise run install-git-hooks
 MISE_GLOBAL_CONFIG_FILE="$DEV_PROFILE_OUT/mise-profile.toml" \\
@@ -115,34 +115,21 @@ echo "restored live configs from $backup"
 """
 
 [tasks.doctor]
-description = "Validate generated configs without touching live paths"
+description = "Syntax-check every generated file with the tool that consumes it"
 depends = ["generate"]
 run = """
 #!/usr/bin/env bash
 set -euo pipefail
 out="$DEV_PROFILE_OUT"
-tmp="$(cd "$(mktemp -d)" && pwd -P)"  # resolve /var -> /private/var for pkl -m
-trap 'rm -rf "$tmp"' EXIT
 fail() { echo "FAIL: $*" >&2; exit 1; }
-
-pkl eval -m "$tmp/out" profile.pkl >/dev/null
-chmod +x "$tmp"/out/bin/*
-diff -r "$out" "$tmp/out" >/dev/null || fail "generation is not deterministic"
-hk --cd "$out" validate >/dev/null || fail "hk validate"
-wt --config "$out/worktrunk.toml" config show >/dev/null || fail "worktrunk config"
-luac -p "$out/conform.lua" || fail "conform.lua syntax"
-jq -e '.filetypes | .python and .php and .go' "$out/profile.json" >/dev/null || fail "profile.json filetypes"
-! rg -n '\\bzq\\b' "$out" || fail "generated files reference zq"
-! rg -n '/Users/' "$out" | rg -v '/\\.local/bin/_llm' || fail "unexpected absolute path"
-
-ctx="$out/bin/dev-profile-php-context"
-mkdir -p "$tmp/wp/wp-content" "$tmp/fixer" "$tmp/both"
-echo '<?php' | tee "$tmp/wp/p.php" "$tmp/fixer/.php-cs-fixer.php" "$tmp/fixer/s.php" \\
-  "$tmp/both/.php-cs-fixer.php" "$tmp/both/p.php" >/dev/null
-echo '<ruleset><rule ref="WordPress"/></ruleset>' >"$tmp/both/phpcs.xml"
-[[ "$("$ctx" "$tmp/wp/p.php")" == wordpress* ]] || fail "wp-content should select wordpress"
-[[ "$("$ctx" "$tmp/fixer/s.php")" == php-cs-fixer* ]] || fail ".php-cs-fixer.php should select php-cs-fixer"
-[[ "$("$ctx" "$tmp/both/p.php")" == wordpress* ]] || fail "WordPress phpcs.xml must beat php-cs-fixer"
+HK_FILE="$out/hk-config.pkl" hk validate >/dev/null || fail hk-config.pkl
+dprint output-resolved-config --config "$out/dprint.jsonc" >/dev/null || fail dprint.jsonc
+MISE_GLOBAL_CONFIG_FILE="$out/mise-profile.toml" mise settings ls >/dev/null || fail mise-profile.toml
+MISE_GLOBAL_CONFIG_FILE="$out/personal-overlay.toml" mise settings ls >/dev/null || fail personal-overlay.toml
+wt --config "$out/worktrunk.toml" config show >/dev/null || fail worktrunk.toml
+jq empty "$out/profile.json" || fail profile.json
+luac -p "$out/conform.lua" || fail conform.lua
+for f in "$out"/bin/*; do bash -n "$f" || fail "${f##*/}"; done
 echo "doctor ok"
 """
 

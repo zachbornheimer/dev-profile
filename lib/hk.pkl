@@ -1,0 +1,34 @@
+/// Global hk config, derived from profile.pkl. hk evaluates and type-checks this
+/// module itself; ~/.config/hk/config.pkl links here.
+///   commit / `hk fix`        → fixers + hygiene, staged
+///   push / `hk check --slow` → checks + hygiene, may block
+amends "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pkl"
+
+import "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Builtins.pkl"
+import "../profile.pkl"
+
+fail_fast = false
+stash_backup_count = 20
+// A fresh Listing: hk rejects a typed Listing<String> passed through as-is.
+exclude = new Listing { ...profile.exclude }
+
+steps {
+  // Format last, after fixers have removed or rewritten code.
+  ["dprint"] = (Builtins.dprint) {
+    depends = profile.fixers.keys.toList()
+  }
+  ...profile.fixers
+  ...profile.hygiene
+  for (id, step in profile.checks) {
+    [id] = (step) { profiles = List("slow") }
+  }
+}
+
+hooks {
+  ["pre-push"] {
+    steps {
+      ...profile.checks
+      ...profile.hygiene
+    }
+  }
+}

@@ -23,11 +23,7 @@ class Spec {
   /// dprint coverage for this language.
   dprint: DprintBinding = new DprintBinding {}
 
-  /// hk step ids that run at commit (safe fix).
-  commit: Listing<String> = new {}
 
-  /// hk step ids that run at push / `hk check --slow`.
-  push: Listing<String> = new {}
 
   /// mise tool ids to install when this language is globally supported.
   tools: Listing<String> = new {}

@@ -2,10 +2,10 @@
 /// Consumers (hk, dprint, mise, worktrunk, Conform) are generated from this file.
 module profile
 
+import "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pkl" as hk
+import "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Builtins.pkl"
 import "lib/types.pkl"
 import "lib/render.pkl"
-
-hkSchemaVersion: String = "2.5.0"
 
 exclude: Listing<String> = new {
   "node_modules"
@@ -51,13 +51,14 @@ dprintPlugins: Listing<String> = new {
 }
 
 /// Where `mise run generate` writes outputs. Set once in mise.toml [env].
-installDir: String =
-  (read?("env:DEV_PROFILE_OUT") ?? throw("DEV_PROFILE_OUT is unset; run `mise run generate`"))
-    .replaceFirst(read("env:HOME"), "~")
+installPath: String = read?("env:DEV_PROFILE_OUT") ?? throw("DEV_PROFILE_OUT is unset; run `mise run generate`")
+
+/// installPath with ~ for consumers that expand it (mise, dotfiles, Neovim).
+installDir: String = installPath.replaceFirst(read("env:HOME"), "~")
 
 /// Live config path → generated file. Linked only by `mise run install-live`.
 liveTargets: Mapping<String, String> = new {
-  ["~/.config/hk/config.pkl"] = "hk.pkl"
+  ["~/.config/hk/config.pkl"] = "hk-config.pkl"
   ["~/.config/dprint/dprint.jsonc"] = "dprint.jsonc"
   ["~/.config/worktrunk/config.toml"] = "worktrunk.toml"
   ["~/.config/mise/conf.d/dev-profile.toml"] = "mise-profile.toml"
@@ -67,6 +68,48 @@ liveTargets: Mapping<String, String> = new {
 }
 
 phase: types.Policy = new {}
+
+/// Commit: each fixer rewrites what it safely can (modernize included) and is
+/// staged. Fixers never fail on what they cannot fix; checks judge that at push.
+fixers: Mapping<String, hk.Step> = new {
+  ["ruff-fix"] { types = List("python"); fix = "ruff check --force-exclude --fix-only --unsafe-fixes {{files}}" }
+  ["php-fmt"] { glob = List("**/*.php"); fix = "dev-profile-php-fmt {{files}}" }
+  ["go-imports"] = Builtins.go_imports
+  // go fix needs compiling code, so goimports adds missing imports first.
+  ["go-fix"] = (Builtins.go_fix) { depends = List("go-imports") }
+  ["oxlint-fix"] { glob = List("**/*.js", "**/*.mjs", "**/*.cjs", "**/*.ts", "**/*.mts", "**/*.cts", "**/*.jsx", "**/*.tsx", "**/*.vue", "**/*.svelte", "**/*.astro"); fix = "dev-profile-oxlint-fix {{files}}" }
+  ["rubocop-fix"] { glob = List("**/*.rb", "**/*.rake"); fix = "dev-profile-rubocop-fix {{files}}" }
+  ["perltidy"] { glob = List("**/*.pl", "**/*.pm", "**/*.t"); check_diff = "hk util format-diff {{files}} -- perltidy -st -q" }
+  ["shellharden"] = Builtins.shellharden
+  ["swiftlint-fix"] { glob = List("**/*.swift"); fix = "dev-profile-swiftlint-fix {{files}}" }
+}
+
+/// Push and `hk check --slow`: semantic lint, types, security. May block.
+checks: Mapping<String, hk.Step> = new {
+  ["ruff"] = Builtins.ruff
+  ["ty"] { types = List("python"); check = "dev-profile-ty {{files}}" }
+  ["php-lint"] { glob = List("**/*.php"); check = "dev-profile-php-lint {{files}}" }
+  ["golangci-lint"] = Builtins.golangci_lint
+  ["go-vet"] = Builtins.go_vet
+  ["govulncheck"] = Builtins.go_vuln_check
+  ["oxlint"] = Builtins.ox_lint
+  ["rubocop"] = Builtins.rubocop
+  ["perlcritic"] { glob = List("**/*.pl", "**/*.pm", "**/*.t"); check = "perlcritic {{files}}" }
+  ["shellcheck"] = Builtins.shellcheck
+  ["swiftlint"] = Builtins.swiftlint
+  ["hadolint"] = Builtins.hadolint
+  ["cargo-check"] = Builtins.cargo_check
+  ["clippy"] = Builtins.cargo_clippy
+}
+
+/// Repo hygiene: runs at commit and again at push.
+hygiene: Mapping<String, hk.Step> = new {
+  ["merge-conflicts"] = Builtins.check_merge_conflict
+  ["private-keys"] = Builtins.detect_private_key
+  ["case-conflicts"] = Builtins.check_case_conflict
+  ["trailing-whitespace"] = Builtins.trailing_whitespace
+  ["newlines"] = Builtins.newlines
+}
 
 /// Global git hooks (git 2.54+ config-based hooks), written by bootstrap.
 /// No `--from-hook`: that mode skips every repo without its own hk.pkl.
@@ -130,8 +173,6 @@ languages: Listing<types.Spec> = new {
     nvimFiletypes { "go" }
     nativeConfigs { "go.mod"; ".golangci.yml"; ".golangci.yaml"; ".golangci.toml" }
     dprint { kind = "wasm"; plugin = "gofumpt" }
-    commit { "dprint"; "go-imports"; "go-fix" }
-    push { "golangci-lint"; "go-vet"; "govulncheck" }
     tools { "go"; "go:golang.org/x/tools/cmd/goimports"; "go:golang.org/x/vuln/cmd/govulncheck"; "golangci-lint" }
   }
   new {
@@ -144,8 +185,6 @@ languages: Listing<types.Spec> = new {
     }
     nativeConfigs { "pyproject.toml"; "ruff.toml"; ".ruff.toml" }
     dprint { kind = "wasm"; plugin = "ruff" }
-    commit { "dprint"; "ruff-fix" }
-    push { "ruff"; "ty" }
     tools { "ruff" }
   }
   new {
@@ -166,8 +205,6 @@ languages: Listing<types.Spec> = new {
       command = "dev-profile-php-fmt --stdin-path {{file_path}}"
       exts { "php" }
     }
-    commit { "php-fmt" }
-    push { "php-lint" }
   }
   new {
     id = "javascript"
@@ -176,8 +213,6 @@ languages: Listing<types.Spec> = new {
     shebangs { ["#!/usr/bin/env node"] = "js" }
     nativeConfigs { "package.json"; "eslint.config.js"; "eslint.config.mjs"; "eslint.config.ts"; ".oxlintrc.json"; ".oxlintrc.jsonc"; "oxlint.config.ts"; "tsconfig.json" }
     dprint { kind = "wasm"; plugin = "typescript" }
-    commit { "dprint"; "oxlint-fix" }
-    push { "oxlint" }
     tools { "oxlint"; "node" }
   }
   new {
@@ -186,8 +221,6 @@ languages: Listing<types.Spec> = new {
     nvimFiletypes { "typescript"; "typescriptreact" }
     nativeConfigs { "tsconfig.json"; "package.json"; ".oxlintrc.json"; ".oxlintrc.jsonc"; "oxlint.config.ts" }
     dprint { kind = "wasm"; plugin = "typescript" }
-    commit { "dprint"; "oxlint-fix" }
-    push { "oxlint" }
     tools { "oxlint"; "node" }
   }
   new {
@@ -195,60 +228,48 @@ languages: Listing<types.Spec> = new {
     extensions { "vue" }
     nvimFiletypes { "vue" }
     dprint { kind = "wasm"; plugin = "typescript" }
-    commit { "dprint"; "oxlint-fix" }
-    push { "oxlint" }
   }
   new {
     id = "svelte"
     extensions { "svelte" }
     nvimFiletypes { "svelte" }
     dprint { kind = "wasm"; plugin = "typescript" }
-    commit { "dprint"; "oxlint-fix" }
-    push { "oxlint" }
   }
   new {
     id = "astro"
     extensions { "astro" }
     nvimFiletypes { "astro" }
     dprint { kind = "wasm"; plugin = "typescript" }
-    commit { "dprint"; "oxlint-fix" }
-    push { "oxlint" }
   }
   new {
     id = "json"
     extensions { "json"; "jsonc" }
     nvimFiletypes { "json"; "jsonc" }
     dprint { kind = "wasm"; plugin = "json" }
-    commit { "dprint" }
   }
   new {
     id = "yaml"
     extensions { "yml"; "yaml" }
     nvimFiletypes { "yaml" }
     dprint { kind = "wasm"; plugin = "yaml" }
-    commit { "dprint" }
   }
   new {
     id = "toml"
     extensions { "toml" }
     nvimFiletypes { "toml" }
     dprint { kind = "wasm"; plugin = "toml" }
-    commit { "dprint" }
   }
   new {
     id = "markdown"
     extensions { "md"; "mdx" }
     nvimFiletypes { "markdown" }
     dprint { kind = "wasm"; plugin = "markdown" }
-    commit { "dprint" }
   }
   new {
     id = "dockerfile"
     extensions { "Dockerfile" }
     nvimFiletypes { "dockerfile" }
     dprint { kind = "wasm"; plugin = "dockerfile" }
-    commit { "dprint" }
-    push { "hadolint" }
     tools { "hadolint" }
   }
   new {
@@ -262,8 +283,6 @@ languages: Listing<types.Spec> = new {
       ["#!/bin/sh"] = "sh"
     }
     dprint { kind = "wasm"; plugin = "sh" }
-    commit { "dprint"; "shellharden" }
-    push { "shellcheck" }
     tools { "shellcheck"; "shellharden" }
   }
   new {
@@ -276,7 +295,6 @@ languages: Listing<types.Spec> = new {
       ["#!/usr/bin/zsh"] = "zsh"
     }
     dprint { kind = "wasm"; plugin = "sh" }
-    commit { "dprint" }
   }
   new {
     id = "perl"
@@ -288,8 +306,6 @@ languages: Listing<types.Spec> = new {
       command = "perltidy"
       exts { "pl"; "pm"; "t" }
     }
-    commit { "dprint"; "perltidy" }
-    push { "perlcritic" }
   }
   new {
     id = "ruby"
@@ -298,8 +314,6 @@ languages: Listing<types.Spec> = new {
     nativeConfigs { ".rubocop.yml"; ".rubocop.yaml" }
     formatOnSave = false
     dprint { kind = "none" }
-    commit { "rubocop-fix" }
-    push { "rubocop" }
   }
   new {
     id = "lua"
@@ -310,7 +324,6 @@ languages: Listing<types.Spec> = new {
       command = "stylua -"
       exts { "lua" }
     }
-    commit { "dprint" }
     tools { "stylua" }
   }
   new {
@@ -323,8 +336,6 @@ languages: Listing<types.Spec> = new {
       command = "dev-profile-rustfmt"
       exts { "rs" }
     }
-    commit { "dprint" }
-    push { "cargo-check"; "clippy" }
   }
   new {
     id = "c"
@@ -336,7 +347,6 @@ languages: Listing<types.Spec> = new {
       command = "dev-profile-clang-format"
       exts { "c"; "h"; "cc"; "cpp"; "cxx"; "hpp" }
     }
-    commit { "dprint" }
   }
   new {
     id = "swift"
@@ -348,8 +358,6 @@ languages: Listing<types.Spec> = new {
       command = "dev-profile-swift-format"
       exts { "swift" }
     }
-    commit { "dprint"; "swiftlint-fix" }
-    push { "swiftlint" }
   }
   new {
     id = "terraform"
@@ -360,21 +368,18 @@ languages: Listing<types.Spec> = new {
       command = "terraform fmt -"
       exts { "tf" }
     }
-    commit { "dprint" }
   }
   new {
     id = "html"
     extensions { "html"; "htm" }
     nvimFiletypes { "html" }
     dprint { kind = "wasm"; plugin = "typescript" }
-    commit { "dprint" }
   }
   new {
     id = "css"
     extensions { "css"; "scss"; "less" }
     nvimFiletypes { "css"; "scss"; "less" }
     dprint { kind = "wasm"; plugin = "typescript" }
-    commit { "dprint" }
   }
   new {
     id = "graphql"
@@ -423,7 +428,14 @@ languages: Listing<types.Spec> = new {
 // Rendered outputs: `mise run generate` evaluates this into installDir.
 output {
   files {
-    ["hk.pkl"] { text = render.hk() }
+    // hk evaluates its config as Pkl, so ship the typed sources it imports.
+    ["src/profile.pkl"] { text = read("profile.pkl").text }
+    ["src/lib/types.pkl"] { text = read("lib/types.pkl").text }
+    ["src/lib/render.pkl"] { text = read("lib/render.pkl").text }
+    ["src/lib/hk.pkl"] { text = read("lib/hk.pkl").text }
+    // Linked as ~/.config/hk/config.pkl. Absolute, because Pkl resolves relative
+    // imports from the symlink's directory, not its target's.
+    ["hk-config.pkl"] { text = "amends \"\(installPath)/src/lib/hk.pkl\"\n" }
     ["dprint.jsonc"] { text = render.dprint() }
     // Not named mise.toml: tools run from this dir must not auto-load it as a project config.
     ["mise-profile.toml"] { text = render.mise() }
