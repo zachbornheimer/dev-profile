@@ -1,0 +1,442 @@
+/// Single source of truth for the developer profile.
+/// Consumers (hk, dprint, mise, worktrunk, Conform) are generated from this file.
+module profile
+
+import "lib/types.pkl"
+import "lib/render.pkl"
+
+hkSchemaVersion: String = "2.5.0"
+
+exclude: Listing<String> = new {
+  "node_modules"
+  ".venv"
+  "vendor"
+  "dist"
+  "build"
+  "coverage"
+  ".next"
+  ".turbo"
+  ".cache"
+}
+
+dprintExcludes: Listing<String> = new {
+  "**/*-lock.json"
+  "**/node_modules"
+  "**/.venv"
+  "**/vendor"
+  "**/target"
+  "**/.git"
+  "**/dist"
+  "**/.runners"
+  "**/testdata"
+  "**/*malformed*"
+  "**/generated"
+  "generated"
+  "mise/conf.d/**"
+  "dprint.jsonc"
+}
+
+/// Wasm plugins. PHP is never mago — WordPress PHPCBF/WPCS owns PHP formatting.
+dprintPlugins: Listing<String> = new {
+  "npm:@dprint/typescript@0.96.1"
+  "npm:@dprint/json@0.25.1"
+  "npm:@dprint/markdown@0.26.0"
+  "npm:@dprint/toml@0.8.0"
+  "npm:@dprint/dockerfile@0.6.0"
+  "npm:dprint-plugin-yaml@0.6.0"
+  "npm:@dprint/ruff@0.9.1"
+  "npm:@jakebailey/dprint-plugin-gofumpt@0.0.18"
+  "npm:@dprint/exec@0.7.3/plugin.json@704701df449dd7e942a71144773778ac529d68c2e4657bfc236d393b898b9a67"
+  "npm:@kachick/dprint-plugin-sh@0.1.2"
+}
+
+/// Where `mise run generate` writes outputs. Set once in mise.toml [env].
+installDir: String =
+  (read?("env:DEV_PROFILE_OUT") ?? throw("DEV_PROFILE_OUT is unset; run `mise run generate`"))
+    .replaceFirst(read("env:HOME"), "~")
+
+/// Live config path → generated file. Linked only by `mise run install-live`.
+liveTargets: Mapping<String, String> = new {
+  ["~/.config/hk/config.pkl"] = "hk.pkl"
+  ["~/.config/dprint/dprint.jsonc"] = "dprint.jsonc"
+  ["~/.config/worktrunk/config.toml"] = "worktrunk.toml"
+  ["~/.config/mise/conf.d/dev-profile.toml"] = "mise-profile.toml"
+  ["~/.config/nvim/lua/zach/plugins/conform.lua"] = "conform.lua"
+  ["~/Developer/Personal/dprint.jsonc"] = "dprint.jsonc"
+  ["~/Developer/Personal/mise.toml"] = "personal-overlay.toml"
+}
+
+phase: types.Policy = new {}
+
+/// Global git hooks (git 2.54+ config-based hooks), written by bootstrap.
+/// No `--from-hook`: that mode skips every repo without its own hk.pkl.
+gitHooks: Mapping<String, String> = new {
+  ["pre-commit"] = "hk run pre-commit --staged"
+  ["pre-push"] = "hk run pre-push"
+}
+
+settings: types.Settings = new {}
+
+deps: Listing<types.DepProvider> = new {
+  new { id = "aube" }
+  new { id = "pnpm" }
+  new { id = "npm" }
+  new { id = "uv" }
+  new { id = "composer" }
+  new { id = "bundler" }
+  new { id = "go" }
+  new { id = "git-submodule" }
+}
+
+/// Kernel tool required before generation. Also listed here so generated mise can reinstall it.
+kernelTools: Listing<types.Pin> = new {
+  new { id = "pkl"; version = "0.32.1" }
+}
+
+tools: Listing<types.Pin> = new {
+  new { id = "hk"; version = "2.5.0" }
+  new { id = "dprint"; version = "0.59.0" }
+  new { id = "worktrunk"; version = "0.80.0" }
+  new { id = "go"; version = "1.27" }
+  new { id = "node"; version = "24" }
+  new { id = "ruff"; version = "0.16.9" }
+  new { id = "oxlint"; version = "1.84.0" }
+  new { id = "golangci-lint"; version = "2.13.2" }
+  new { id = "stylua"; version = "2.5.2" }
+  new { id = "shellcheck"; version = "0.11.0" }
+  new { id = "shellharden"; version = "4.3.2" }
+  new { id = "aube"; version = "latest" }
+  new { id = "uv"; version = "latest" }
+  new { id = "hadolint"; version = "latest" }
+  new { id = "go:golang.org/x/tools/cmd/goimports"; version = "latest" }
+  new { id = "go:golang.org/x/vuln/cmd/govulncheck"; version = "1.8.0" }
+  new { id = "npm:@agentclientprotocol/codex-acp"; version = "latest" }
+  new { id = "npm:@agentclientprotocol/claude-agent-acp"; version = "latest" }
+}
+
+brewPackages: Mapping<String, String> = new {
+  ["brew:git"] = "latest"
+}
+
+/// The only absolute path allowed in generated files.
+llmCommand: String = "/Users/zbornheimer/.local/bin/_llm"
+
+worktreePath: String = "{{ repo_path }}/../.worktrees/{{ repo }}-{{ branch | sanitize }}"
+
+languages: Listing<types.Spec> = new {
+  new {
+    id = "go"
+    extensions { "go" }
+    nvimFiletypes { "go" }
+    nativeConfigs { "go.mod"; ".golangci.yml"; ".golangci.yaml"; ".golangci.toml" }
+    dprint { kind = "wasm"; plugin = "gofumpt" }
+    commit { "dprint"; "go-imports"; "go-fix" }
+    push { "golangci-lint"; "go-vet"; "govulncheck" }
+    tools { "go"; "go:golang.org/x/tools/cmd/goimports"; "go:golang.org/x/vuln/cmd/govulncheck"; "golangci-lint" }
+  }
+  new {
+    id = "python"
+    extensions { "py"; "pyi" }
+    nvimFiletypes { "python" }
+    shebangs {
+      ["#!/usr/bin/env python3"] = "py"
+      ["#!/usr/bin/env python"] = "py"
+    }
+    nativeConfigs { "pyproject.toml"; "ruff.toml"; ".ruff.toml" }
+    dprint { kind = "wasm"; plugin = "ruff" }
+    commit { "dprint"; "ruff-fix" }
+    push { "ruff"; "ty" }
+    tools { "ruff" }
+  }
+  new {
+    id = "php"
+    extensions { "php" }
+    nvimFiletypes { "php" }
+    nativeConfigs {
+      "phpcs.xml"
+      ".phpcs.xml"
+      "phpcs.xml.dist"
+      ".phpcs.xml.dist"
+      ".php-cs-fixer.php"
+      ".php-cs-fixer.dist.php"
+    }
+    dprint {
+      kind = "exec"
+      // dprint pipes stdin; pass the real path so WordPress detection sees the repo.
+      command = "dev-profile-php-fmt --stdin-path {{file_path}}"
+      exts { "php" }
+    }
+    commit { "php-fmt" }
+    push { "php-lint" }
+  }
+  new {
+    id = "javascript"
+    extensions { "js"; "mjs"; "cjs"; "jsx" }
+    nvimFiletypes { "javascript"; "javascriptreact" }
+    shebangs { ["#!/usr/bin/env node"] = "js" }
+    nativeConfigs { "package.json"; "eslint.config.js"; "eslint.config.mjs"; "eslint.config.ts"; ".oxlintrc.json"; ".oxlintrc.jsonc"; "oxlint.config.ts"; "tsconfig.json" }
+    dprint { kind = "wasm"; plugin = "typescript" }
+    commit { "dprint"; "oxlint-fix" }
+    push { "oxlint" }
+    tools { "oxlint"; "node" }
+  }
+  new {
+    id = "typescript"
+    extensions { "ts"; "mts"; "cts"; "tsx" }
+    nvimFiletypes { "typescript"; "typescriptreact" }
+    nativeConfigs { "tsconfig.json"; "package.json"; ".oxlintrc.json"; ".oxlintrc.jsonc"; "oxlint.config.ts" }
+    dprint { kind = "wasm"; plugin = "typescript" }
+    commit { "dprint"; "oxlint-fix" }
+    push { "oxlint" }
+    tools { "oxlint"; "node" }
+  }
+  new {
+    id = "vue"
+    extensions { "vue" }
+    nvimFiletypes { "vue" }
+    dprint { kind = "wasm"; plugin = "typescript" }
+    commit { "dprint"; "oxlint-fix" }
+    push { "oxlint" }
+  }
+  new {
+    id = "svelte"
+    extensions { "svelte" }
+    nvimFiletypes { "svelte" }
+    dprint { kind = "wasm"; plugin = "typescript" }
+    commit { "dprint"; "oxlint-fix" }
+    push { "oxlint" }
+  }
+  new {
+    id = "astro"
+    extensions { "astro" }
+    nvimFiletypes { "astro" }
+    dprint { kind = "wasm"; plugin = "typescript" }
+    commit { "dprint"; "oxlint-fix" }
+    push { "oxlint" }
+  }
+  new {
+    id = "json"
+    extensions { "json"; "jsonc" }
+    nvimFiletypes { "json"; "jsonc" }
+    dprint { kind = "wasm"; plugin = "json" }
+    commit { "dprint" }
+  }
+  new {
+    id = "yaml"
+    extensions { "yml"; "yaml" }
+    nvimFiletypes { "yaml" }
+    dprint { kind = "wasm"; plugin = "yaml" }
+    commit { "dprint" }
+  }
+  new {
+    id = "toml"
+    extensions { "toml" }
+    nvimFiletypes { "toml" }
+    dprint { kind = "wasm"; plugin = "toml" }
+    commit { "dprint" }
+  }
+  new {
+    id = "markdown"
+    extensions { "md"; "mdx" }
+    nvimFiletypes { "markdown" }
+    dprint { kind = "wasm"; plugin = "markdown" }
+    commit { "dprint" }
+  }
+  new {
+    id = "dockerfile"
+    extensions { "Dockerfile" }
+    nvimFiletypes { "dockerfile" }
+    dprint { kind = "wasm"; plugin = "dockerfile" }
+    commit { "dprint" }
+    push { "hadolint" }
+    tools { "hadolint" }
+  }
+  new {
+    id = "shell"
+    extensions { "sh"; "bash" }
+    nvimFiletypes { "sh"; "bash" }
+    shebangs {
+      ["#!/usr/bin/env bash"] = "bash"
+      ["#!/usr/bin/env sh"] = "sh"
+      ["#!/bin/bash"] = "bash"
+      ["#!/bin/sh"] = "sh"
+    }
+    dprint { kind = "wasm"; plugin = "sh" }
+    commit { "dprint"; "shellharden" }
+    push { "shellcheck" }
+    tools { "shellcheck"; "shellharden" }
+  }
+  new {
+    id = "zsh"
+    extensions { "zsh" }
+    nvimFiletypes { "zsh" }
+    shebangs {
+      ["#!/usr/bin/env zsh"] = "zsh"
+      ["#!/bin/zsh"] = "zsh"
+      ["#!/usr/bin/zsh"] = "zsh"
+    }
+    dprint { kind = "wasm"; plugin = "sh" }
+    commit { "dprint" }
+  }
+  new {
+    id = "perl"
+    extensions { "pl"; "pm"; "t" }
+    nvimFiletypes { "perl" }
+    shebangs { ["#!/usr/bin/env perl"] = "pl" }
+    dprint {
+      kind = "exec"
+      command = "perltidy"
+      exts { "pl"; "pm"; "t" }
+    }
+    commit { "dprint"; "perltidy" }
+    push { "perlcritic" }
+  }
+  new {
+    id = "ruby"
+    extensions { "rb"; "rake" }
+    nvimFiletypes { "ruby" }
+    nativeConfigs { ".rubocop.yml"; ".rubocop.yaml" }
+    formatOnSave = false
+    dprint { kind = "none" }
+    commit { "rubocop-fix" }
+    push { "rubocop" }
+  }
+  new {
+    id = "lua"
+    extensions { "lua" }
+    nvimFiletypes { "lua" }
+    dprint {
+      kind = "exec"
+      command = "stylua -"
+      exts { "lua" }
+    }
+    commit { "dprint" }
+    tools { "stylua" }
+  }
+  new {
+    id = "rust"
+    extensions { "rs" }
+    nvimFiletypes { "rust" }
+    nativeConfigs { "Cargo.toml"; "rustfmt.toml"; ".rustfmt.toml" }
+    dprint {
+      kind = "exec"
+      command = "dev-profile-rustfmt"
+      exts { "rs" }
+    }
+    commit { "dprint" }
+    push { "cargo-check"; "clippy" }
+  }
+  new {
+    id = "c"
+    extensions { "c"; "h"; "cc"; "cpp"; "cxx"; "hpp" }
+    nvimFiletypes { "c"; "cpp" }
+    nativeConfigs { ".clang-format"; ".clang-tidy" }
+    dprint {
+      kind = "exec"
+      command = "dev-profile-clang-format"
+      exts { "c"; "h"; "cc"; "cpp"; "cxx"; "hpp" }
+    }
+    commit { "dprint" }
+  }
+  new {
+    id = "swift"
+    extensions { "swift" }
+    nvimFiletypes { "swift" }
+    nativeConfigs { ".swiftlint.yml"; ".swift-format" }
+    dprint {
+      kind = "exec"
+      command = "dev-profile-swift-format"
+      exts { "swift" }
+    }
+    commit { "dprint"; "swiftlint-fix" }
+    push { "swiftlint" }
+  }
+  new {
+    id = "terraform"
+    extensions { "tf"; "tfvars" }
+    nvimFiletypes { "terraform" }
+    dprint {
+      kind = "exec"
+      command = "terraform fmt -"
+      exts { "tf" }
+    }
+    commit { "dprint" }
+  }
+  new {
+    id = "html"
+    extensions { "html"; "htm" }
+    nvimFiletypes { "html" }
+    dprint { kind = "wasm"; plugin = "typescript" }
+    commit { "dprint" }
+  }
+  new {
+    id = "css"
+    extensions { "css"; "scss"; "less" }
+    nvimFiletypes { "css"; "scss"; "less" }
+    dprint { kind = "wasm"; plugin = "typescript" }
+    commit { "dprint" }
+  }
+  new {
+    id = "graphql"
+    extensions { "graphql"; "gql" }
+    nvimFiletypes { "graphql" }
+    dprint { kind = "none" }
+  }
+  new {
+    id = "xml"
+    extensions { "xml"; "plist" }
+    nvimFiletypes { "xml" }
+    dprint { kind = "none" }
+  }
+  new {
+    id = "make"
+    extensions { "mk" }
+    nvimFiletypes { "make" }
+    dprint { kind = "none" }
+  }
+  new {
+    id = "csharp"
+    extensions { "cs" }
+    nvimFiletypes { "cs" }
+    dprint { kind = "none" }
+  }
+  new {
+    id = "kotlin"
+    extensions { "kt"; "kts" }
+    nvimFiletypes { "kotlin" }
+    dprint { kind = "none" }
+  }
+  new {
+    id = "java"
+    extensions { "java" }
+    nvimFiletypes { "java" }
+    dprint { kind = "none" }
+  }
+  new {
+    id = "gdscript"
+    extensions { "gd" }
+    nvimFiletypes { "gdscript" }
+    dprint { kind = "none" }
+  }
+}
+
+// Rendered outputs: `mise run generate` evaluates this into installDir.
+output {
+  files {
+    ["hk.pkl"] { text = render.hk() }
+    ["dprint.jsonc"] { text = render.dprint() }
+    // Not named mise.toml: tools run from this dir must not auto-load it as a project config.
+    ["mise-profile.toml"] { text = render.mise() }
+    ["worktrunk.toml"] { text = render.worktrunk() }
+    ["personal-overlay.toml"] { text = render.personalOverlay() }
+    // Hand-written adapter; copied so install-live links one directory.
+    ["conform.lua"] { text = read("conform.lua").text }
+    ["profile.json"] {
+      value = render.manifest
+      renderer = new JsonRenderer { indent = "  " }
+    }
+    for (name, body in render.wrappers) {
+      ["bin/\(name)"] { text = body }
+    }
+  }
+}

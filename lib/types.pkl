@@ -1,0 +1,95 @@
+/// Profile types. Data lives in profile.pkl; renderers in render.pkl.
+module types
+
+class Spec {
+  /// Stable id used in generated manifests and step names.
+  id: String
+
+  /// File extensions without a leading dot.
+  extensions: Listing<String> = new {}
+
+  /// Neovim `filetype` values that should format through dprint.
+  nvimFiletypes: Listing<String> = new {}
+
+  /// dprint shebang map: interpreter prefix → extension.
+  shebangs: Mapping<String, String> = new {}
+
+  /// Repo-native config files that win over global policy.
+  nativeConfigs: Listing<String> = new {}
+
+  /// Whether Conform should format after save.
+  formatOnSave: Boolean = true
+
+  /// dprint coverage for this language.
+  dprint: DprintBinding = new DprintBinding {}
+
+  /// hk step ids that run at commit (safe fix).
+  commit: Listing<String> = new {}
+
+  /// hk step ids that run at push / `hk check --slow`.
+  push: Listing<String> = new {}
+
+  /// mise tool ids to install when this language is globally supported.
+  tools: Listing<String> = new {}
+}
+
+class DprintBinding {
+  /// `wasm` uses a dprint plugin. `exec` uses a process plugin command. `none` is unsupported.
+  kind: "wasm"|"exec"|"none" = "none"
+
+  /// Logical plugin group (typescript, json, markdown, toml, dockerfile, yaml, ruff, gofumpt, sh).
+  plugin: String?
+
+  /// Exec plugin command. Must read stdin and write stdout when used by dprint.
+  command: String?
+
+  /// Exec plugin extensions (no dot).
+  exts: Listing<String> = new {}
+}
+
+class Policy {
+  /// SAVE: editor formatting only.
+  save: String = "deterministic formatting only"
+
+  /// COMMIT: format, imports, autofix, modernize (unsafe fixes included). Stage fixes. Do not fail on leftover semantic lint.
+  commit: String = "mechanical convergence, modernization included"
+
+  /// PUSH: semantic lint, typecheck, security. May block.
+  push: String = "full validation"
+
+  /// CI: authoritative full validation.
+  ci: String = "authoritative full validation"
+}
+
+class Pin {
+  id: String
+  version: String
+  /// When false, the tool is documented but not globally installed.
+  install: Boolean = true
+}
+
+class Settings {
+  experimental: Boolean = true
+  autoInstall: Boolean = true
+  notFoundAutoInstall: Boolean = true
+  notFoundAutoInstallRegistry: Boolean = true
+  trustedConfigPaths: Listing<String> = new {
+    "~/Zysys"
+    "~/Developer"
+  }
+  idiomaticVersionFileEnableTools: Listing<String> = new {
+    "go"
+    "node"
+    "python"
+    "ruby"
+    "npm"
+    "pnpm"
+    "yarn"
+  }
+  idiomaticVersionFileIgnoreMinimumVersions: Boolean = true
+}
+
+class DepProvider {
+  id: String
+  auto: Boolean = true
+}
