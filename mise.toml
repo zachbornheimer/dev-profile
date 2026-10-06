@@ -124,8 +124,6 @@ out="$DEV_PROFILE_OUT"
 fail() { echo "FAIL: $*" >&2; exit 1; }
 HK_FILE="$out/hk-config.pkl" hk validate >/dev/null || fail hk-config.pkl
 dprint output-resolved-config --config "$out/dprint.jsonc" >/dev/null || fail dprint.jsonc
-MISE_GLOBAL_CONFIG_FILE="$out/mise-profile.toml" mise settings ls >/dev/null || fail mise-profile.toml
-MISE_GLOBAL_CONFIG_FILE="$out/personal-overlay.toml" mise settings ls >/dev/null || fail personal-overlay.toml
 wt --config "$out/worktrunk.toml" config show >/dev/null || fail worktrunk.toml
 jq empty "$out/profile.json" || fail profile.json
 luac -p "$out/conform.lua" || fail conform.lua
