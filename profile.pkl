@@ -70,6 +70,9 @@ liveTargets: Mapping<String, String> = new {
   ["~/.config/nvim/lua/zach/plugins/conform.lua"] = "conform.lua"
   ["~/Developer/Personal/dprint.jsonc"] = "dprint.jsonc"
   ["~/Developer/Personal/mise.toml"] = "personal-overlay.toml"
+  // User-level defaults; a repo's own .markdownlint* / .yamllint still wins.
+  ["~/.markdownlintrc"] = "markdownlintrc.json"
+  ["~/.config/yamllint/config"] = "yamllint.yaml"
 }
 
 phase: types.Policy = new {}
@@ -116,6 +119,10 @@ fixers: Mapping<String, hk.Step> = new {
     check_diff = "hk util format-diff {{files}} -- perltidy -st -q"
   }
   ["shellharden"] = Builtins.shellharden
+  ["markdownlint-fix"] = (Builtins.markdown_lint) {
+    check = null
+    fix = "dev-profile-fix markdownlint --fix {{files}}"
+  }
   ["swiftlint-fix"] { glob = List("**/*.swift"); fix = "dev-profile-swiftlint-fix {{files}}" }
 }
 
@@ -133,6 +140,9 @@ checks: Mapping<String, hk.Step> = new {
   ["shellcheck"] = Builtins.shellcheck
   ["swiftlint"] = Builtins.swiftlint
   ["hadolint"] = Builtins.hadolint
+  ["markdownlint"] = (Builtins.markdown_lint) { fix = null }
+  ["yamllint"] = Builtins.yamllint
+  ["actionlint"] = Builtins.actionlint
   ["cargo-check"] = Builtins.cargo_check
   ["clippy"] = Builtins.cargo_clippy
 }
@@ -188,6 +198,9 @@ tools: Listing<types.Pin> = new {
   new { id = "hadolint"; version = "latest" }
   // Worktree env isolation (deps symlinks, ports, DB names); run by the wt pre-start hook.
   new { id = "github:rohansx/workz"; version = "0.11.0" }
+  new { id = "npm:markdownlint-cli"; version = "0.49.1" }
+  new { id = "pypi:yamllint"; version = "1.38.0" }
+  new { id = "aqua:rhysd/actionlint"; version = "1.7.12" }
   new { id = "go:golang.org/x/tools/cmd/goimports"; version = "latest" }
   new { id = "go:golang.org/x/vuln/cmd/govulncheck"; version = "1.8.0" }
   new { id = "npm:@agentclientprotocol/codex-acp"; version = "latest" }
@@ -511,6 +524,11 @@ output {
     ["personal-overlay.toml"] { text = render.tomlFile(render.personalOverlay) }
     // Hand-written adapter; copied so install-live links one directory.
     ["shell.zsh"] { text = render.shellZsh }
+    ["markdownlintrc.json"] {
+      value = render.markdownlint
+      renderer = new JsonRenderer { indent = "  " }
+    }
+    ["yamllint.yaml"] { text = render.yamlFile(render.yamllint) }
     ["conform.lua"] { text = read("conform.lua").text }
     ["profile.json"] {
       value = render.manifest
