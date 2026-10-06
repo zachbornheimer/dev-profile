@@ -151,6 +151,8 @@ tools: Listing<types.Pin> = new {
   new { id = "aube"; version = "latest" }
   new { id = "uv"; version = "latest" }
   new { id = "hadolint"; version = "latest" }
+  // Worktree env isolation (deps symlinks, ports, DB names); run by the wt pre-start hook.
+  new { id = "github:rohansx/workz"; version = "0.11.0" }
   new { id = "go:golang.org/x/tools/cmd/goimports"; version = "latest" }
   new { id = "go:golang.org/x/vuln/cmd/govulncheck"; version = "1.8.0" }
   new { id = "npm:@agentclientprotocol/codex-acp"; version = "latest" }

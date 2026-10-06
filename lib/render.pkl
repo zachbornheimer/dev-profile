@@ -77,7 +77,12 @@ mise: Dynamic = new {
 
 worktrunk: Dynamic = new {
   ["worktree-path"] = profile.worktreePath
+  // Blocking, so deps and isolated PORT/DB_NAME exist before anyone edits.
+  // --no-install: dependency installs belong to mise (deps auto), not workz.
+  ["pre-start"] { workz = "workz sync --isolated --quiet --no-install" }
   ["post-start"] { copy = "wt step copy-ignored" }
+  // Release the removed worktree's workz port/DB allocation.
+  ["post-remove"] { workz = "workz doctor --fix >/dev/null" }
   step { ["copy-ignored"] { exclude = List(".venv/", "**/.venv/") } }
   commit { generation { command = profile.llmCommand } }
 }
