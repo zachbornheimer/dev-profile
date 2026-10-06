@@ -104,6 +104,100 @@ mise: Dynamic = new {
   bootstrap { packages { ...profile.brewPackages } }
 }
 
+// Worktrunk default prompt structure, with Conventional Commits required even
+// when recent or folded subjects are not. Keep {{ user_guidance }} so
+// template-append restates the rule after <style>.
+local conventionalCommitRule =
+  """
+  Always Conventional Commits even when recent or folded commits are not.
+  Subject MUST be type(optional-scope): imperative description.
+  Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert.
+  Subject under 72 chars.
+  """
+
+local commitGenerationTemplate =
+  """
+  <task>Write a commit message for the staged changes below.</task>
+
+  <format>
+  - Subject MUST be `type(optional-scope): imperative description`
+  - Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert
+  - Subject under 72 chars
+  - For material changes, add a blank line then a body paragraph explaining the change
+  - Output only the commit message, no quotes or code blocks
+  </format>
+
+  <style>
+  - Imperative mood: "Add feature" not "Added feature"
+  - Always Conventional Commits even when recent commits are not
+  - Describe the change, not the intent or benefit
+  </style>
+  {% if user_guidance %}
+  <user-guidance>
+  {{ user_guidance }}
+  </user-guidance>
+  {% endif %}{% if project_guidance %}
+  <project-guidance>
+  {{ project_guidance }}
+  </project-guidance>
+  {% endif %}
+  <diffstat>
+  {{ git_diff_stat }}
+  </diffstat>
+
+  <diff>
+  {{ git_diff }}
+  </diff>
+
+  <context>
+  Branch: {{ branch }}
+  {% if recent_commits %}<recent_commits>
+  {% for commit in recent_commits %}- {{ commit }}
+  {% endfor %}</recent_commits>{% endif %}
+  </context>
+
+  """
+
+local squashGenerationTemplate =
+  """
+  <task>Write a commit message for the change in <diff>, which is everything the squash will record. <commits> lists what it folds in.</task>
+
+  <format>
+  - Subject MUST be `type(optional-scope): imperative description`
+  - Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert
+  - Subject under 72 chars
+  - For material changes, add a blank line then a body paragraph explaining the change
+  - Output only the commit message, no quotes or code blocks
+  </format>
+
+  <style>
+  - Imperative mood: "Add feature" not "Added feature"
+  - Always Conventional Commits even when folded commits are not
+  - Describe the change, not the intent or benefit
+  </style>
+  {% if user_guidance %}
+  <user-guidance>
+  {{ user_guidance }}
+  </user-guidance>
+  {% endif %}{% if project_guidance %}
+  <project-guidance>
+  {{ project_guidance }}
+  </project-guidance>
+  {% endif %}
+  <commits branch="{{ branch }}" target="{{ target_branch }}">
+  {% for detail in commit_details %}- {{ detail.subject }}
+  {% endfor %}</commits>
+
+  <diffstat>
+  {{ git_diff_stat }}
+  </diffstat>
+
+  <diff>
+  {{ git_diff }}
+  </diff>
+
+  """
+
 worktrunk: Dynamic = new {
   ["worktree-path"] = profile.worktreePath
   // Blocking, so deps and isolated PORT/DB_NAME exist before anyone edits.
@@ -113,7 +207,14 @@ worktrunk: Dynamic = new {
   // Release the removed worktree's workz port/DB allocation.
   ["post-remove"] { workz = "workz doctor --fix >/dev/null" }
   step { ["copy-ignored"] { exclude = List(".venv/", "**/.venv/") } }
-  commit { generation { command = profile.llmCommand } }
+  commit {
+    generation {
+      command = profile.llmCommand
+      template = commitGenerationTemplate
+      `squash-template` = squashGenerationTemplate
+      `template-append` = conventionalCommitRule
+    }
+  }
 }
 
 // ---- profile.json (Conform manifest)
