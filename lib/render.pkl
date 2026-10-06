@@ -427,3 +427,11 @@ personalOverlay: Dynamic = new {
     }
   }
 }
+
+// ---- Shell init: each tool is guarded so a missing binary never breaks startup.
+shellZsh: String = new Listing<String> {
+  header("#")
+  for (tool, cmd in profile.shellInit) {
+    "command -v \(tool) >/dev/null && eval \"$(\(cmd))\""
+  }
+}.join("\n") + "\n"

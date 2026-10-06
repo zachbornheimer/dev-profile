@@ -69,6 +69,14 @@ liveTargets: Mapping<String, String> = new {
 
 phase: types.Policy = new {}
 
+/// Shell init, in order: tool → command whose output is eval'd. Rendered to
+/// shell.zsh; ~/.zshrc only needs `source ~/.local/share/dev-profile/shell.zsh`.
+shellInit: Mapping<String, String> = new {
+  ["mise"] = "mise activate zsh"
+  // Lets `wt switch` change the shell's directory.
+  ["wt"] = "wt config shell init zsh"
+}
+
 /// Commit: each fixer rewrites what it safely can (modernize included) and is
 /// staged. Fixers never fail on what they cannot fix; checks judge that at push.
 fixers: Mapping<String, hk.Step> = new {
@@ -444,6 +452,7 @@ output {
     ["worktrunk.toml"] { text = render.tomlFile(render.worktrunk) }
     ["personal-overlay.toml"] { text = render.tomlFile(render.personalOverlay) }
     // Hand-written adapter; copied so install-live links one directory.
+    ["shell.zsh"] { text = render.shellZsh }
     ["conform.lua"] { text = read("conform.lua").text }
     ["profile.json"] {
       value = render.manifest

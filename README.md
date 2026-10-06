@@ -14,6 +14,12 @@ backs up any live configs it would replace to `~/.local/state/dev-profile/backup
 then re-runs `mise bootstrap` on the generated config. That second pass installs
 the tools and links hk, dprint, Worktrunk, mise, and Conform configs.
 
+Add one line to `~/.zshrc` for mise activation and `wt switch` cd support:
+
+```bash
+source ~/.local/share/dev-profile/shell.zsh
+```
+
 ```bash
 mise run diff-live   # what linking would change
 mise run rollback    # restore the backed-up originals

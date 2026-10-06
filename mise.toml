@@ -127,6 +127,7 @@ dprint output-resolved-config --config "$out/dprint.jsonc" >/dev/null || fail dp
 wt --config "$out/worktrunk.toml" config show >/dev/null || fail worktrunk.toml
 jq empty "$out/profile.json" || fail profile.json
 luac -p "$out/conform.lua" || fail conform.lua
+zsh -n "$out/shell.zsh" || fail shell.zsh
 for f in "$out"/bin/*; do bash -n "$f" || fail "${f##*/}"; done
 echo "doctor ok"
 """
