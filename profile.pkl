@@ -143,6 +143,10 @@ checks: Mapping<String, hk.Step> = new {
   ["markdownlint"] = (Builtins.markdown_lint) { fix = null }
   ["yamllint"] = Builtins.yamllint
   ["actionlint"] = Builtins.actionlint
+  // Every commit about to leave the machine (not just changed files).
+  ["gitleaks"] {
+    check = "gitleaks git --redact --no-banner --log-opts=\"--branches --not --remotes\""
+  }
   ["cargo-check"] = Builtins.cargo_check
   ["clippy"] = Builtins.cargo_clippy
 }
@@ -154,6 +158,8 @@ hygiene: Mapping<String, hk.Step> = new {
   ["case-conflicts"] = Builtins.check_case_conflict
   ["trailing-whitespace"] = Builtins.trailing_whitespace
   ["newlines"] = Builtins.newlines
+  // Blocks a staged secret: once committed and pushed it must be rotated.
+  ["secrets"] { check = "gitleaks git --pre-commit --staged --redact --no-banner" }
 }
 
 /// Global git hooks (git 2.54+ config-based hooks), written by bootstrap.
@@ -201,6 +207,7 @@ tools: Listing<types.Pin> = new {
   new { id = "npm:markdownlint-cli"; version = "0.49.1" }
   new { id = "pypi:yamllint"; version = "1.38.0" }
   new { id = "aqua:rhysd/actionlint"; version = "1.7.12" }
+  new { id = "aqua:gitleaks/gitleaks"; version = "8.30.1" }
   new { id = "go:golang.org/x/tools/cmd/goimports"; version = "latest" }
   new { id = "go:golang.org/x/vuln/cmd/govulncheck"; version = "1.8.0" }
   new { id = "npm:@agentclientprotocol/codex-acp"; version = "latest" }
