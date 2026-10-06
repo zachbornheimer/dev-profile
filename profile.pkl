@@ -49,6 +49,9 @@ dprintPlugins: Listing<String> = new {
   "npm:@jakebailey/dprint-plugin-gofumpt@0.0.18"
   "npm:@dprint/exec@0.7.3/plugin.json@704701df449dd7e942a71144773778ac529d68c2e4657bfc236d393b898b9a67"
   "npm:@kachick/dprint-plugin-sh@0.1.2"
+  // HTML/Vue/Svelte/Astro templates (markup_fmt) and CSS/SCSS/Less (malva).
+  "https://plugins.dprint.dev/g-plane/markup_fmt-v0.27.5.wasm"
+  "https://plugins.dprint.dev/g-plane/malva-v0.16.0.wasm"
 }
 
 /// Where `mise run generate` writes outputs. Set once in mise.toml [env].
@@ -281,19 +284,19 @@ languages: Listing<types.Spec> = new {
     id = "vue"
     extensions { "vue" }
     nvimFiletypes { "vue" }
-    dprint { kind = "wasm"; plugin = "typescript" }
+    dprint { kind = "wasm"; plugin = "markup" }
   }
   new {
     id = "svelte"
     extensions { "svelte" }
     nvimFiletypes { "svelte" }
-    dprint { kind = "wasm"; plugin = "typescript" }
+    dprint { kind = "wasm"; plugin = "markup" }
   }
   new {
     id = "astro"
     extensions { "astro" }
     nvimFiletypes { "astro" }
-    dprint { kind = "wasm"; plugin = "typescript" }
+    dprint { kind = "wasm"; plugin = "markup" }
   }
   new {
     id = "json"
@@ -438,13 +441,13 @@ languages: Listing<types.Spec> = new {
     id = "html"
     extensions { "html"; "htm" }
     nvimFiletypes { "html" }
-    dprint { kind = "wasm"; plugin = "typescript" }
+    dprint { kind = "wasm"; plugin = "markup" }
   }
   new {
     id = "css"
     extensions { "css"; "scss"; "less" }
     nvimFiletypes { "css"; "scss"; "less" }
-    dprint { kind = "wasm"; plugin = "typescript" }
+    dprint { kind = "wasm"; plugin = "malva" }
   }
   new {
     id = "graphql"
