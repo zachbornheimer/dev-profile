@@ -239,7 +239,7 @@ contractAdapters: Listing<types.Adapter> = new {
   }
   new { id = "php"; markers { "composer.json" } }
   new { id = "python"; markers { "uv.lock"; "pyproject.toml" } }
-  new { id = "dotnet"; markers { "*.sln"; "**/*.csproj" } }
+  new { id = "dotnet"; markers { "**/*.sln"; "**/*.csproj" } }
   new { id = "ruby"; markers { "Gemfile" } }
   new { id = "perl"; markers { "cpanfile"; "Makefile.PL" } }
   new { id = "opentofu"; markers { "**/*.tf" } }
