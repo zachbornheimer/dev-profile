@@ -224,7 +224,22 @@ EOF
 	diff -u "$want" "$file" >"$output" || fail "uv-instead-of-python-in-tasks: unexpected rewrite"
 }
 
+fixture_nested_node_setup() {
+	local repo
+	repo="$(new_repo nested-node)"
+	mkdir -p "${repo}/packages/ts" "${repo}/tests/runner" "${repo}/packages/ts/node_modules/dep"
+	touch "${repo}/packages/ts/package-lock.json" "${repo}/tests/runner/aube-lock.yaml" \
+		"${repo}/packages/ts/node_modules/dep/package-lock.json"
+	echo '{}' >"${repo}/packages/ts/package.json"
+	echo '{}' >"${repo}/tests/runner/package.json"
+	run_task "$repo" setup || fail "nested node: setup failed"
+	expect_call "aube|${repo}/packages/ts|install" "nested node"
+	expect_call "aube|${repo}/tests/runner|install" "nested node"
+	expect_no_call "node_modules/dep|install" "nested node"
+}
+
 fixture_go_work
+fixture_nested_node_setup
 fixture_go_outside_workspace
 fixture_uv_instead_of_python_in_tasks
 fixture_repo_task_runners

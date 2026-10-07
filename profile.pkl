@@ -223,12 +223,12 @@ contractAdapters: Listing<types.Adapter> = new {
   new {
     id = "node"
     markers {
-      "aube-lock.yaml"
-      "pnpm-lock.yaml"
-      "package-lock.json"
-      "yarn.lock"
-      "bun.lock"
-      "bun.lockb"
+      "**/aube-lock.yaml"
+      "**/pnpm-lock.yaml"
+      "**/package-lock.json"
+      "**/yarn.lock"
+      "**/bun.lock"
+      "**/bun.lockb"
     }
   }
   new { id = "php"; markers { "composer.json" } }

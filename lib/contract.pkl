@@ -186,27 +186,55 @@ local go =
 
 local node =
   """
-  # aube runs npm, pnpm and aube projects (it reads their lockfiles); yarn and
-  # bun lockfiles keep their own tool.
-  if [[ -f bun.lock || -f bun.lockb ]]; then
-    pm=bun
-  elif [[ -f yarn.lock ]]; then
-    pm=yarn
-  else
-    pm=aube
-  fi
+  # Every package with its own lockfile, nested ones included (mise deps only
+  # sees the repo root), minus installed copies.
+  packages() {
+    local file
+    git ls-files --cached --others --exclude-standard -- \
+      ':(glob)**/aube-lock.yaml' ':(glob)**/pnpm-lock.yaml' ':(glob)**/package-lock.json' \
+      ':(glob)**/yarn.lock' ':(glob)**/bun.lock' ':(glob)**/bun.lockb' |
+      while IFS= read -r file; do
+        case "/${file}" in */node_modules/*) continue ;; esac
+        dirname "${file}"
+      done | sort -u
+  }
 
-  # Run a package script only when package.json defines it.
-  run_script() {
-    jq -e --arg name "$1" '.scripts[$name] // empty' package.json >/dev/null || nothing_to_do
-    step "${pm}" run "$1"
+  # aube runs npm, pnpm and aube projects (it reads their lockfiles); yarn and
+  # bun lockfiles keep their own tool. Run from inside the package.
+  package_manager() {
+    if [[ -f bun.lock || -f bun.lockb ]]; then
+      echo bun
+    elif [[ -f yarn.lock ]]; then
+      echo yarn
+    else
+      echo aube
+    fi
+  }
+
+  has_script() {
+    [[ -f package.json ]] && jq -e --arg name "$1" '.scripts[$name] // empty' package.json >/dev/null
+  }
+
+  # Run one step in every package; a script verb skips packages without it.
+  ran=0
+  each_package() {
+    local dir script="${1:-}"
+    shift
+    while IFS= read -r dir; do
+      if [[ -n "${script}" ]] && ! (cd "${dir}" && has_script "${script}"); then continue; fi
+      ran=$((ran + 1))
+      echo "+ cd ${dir}" >&2
+      (cd "${dir}" && step "$(package_manager)" "$@" && exit "${failed}") || failed=1
+    done < <(packages)
+    [[ "${ran}" -gt 0 ]] || nothing_to_do
   }
 
   case "${verb}" in
-    build) run_script build ;;
-    lint) run_script lint ;;
-    test) run_script test ;;
-    scan) step "${pm}" audit ;;
+    setup) each_package "" install ;;
+    build) each_package build run build ;;
+    lint) each_package lint run lint ;;
+    test) each_package test run test ;;
+    scan) each_package "" audit ;;
     *) nothing_to_do ;;
   esac
   """
