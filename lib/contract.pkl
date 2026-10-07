@@ -256,7 +256,7 @@ local php =
         nothing_to_do
       fi
       ;;
-    scan) step composer audit ;;
+    scan) step composer audit --locked ;;
     *) nothing_to_do ;;
   esac
   """

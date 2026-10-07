@@ -20,6 +20,7 @@ exclude: Listing<String> = new {
   ".next"
   ".turbo"
   ".cache"
+  ".beads"
 }
 
 dprintExcludes: Listing<String> = new {
@@ -37,6 +38,7 @@ dprintExcludes: Listing<String> = new {
   "generated"
   "mise/conf.d/**"
   "dprint.jsonc"
+  "**/.beads/**"
 }
 
 /// Wasm plugins. PHP is never mago — WordPress PHPCBF/WPCS owns PHP formatting.
@@ -149,7 +151,10 @@ checks: Mapping<String, hk.Step> = new {
   ["golangci-lint"] = Builtins.golangci_lint
   ["go-vet"] = Builtins.go_vet
   ["govulncheck"] = Builtins.go_vuln_check
-  ["oxlint"] = Builtins.ox_lint
+  ["oxlint"] = (Builtins.ox_lint) {
+    check = "oxlint {{files}}"
+    fix = "dev-profile-oxlint-fix {{files}}"
+  }
   ["rubocop"] = Builtins.rubocop
   ["perlcritic"] { glob = List("**/*.pl", "**/*.pm", "**/*.t"); check = "perlcritic {{files}}" }
   ["shellcheck"] = Builtins.shellcheck
@@ -159,12 +164,14 @@ checks: Mapping<String, hk.Step> = new {
     check = "tofu fmt -check {{files}}"
   }
   ["hadolint"] = Builtins.hadolint
-  ["markdownlint"] = (Builtins.markdown_lint) { fix = null }
+  ["markdownlint"] = (Builtins.markdown_lint) {
+    fix = "dev-profile-fix markdownlint --fix {{files}}"
+  }
   ["yamllint"] = Builtins.yamllint
   ["actionlint"] = Builtins.actionlint
   // Every commit about to leave the machine (not just changed files).
   ["gitleaks"] {
-    check = "gitleaks git --redact --no-banner --log-opts=\"--branches --not --remotes\""
+    check = "gitleaks git --redact --no-banner --log-opts=\"HEAD --not --remotes\""
   }
   // Inline suppressions added by unpushed commits (suppressionMode decides blocking).
   ["suppressions"] { check = "dev-profile-suppressions --unpushed" }
