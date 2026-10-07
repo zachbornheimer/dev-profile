@@ -126,6 +126,11 @@ fail() { echo "FAIL: $*" >&2; exit 1; }
 HK_FILE="$out/hk-config.pkl" hk validate >/dev/null || fail hk-config.pkl
 dprint output-resolved-config --config "$out/dprint.jsonc" >/dev/null || fail dprint.jsonc
 wt --config "$out/worktrunk.toml" config show >/dev/null || fail worktrunk.toml
+for alias in up pr ship ship-all; do
+  wt --config "$out/worktrunk.toml" config alias show "$alias" >/dev/null || fail "worktrunk alias $alias"
+done
+wt --config "$out/worktrunk.toml" config alias dry-run pr -- @ >/dev/null || fail worktrunk alias dry-run pr
+grep -Fq "$out/bin/dev-profile-pkl-fmt" "$out/dprint.jsonc" || fail "dprint pkl exec must be $out/bin/dev-profile-pkl-fmt"
 jq empty "$out/profile.json" || fail profile.json
 luac -p "$out/conform.lua" || fail conform.lua
 zsh -n "$out/shell.zsh" || fail shell.zsh
