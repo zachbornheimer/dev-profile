@@ -156,7 +156,8 @@ run = """
 #!/usr/bin/env bash
 set -euo pipefail
 # Render into a throwaway dir: a push must never redeploy the live profile.
-DEV_PROFILE_OUT="$(mktemp -d)"
+# Resolved path: macOS mktemp returns /var/…, a symlink pkl rejects as outside the output dir.
+DEV_PROFILE_OUT="$(cd "$(mktemp -d)" && pwd -P)"
 export DEV_PROFILE_OUT
 trap 'rm -rf "$DEV_PROFILE_OUT"' EXIT
 mise run doctor

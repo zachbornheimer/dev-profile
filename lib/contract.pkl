@@ -600,6 +600,9 @@ local commitMsg =
 local contractPush =
   """
   \(bash)
+  # git exports GIT_DIR, GIT_INDEX_FILE, … to hooks; clear them so tests that
+  # create their own throwaway repos do not act on the repo being pushed.
+  while IFS= read -r var; do unset "${var}"; done < <(git rev-parse --local-env-vars)
   # Run the push-time contract verbs. A repo outside a profile code root has no
   # contract tasks; say so instead of failing every push there.
   if ! mise tasks info \(namespace):test >/dev/null 2>&1; then
