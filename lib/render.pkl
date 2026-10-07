@@ -532,7 +532,9 @@ local goFix =
     local dir
     dir="$(dirname "$1")"
     while [[ ! -f "${dir}/go.mod" ]]; do
-      [[ "${dir}" != "." && "${dir}" != "/" ]] || return 1
+      if [[ "${dir}" == "." || "${dir}" == "/" ]]; then
+        return 0 # no module: prints nothing
+      fi
       dir="$(dirname "${dir}")"
     done
     echo "${dir}"
@@ -597,12 +599,13 @@ local goFix =
 
   failed=0
   while IFS= read -r module; do
+    [[ -n "${module}" ]] || continue
     in_module=()
     for file in "$@"; do
-      [[ "$(module_of "${file}" || true)" != "${module}" ]] || in_module+=("${file}")
+      [[ "$(module_of "${file}")" != "${module}" ]] || in_module+=("${file}")
     done
     fix_module "${module}" "${in_module[@]}" || failed=1
-  done < <(for file in "$@"; do module_of "${file}" || true; done | sort -u)
+  done < <(for file in "$@"; do module_of "${file}"; done | sort -u)
   exit "${failed}"
   """
 
