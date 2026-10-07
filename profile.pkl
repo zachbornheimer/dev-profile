@@ -102,6 +102,8 @@ fixers: Mapping<String, hk.Step> = new {
   }
   ["php-fmt"] { glob = List("**/*.php"); fix = "dev-profile-php-fmt {{files}}" }
   ["go-imports"] = Builtins.go_imports
+  // go fix needs compiling code, so goimports adds missing imports first.
+  ["go-fix"] = (Builtins.go_fix) { depends = List("go-imports") }
   ["oxlint-fix"] {
     glob =
       List(

@@ -292,29 +292,10 @@ local python =
 
 local dotnet =
   """
-  # The solutions to drive (every .sln), or every project when a repo has none;
-  # dotnet needs one target per invocation, and nested projects are the norm.
-  targets() {
-    local sln
-    sln="$(git ls-files --cached --others --exclude-standard -- ':(glob)**/*.sln')"
-    if [[ -n "${sln}" ]]; then
-      echo "${sln}"
-    else
-      git ls-files --cached --others --exclude-standard -- ':(glob)**/*.csproj'
-    fi | grep -vE '(^|/)(bin|obj)/' | sort -u
-  }
-
-  each_target() {
-    local target
-    while IFS= read -r target; do
-      step dotnet "$@" "${target}"
-    done < <(targets)
-  }
-
   case "${verb}" in
-    build) each_target build ;;
-    lint) each_target format --verify-no-changes ;;
-    test) each_target test ;;
+    build) step dotnet build ;;
+    lint) step dotnet format --verify-no-changes ;;
+    test) step dotnet test ;;
     *) nothing_to_do ;;
   esac
   """
@@ -600,9 +581,6 @@ local commitMsg =
 local contractPush =
   """
   \(bash)
-  # git exports GIT_DIR, GIT_INDEX_FILE, … to hooks; clear them so tests that
-  # create their own throwaway repos do not act on the repo being pushed.
-  while IFS= read -r var; do unset "${var}"; done < <(git rev-parse --local-env-vars)
   # Run the push-time contract verbs. A repo outside a profile code root has no
   # contract tasks; say so instead of failing every push there.
   if ! mise tasks info \(namespace):test >/dev/null 2>&1; then
