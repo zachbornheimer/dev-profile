@@ -12,7 +12,7 @@ root="${work}/root"
 stubs="${work}/stubs"
 log="${work}/calls.log"
 output="${work}/output.txt"
-stubbed_tools=(go golangci-lint govulncheck pnpm npm composer aube uv oxlint gitleaks)
+stubbed_tools=(go golangci-lint govulncheck pnpm npm composer aube uv oxlint gitleaks dotnet)
 
 mkdir -p "$root" "$stubs" "${work}/mise-config"
 cp "${out}/personal-overlay.toml" "${root}/mise.toml"
@@ -62,6 +62,23 @@ run_task() {
 expect_call() { grep -qxF -- "$1" "$log" || fail "$2: expected call '$1'"; }
 expect_no_call() { ! grep -qF -- "$1" "$log" || fail "$2: unexpected call '$1'"; }
 expect_output() { grep -qF -- "$1" "$output" || fail "$2: expected output '$1'"; }
+
+fixture_dotnet_targets() {
+	local nested sln
+	nested="$(new_repo dotnet-nested)"
+	mkdir -p "${nested}/packages/csharp/src" "${nested}/packages/csharp/obj"
+	touch "${nested}/packages/csharp/src/Sdk.csproj" "${nested}/packages/csharp/obj/Gen.csproj"
+	run_task "$nested" test || fail "dotnet nested: test failed"
+	expect_call "dotnet|${nested}|test packages/csharp/src/Sdk.csproj" "dotnet nested"
+	expect_no_call "obj/Gen.csproj" "dotnet nested"
+
+	sln="$(new_repo dotnet-sln)"
+	mkdir -p "${sln}/src"
+	touch "${sln}/App.sln" "${sln}/src/App.csproj"
+	run_task "$sln" build || fail "dotnet sln: build failed"
+	expect_call "dotnet|${sln}|build App.sln" "dotnet sln"
+	expect_no_call "build src/App.csproj" "dotnet sln"
+}
 
 fixture_go_work() {
 	local repo
@@ -239,6 +256,7 @@ fixture_nested_node_setup() {
 }
 
 fixture_go_work
+fixture_dotnet_targets
 fixture_nested_node_setup
 fixture_go_outside_workspace
 fixture_uv_instead_of_python_in_tasks
