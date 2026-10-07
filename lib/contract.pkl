@@ -305,10 +305,12 @@ local dotnet =
   }
 
   each_target() {
-    local target
+    local target ran=0
     while IFS= read -r target; do
+      ran=$((ran + 1))
       step dotnet "$@" "${target}"
     done < <(targets)
+    [[ "${ran}" -gt 0 ]] || nothing_to_do
   }
 
   case "${verb}" in

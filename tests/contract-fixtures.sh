@@ -64,7 +64,7 @@ expect_no_call() { ! grep -qF -- "$1" "$log" || fail "$2: unexpected call '$1'";
 expect_output() { grep -qF -- "$1" "$output" || fail "$2: expected output '$1'"; }
 
 fixture_dotnet_targets() {
-	local nested sln
+	local nested sln deep generated
 	nested="$(new_repo dotnet-nested)"
 	mkdir -p "${nested}/packages/csharp/src" "${nested}/packages/csharp/obj"
 	touch "${nested}/packages/csharp/src/Sdk.csproj" "${nested}/packages/csharp/obj/Gen.csproj"
@@ -78,6 +78,19 @@ fixture_dotnet_targets() {
 	run_task "$sln" build || fail "dotnet sln: build failed"
 	expect_call "dotnet|${sln}|build App.sln" "dotnet sln"
 	expect_no_call "build src/App.csproj" "dotnet sln"
+
+	deep="$(new_repo dotnet-deep-sln)"
+	mkdir -p "${deep}/services/api"
+	touch "${deep}/services/api/Api.sln"
+	run_task "$deep" build || fail "dotnet deep sln: build failed"
+	expect_call "dotnet|${deep}|build services/api/Api.sln" "dotnet deep sln"
+
+	generated="$(new_repo dotnet-generated-only)"
+	mkdir -p "${generated}/obj"
+	touch "${generated}/obj/Gen.csproj"
+	run_task "$generated" build || fail "dotnet generated-only: build should pass"
+	expect_output "skip  dotnet build (nothing to build)" "dotnet generated-only"
+	expect_no_call "dotnet|" "dotnet generated-only"
 }
 
 fixture_go_work() {
