@@ -216,6 +216,128 @@ worktrunk: Dynamic = new {
       `template-append` = conventionalCommitRule
     }
   }
+  aliases {
+    up =
+      """
+      git fetch --all --prune; wt step for-each -- sh -c '
+        git rev-parse --verify -q @{u} >/dev/null || exit 0
+        g=$(git rev-parse --git-dir)
+        rebasing() { test -d "$g/rebase-merge" || test -d "$g/rebase-apply"; }
+        rebasing && exit 0
+        git diff --quiet HEAD || { git merge --ff-only --no-autostash @{u}; exit 0; }
+        git rebase @{u} --no-autostash || { rebasing || exit 0; git rebase --abort; }
+      '
+      """
+    pr =
+      """
+      wt switch {{ args }} -x sh -- -eu -c '
+        # Validate prerequisites before changing repository state.
+        command -v gh >/dev/null || {
+          echo "GitHub CLI (gh) is required" >&2
+          exit 1
+        }
+        git remote get-url origin >/dev/null || exit 1
+
+        # Never publish the default branch or a detached HEAD.
+        branch=$(git symbolic-ref --quiet --short HEAD) || {
+          echo "Cannot publish detached HEAD" >&2
+          exit 1
+        }
+        base=$(gh repo view --json defaultBranchRef \\
+          --jq ".defaultBranchRef.name")
+
+        [ -n "$base" ] && [ "$branch" != "$base" ] || {
+          echo "Refusing to publish the default branch" >&2
+          exit 1
+        }
+
+        # Prevent accidentally replacing a different upstream.
+        upstream=$(git rev-parse --abbrev-ref \\
+          --symbolic-full-name "@{upstream}" 2>/dev/null || :)
+        [ -z "$upstream" ] || [ "$upstream" = "origin/$branch" ] || {
+          echo "Unexpected upstream: $upstream" >&2
+          exit 1
+        }
+
+        # Commit only when changes exist; honor commit hooks.
+        if [ -n "$(git status --porcelain)" ]; then
+          wt step commit
+        fi
+
+        # Publish safely; never force-push.
+        git push --set-upstream origin "HEAD:refs/heads/$branch"
+
+        # Reuse an open PR rather than creating a duplicate.
+        url=$(gh pr list --head "$branch" --state open \\
+          --json url --jq ".[0].url // empty")
+
+        if [ -n "$url" ]; then
+          printf "PR: %s\\n" "$url"
+        else
+          gh pr create --fill --head "$branch"
+        fi
+      '
+      """
+    ship =
+      """
+      set -eu
+
+      branch=$(git symbolic-ref --quiet --short HEAD) || exit 1
+      default=$(gh repo view --json defaultBranchRef \\
+        --jq '.defaultBranchRef.name')
+
+      # Never publish the default branch.
+      [ "$branch" != "$default" ] || exit 0
+
+      # Respect stacked PR targets when configured.
+      base=$(git config --get "branch.$branch.gh-merge-base" || :)
+      base=${base:-$default}
+
+      # Refuse branches with an unfinished Git operation.
+      for operation in rebase-merge rebase-apply MERGE_HEAD CHERRY_PICK_HEAD; do
+        [ ! -e "$(git rev-parse --git-path "$operation")" ] || {
+          echo "Unfinished Git operation: $branch" >&2
+          exit 1
+        }
+      done
+
+      # Never silently reopen previously closed work.
+      state=$(gh pr list --head "$branch" --state all \\
+        --json state --jq '.[0].state // "NONE"')
+      case "$state" in
+        CLOSED|MERGED) echo "Skipping previously closed PR: $branch"; exit 0 ;;
+      esac
+
+      # Commit pending changes, including untracked files.
+      if [ -n "$(git status --porcelain)" ]; then
+        wt step commit
+      fi
+      [ -z "$(git status --porcelain)" ] || exit 1
+
+      # Skip work that Worktrunk identifies as already integrated.
+      if wt list --full --format=json | jq -e --arg b "$branch" '
+        any(.items[]; .branch == $b and
+          .default_branch.integration != null)
+      ' >/dev/null; then
+        echo "Already integrated: $branch"
+        exit 0
+      fi
+
+      # Publish only when there are commits ahead of the PR base.
+      git rev-parse --verify "origin/$base" >/dev/null
+      [ "$(git rev-list --count "origin/$base..HEAD")" -gt 0 ] || exit 0
+
+      git push -u origin "HEAD:refs/heads/$branch"
+
+      # Reuse an open PR or create a draft.
+      if [ "$state" = OPEN ]; then
+        gh pr view "$branch" --json url --jq '.url'
+      else
+        gh pr create --draft --fill --head "$branch" --base "$base"
+      fi
+      """
+    ["ship-all"] = "git fetch origin --prune && wt step for-each -- wt ship"
+  }
 }
 
 // ---- profile.json (Conform manifest)
