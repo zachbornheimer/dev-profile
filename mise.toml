@@ -139,7 +139,7 @@ shellcheck "$out"/bin/* tests/*.sh || fail shellcheck
 golangci-lint config verify --config "$out/golangci.yml" || fail golangci.yml
 grep -F "allow-parallel-runners: true" "$out/golangci.yml" || fail "golangci allow-parallel-runners"
 grep -F "composer audit --locked" "$out/bin/dev-profile-contract-php" || fail "composer audit --locked"
-if grep -F -- "--deny-warnings" "$out/src/profile.pkl"; then fail "oxlint must not deny-warnings"; fi
+if pkl eval -x 'checks["oxlint"].check' profile.pkl | grep -F -- "--deny-warnings"; then fail "oxlint must not deny-warnings"; fi
 bash tests/contract-fixtures.sh "$out" || fail "contract fixtures"
 echo "doctor ok"
 """
