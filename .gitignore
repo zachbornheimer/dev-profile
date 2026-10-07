@@ -7,3 +7,5 @@
 !/conform.lua
 !/lib/
 !/lib/*.pkl
+!/tests/
+!/tests/*.sh

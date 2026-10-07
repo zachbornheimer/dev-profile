@@ -26,10 +26,20 @@ steps {
 }
 
 hooks {
+  ["commit-msg"] {
+    steps {
+      ["conventional-commit"] { check = "dev-profile-commit-msg {{commit_msg_file}}" }
+    }
+  }
   ["pre-push"] {
     steps {
       ...profile.checks
       ...profile.hygiene
+      // The contract's test + scan run on every push; lint is the checks above.
+      ["contract"] {
+        depends = profile.checks.keys.toList()
+        check = "dev-profile-contract-push"
+      }
     }
   }
 }

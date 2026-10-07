@@ -9,7 +9,8 @@ min_version = "2026.10.0"
 pkl = "0.32.1"
 
 [env]
-DEV_PROFILE_OUT = "{{env.HOME}}/.local/share/dev-profile"
+# Overridable so validation can render somewhere other than the live output.
+DEV_PROFILE_OUT = "{{ get_env(name='DEV_PROFILE_OUT', default=env.HOME ~ '/.local/share/dev-profile') }}"
 DEV_PROFILE_BACKUPS = "{{env.HOME}}/.local/state/dev-profile/backups"
 
 [bootstrap.packages]
@@ -129,6 +130,9 @@ jq empty "$out/profile.json" || fail profile.json
 luac -p "$out/conform.lua" || fail conform.lua
 zsh -n "$out/shell.zsh" || fail shell.zsh
 for f in "$out"/bin/*; do bash -n "$f" || fail "${f##*/}"; done
+shellcheck "$out"/bin/* tests/*.sh || fail shellcheck
+golangci-lint config verify --config "$out/golangci.yml" || fail golangci.yml
+bash tests/contract-fixtures.sh "$out" || fail "contract fixtures"
 echo "doctor ok"
 """
 
@@ -142,10 +146,22 @@ description = "Check formatting"
 depends = ["generate"]
 run = 'dprint check --config "$DEV_PROFILE_OUT/dprint.jsonc" "**/*"'
 
+[tasks.build]
+description = "Render the profile (this repo's artifact)"
+run = "mise run generate"
+
 [tasks.test]
-description = "Validate generated configs"
-run = "mise run doctor"
+description = "Validate generated configs and run the contract fixtures (temp render)"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+# Render into a throwaway dir: a push must never redeploy the live profile.
+DEV_PROFILE_OUT="$(mktemp -d)"
+export DEV_PROFILE_OUT
+trap 'rm -rf "$DEV_PROFILE_OUT"' EXIT
+mise run doctor
+"""
 
 [tasks.ci]
-description = "lint, then test (sequential: both regenerate DEV_PROFILE_OUT)"
-run = ["mise run lint", "mise run test"]
+description = "lint, test, scan (sequential: lint and test both regenerate DEV_PROFILE_OUT)"
+run = ["mise run lint", "mise run test", "mise run scan"]

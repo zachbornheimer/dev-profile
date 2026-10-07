@@ -1,0 +1,132 @@
+/// Shared tool configs rendered to the code root. Tools find them by
+/// parent-directory lookup, so a repo copy is a defect, not a customization.
+module shared
+
+import "render.pkl"
+
+// Split so the literal directive token never appears in this source.
+local directiveLinter = "no" + "lint" + "lint"
+
+/// golangci-lint v2. No merging: the first config found walking up wins, so this
+/// excludes only generated files and never silences code issues.
+golangci: Dynamic = new {
+  version = "2"
+  run {
+    timeout = "5m"
+    tests = true
+  }
+  linters {
+    ["default"] = "none"
+    enable =
+      List(
+        "errcheck",
+        "govet",
+        "staticcheck",
+        "unused",
+        "ineffassign",
+        "errorlint",
+        "gocritic",
+        "unconvert",
+        "unparam",
+        "modernize",
+        "exptostd",
+        "usestdlibvars",
+        "perfsprint",
+        "misspell",
+        "revive",
+        "whitespace",
+        "gosec",
+        "bodyclose",
+        "nilerr",
+        directiveLinter,
+      )
+    settings {
+      errcheck { ["check-type-assertions"] = true }
+      [directiveLinter] {
+        ["require-explanation"] = true
+        ["require-specific"] = true
+      }
+      govet {
+        ["enable-all"] = true
+        // fieldalignment: layout micro-optimization. shadow: superseded by revive/staticcheck.
+        disable = List("fieldalignment", "shadow")
+      }
+      gocritic {
+        ["enabled-tags"] = List("diagnostic", "performance")
+        // hugeParam: copy-cost heuristic, not a bug class.
+        ["disabled-checks"] = List("hugeParam")
+      }
+      // gosec ignores its own inline annotations: suppressions are forbidden.
+      gosec { config { global { ["no" + "sec"] = true } } }
+      perfsprint {
+        ["err-error"] = true
+        errorf = true
+        sprintf1 = true
+        strconcat = false
+      }
+      misspell { locale = "US" }
+      revive {
+        rules =
+          List(
+            "blank-imports",
+            "context-as-argument",
+            "context-keys-type",
+            "dot-imports",
+            "early-return",
+            "error-naming",
+            "error-return",
+            "error-strings",
+            "errorf",
+            "increment-decrement",
+            "indent-error-flow",
+            "range",
+            "receiver-naming",
+            "redefines-builtin-id",
+            "superfluous-else",
+            "time-naming",
+            "unreachable-code",
+            "unused-parameter",
+            "var-declaration",
+            "var-naming",
+          ).map((rule) -> new Dynamic { name = rule })
+      }
+    }
+    exclusions {
+      // Generated files (.pb.go, .gen.go) are detected by their header.
+      generated = "lax"
+      ["warn-unused"] = true
+    }
+  }
+  formatters { enable = List("gofumpt", "goimports") }
+  issues {
+    ["max-issues-per-linter"] = 0
+    ["max-same-issues"] = 0
+  }
+}
+
+/// .editorconfig sections: glob → property → value. Pure style defaults.
+editorconfigSections: Mapping<String, Mapping<String, Any>> = new {
+  ["*"] {
+    ["charset"] = "utf-8"
+    ["end_of_line"] = "lf"
+    ["insert_final_newline"] = true
+    ["trim_trailing_whitespace"] = true
+    ["indent_style"] = "space"
+    ["indent_size"] = 2
+  }
+  ["*.go"] { ["indent_style"] = "tab" }
+  ["{Makefile,*.mk}"] { ["indent_style"] = "tab" }
+  ["*.py"] { ["indent_size"] = 4 }
+}
+
+/// .editorconfig file body (INI; Pkl ships no INI renderer).
+editorconfig: String =
+  new Listing<String> {
+    render.header("#")
+    "root = true"
+    for (glob, properties in editorconfigSections) {
+      ""
+      "[\(glob)]"
+      for (key, value in properties) { "\(key) = \(value)" }
+    }
+  }.join("\n") + "\n"

@@ -87,3 +87,26 @@ class DepProvider {
   id: String
   auto: Boolean = true
 }
+
+/// A contract adapter: one ecosystem's native tools behind the contract verbs.
+class Adapter {
+  /// Names the generated `dev-profile-contract-<id>` script.
+  id: String
+
+  /// Repo-relative globs (git pathspec glob magic) that make the adapter apply.
+  /// Empty: it applies to every repo.
+  markers: Listing<String> = new {}
+}
+
+/// report: list inline suppressions, never block. enforce: block on them.
+typealias SuppressionMode = "report" | "enforce"
+
+/// The one sanctioned home for an unavoidable suppression: declared here, never inline.
+class SuppressionException {
+  /// Repo-relative path, exactly as git prints it.
+  path: String
+  /// Directive id from profile.suppressionDirectives.
+  rule: String
+  /// Tracking ticket that justifies and eventually removes the exception.
+  ticket: String
+}

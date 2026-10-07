@@ -5,7 +5,9 @@ module profile
 import "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Builtins.pkl"
 import "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pkl" as hk
 
+import "lib/contract.pkl"
 import "lib/render.pkl"
+import "lib/shared.pkl"
 import "lib/types.pkl"
 
 exclude: Listing<String> = new {
@@ -61,6 +63,9 @@ installPath: String =
 /// installPath with ~ for consumers that expand it (mise, dotfiles, Neovim).
 installDir: String = installPath.replaceFirst(read("env:HOME"), "~")
 
+/// The code root this profile renders: the overlay and shared tool configs live here.
+codeRoot: String = "~/Developer/Personal"
+
 /// Live config path → generated file. Linked only by `mise run install-live`.
 liveTargets: Mapping<String, String> = new {
   ["~/.config/hk/config.pkl"] = "hk-config.pkl"
@@ -68,8 +73,11 @@ liveTargets: Mapping<String, String> = new {
   ["~/.config/worktrunk/config.toml"] = "worktrunk.toml"
   ["~/.config/mise/conf.d/dev-profile.toml"] = "mise-profile.toml"
   ["~/.config/nvim/lua/zach/plugins/conform.lua"] = "conform.lua"
-  ["~/Developer/Personal/dprint.jsonc"] = "dprint.jsonc"
-  ["~/Developer/Personal/mise.toml"] = "personal-overlay.toml"
+  ["\(codeRoot)/dprint.jsonc"] = "dprint.jsonc"
+  ["\(codeRoot)/mise.toml"] = "personal-overlay.toml"
+  // Shared tool configs, found by parent-directory lookup from every repo.
+  ["\(codeRoot)/.golangci.yml"] = "golangci.yml"
+  ["\(codeRoot)/.editorconfig"] = "editorconfig"
   // User-level defaults; a repo's own .markdownlint* / .yamllint still wins.
   ["~/.markdownlintrc"] = "markdownlintrc.json"
   ["~/.config/yamllint/config"] = "yamllint.yaml"
@@ -124,6 +132,11 @@ fixers: Mapping<String, hk.Step> = new {
     fix = "dev-profile-fix markdownlint --fix {{files}}"
   }
   ["swiftlint-fix"] { glob = List("**/*.swift"); fix = "dev-profile-swiftlint-fix {{files}}" }
+  // mise tasks: bare python3 → uv run (python3 x.py → uv run x.py).
+  ["uv-instead-of-python-in-tasks"] {
+    glob = List("**/mise.toml", "**/.mise.toml", "**/mise-tasks/**", "**/.mise/tasks/**")
+    fix = "dev-profile-uv-instead-of-python-in-tasks {{files}}"
+  }
 }
 
 /// Push and `hk check --slow`: semantic lint, types, security. May block.
@@ -147,6 +160,8 @@ checks: Mapping<String, hk.Step> = new {
   ["gitleaks"] {
     check = "gitleaks git --redact --no-banner --log-opts=\"--branches --not --remotes\""
   }
+  // Inline suppressions added by unpushed commits (suppressionMode decides blocking).
+  ["suppressions"] { check = "dev-profile-suppressions --unpushed" }
   ["cargo-check"] = Builtins.cargo_check
   ["clippy"] = Builtins.cargo_clippy
 }
@@ -167,6 +182,92 @@ hygiene: Mapping<String, hk.Step> = new {
 gitHooks: Mapping<String, String> = new {
   ["pre-commit"] = "hk run pre-commit --staged"
   ["pre-push"] = "hk run pre-push"
+  // Profile-agnostic: the active hk config (HK_CONFIG_DIR) owns the rules, so
+  // the SAH and personal profiles can share this one global hook.
+  ["commit-msg"] = "hk run commit-msg"
+}
+
+/// Conventional Commit types the commit-msg hook accepts.
+conventionalCommitTypes: Listing<String> = new {
+  "feat"
+  "fix"
+  "docs"
+  "style"
+  "refactor"
+  "perf"
+  "test"
+  "build"
+  "ci"
+  "chore"
+  "revert"
+}
+
+/// The repo task contract (devops-standards): verb → description. The root
+/// overlay renders `profile:<verb>` (the dispatch) and `<verb>` (depends on it),
+/// so a repo overrides `<verb>` or extends it with `depends = ["profile:<verb>"]`.
+contractVerbs: Mapping<String, String> = new {
+  ["setup"] = "Install tools and deps (mise deps providers)"
+  ["build"] = "Produce the deployable artifact"
+  ["lint"] = "Format check + static analysis via the native tools"
+  ["test"] = "Run all tests"
+  ["scan"] = "Secrets on the tree + dependency vulnerability scanning"
+  ["doctor"] = "Verify the repo meets the contract"
+}
+
+/// `ci` runs these contract verbs in order, all of them, then fails if any failed.
+ciVerbs: Listing<String> = new { "lint"; "test"; "scan" }
+
+/// Ecosystems by marker file, in run order. Bodies live in lib/contract.pkl.
+contractAdapters: Listing<types.Adapter> = new {
+  new { id = "go"; markers { "go.work"; "**/go.mod" } }
+  new {
+    id = "node"
+    markers {
+      "aube-lock.yaml"
+      "pnpm-lock.yaml"
+      "package-lock.json"
+      "yarn.lock"
+      "bun.lock"
+      "bun.lockb"
+    }
+  }
+  new { id = "php"; markers { "composer.json" } }
+  new { id = "python"; markers { "uv.lock"; "pyproject.toml" } }
+  new { id = "dotnet"; markers { "*.sln"; "**/*.csproj" } }
+  new { id = "ruby"; markers { "Gemfile" } }
+  new { id = "perl"; markers { "cpanfile"; "Makefile.PL" } }
+  new { id = "opentofu"; markers { "**/*.tf" } }
+  new { id = "buf"; markers { "**/buf.yaml" } }
+  new { id = "swift"; markers { "Package.swift" } }
+  // Every repo: deps setup, suppressions, secrets, structure.
+  new { id = "repo" }
+}
+
+/// One switch: report lists inline suppressions; enforce blocks push and lint.
+/// `pkl eval -p suppressionMode=enforce` renders the enforcing variant (tests).
+suppressionMode: types.SuppressionMode = read?("prop:suppressionMode") ?? "report"
+
+/// Unavoidable suppressions, declared once: {path, rule, ticket}. Empty by design.
+suppressionExceptions: Listing<types.SuppressionException> = new {}
+
+// Split so the literal directive tokens never appear in this source.
+local no = "no"
+local disable = "dis" + "able"
+local ignore = "ig" + "nore"
+
+/// Inline suppression directives, id → POSIX ERE.
+suppressionDirectives: Mapping<String, String> = new {
+  ["golangci"] = "//[[:space:]]*\(no)lint"
+  ["gosec"] = "#\(no)sec"
+  ["ruff"] = "#[[:space:]]*\(no)qa"
+  ["mypy"] = "#[[:space:]]*type:[[:space:]]*\(ignore)"
+  ["eslint"] = "(eslint|oxlint)-\(disable)"
+  ["typescript"] = "@ts-(\(ignore)|expect-error)"
+  ["phpcs"] = "phpcs:(\(ignore)|\(disable))|@codingStandardsIgnore"
+  ["phpstan"] = "@phpstan-\(ignore)"
+  ["rubocop"] = "rubocop:(\(disable)|todo)"
+  ["shellcheck"] = "shellcheck[[:space:]]+\(disable)="
+  ["swiftlint"] = "swiftlint:\(disable)"
 }
 
 settings: types.Settings = new {}
@@ -210,6 +311,9 @@ tools: Listing<types.Pin> = new {
   new { id = "aqua:gitleaks/gitleaks"; version = "8.30.1" }
   new { id = "go:golang.org/x/tools/cmd/goimports"; version = "latest" }
   new { id = "go:golang.org/x/vuln/cmd/govulncheck"; version = "1.8.0" }
+  // Contract adapters: OpenTofu lint and protobuf lint/breaking/generate.
+  new { id = "tflint"; version = "0.64.0" }
+  new { id = "buf"; version = "1.73.0" }
   new { id = "npm:@agentclientprotocol/codex-acp"; version = "latest" }
   new { id = "npm:@agentclientprotocol/claude-agent-acp"; version = "latest" }
 }
@@ -521,6 +625,8 @@ output {
     ["src/lib/types.pkl"] { text = read("lib/types.pkl").text }
     ["src/lib/render.pkl"] { text = read("lib/render.pkl").text }
     ["src/lib/hk.pkl"] { text = read("lib/hk.pkl").text }
+    ["src/lib/contract.pkl"] { text = read("lib/contract.pkl").text }
+    ["src/lib/shared.pkl"] { text = read("lib/shared.pkl").text }
     // Linked as ~/.config/hk/config.pkl. Absolute, because Pkl resolves relative
     // imports from the symlink's directory, not its target's.
     ["hk-config.pkl"] { text = "amends \"\(installPath)/src/lib/hk.pkl\"\n" }
@@ -529,6 +635,8 @@ output {
     ["mise-profile.toml"] { text = render.tomlFile(render.mise) }
     ["worktrunk.toml"] { text = render.tomlFile(render.worktrunk) }
     ["personal-overlay.toml"] { text = render.tomlFile(render.personalOverlay) }
+    ["golangci.yml"] { text = render.yamlFile(shared.golangci) }
+    ["editorconfig"] { text = shared.editorconfig }
     // Hand-written adapter; copied so install-live links one directory.
     ["shell.zsh"] { text = render.shellZsh }
     ["markdownlintrc.json"] {
