@@ -292,10 +292,29 @@ local python =
 
 local dotnet =
   """
+  # The solutions to drive (every .sln), or every project when a repo has none;
+  # dotnet needs one target per invocation, and nested projects are the norm.
+  targets() {
+    local sln
+    sln="$(git ls-files --cached --others --exclude-standard -- ':(glob)**/*.sln')"
+    if [[ -n "${sln}" ]]; then
+      echo "${sln}"
+    else
+      git ls-files --cached --others --exclude-standard -- ':(glob)**/*.csproj'
+    fi | grep -vE '(^|/)(bin|obj)/' | sort -u
+  }
+
+  each_target() {
+    local target
+    while IFS= read -r target; do
+      step dotnet "$@" "${target}"
+    done < <(targets)
+  }
+
   case "${verb}" in
-    build) step dotnet build ;;
-    lint) step dotnet format --verify-no-changes ;;
-    test) step dotnet test ;;
+    build) each_target build ;;
+    lint) each_target format --verify-no-changes ;;
+    test) each_target test ;;
     *) nothing_to_do ;;
   esac
   """
