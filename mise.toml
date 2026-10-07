@@ -133,6 +133,7 @@ for f in "$out"/bin/*; do bash -n "$f" || fail "${f##*/}"; done
 shellcheck "$out"/bin/* tests/*.sh || fail shellcheck
 golangci-lint config verify --config "$out/golangci.yml" || fail golangci.yml
 bash tests/contract-fixtures.sh "$out" || fail "contract fixtures"
+bash tests/go-fix-fixture.sh "$out" || fail "go-fix fixture"
 echo "doctor ok"
 """
 

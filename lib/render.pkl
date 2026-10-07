@@ -516,6 +516,96 @@ local oxlintFix =
   [[ "${code}" -le 1 ]] || exit "${code}"
   """
 
+local goFix =
+  """
+  \(bash)
+  # Modernize the packages of staged Go files, per module, then prove the result
+  # still vets. A rewrite that breaks vet is reverted and fails the commit.
+  # Files in those packages that are not staged are always put back untouched.
+  if [[ $# -eq 0 ]]; then
+    exit 0
+  fi
+  backup="$(mktemp -d)"
+  trap 'rm -rf "${backup}"' EXIT
+
+  module_of() {
+    local dir
+    dir="$(dirname "$1")"
+    while [[ ! -f "${dir}/go.mod" ]]; do
+      [[ "${dir}" != "." && "${dir}" != "/" ]] || return 1
+      dir="$(dirname "${dir}")"
+    done
+    echo "${dir}"
+  }
+
+  in_list() { # <item> <list...>
+    local want="$1" got
+    shift
+    for got in "$@"; do [[ "${got}" != "${want}" ]] || return 0; done
+    return 1
+  }
+
+  # Every .go file of a package, as a path relative to the repo root.
+  package_files() {
+    local file
+    for file in "$1"/*.go; do echo "${file#./}"; done
+  }
+
+  put_back() { # <path relative to root>
+    cmp -s "${backup}/$1" "$1" || cat "${backup}/$1" >"$1"
+  }
+
+  vets() { # <module> <gowork> <package args...>
+    local module="$1" gowork="$2"
+    shift 2
+    (cd "${module}" && GOWORK="${gowork}" go vet "$@" >/dev/null 2>&1)
+  }
+
+  fix_module() { # <module> <staged files in module...>
+    local module="$1" file pkg sub gowork="" fixed=0 pkgs=() args=() staged=("${@:2}")
+    for file in "${staged[@]}"; do
+      pkg="$(dirname "${file}")"
+      in_list "${pkg}" "${pkgs[@]+"${pkgs[@]}"}" && continue
+      pkgs+=("${pkg}")
+      sub="${pkg#"${module}"}"
+      args+=("./${sub#/}")
+      while IFS= read -r file; do
+        mkdir -p "$(dirname "${backup}/${file}")"
+        cat "${file}" >"${backup}/${file}"
+      done < <(package_files "${pkg}")
+    done
+    (cd "${module}" && go list -m >/dev/null 2>&1) || gowork=off
+
+    (cd "${module}" && GOWORK="${gowork}" go fix "${args[@]}" >/dev/null 2>&1) || fixed=1
+    for pkg in "${pkgs[@]}"; do
+      while IFS= read -r file; do
+        in_list "${file}" "${staged[@]}" || put_back "${file}"
+      done < <(package_files "${pkg}")
+    done
+    if [[ "${fixed}" -eq 0 ]] && vets "${module}" "${gowork}" "${args[@]}"; then
+      return 0
+    fi
+    for file in "${staged[@]}"; do put_back "${file}"; done
+    # go fix could not run: push judges the code. It ran and broke vet: block.
+    [[ "${fixed}" -eq 0 ]] || return 0
+    if vets "${module}" "${gowork}" "${args[@]}"; then
+      echo "go fix broke go vet in ${module}; rewrite reverted. Fix the code or run go fix by hand." >&2
+      return 1
+    fi
+    return 0
+  }
+
+  failed=0
+  while IFS= read -r module; do
+    in_module=()
+    for file in "$@"; do
+      [[ "$(module_of "${file}" || true)" != "${module}" ]] || in_module+=("${file}")
+    done
+    fix_module "${module}" "${in_module[@]}" || failed=1
+  done < <(for file in "$@"; do module_of "${file}" || true; done | sort -u)
+  exit "${failed}"
+  """
+
 local pklFmt =
   """
   \(bash)
@@ -569,6 +659,7 @@ wrappers: Mapping<String, String> = new {
   ["dev-profile-rubocop-fix"] = rubocopFix
   ["dev-profile-oxlint-fix"] = oxlintFix
   ["dev-profile-fix"] = tolerantFix
+  ["dev-profile-go-fix"] = goFix
   ["dev-profile-pkl-fmt"] = pklFmt
   ["dev-profile-ty"] = ty
   ...contract.wrappers
