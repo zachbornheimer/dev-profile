@@ -132,6 +132,10 @@ fixers: Mapping<String, hk.Step> = new {
     fix = "dev-profile-fix markdownlint --fix {{files}}"
   }
   ["swiftlint-fix"] { glob = List("**/*.swift"); fix = "dev-profile-swiftlint-fix {{files}}" }
+  ["tofu-fmt"] {
+    glob = List("**/*.tf", "**/*.tfvars")
+    fix = "tofu fmt {{files}}"
+  }
   // mise tasks: bare python3 → uv run (python3 x.py → uv run x.py).
   ["uv-instead-of-python-in-tasks"] {
     glob = List("**/mise.toml", "**/.mise.toml", "**/mise-tasks/**", "**/.mise/tasks/**")
@@ -152,6 +156,10 @@ checks: Mapping<String, hk.Step> = new {
   ["perlcritic"] { glob = List("**/*.pl", "**/*.pm", "**/*.t"); check = "perlcritic {{files}}" }
   ["shellcheck"] = Builtins.shellcheck
   ["swiftlint"] = Builtins.swiftlint
+  ["tofu-validate-fmt"] {
+    glob = List("**/*.tf", "**/*.tfvars")
+    check = "tofu fmt -check {{files}}"
+  }
   ["hadolint"] = Builtins.hadolint
   ["markdownlint"] = (Builtins.markdown_lint) { fix = null }
   ["yamllint"] = Builtins.yamllint
@@ -300,8 +308,8 @@ tools: Listing<types.Pin> = new {
   new { id = "stylua"; version = "2.5.2" }
   new { id = "shellcheck"; version = "0.11.0" }
   new { id = "shellharden"; version = "4.3.2" }
-  new { id = "aube"; version = "latest" }
-  new { id = "uv"; version = "latest" }
+  new { id = "aube"; version = "2.5.1" }
+  new { id = "uv"; version = "0.12.23" }
   new { id = "hadolint"; version = "latest" }
   // Worktree env isolation (deps symlinks, ports, DB names); run by the wt pre-start hook.
   new { id = "github:rohansx/workz"; version = "0.11.0" }
@@ -312,6 +320,7 @@ tools: Listing<types.Pin> = new {
   new { id = "go:golang.org/x/tools/cmd/goimports"; version = "latest" }
   new { id = "go:golang.org/x/vuln/cmd/govulncheck"; version = "1.8.0" }
   // Contract adapters: OpenTofu lint and protobuf lint/breaking/generate.
+  new { id = "opentofu"; version = "1.11" }
   new { id = "tflint"; version = "0.64.0" }
   new { id = "buf"; version = "1.73.0" }
   new { id = "npm:@agentclientprotocol/codex-acp"; version = "latest" }
@@ -557,7 +566,7 @@ languages: Listing<types.Spec> = new {
     nvimFiletypes { "terraform" }
     dprint {
       kind = "exec"
-      command = "terraform fmt -"
+      command = "tofu fmt -"
       exts { "tf" }
     }
   }
