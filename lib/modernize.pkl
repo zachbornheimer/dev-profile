@@ -1,0 +1,175 @@
+/// Commit-time modernizers for non-Go languages, scoped to the staged files.
+/// Each wrapper skips silently (exit 0) when its tool or its config is absent,
+/// so a repo that does not use a language never fails its commit.
+module modernize
+
+import "render.pkl"
+
+local bash = "#!/usr/bin/env bash\nset -euo pipefail\n" + render.header("#") + "\n"
+
+// Raw strings (#"""…"""#): the shell keeps its backslashes and `$`.
+local nearestUp =
+  #"""
+  root="$(cd "$(git rev-parse --show-toplevel)" && pwd -P)"
+
+  # The nearest directory at or above file $1, up to the repo root, that holds a
+  # file matching glob $2. Prints nothing when there is none.
+  nearest_up() {
+    local dir
+    dir="$(cd "$(dirname "$1")" && pwd -P)"
+    while :; do
+      if compgen -G "${dir}/$2" >/dev/null; then
+        echo "${dir}"
+        return 0
+      fi
+      if [[ "${dir}" == "${root}" || "${dir}" == / ]]; then return 0; fi
+      dir="$(dirname "${dir}")"
+    done
+  }
+
+  # Absolute path of a staged file.
+  absolute() {
+    echo "$(cd "$(dirname "$1")" && pwd -P)/$(basename "$1")"
+  }
+  """#
+
+local rectorFix =
+  #"""
+  \#(bash)
+  # Rector rewrites PHP to the project's PHP-version set. The set lives in the
+  # repo's rector.php, so a repo without one opts out.
+  (($#)) || exit 0
+  \#(nearestUp)
+
+  [[ -f "${root}/rector.php" ]] || exit 0
+  if [[ -x "${root}/vendor/bin/rector" ]]; then
+    rector="${root}/vendor/bin/rector"
+  elif command -v rector >/dev/null 2>&1; then
+    rector="$(command -v rector)"
+  else
+    exit 0
+  fi
+  cd "${root}"
+  exec "${rector}" process --no-progress-bar --no-diffs --clear-cache --config rector.php "$@"
+  """#
+
+local clippyFix =
+  #"""
+  \#(bash)
+  # `cargo clippy --fix` rewrites whole crates and verifies each fix still builds.
+  # A crate with unstaged edits is left alone: the fixes would land in files this
+  # commit does not stage.
+  (($#)) || exit 0
+  command -v cargo >/dev/null 2>&1 || exit 0
+  cargo clippy --version >/dev/null 2>&1 || exit 0
+  \#(nearestUp)
+
+  for file in "$@"; do
+    nearest_up "$(absolute "${file}")" Cargo.toml
+  done | sort -u | while IFS= read -r crate; do
+    [[ -n "${crate}" ]] || continue
+    if ! git diff --quiet -- "${crate}"; then
+      echo "clippy-fix: skipping ${crate#"${root}/"} (unstaged changes)" >&2
+      continue
+    fi
+    (cd "${crate}" && cargo clippy --fix --allow-dirty --allow-staged --quiet) || true
+  done
+  """#
+
+local dotnetFormatFix =
+  #"""
+  \#(bash)
+  # `dotnet format` style and analyzer fixes, limited to the staged files of each
+  # solution or project.
+  (($#)) || exit 0
+  command -v dotnet >/dev/null 2>&1 || exit 0
+  \#(nearestUp)
+
+  for file in "$@"; do
+    abs="$(absolute "${file}")"
+    dir="$(nearest_up "${abs}" '*.sln')"
+    [[ -n "${dir}" ]] || dir="$(nearest_up "${abs}" '*.csproj')"
+    [[ -n "${dir}" ]] || continue
+    printf '%s\x1f%s\n' "${dir}" "${abs}"
+  done | sort | {
+    current=""
+    files=()
+    flush() {
+      [[ -n "${current}" ]] || return 0
+      (cd "${current}" && dotnet format --no-restore --include "${files[@]}") || true
+    }
+    while IFS=$'\x1f' read -r dir abs; do
+      if [[ "${dir}" != "${current}" ]]; then
+        flush
+        current="${dir}"
+        files=()
+      fi
+      files+=("${abs}")
+    done
+    flush
+  }
+  """#
+
+local stylelintFix =
+  #"""
+  \#(bash)
+  # stylelint --fix. Exit 2 = problems left for push; 78 = no config here.
+  (($#)) || exit 0
+  \#(nearestUp)
+
+  if [[ -x "${root}/node_modules/.bin/stylelint" ]]; then
+    stylelint="${root}/node_modules/.bin/stylelint"
+  elif command -v stylelint >/dev/null 2>&1; then
+    stylelint="$(command -v stylelint)"
+  else
+    exit 0
+  fi
+  code=0
+  "${stylelint}" --fix --allow-empty-input "$@" || code=$?
+  [[ "${code}" -le 2 || "${code}" -eq 78 ]] || exit "${code}"
+  """#
+
+local perltidyFix =
+  #"""
+  \#(bash)
+  # perltidy in place (its .perltidyrc is found by parent-directory lookup).
+  (($#)) || exit 0
+  command -v perltidy >/dev/null 2>&1 || exit 0
+  exec perltidy -b -bext='/' -q "$@"
+  """#
+
+local clangTidyFix =
+  #"""
+  \#(bash)
+  # clang-tidy modernize-* fixes. Needs compile_commands.json beside the file, in a
+  # parent directory, or in a build/ directory; without one there is nothing to do.
+  (($#)) || exit 0
+  command -v clang-tidy >/dev/null 2>&1 || exit 0
+  \#(nearestUp)
+
+  database_dir() {
+    local dir
+    dir="$(nearest_up "$1" compile_commands.json)"
+    if [[ -n "${dir}" ]]; then echo "${dir}"; return 0; fi
+    dir="$(nearest_up "$1" build/compile_commands.json)"
+    if [[ -n "${dir}" ]]; then echo "${dir}/build"; fi
+  }
+
+  for file in "$@"; do
+    abs="$(absolute "${file}")"
+    db="$(database_dir "${abs}")"
+    [[ -n "${db}" ]] || continue
+    # Exit is non-zero for files outside the database; that is not a commit failure.
+    clang-tidy -p "${db}" --checks='-*,modernize-*' --fix --quiet "${abs}" || true
+  done
+  """#
+
+/// Generated bin/ scripts the commit modernizers run.
+wrappers: Mapping<String, String> = new {
+  ["dev-profile-rector-fix"] = rectorFix
+  ["dev-profile-clippy-fix"] = clippyFix
+  ["dev-profile-dotnet-format-fix"] = dotnetFormatFix
+  ["dev-profile-stylelint-fix"] = stylelintFix
+  ["dev-profile-perltidy-fix"] = perltidyFix
+  ["dev-profile-clang-tidy-fix"] = clangTidyFix
+}
