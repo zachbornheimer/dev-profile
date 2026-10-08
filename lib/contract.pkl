@@ -256,7 +256,14 @@ local php =
         nothing_to_do
       fi
       ;;
-    scan) step composer audit --locked ;;
+    scan)
+      # `composer audit --locked` needs composer.lock; without one there is nothing to audit.
+      if [[ -f composer.lock ]]; then
+        step composer audit --locked
+      else
+        nothing_to_do
+      fi
+      ;;
     *) nothing_to_do ;;
   esac
   """

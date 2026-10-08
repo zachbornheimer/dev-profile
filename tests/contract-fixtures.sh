@@ -132,8 +132,12 @@ fixture_composer() {
 	run_task "$repo" test || fail "composer: test failed"
 	expect_call "composer|${repo}|run-script test" "composer"
 	commit_all "$repo"
+	run_task "$repo" scan || fail "composer without lock: scan failed"
+	expect_no_call "audit --locked" "composer without lock"
+	echo '{}' >"${repo}/composer.lock"
+	commit_all "$repo"
 	run_task "$repo" scan || fail "composer: scan failed"
-	expect_call "composer|${repo}|audit --locked" "composer"
+	expect_call "composer|${repo}|audit --locked" "composer with lock"
 	grep -qF "gitleaks|${repo}|dir --redact --no-banner " "$log" ||
 		fail "composer: expected a gitleaks scan of the tracked tree"
 }
