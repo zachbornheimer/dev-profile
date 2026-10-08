@@ -141,6 +141,7 @@ grep -F "allow-parallel-runners: true" "$out/golangci.yml" || fail "golangci all
 grep -F "composer audit --locked" "$out/bin/dev-profile-contract-php" || fail "composer audit --locked"
 if pkl eval -x 'checks["oxlint"].check' profile.pkl | grep -F -- "--deny-warnings"; then fail "oxlint must not deny-warnings"; fi
 bash tests/contract-fixtures.sh "$out" || fail "contract fixtures"
+bash tests/go-fix-fixture.sh "$out" || fail "go-fix fixture"
 echo "doctor ok"
 """
 
