@@ -655,6 +655,26 @@ local oxlintFix =
   [[ "${code}" -le 1 ]] || exit "${code}"
   """
 
+local golangciRatchet =
+  """
+  \(bash)
+  # Push gate: fail only on issues the branch adds relative to the upstream default
+  # branch, so old debt in untouched files never blocks a push. Without a base ref
+  # (no remote, fresh clone) fall back to the full tree. `mise run lint` stays full-tree.
+  base=""
+  for ref in "$(git symbolic-ref -q --short refs/remotes/origin/HEAD || true)" origin/main origin/master; do
+    if [[ -n "${ref}" ]] && git rev-parse -q --verify "${ref}^{commit}" >/dev/null; then
+      base="${ref}"
+      break
+    fi
+  done
+  if [[ -z "${base}" ]]; then
+    echo "golangci-ratchet: no upstream default branch; linting the full tree" >&2
+    exec golangci-lint run --fix=false ./...
+  fi
+  exec golangci-lint run --fix=false --new-from-merge-base="${base}" ./...
+  """
+
 local pklFmt =
   """
   \(bash)
@@ -707,6 +727,7 @@ wrappers: Mapping<String, String> = new {
   ["dev-profile-swiftlint-fix"] = swiftlintFix
   ["dev-profile-rubocop-fix"] = rubocopFix
   ["dev-profile-oxlint-fix"] = oxlintFix
+  ["dev-profile-golangci-ratchet"] = golangciRatchet
   ["dev-profile-fix"] = tolerantFix
   ["dev-profile-pkl-fmt"] = pklFmt
   ["dev-profile-ty"] = ty

@@ -146,7 +146,8 @@ checks: Mapping<String, hk.Step> = new {
   ["ruff"] = Builtins.ruff
   ["ty"] { types = List("python"); check = "dev-profile-ty {{files}}" }
   ["php-lint"] { glob = List("**/*.php"); check = "dev-profile-php-lint {{files}}" }
-  ["golangci-lint"] = Builtins.golangci_lint
+  // Gates on issues new since the upstream default branch; mise lint runs the full tree.
+  ["golangci-lint"] = (Builtins.golangci_lint) { check = "dev-profile-golangci-ratchet" }
   ["go-vet"] = Builtins.go_vet
   ["govulncheck"] = Builtins.go_vuln_check
   ["oxlint"] = Builtins.ox_lint
