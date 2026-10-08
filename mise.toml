@@ -143,6 +143,8 @@ if pkl eval -x 'checks["oxlint"].check' profile.pkl | grep -F -- "--deny-warning
 for cmd in $(grep -ohE "dev-profile-[a-z0-9-]+" "$out/src/profile.pkl" | sort -u); do [[ -x "$out/bin/$cmd" ]] || fail "hk step command without a rendered bin script: $cmd"; done
 bash tests/contract-fixtures.sh "$out" || fail "contract fixtures"
 bash tests/go-fix-fixture.sh "$out" || fail "go-fix fixture"
+bash tests/guards-fixture.sh "$out" || fail "guards fixture"
+for gem_tool in bundle-audit brakeman; do command -v "$gem_tool" >/dev/null || echo "note: $gem_tool is not installed; its push check is skipped"; done
 bash tests/ship-fixture.sh "$out" || fail "ship fixture"
 echo "doctor ok"
 """

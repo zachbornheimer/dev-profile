@@ -207,6 +207,43 @@ checks: Mapping<String, hk.Step> = new {
   // Inline suppressions added by unpushed commits (suppressionMode decides blocking).
   ["suppressions"] { check = "dev-profile-suppressions --unpushed" }
   ["cargo-check"] = Builtins.cargo_check
+  // Supply chain: each skips silently when its tool is not installed (bundle-audit and
+  // brakeman are Ruby gems: install them where a repo uses them).
+  ["pinact"] = (Builtins.pinact) {
+    check = "dev-profile-if-installed pinact pinact run --verify-comment --check {{files}}"
+    check_diff = null
+    fix = null
+  }
+  ["zizmor"] = (Builtins.zizmor) {
+    check = "dev-profile-if-installed zizmor zizmor --no-progress {{files}}"
+    fix = null
+  }
+  ["cargo-deny"] = (Builtins.cargo_deny) {
+    check = "dev-profile-if-installed cargo-deny cargo-deny --locked --workspace check"
+  }
+  ["bundle-audit"] = (Builtins.bundle_audit) {
+    check = "dev-profile-if-installed bundle-audit bundle-audit check {{files}}"
+    fix = null
+  }
+  ["brakeman"] = (Builtins.brakeman) {
+    check = "dev-profile-if-installed brakeman brakeman -q -w2 {{files}}"
+  }
+  ["go-sec"] = (Builtins.go_sec) {
+    check = "dev-profile-if-installed gosec gosec ./..."
+  }
+  ["kube-linter"] = (Builtins.kube_linter) {
+    check =
+      "dev-profile-if-installed kube-linter kube-linter lint --fail-if-no-objects-found {{files}}"
+  }
+  ["kubeconform"] = (Builtins.kubeconform) {
+    check =
+      "dev-profile-if-installed kubeconform kubeconform -summary -strict -ignore-missing-schemas {{files}}"
+  }
+  // A second secret engine alongside gitleaks.
+  ["betterleaks"] = (Builtins.betterleaks) {
+    check =
+      "dev-profile-if-installed betterleaks betterleaks dir --redact --verbose --no-banner {{files}}"
+  }
   // clippy has no new-issues mode: only diagnostics in pushed files fail.
   ["clippy"] = (Builtins.cargo_clippy) {
     check =
@@ -233,6 +270,17 @@ commitGuards: Mapping<String, hk.Step> = new {
     depends = fixers.keys.toList()
     check = "dev-profile-go-vet {{files}}"
   }
+  // Cheap guards on the staged change (hk built-ins; no external tools).
+  ["check-added-large-files"] = Builtins.check_added_large_files
+  // Only when .gitmodules is staged: existing submodules never block a commit.
+  ["forbid-submodules"] = (Builtins.forbid_submodules) { glob = List("**/.gitmodules") }
+  ["no-commit-to-branch"] = (Builtins.no_commit_to_branch) {
+    check = "dev-profile-no-commit-to-default-branch"
+  }
+  ["check-symlinks"] = Builtins.check_symlinks
+  ["destroyed-symlinks"] = Builtins.destroyed_symlinks
+  ["check-executables-have-shebangs"] = Builtins.check_executables_have_shebangs
+  ["check-shebang-scripts-are-executable"] = Builtins.check_shebang_scripts_are_executable
 }
 
 /// Global git hooks (git 2.54+ config-based hooks), written by bootstrap.
@@ -361,6 +409,14 @@ tools: Listing<types.Pin> = new {
   new { id = "aube"; version = "2.5.1" }
   new { id = "uv"; version = "0.12.23" }
   new { id = "hadolint"; version = "latest" }
+  // Supply-chain scanners behind pre-push checks; each step skips when its tool is absent.
+  new { id = "pinact"; version = "5.0.0" }
+  new { id = "zizmor"; version = "1.30.1" }
+  new { id = "cargo-deny"; version = "0.20.2" }
+  new { id = "kube-linter"; version = "0.8.3" }
+  new { id = "kubeconform"; version = "0.8.0" }
+  new { id = "betterleaks"; version = "1.9.0" }
+  new { id = "aqua:securego/gosec"; version = "2.29.0" }
   // Worktree env isolation (deps symlinks, ports, DB names); run by the wt pre-start hook.
   new { id = "github:rohansx/workz"; version = "0.11.0" }
   new { id = "npm:markdownlint-cli"; version = "0.49.1" }
@@ -704,6 +760,7 @@ output {
     ["src/lib/hk.pkl"] { text = read("lib/hk.pkl").text }
     ["src/lib/contract.pkl"] { text = read("lib/contract.pkl").text }
     ["src/lib/shared.pkl"] { text = read("lib/shared.pkl").text }
+    ["src/lib/guards.pkl"] { text = read("lib/guards.pkl").text }
     ["src/lib/staged.pkl"] { text = read("lib/staged.pkl").text }
     ["src/lib/githooks.pkl"] { text = read("lib/githooks.pkl").text }
     // Linked as ~/.config/hk/config.pkl. Absolute, because Pkl resolves relative
