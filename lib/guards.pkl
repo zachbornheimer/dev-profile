@@ -1,0 +1,41 @@
+/// Wrappers for supply-chain checks and commit guards: each skips cleanly when
+/// the tool it needs is not installed, so no repo fails for a missing scanner.
+module guards
+
+import "render.pkl"
+
+local bash = "#!/usr/bin/env bash\nset -euo pipefail\n" + render.header("#") + "\n"
+
+local ifInstalled =
+  #"""
+  \#(bash)
+  # dev-profile-if-installed <tool> <command…>: run the command only when <tool>
+  # is on PATH (mise shims count). A missing scanner is not a failure.
+  tool="${1:?usage: dev-profile-if-installed <tool> <command…>}"
+  shift
+  command -v "${tool}" >/dev/null 2>&1 || exit 0
+  exec "$@"
+  """#
+
+local noCommitToDefaultBranch =
+  #"""
+  \#(bash)
+  # Refuse a direct commit on main or master, except where that is the normal way
+  # work lands: finishing a merge, cherry-pick, revert, or rebase; a repo with no
+  # origin (nothing to publish a branch to); or an explicit opt-out.
+  [[ -z "${DEV_PROFILE_ALLOW_DEFAULT_BRANCH_COMMIT:-}" ]] || exit 0
+  for operation in MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD rebase-merge rebase-apply; do
+    if [[ -e "$(git rev-parse --git-path "${operation}")" ]]; then exit 0; fi
+  done
+  git remote get-url origin >/dev/null 2>&1 || exit 0
+  if ! hk util no-commit-to-branch; then
+    echo "Commit on a feature branch (wt switch -c <branch>), or set DEV_PROFILE_ALLOW_DEFAULT_BRANCH_COMMIT=1." >&2
+    exit 1
+  fi
+  """#
+
+/// Generated bin/ scripts the supply-chain checks and commit guards run.
+wrappers: Mapping<String, String> = new {
+  ["dev-profile-if-installed"] = ifInstalled
+  ["dev-profile-no-commit-to-default-branch"] = noCommitToDefaultBranch
+}

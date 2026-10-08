@@ -17,7 +17,7 @@ fail() {
 log="${work}/calls.log"
 stubs="${work}/stubs"
 mkdir -p "$stubs"
-cp "$(dirname "$0")/fixtures/logging-stub.sh" "${stubs}/stub"
+cp "$(dirname "$0")/logging-stub.sh" "${stubs}/stub"
 for tool in cargo dotnet stylelint perltidy clang-tidy; do ln -s stub "${stubs}/${tool}"; done
 export STUB_LOG="$log" STUB_EXIT=0
 
