@@ -240,7 +240,7 @@ checks: Mapping<String, hk.Step> = new {
   ["suppressions"] { check = "dev-profile-suppressions --unpushed" }
   ["cargo-check"] = Builtins.cargo_check
   // Supply chain: each skips silently when its tool is not installed (bundle-audit and
-  // brakeman are Ruby gems: install them where a repo uses them).
+  // brakeman are Ruby gems pinned in `tools`, installed by `mise install`).
   ["pinact"] = (Builtins.pinact) {
     check = "dev-profile-if-installed pinact pinact run --verify-comment --check {{files}}"
     check_diff = null
@@ -450,6 +450,8 @@ tools: Listing<types.Pin> = new {
   new { id = "kubeconform"; version = "0.8.0" }
   new { id = "betterleaks"; version = "1.9.0" }
   new { id = "aqua:securego/gosec"; version = "2.29.0" }
+  new { id = "gem:bundler-audit"; version = "0.9.3" }
+  new { id = "gem:brakeman"; version = "8.1.0" }
   // Worktree env isolation (deps symlinks, ports, DB names); run by the wt pre-start hook.
   new { id = "github:rohansx/workz"; version = "0.11.0" }
   new { id = "npm:markdownlint-cli"; version = "0.49.1" }
