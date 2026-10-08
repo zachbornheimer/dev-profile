@@ -12,10 +12,12 @@ root="${work}/root"
 stubs="${work}/stubs"
 log="${work}/calls.log"
 output="${work}/output.txt"
-stubbed_tools=(go golangci-lint govulncheck pnpm npm composer aube uv oxlint gitleaks dotnet)
+stubbed_tools=(go goimports golangci-lint govulncheck pnpm npm composer aube uv oxlint gitleaks dotnet dprint shellcheck shellharden)
 
-mkdir -p "$root" "$stubs" "${work}/mise-config"
+mkdir -p "$root" "$stubs" "${work}/mise-config" "${work}/hk-config"
 cp "${out}/personal-overlay.toml" "${root}/mise.toml"
+# The generated hk config, active the way bootstrap links it (HK_CONFIG_DIR/config.pkl).
+ln -s "${out}/hk-config.pkl" "${work}/hk-config/config.pkl"
 
 # Each stub logs "name|dir|args" and fails when its name is in STUB_FAIL.
 cat >"${stubs}/stub" <<'EOF'
@@ -23,6 +25,17 @@ cat >"${stubs}/stub" <<'EOF'
 name="${0##*/}"
 echo "${name}|${PWD}|$*" >>"${STUB_LOG}"
 if [[ "${name} $*" == "go work edit -json" && -n "${GO_WORK_JSON:-}" ]]; then cat "${GO_WORK_JSON}"; fi
+if [[ "${name} $*" == "go fix -diff "* && -n "${GO_FIX_DIFF:-}" ]]; then cat "${GO_FIX_DIFF}"; fi
+# go vet rejects a package whose files contain GO_VET_REJECTS (a fix that broke it).
+if [[ "${name} ${1:-}" == "go vet" && -n "${GO_VET_REJECTS:-}" ]] && grep -rqF -- "${GO_VET_REJECTS}" .; then
+	echo "vet: ${GO_VET_REJECTS} does not compile" >&2
+	exit 1
+fi
+# go refuses a GOWORK that is neither "off" nor a go.work file.
+if [[ "${name}" == "go" && -n "${GOWORK:-}" && "${GOWORK}" != "off" && ! -f "${GOWORK}" ]]; then
+	echo "go: GOWORK=${GOWORK} is not a go.work file" >&2
+	exit 1
+fi
 [[ " ${STUB_FAIL} " != *" ${name} "* ]]
 EOF
 chmod +x "${stubs}/stub"
@@ -32,6 +45,8 @@ for tool in "${stubbed_tools[@]}"; do ln -s stub "${stubs}/${tool}"; done
 export STUB_LOG="$log" STUB_FAIL="" HK=0
 export MISE_CONFIG_DIR="${work}/mise-config" MISE_TRUSTED_CONFIG_PATHS="$root" MISE_YES=1
 export PATH="${stubs}:${out}/bin:${PATH}"
+# Hook fixtures pick the hk config per run; never the caller's.
+unset HK_CONFIG_DIR HK_FILE
 
 fail() {
 	echo "FAIL contract fixture: $*" >&2
@@ -57,6 +72,14 @@ commit_all() {
 run_task() {
 	: >"$log"
 	(cd "$1" && mise run "$2") >"$output" 2>&1
+}
+
+# Run a global git hook the way git does, against the active hk config.
+run_hook() {
+	local repo="$1"
+	shift
+	: >"$log"
+	(cd "$repo" && HK=1 HK_CONFIG_DIR="${HK_CONFIG_DIR:-${work}/hk-config}" dev-profile-git-hook "$@") >"$output" 2>&1
 }
 
 expect_call() { grep -qxF -- "$1" "$log" || fail "$2: expected call '$1'"; }
@@ -91,6 +114,84 @@ fixture_dotnet_targets() {
 	run_task "$generated" build || fail "dotnet generated-only: build should pass"
 	expect_output "skip  dotnet build (nothing to build)" "dotnet generated-only"
 	expect_no_call "dotnet|" "dotnet generated-only"
+}
+
+# A `go fix -diff` block for one file: "<path> (old|new)" headers, one-line hunk.
+go_fix_block() {
+	printf -- '--- %s (old)\n+++ %s (new)\n@@ -1,3 +1,3 @@\n package pkg\n \n-%s\n+%s\n' "$1" "$1" "$2" "$3"
+}
+
+# A Go repo whose package pkg has a staged a.go and an untracked b.go.
+new_go_repo() {
+	local repo
+	repo="$(new_repo "$1")"
+	mkdir -p "${repo}/pkg"
+	echo "module m" >"${repo}/go.mod"
+	printf 'package pkg\n\nvar A interface{}\n' >"${repo}/pkg/a.go"
+	printf 'package pkg\n\nvar B interface{}\n' >"${repo}/pkg/b.go"
+	git -C "$repo" add go.mod pkg/a.go
+	echo "$repo"
+}
+
+fixture_go_modernize_staged_only() {
+	local repo diff="${work}/go-fix-staged.diff"
+	repo="$(new_go_repo go-modernize)"
+	{
+		go_fix_block "${repo}/pkg/a.go" "var A interface{}" "var A any"
+		go_fix_block "${repo}/pkg/b.go" "var B interface{}" "var B any"
+	} >"$diff"
+	GO_FIX_DIFF="$diff" run_hook "$repo" pre-commit --staged || fail "go modernize: pre-commit failed"
+	grep -qxF "var A any" "${repo}/pkg/a.go" || fail "go modernize: staged a.go was not modernized"
+	grep -qxF "var B interface{}" "${repo}/pkg/b.go" || fail "go modernize: unstaged b.go was rewritten"
+	git -C "$repo" diff --cached | grep -qxF "+var A any" || fail "go modernize: fix was not staged"
+}
+
+fixture_go_fix_that_breaks_compilation_blocks() {
+	local repo diff="${work}/go-fix-broken.diff"
+	repo="$(new_go_repo go-broken-fix)"
+	go_fix_block "${repo}/pkg/a.go" "var A interface{}" "var A = errors.AsType[statusCoder]" >"$diff"
+	if GO_FIX_DIFF="$diff" GO_VET_REJECTS="AsType" run_hook "$repo" pre-commit --staged; then
+		fail "go compile guard: a fix that breaks the build must block the commit"
+	fi
+	expect_output "commit blocked: pkg does not build" "go compile guard"
+	expect_output "staged: pkg/a.go" "go compile guard"
+}
+
+fixture_go_guard_package_patterns() {
+	local repo
+	# Module at the repo root, staged file in a subpackage.
+	repo="$(new_go_repo go-root-module)"
+	run_hook "$repo" pre-commit --staged || fail "go patterns: root module subpackage failed"
+	expect_call "go|${repo}|vet ./pkg" "go patterns root module"
+	# Module in a subdirectory.
+	repo="$(new_repo go-sub-module)"
+	mkdir -p "${repo}/svc/pkg"
+	echo "module s" >"${repo}/svc/go.mod"
+	printf 'package pkg\n\nvar A int\n' >"${repo}/svc/pkg/a.go"
+	git -C "$repo" add svc
+	run_hook "$repo" pre-commit --staged || fail "go patterns: subdirectory module failed"
+	expect_call "go|${repo}/svc|vet ./pkg" "go patterns subdirectory module"
+	# Staged file at the module root.
+	repo="$(new_repo go-module-root-file)"
+	echo "module r" >"${repo}/go.mod"
+	printf 'package r\n\nvar A int\n' >"${repo}/a.go"
+	git -C "$repo" add go.mod a.go
+	run_hook "$repo" pre-commit --staged || fail "go patterns: module root file failed"
+	expect_call "go|${repo}|vet ." "go patterns module root file"
+}
+
+fixture_git_hook_skips_undefined_hook() {
+	local repo stale="${work}/stale-hk-config" msg="${work}/commit-msg.txt"
+	repo="$(new_repo hook-skew)"
+	mkdir -p "$stale"
+	printf 'amends "%s"\nhooks { ["pre-push"] { steps { ["noop"] { check = "true" } } } }\n' \
+		"package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pkl" >"${stale}/config.pkl"
+	echo "feat: add thing" >"$msg"
+	HK_CONFIG_DIR="$stale" run_hook "$repo" commit-msg "$msg" || fail "hook skew: an undefined hook must not fail"
+	expect_output "mise bootstrap --from" "hook skew"
+	echo "not conventional" >"$msg"
+	if run_hook "$repo" commit-msg "$msg"; then fail "hook skew: a defined hook's failure must still block"; fi
+	expect_output "subject must be" "hook skew"
 }
 
 fixture_go_work() {
@@ -272,6 +373,10 @@ fixture_nested_node_setup() {
 	expect_no_call "node_modules/dep|install" "nested node"
 }
 
+fixture_go_modernize_staged_only
+fixture_go_fix_that_breaks_compilation_blocks
+fixture_go_guard_package_patterns
+fixture_git_hook_skips_undefined_hook
 fixture_go_work
 fixture_dotnet_targets
 fixture_nested_node_setup

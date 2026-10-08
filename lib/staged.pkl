@@ -1,0 +1,136 @@
+/// Commit-time Go tools scoped to the staged files. Go tools work per package,
+/// so each one groups the staged files by package and touches nothing else.
+module staged
+
+import "render.pkl"
+
+local bash = "#!/usr/bin/env bash\nset -euo pipefail\n" + render.header("#") + "\n"
+
+// Raw strings (#"""…"""#): jq and awk keep their backslashes.
+local goPackages =
+  #"""
+  root="$(cd "$(git rev-parse --show-toplevel)" && pwd -P)"
+
+  # Physical absolute path, so it compares equal to the paths go prints.
+  physical() {
+    echo "$(cd "$(dirname "$1")" && pwd -P)/${1##*/}"
+  }
+
+  # The nearest directory at or above $1, up to the repo root, holding file $2.
+  nearest() {
+    local dir="$1"
+    while :; do
+      if [[ -f "${dir}/$2" ]]; then
+        echo "${dir}"
+        return 0
+      fi
+      if [[ "${dir}" == "${root}" || "${dir}" == / ]]; then return 0; fi
+      dir="$(dirname "${dir}")"
+    done
+  }
+
+  # "off" when a go.work above the module does not list it: go would refuse to
+  # build it there ("directory is outside modules listed in go.work").
+  gowork_for() {
+    local module="$1" workdir rel members
+    workdir="$(nearest "${module}" go.work)"
+    [[ -n "${workdir}" ]] || return 0
+    rel="${module#"${workdir}"}"
+    rel="${rel#/}"
+    members="$(cd "${workdir}" && go work edit -json |
+      jq -r '.Use[]?.DiskPath | sub("^\\./"; "") | sub("/$"; "") | if . == "" then "." else . end')"
+    grep -qxF -- "${rel:-.}" <<<"${members}" || echo off
+  }
+
+  # Staged Go files → one line per package: <module dir>, <GOWORK>, <package dir> joined by the unit separator (tab would collapse an empty GOWORK).
+  packages() {
+    local file dir module
+    for file in "$@"; do
+      if [[ -f "${file}" ]]; then dirname "$(physical "${file}")"; fi
+    done | sort -u | while IFS= read -r dir; do
+      module="$(nearest "${dir}" go.mod)"
+      [[ -n "${module}" ]] || continue
+      printf '%s\x1f%s\x1f%s\n' "${module}" "$(gowork_for "${module}")" "${dir}"
+    done | sort
+  }
+
+  # The go package pattern for a package dir, relative to its module ("./x" or ".").
+  pattern() {
+    echo ".${2#"$1"}"
+  }
+  """#
+
+local goModernize =
+  #"""
+  \#(bash)
+  # Commit fixer: `go fix` modernizations, applied to the staged files only.
+  # `go fix` rewrites whole packages; `go fix -diff` previews them, and only the
+  # hunks for staged files are applied. A package that does not type-check yields
+  # no fixes; go-vet judges it after every fixer.
+  (($#)) || exit 0
+  \#(goPackages)
+
+  # Keep the diff blocks whose file is staged, rebased onto the repo root.
+  # go prints "--- /abs/file.go (old)" / "+++ /abs/file.go (new)" headers.
+  keep_staged() {
+    STAGED="${staged}" ROOT="${root}/" awk '
+      BEGIN { n = split(ENVIRON["STAGED"], files, "\n"); for (i = 1; i <= n; i++) keep[files[i]] = 1 }
+      /^--- \/.* \(old\)$/ {
+        path = substr($0, 5, length($0) - 10)
+        on = (path in keep)
+        rel = substr(path, length(ENVIRON["ROOT"]) + 1)
+        if (on) print "--- a/" rel
+        next
+      }
+      /^\+\+\+ \/.* \(new\)$/ { if (on) print "+++ b/" rel; next }
+      on { print }
+    '
+  }
+
+  staged="$(for file in "$@"; do if [[ -f "${file}" ]]; then physical "${file}"; fi; done)"
+  patch="$(mktemp)"
+  trap 'rm -f "${patch}"' EXIT
+  while IFS=$'\x1f' read -r module gowork dir; do
+    # Exit 1 means "has fixes" or "does not type-check"; the diff says which.
+    { (cd "${module}" && GOWORK="${gowork}" go fix -diff "$(pattern "${module}" "${dir}")") || true; } |
+      keep_staged >>"${patch}"
+  done < <(packages "$@")
+  if [[ -s "${patch}" ]]; then
+    git -C "${root}" apply --whitespace=nowarn "${patch}"
+  fi
+  """#
+
+local goVet =
+  #"""
+  \#(bash)
+  # Commit guard, after every fixer: each staged package still builds and vets.
+  # A fixer that broke compilation blocks the commit here.
+  (($#)) || exit 0
+  \#(goPackages)
+
+  # The staged files inside one package dir, repo-relative.
+  staged_in() {
+    local file path
+    for file in "${@:2}"; do
+      [[ -f "${file}" ]] || continue
+      path="$(physical "${file}")"
+      if [[ "$(dirname "${path}")" == "$1" ]]; then printf '%s ' "${path#"${root}/"}"; fi
+    done
+  }
+
+  failed=0
+  while IFS=$'\x1f' read -r module gowork dir; do
+    if ! (cd "${module}" && GOWORK="${gowork}" go vet "$(pattern "${module}" "${dir}")"); then
+      echo "go-vet: commit blocked: ${dir#"${root}/"} does not build or vet clean after the commit fixers." >&2
+      echo "  staged: $(staged_in "${dir}" "$@")" >&2
+      failed=1
+    fi
+  done < <(packages "$@")
+  exit "${failed}"
+  """#
+
+/// Generated bin/ scripts for commit-time Go steps.
+wrappers: Mapping<String, String> = new {
+  ["dev-profile-go-modernize"] = goModernize
+  ["dev-profile-go-vet"] = goVet
+}
