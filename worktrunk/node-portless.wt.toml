@@ -1,0 +1,9 @@
+# Copy to a Node/Vite/React repo as .config/wt.toml.
+# First-run CA and proxy are a human step: `portless trust` then `portless proxy start`.
+# Do not run those from hooks. Do not sudo. Do not kp.
+
+[post-start]
+dev = "wt step tether -- portless run -- mise run dev"
+
+[list]
+url = "https://{{ branch | sanitize }}.{{ repo }}.localhost"

@@ -12,6 +12,8 @@
 - `~/Developer/Personal/dev-profile/profiles/base.toml`
 - `~/Developer/Personal/dev-profile/format/personal.jsonc`
 - `~/Developer/Personal/dev-profile/worktrunk/config.toml`
+- `~/Developer/Personal/dev-profile/worktrunk/node-portless.wt.toml` (copy-paste into a Node repo as `.config/wt.toml`)
+- `~/Developer/Personal/dev-profile/worktrunk/laravel-vite.wt.toml` (copy-paste into a Laravel+Vite repo as `.config/wt.toml`)
 
 ## Installed outside the repo (directory selector)
 
@@ -27,7 +29,8 @@
 - any file under `~/Developer/Personal/zq`
 - any Software-Automation-Holdings repository policy file (no bulk copy)
 - `~/.config/mise/config.toml` / chezmoi mise source (STRICT leak removed; agentmux `.mise.toml` owns it)
-- Portless, Caddy config
+- live `portless proxy start` / `portless trust` / `portless service install` (human; not this profile)
+- a Caddyfile in this repo (Laravel routes are the template's admin API on :8080)
 - `wt config shell install` or Worktrunk LLM/plugin install
 - a new binary on PATH besides the mise-pinned dprint
 - `~/Developer/Freelance` or `~/Developer/Company`

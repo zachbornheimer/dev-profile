@@ -1,0 +1,26 @@
+# Copy to a Laravel+Vite repo as .config/wt.toml.
+# Distinct hash_ports for artisan and vite; Caddy reverse-proxies on :8080.
+# No sudo. No kp. First-run: `caddy start` is unprivileged (admin :2019, HTTP :8080).
+
+[post-start]
+php = "wt step tether -- php artisan serve --host=127.0.0.1 --port {{ ('php-' ~ branch) | hash_port }}"
+vite = "wt step tether -- vite --host=127.0.0.1 --port {{ ('vite-' ~ branch) | hash_port }} --strictPort"
+proxy = """
+  curl -sf --max-time 0.5 http://localhost:2019/config/ || caddy start
+  curl -sf http://localhost:2019/config/apps/http/servers/wt || \
+    curl -sfX PUT http://localhost:2019/config/apps/http/servers/wt -H 'Content-Type: application/json' \
+      -d '{"listen":[":8080"],"automatic_https":{"disable":true},"routes":[]}'
+  curl -sf -X DELETE http://localhost:2019/id/wt:{{ repo }}:{{ branch | sanitize }}:php || true
+  curl -sf -X DELETE http://localhost:2019/id/wt:{{ repo }}:{{ branch | sanitize }}:vite || true
+  curl -sfX PUT http://localhost:2019/config/apps/http/servers/wt/routes/0 -H 'Content-Type: application/json' \
+    -d '{"@id":"wt:{{ repo }}:{{ branch | sanitize }}:php","match":[{"host":["php.{{ branch | sanitize }}.{{ repo }}.localhost"]}],"handle":[{"handler":"reverse_proxy","upstreams":[{"dial":"127.0.0.1:{{ ('php-' ~ branch) | hash_port }}"}]}]}'
+  curl -sfX PUT http://localhost:2019/config/apps/http/servers/wt/routes/0 -H 'Content-Type: application/json' \
+    -d '{"@id":"wt:{{ repo }}:{{ branch | sanitize }}:vite","match":[{"host":["vite.{{ branch | sanitize }}.{{ repo }}.localhost"]}],"handle":[{"handler":"reverse_proxy","upstreams":[{"dial":"127.0.0.1:{{ ('vite-' ~ branch) | hash_port }}"}]}]}'
+"""
+
+[pre-remove]
+php-route = "curl -sf -X DELETE http://localhost:2019/id/wt:{{ repo }}:{{ branch | sanitize }}:php || true"
+vite-route = "curl -sf -X DELETE http://localhost:2019/id/wt:{{ repo }}:{{ branch | sanitize }}:vite || true"
+
+[list]
+url = "http://php.{{ branch | sanitize }}.{{ repo }}.localhost:8080"

@@ -15,14 +15,20 @@
 - `worktrunk/config.toml` copied to `~/.config/worktrunk/config.toml`
 - This repo dogfoods `dprint fmt` / `dprint check`. attention-mail fmt/test unchanged
 - `wt config show` sees the canonical worktree-path. `cowtree compact --all --dry-run` in this repo
-- Still no Freelance/Company, no zq uninstall, no zsh rewrite, no SAH overlay, no Portless/Caddy
+- Still no Freelance/Company, no zq uninstall, no zsh rewrite, no SAH overlay
+
+## This slice (Portless + Laravel URL recipes)
+
+- `worktrunk/node-portless.wt.toml` and `worktrunk/laravel-vite.wt.toml` are copy-paste project configs. Not installed by `mise run install-profile`. Not dropped into any app repo from this profile.
+- User `worktrunk/config.toml` stays path + copy-ignored. No post-start servers. No `[commit.generation]`.
+- Recipes land. Still no `sudo`, no `portless proxy start`, no `portless trust`, no `portless service install`.
 
 ## Later (ordered)
 
 `AGENTMUX_INSTALL_STRICT` is out of global mise and `~/.zshrc` (chezmoi main `ad33364`; agentmux origin/main already had the env).
 
 1. Optional `git::` include once this repo has a remote
-2. Portless or hash_port+Caddy on one Personal app with a durable `dev` task
+2. Drop a recipe into one Personal app with a durable `dev` task (human Portless CA/proxy first)
 3. Zsh cleanup: drop duplicate zoxide/PATH/aliases; autoload functions; keep q/* until zq hooks go
 4. SAH parent overlay (company policy once, not 70 copies)
 5. Employee `mise bootstrap --from <profile>`

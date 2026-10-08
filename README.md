@@ -23,6 +23,11 @@ That copies:
 - `format/personal.jsonc` → `~/Developer/Personal/dprint.jsonc`
 - `worktrunk/config.toml` → `~/.config/worktrunk/config.toml`
 
+Copy-paste into an app as `.config/wt.toml` (not installed by `install-profile`):
+
+- `worktrunk/node-portless.wt.toml` — `portless run -- mise run dev`
+- `worktrunk/laravel-vite.wt.toml` — artisan + vite on `hash_port`, Caddy on :8080
+
 This repo's `mise run fmt` is `dprint fmt`. attention-mail keeps its own `fmt` and `test`.
 
 Design: `docs/01-tool-ownership.md` through `docs/12-not-rebuilt.md`.

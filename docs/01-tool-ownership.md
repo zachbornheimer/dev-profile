@@ -24,11 +24,11 @@ Inspected 2026-10-03 on this Mac. `mise` is 2026.9.15 at `/opt/homebrew/bin/mise
 `brew list --formula` returned 666 formulae. Role groups, not the dump:
 
 - CLI daily drivers: rg, fd, tmux, zoxide, shfmt, perltidy, eza, bat, fzf, atuin, direnv, git, gh
-- Worktree / local services: `wt` (Worktrunk v0.80.0), cowtree 0.4.0, caddy
+- Worktree / local services: `wt` (Worktrunk v0.80.0), cowtree 0.4.0, caddy v2.11.7, portless 0.15.7 (`/opt/homebrew/bin/portless`)
 - Language/system: composer (`/opt/homebrew/bin/composer`), trunk (`/opt/homebrew/bin/trunk`)
 - `mise` itself is Homebrew-installed (self-update disabled)
 
-dprint 0.59.0 is mise-managed via the Personal overlay. Absent: `portless`. The Worktrunk CLI is `wt` (v0.80.0).
+dprint 0.59.0 is mise-managed via the Personal overlay. The Worktrunk CLI is `wt` (v0.80.0). Portless is installed; the proxy and local CA are not started by this profile (`portless doctor`: proxy not running, no `~/.portless` yet, no local CA).
 
 php is `~/.local/bin/php` (not Homebrew).
 
@@ -52,7 +52,7 @@ See artifact 2. Keep: git aliases, zoxide, atuin, fzf, opr/denv, opssh, teleport
 ## 5. Removable later (not this phase)
 
 - Duplicate pyc/DS_Store cleanup aliases in `~/.zshrc.local`
-- `kp` (kill-by-port) as an agent-facing habit; keep as a human shortcut until Portless/hash_port exists
+- `kp` (kill-by-port) as an agent-facing habit; keep as a human shortcut. Agents never use it. Collision-free URLs are Portless or `hash_port`+Caddy.
 - perlbrew `use-perlbrew` unless a repo still needs it
 - JINA CLI block in `~/.zshrc` if unused
 

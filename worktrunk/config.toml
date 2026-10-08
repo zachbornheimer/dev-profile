@@ -1,5 +1,8 @@
 # Personal Worktrunk user config. Installed as ~/.config/worktrunk/config.toml.
 # Canonical path matches machine-layout. Do not add commit.generation or shell install.
+# Project recipes (copy into a repo as .config/wt.toml):
+#   worktrunk/node-portless.wt.toml   — single Node/Vite/React via Portless
+#   worktrunk/laravel-vite.wt.toml    — Laravel + Vite via hash_port + Caddy
 
 worktree-path = "{{ repo_path }}/../.worktrees/{{ repo }}-{{ branch | sanitize }}"
 
