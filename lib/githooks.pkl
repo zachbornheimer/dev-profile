@@ -1,0 +1,33 @@
+/// The entry point every global git hook runs. Profile-agnostic: the SAH and
+/// personal profiles render it byte-for-byte alike, so whichever profile
+/// installed the global hooks last, both behave the same.
+module githooks
+
+import "render.pkl"
+
+local hookEntry =
+  #"""
+  #!/usr/bin/env bash
+  set -euo pipefail
+  \#(render.header("#"))
+  # Run one git hook through the active hk config (HK_CONFIG_DIR picks it).
+  # A config that does not define the hook, such as a profile not yet updated
+  # to a newer hook set, skips it instead of failing every commit.
+  hook="${1:?usage: dev-profile-git-hook <hook> [hk args…]}"
+  shift
+  code=0
+  hk run "${hook}" "$@" || code=$?
+  [[ "${code}" -ne 0 ]] || exit 0
+  # Only after a failure: ask hk whether the hook exists at all.
+  probe="$(hk run "${hook}" --plan "$@" </dev/null 2>&1 || true)"
+  if [[ "${probe}" == *"Hook '${hook}' not found"* ]]; then
+    echo "${hook}: skipped; the hk config in ${HK_CONFIG_DIR:-${HOME}/.config/hk} does not define it. Update that profile: mise bootstrap --from <profile repo> --update" >&2
+    exit 0
+  fi
+  exit "${code}"
+  """#
+
+/// Generated bin/ scripts the global git hooks run.
+wrappers: Mapping<String, String> = new {
+  ["dev-profile-git-hook"] = hookEntry
+}
