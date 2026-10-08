@@ -31,6 +31,11 @@ if [[ "${name} ${1:-}" == "go vet" && -n "${GO_VET_REJECTS:-}" ]] && grep -rqF -
 	echo "vet: ${GO_VET_REJECTS} does not compile" >&2
 	exit 1
 fi
+# go refuses a GOWORK that is neither "off" nor a go.work file.
+if [[ "${name}" == "go" && -n "${GOWORK:-}" && "${GOWORK}" != "off" && ! -f "${GOWORK}" ]]; then
+	echo "go: GOWORK=${GOWORK} is not a go.work file" >&2
+	exit 1
+fi
 [[ " ${STUB_FAIL} " != *" ${name} "* ]]
 EOF
 chmod +x "${stubs}/stub"
@@ -152,17 +157,27 @@ fixture_go_fix_that_breaks_compilation_blocks() {
 	expect_output "staged: pkg/a.go" "go compile guard"
 }
 
-fixture_commit_lints_staged_files() {
+fixture_go_guard_package_patterns() {
 	local repo
-	repo="$(new_repo commit-lint)"
-	printf '#!/usr/bin/env bash\necho staged\n' >"${repo}/staged.sh"
-	printf '#!/usr/bin/env bash\necho unstaged\n' >"${repo}/unstaged.sh"
-	git -C "$repo" add staged.sh
-	if STUB_FAIL=shellcheck run_hook "$repo" pre-commit --staged; then
-		fail "commit lint: a lint failure on a staged file must block the commit"
-	fi
-	expect_call "shellcheck|${repo}|staged.sh" "commit lint"
-	expect_no_call "unstaged.sh" "commit lint"
+	# Module at the repo root, staged file in a subpackage.
+	repo="$(new_go_repo go-root-module)"
+	run_hook "$repo" pre-commit --staged || fail "go patterns: root module subpackage failed"
+	expect_call "go|${repo}|vet ./pkg" "go patterns root module"
+	# Module in a subdirectory.
+	repo="$(new_repo go-sub-module)"
+	mkdir -p "${repo}/svc/pkg"
+	echo "module s" >"${repo}/svc/go.mod"
+	printf 'package pkg\n\nvar A int\n' >"${repo}/svc/pkg/a.go"
+	git -C "$repo" add svc
+	run_hook "$repo" pre-commit --staged || fail "go patterns: subdirectory module failed"
+	expect_call "go|${repo}/svc|vet ./pkg" "go patterns subdirectory module"
+	# Staged file at the module root.
+	repo="$(new_repo go-module-root-file)"
+	echo "module r" >"${repo}/go.mod"
+	printf 'package r\n\nvar A int\n' >"${repo}/a.go"
+	git -C "$repo" add go.mod a.go
+	run_hook "$repo" pre-commit --staged || fail "go patterns: module root file failed"
+	expect_call "go|${repo}|vet ." "go patterns module root file"
 }
 
 fixture_git_hook_skips_undefined_hook() {
@@ -356,7 +371,7 @@ fixture_nested_node_setup() {
 
 fixture_go_modernize_staged_only
 fixture_go_fix_that_breaks_compilation_blocks
-fixture_commit_lints_staged_files
+fixture_go_guard_package_patterns
 fixture_git_hook_skips_undefined_hook
 fixture_go_work
 fixture_dotnet_targets

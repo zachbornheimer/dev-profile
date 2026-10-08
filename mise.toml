@@ -140,6 +140,7 @@ golangci-lint config verify --config "$out/golangci.yml" || fail golangci.yml
 grep -F "allow-parallel-runners: true" "$out/golangci.yml" || fail "golangci allow-parallel-runners"
 grep -F "composer audit --locked" "$out/bin/dev-profile-contract-php" || fail "composer audit --locked"
 if pkl eval -x 'checks["oxlint"].check' profile.pkl | grep -F -- "--deny-warnings"; then fail "oxlint must not deny-warnings"; fi
+for cmd in $(grep -ohE "dev-profile-[a-z0-9-]+" "$out/src/profile.pkl" | sort -u); do [[ -x "$out/bin/$cmd" ]] || fail "hk step command without a rendered bin script: $cmd"; done
 bash tests/contract-fixtures.sh "$out" || fail "contract fixtures"
 echo "doctor ok"
 """

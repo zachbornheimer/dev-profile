@@ -42,7 +42,7 @@ local goPackages =
     grep -qxF -- "${rel:-.}" <<<"${members}" || echo off
   }
 
-  # Staged Go files → one line per package: <module dir>\t<GOWORK>\t<package dir>.
+  # Staged Go files → one line per package: <module dir>, <GOWORK>, <package dir> joined by the unit separator (tab would collapse an empty GOWORK).
   packages() {
     local file dir module
     for file in "$@"; do
@@ -50,7 +50,7 @@ local goPackages =
     done | sort -u | while IFS= read -r dir; do
       module="$(nearest "${dir}" go.mod)"
       [[ -n "${module}" ]] || continue
-      printf '%s\t%s\t%s\n' "${module}" "$(gowork_for "${module}")" "${dir}"
+      printf '%s\x1f%s\x1f%s\n' "${module}" "$(gowork_for "${module}")" "${dir}"
     done | sort
   }
 
@@ -90,7 +90,7 @@ local goModernize =
   staged="$(for file in "$@"; do if [[ -f "${file}" ]]; then physical "${file}"; fi; done)"
   patch="$(mktemp)"
   trap 'rm -f "${patch}"' EXIT
-  while IFS=$'\t' read -r module gowork dir; do
+  while IFS=$'\x1f' read -r module gowork dir; do
     # Exit 1 means "has fixes" or "does not type-check"; the diff says which.
     { (cd "${module}" && GOWORK="${gowork}" go fix -diff "$(pattern "${module}" "${dir}")") || true; } |
       keep_staged >>"${patch}"
@@ -119,7 +119,7 @@ local goVet =
   }
 
   failed=0
-  while IFS=$'\t' read -r module gowork dir; do
+  while IFS=$'\x1f' read -r module gowork dir; do
     if ! (cd "${module}" && GOWORK="${gowork}" go vet "$(pattern "${module}" "${dir}")"); then
       echo "go-vet: commit blocked: ${dir#"${root}/"} does not build or vet clean after the commit fixers." >&2
       echo "  staged: $(staged_in "${dir}" "$@")" >&2
@@ -129,40 +129,8 @@ local goVet =
   exit "${failed}"
   """#
 
-local goLint =
-  #"""
-  \#(bash)
-  # Commit lint: golangci-lint on the staged packages only (config by
-  # parent-directory lookup, e.g. the code root's .golangci.yml). Never fixes.
-  (($#)) || exit 0
-  \#(goPackages)
-
-  failed=0
-  current=""
-  current_gowork=""
-  patterns=()
-
-  lint_current() {
-    [[ -n "${current}" ]] || return 0
-    (cd "${current}" && GOWORK="${current_gowork}" golangci-lint run --fix=false "${patterns[@]}") || failed=1
-  }
-
-  while IFS=$'\t' read -r module gowork dir; do
-    if [[ "${module}" != "${current}" ]]; then
-      lint_current
-      current="${module}"
-      current_gowork="${gowork}"
-      patterns=()
-    fi
-    patterns+=("$(pattern "${module}" "${dir}")")
-  done < <(packages "$@")
-  lint_current
-  exit "${failed}"
-  """#
-
 /// Generated bin/ scripts for commit-time Go steps.
 wrappers: Mapping<String, String> = new {
   ["dev-profile-go-modernize"] = goModernize
   ["dev-profile-go-vet"] = goVet
-  ["dev-profile-go-lint"] = goLint
 }

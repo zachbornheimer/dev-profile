@@ -220,6 +220,12 @@ commitGuards: Mapping<String, hk.Step> = new {
   ["secrets"] { check = "gitleaks git --pre-commit --staged --redact --no-banner" }
   // trunk and prettier are banned: staged adds/modifies fail, deletions pass.
   ["no-trunk-prettier"] { check = "dev-profile-ban-trunk-prettier" }
+  // Staged Go packages must still build after every commit fixer.
+  ["go-vet-staged"] {
+    glob = List("**/*.go")
+    depends = fixers.keys.toList()
+    check = "dev-profile-go-vet {{files}}"
+  }
 }
 
 /// Global git hooks (git 2.54+ config-based hooks), written by bootstrap.
