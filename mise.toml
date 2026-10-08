@@ -144,6 +144,8 @@ for cmd in $(grep -ohE "dev-profile-[a-z0-9-]+" "$out/src/profile.pkl" | sort -u
 bash tests/contract-fixtures.sh "$out" || fail "contract fixtures"
 bash tests/go-fix-fixture.sh "$out" || fail "go-fix fixture"
 bash tests/modernizer-fixture.sh "$out" || fail "modernizer fixture"
+bash tests/guards-fixture.sh "$out" || fail "guards fixture"
+for gem_tool in bundle-audit brakeman; do command -v "$gem_tool" >/dev/null || echo "note: $gem_tool is not installed; its push check is skipped"; done
 bash tests/ship-fixture.sh "$out" || fail "ship fixture"
 echo "doctor ok"
 """
