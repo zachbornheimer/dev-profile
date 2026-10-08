@@ -5,6 +5,8 @@ import "package://pkg.pkl-lang.org/pkl-pantry/pkl.toml@1.0.3#/toml.pkl"
 
 import "../profile.pkl"
 import "contract.pkl"
+import "githooks.pkl"
+import "staged.pkl"
 import "types.pkl"
 
 local headerLines: List<String> =
@@ -761,6 +763,8 @@ wrappers: Mapping<String, String> = new {
   ["dev-profile-pkl-fmt"] = pklFmt
   ["dev-profile-ty"] = ty
   ...contract.wrappers
+  ...staged.wrappers
+  ...githooks.wrappers
 }
 
 // ---- Personal directory overlay: linked as ~/Developer/Personal/mise.toml.

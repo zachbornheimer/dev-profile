@@ -104,6 +104,13 @@ fixers: Mapping<String, hk.Step> = new {
   }
   ["php-fmt"] { glob = List("**/*.php"); fix = "dev-profile-php-fmt {{files}}" }
   ["go-imports"] = Builtins.go_imports
+  // `go fix` rewrites whole packages; this applies only its hunks for staged
+  // files. It needs compiling code, so goimports adds missing imports first.
+  ["go-modernize"] {
+    glob = List("**/*.go")
+    depends = List("go-imports")
+    fix = "dev-profile-go-modernize {{files}}"
+  }
   ["oxlint-fix"] {
     glob =
       List(
@@ -684,6 +691,8 @@ output {
     ["src/lib/hk.pkl"] { text = read("lib/hk.pkl").text }
     ["src/lib/contract.pkl"] { text = read("lib/contract.pkl").text }
     ["src/lib/shared.pkl"] { text = read("lib/shared.pkl").text }
+    ["src/lib/staged.pkl"] { text = read("lib/staged.pkl").text }
+    ["src/lib/githooks.pkl"] { text = read("lib/githooks.pkl").text }
     // Linked as ~/.config/hk/config.pkl. Absolute, because Pkl resolves relative
     // imports from the symlink's directory, not its target's.
     ["hk-config.pkl"] { text = "amends \"\(installPath)/src/lib/hk.pkl\"\n" }
