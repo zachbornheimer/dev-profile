@@ -32,5 +32,10 @@ mise run rollback    # restore the backed-up originals
 | `lib/types.pkl`  | types                                |
 | `lib/render.pkl` | one renderer per generated file      |
 
-Phases: save formats; commit converges (format, autofix, modernize, stage) and
-never blocks on leftover lint; push and CI judge correctness.
+Phases: save formats; commit converges (format, autofix, modernize, restage) on
+the staged files and never blocks on what it can fix; push only checks (no
+fixing) what is being uploaded: per-file linters run on the files changed since
+the default branch, and whole-program linters (golangci-lint, go vet, clippy)
+fail only on issues new in that range, so old debt never blocks a push. Full-tree
+runs are explicit (`mise run lint`, `mise run scan`, `hk check --slow --all`),
+never in hooks. CI judges the full tree.

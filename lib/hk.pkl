@@ -1,7 +1,8 @@
 /// Global hk config, derived from profile.pkl. hk evaluates and type-checks this
 /// module itself; ~/.config/hk/config.pkl links here.
-///   commit / `hk fix`        → fixers + hygiene, staged
-///   push / `hk check --slow` → checks + hygiene, may block
+///   commit / `hk fix`        → fixers + hygiene + commit guards, on staged files, fixes restaged
+///   push                     → checks + hygiene on the pushed range only, no fixing, may block
+///   `hk check --slow`        → the same checks, explicit and full-tree
 amends "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pkl"
 
 import "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Builtins.pkl"
@@ -20,6 +21,7 @@ steps {
   }
   ...profile.fixers
   ...profile.hygiene
+  ...profile.commitGuards
   for (id, step in profile.checks) {
     [id] = (step) { profiles = List("slow") }
   }
@@ -35,11 +37,6 @@ hooks {
     steps {
       ...profile.checks
       ...profile.hygiene
-      // The contract's test + scan run on every push; lint is the checks above.
-      ["contract"] {
-        depends = profile.checks.keys.toList()
-        check = "dev-profile-contract-push"
-      }
     }
   }
 }

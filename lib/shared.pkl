@@ -14,6 +14,8 @@ golangci: Dynamic = new {
   run {
     timeout = "5m"
     tests = true
+    concurrency = 0
+    `allow-parallel-runners` = true
   }
   linters {
     ["default"] = "none"

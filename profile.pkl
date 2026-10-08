@@ -20,6 +20,7 @@ exclude: Listing<String> = new {
   ".next"
   ".turbo"
   ".cache"
+  ".beads"
 }
 
 dprintExcludes: Listing<String> = new {
@@ -37,6 +38,7 @@ dprintExcludes: Listing<String> = new {
   "generated"
   "mise/conf.d/**"
   "dprint.jsonc"
+  "**/.beads/**"
 }
 
 /// Wasm plugins. PHP is never mago — WordPress PHPCBF/WPCS owns PHP formatting.
@@ -135,22 +137,41 @@ fixers: Mapping<String, hk.Step> = new {
     fix = "tofu fmt {{files}}"
   }
   // mise tasks: bare python3 → uv run (python3 x.py → uv run x.py).
+  // Modernize Go: golangci fixers, limited to what this commit changes.
+  ["golangci-lint-fix"] {
+    glob = List("**/*.go")
+    workspace_indicator = "go.mod"
+    dir = "{{workspace}}"
+    fix = "dev-profile-fix golangci-lint run --fix --new-from-rev=HEAD ./..."
+  }
+  ["trailing-whitespace"] = Builtins.trailing_whitespace
+  ["newlines"] = Builtins.newlines
   ["uv-instead-of-python-in-tasks"] {
     glob = List("**/mise.toml", "**/.mise.toml", "**/mise-tasks/**", "**/.mise/tasks/**")
     fix = "dev-profile-uv-instead-of-python-in-tasks {{files}}"
   }
 }
 
-/// Push and `hk check --slow`: semantic lint, types, security. May block.
+/// Pre-push checks (no fixing). hk selects the files in the pushed range (the
+/// default branch to HEAD), so per-file linters judge only what is uploaded.
+/// Whole-program linters use a new-issues mode against that same base. Full-tree
+/// runs are explicit: `mise run lint` / `mise run scan`, or `hk check --slow --all`.
 checks: Mapping<String, hk.Step> = new {
   ["ruff"] = Builtins.ruff
   ["ty"] { types = List("python"); check = "dev-profile-ty {{files}}" }
   ["php-lint"] { glob = List("**/*.php"); check = "dev-profile-php-lint {{files}}" }
   // Gates on issues new since the upstream default branch; mise lint runs the full tree.
   ["golangci-lint"] = (Builtins.golangci_lint) { check = "dev-profile-golangci-ratchet" }
-  ["go-vet"] = Builtins.go_vet
-  ["govulncheck"] = Builtins.go_vuln_check
-  ["oxlint"] = Builtins.ox_lint
+  // go vet has no new-issues mode: only diagnostics in pushed files fail.
+  ["go-vet"] = (Builtins.go_vet) {
+    check = "dev-profile-pushed-diagnostics go vet ./... :: {{files}}"
+  }
+  // Dependency vulnerabilities: only when go.mod or go.sum is part of the push.
+  ["govulncheck"] = (Builtins.go_vuln_check) { glob = List("**/go.mod", "**/go.sum") }
+  ["oxlint"] = (Builtins.ox_lint) {
+    check = "oxlint {{files}}"
+    fix = "dev-profile-oxlint-fix {{files}}"
+  }
   ["rubocop"] = Builtins.rubocop
   ["perlcritic"] { glob = List("**/*.pl", "**/*.pm", "**/*.t"); check = "perlcritic {{files}}" }
   ["shellcheck"] = Builtins.shellcheck
@@ -160,26 +181,34 @@ checks: Mapping<String, hk.Step> = new {
     check = "tofu fmt -check {{files}}"
   }
   ["hadolint"] = Builtins.hadolint
-  ["markdownlint"] = (Builtins.markdown_lint) { fix = null }
+  ["markdownlint"] = (Builtins.markdown_lint) {
+    fix = "dev-profile-fix markdownlint --fix {{files}}"
+  }
   ["yamllint"] = Builtins.yamllint
   ["actionlint"] = Builtins.actionlint
   // Every commit about to leave the machine (not just changed files).
   ["gitleaks"] {
-    check = "gitleaks git --redact --no-banner --log-opts=\"--branches --not --remotes\""
+    check = "gitleaks git --redact --no-banner --log-opts=\"HEAD --not --remotes\""
   }
   // Inline suppressions added by unpushed commits (suppressionMode decides blocking).
   ["suppressions"] { check = "dev-profile-suppressions --unpushed" }
   ["cargo-check"] = Builtins.cargo_check
-  ["clippy"] = Builtins.cargo_clippy
+  // clippy has no new-issues mode: only diagnostics in pushed files fail.
+  ["clippy"] = (Builtins.cargo_clippy) {
+    check =
+      "dev-profile-pushed-diagnostics cargo clippy --quiet --message-format=short :: {{files}}"
+  }
 }
 
-/// Repo hygiene: runs at commit and again at push.
+/// Cheap guards on pushed files: run at commit and again at push.
 hygiene: Mapping<String, hk.Step> = new {
   ["merge-conflicts"] = Builtins.check_merge_conflict
   ["private-keys"] = Builtins.detect_private_key
   ["case-conflicts"] = Builtins.check_case_conflict
-  ["trailing-whitespace"] = Builtins.trailing_whitespace
-  ["newlines"] = Builtins.newlines
+}
+
+/// Commit-only guards on the staged change; nothing to judge at push.
+commitGuards: Mapping<String, hk.Step> = new {
   // Blocks a staged secret: once committed and pushed it must be rotated.
   ["secrets"] { check = "gitleaks git --pre-commit --staged --redact --no-banner" }
   // trunk and prettier are banned: staged adds/modifies fail, deletions pass.
