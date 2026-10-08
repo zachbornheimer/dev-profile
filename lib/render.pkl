@@ -44,6 +44,13 @@ yamllint: Dynamic = new {
 /// TOML file with a generated-file banner.
 function tomlFile(value: Any): String = header("#") + "\n" + tomlRenderer.renderDocument(value)
 
+/// Prefix profile wrapper names so dprint exec does not depend on PATH.
+function execCommand(cmd: String): String =
+  if (cmd.startsWith("dev-profile-"))
+    cmd.replaceFirst("dev-profile-", "\(profile.installPath)/bin/dev-profile-")
+  else
+    cmd
+
 /// JSONC file (dprint accepts comments) with a generated-file banner.
 function jsoncFile(value: Any): String = header("//") + "\n" + jsonRenderer.renderDocument(value)
 
@@ -71,7 +78,9 @@ dprint: Dynamic = new {
         .toList()
         .filter((lang) -> lang.dprint.kind == "exec")
         .map((lang) -> new Dynamic {
-          command = lang.dprint.command
+          // Absolute: Neovim/GUI PATH has mise shims but not installDir/bin, so a
+          // bare `dev-profile-*` exec is a silent no-op on save.
+          command = execCommand(lang.dprint.command)
           exts = lang.dprint.exts.toList()
         })
   }
@@ -215,6 +224,136 @@ worktrunk: Dynamic = new {
       `squash-template` = squashGenerationTemplate
       `template-append` = conventionalCommitRule
     }
+  }
+  aliases {
+    up =
+      """
+      git fetch --all --prune; wt step for-each -- sh -c '
+        git rev-parse --verify -q @{u} >/dev/null || exit 0
+        g=$(git rev-parse --git-dir)
+        rebasing() { test -d "$g/rebase-merge" || test -d "$g/rebase-apply"; }
+        rebasing && exit 0
+        git diff --quiet HEAD || { git merge --ff-only --no-autostash @{u}; exit 0; }
+        git rebase @{u} --no-autostash || { rebasing || exit 0; git rebase --abort; }
+      '
+      """
+    pr =
+      """
+      wt switch {{ args }} -x sh -- -eu -c '
+        # Validate prerequisites before changing repository state.
+        command -v gh >/dev/null || {
+          echo "GitHub CLI (gh) is required" >&2
+          exit 1
+        }
+        git remote get-url origin >/dev/null || exit 1
+
+        # Never publish the default branch or a detached HEAD.
+        branch=$(git symbolic-ref --quiet --short HEAD) || {
+          echo "Cannot publish detached HEAD" >&2
+          exit 1
+        }
+        base=$(gh repo view --json defaultBranchRef \\
+          --jq ".defaultBranchRef.name")
+
+        [ -n "$base" ] && [ "$branch" != "$base" ] || {
+          echo "Refusing to publish the default branch" >&2
+          exit 1
+        }
+
+        # Prevent accidentally replacing a different upstream.
+        upstream=$(git rev-parse --abbrev-ref \\
+          --symbolic-full-name "@{upstream}" 2>/dev/null || :)
+        [ -z "$upstream" ] || [ "$upstream" = "origin/$branch" ] || {
+          echo "Unexpected upstream: $upstream" >&2
+          exit 1
+        }
+
+        # Commit only when changes exist; honor commit hooks.
+        if [ -n "$(git status --porcelain)" ]; then
+          wt step commit
+        fi
+
+        # Publish safely; never force-push.
+        git push --set-upstream origin "HEAD:refs/heads/$branch"
+
+        # Reuse an open PR rather than creating a duplicate.
+        url=$(gh pr list --head "$branch" --state open \\
+          --json url --jq ".[0].url // empty")
+
+        if [ -n "$url" ]; then
+          printf "PR: %s\\n" "$url"
+        else
+          gh pr create --fill --head "$branch"
+        fi
+      '
+      """
+    ship =
+      """
+      set -eu
+
+      branch=$(git symbolic-ref --quiet --short HEAD) || {
+        echo "Detached HEAD; refusing to ship" >&2
+        exit 1
+      }
+
+      default=$(gh repo view --json defaultBranchRef \\
+        --jq '.defaultBranchRef.name')
+
+      if [ "$branch" = "$default" ]; then
+        echo "Skipping default branch: $branch"
+        exit 0
+      fi
+
+      # Refuse unfinished Git operations.
+      for operation in MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD \\
+                       rebase-merge rebase-apply; do
+        if [ -e "$(git rev-parse --git-path "$operation")" ]; then
+          echo "Unfinished Git operation: $operation" >&2
+          exit 1
+        fi
+      done
+
+      # Do not recreate previously closed or merged PRs.
+      open_pr=$(gh pr list --head "$branch" --state open \\
+        --json url --jq '.[0].url // empty')
+
+      if [ -z "$open_pr" ]; then
+        previous=$(gh pr list --head "$branch" --state all \\
+          --json state --jq '.[0].state // empty')
+
+        case "$previous" in
+          CLOSED|MERGED)
+            echo "Skipping previously closed PR: $branch"
+            exit 0
+            ;;
+        esac
+      fi
+
+      # Let Worktrunk commit pending changes.
+      if [ -n "$(git status --porcelain)" ]; then
+        wt step commit
+      fi
+
+      # Never publish if changes remain uncommitted.
+      if [ -n "$(git status --porcelain)" ]; then
+        echo "Uncommitted changes remain: $branch" >&2
+        exit 1
+      fi
+
+      # Publish without rewriting remote history.
+      git push --set-upstream origin "HEAD:refs/heads/$branch"
+
+      # Reuse an existing PR, otherwise create a draft.
+      open_pr=$(gh pr list --head "$branch" --state open \\
+        --json url --jq '.[0].url // empty')
+
+      if [ -n "$open_pr" ]; then
+        printf "PR: %s\\n" "$open_pr"
+      else
+        gh pr create --draft --fill --head "$branch"
+      fi
+      """
+    ["ship-all"] = "git fetch origin --prune && wt step for-each -- wt ship"
   }
 }
 
