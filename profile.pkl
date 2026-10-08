@@ -100,9 +100,16 @@ shellInit: Mapping<String, String> = new {
 fixers: Mapping<String, hk.Step> = new {
   ["ruff-fix"] {
     types = List("python")
-    fix = "ruff check --force-exclude --fix-only --unsafe-fixes {{files}}"
+    fix =
+      "ruff check --force-exclude --fix-only --unsafe-fixes --extend-select UP,FURB,SIM,PERF,C4,PIE {{files}}"
   }
-  ["php-fmt"] { glob = List("**/*.php"); fix = "dev-profile-php-fmt {{files}}" }
+  // Rector applies the repo rector.php PHP-version set first; php-fmt formats after.
+  ["rector"] { glob = List("**/*.php"); fix = "dev-profile-rector-fix {{files}}" }
+  ["php-fmt"] {
+    glob = List("**/*.php")
+    depends = List("rector")
+    fix = "dev-profile-php-fmt {{files}}"
+  }
   ["go-imports"] = Builtins.go_imports
   // go fix needs compiling code, so goimports adds missing imports first; the
   // wrapper vets afterwards and fails the commit on a rewrite that breaks it.
@@ -138,7 +145,7 @@ fixers: Mapping<String, hk.Step> = new {
   ["rubocop-fix"] { glob = List("**/*.rb", "**/*.rake"); fix = "dev-profile-rubocop-fix {{files}}" }
   ["perltidy"] {
     glob = List("**/*.pl", "**/*.pm", "**/*.t")
-    check_diff = "hk util format-diff {{files}} -- perltidy -st -q"
+    fix = "dev-profile-perltidy-fix {{files}}"
   }
   ["shellharden"] = Builtins.shellharden
   ["markdownlint-fix"] = (Builtins.markdown_lint) {
@@ -146,6 +153,31 @@ fixers: Mapping<String, hk.Step> = new {
     fix = "dev-profile-fix markdownlint --fix {{files}}"
   }
   ["swiftlint-fix"] { glob = List("**/*.swift"); fix = "dev-profile-swiftlint-fix {{files}}" }
+  // Rust: clippy fixes (each verified to build by cargo), then rustfmt.
+  ["clippy-fix"] { glob = List("**/*.rs"); fix = "dev-profile-clippy-fix {{files}}" }
+  ["rustfmt"] {
+    glob = List("**/*.rs")
+    depends = List("clippy-fix")
+    fix = "dev-profile-rustfmt {{files}}"
+  }
+  ["swift-format"] {
+    glob = List("**/*.swift")
+    depends = List("swiftlint-fix")
+    fix = "dev-profile-swift-format {{files}}"
+  }
+  ["dotnet-format"] {
+    glob = List("**/*.cs", "**/*.vb")
+    fix = "dev-profile-dotnet-format-fix {{files}}"
+  }
+  ["stylelint-fix"] {
+    glob = List("**/*.css", "**/*.scss", "**/*.sass")
+    fix = "dev-profile-stylelint-fix {{files}}"
+  }
+  // Needs compile_commands.json; silent otherwise.
+  ["clang-tidy-modernize"] {
+    glob = List("**/*.c", "**/*.cc", "**/*.cpp", "**/*.cxx", "**/*.h", "**/*.hpp")
+    fix = "dev-profile-clang-tidy-fix {{files}}"
+  }
   ["tofu-fmt"] {
     glob = List("**/*.tf", "**/*.tfvars")
     fix = "tofu fmt {{files}}"
@@ -361,6 +393,7 @@ tools: Listing<types.Pin> = new {
   new { id = "aube"; version = "2.5.1" }
   new { id = "uv"; version = "0.12.23" }
   new { id = "hadolint"; version = "latest" }
+  new { id = "npm:stylelint"; version = "latest" }
   // Worktree env isolation (deps symlinks, ports, DB names); run by the wt pre-start hook.
   new { id = "github:rohansx/workz"; version = "0.11.0" }
   new { id = "npm:markdownlint-cli"; version = "0.49.1" }
@@ -704,6 +737,7 @@ output {
     ["src/lib/hk.pkl"] { text = read("lib/hk.pkl").text }
     ["src/lib/contract.pkl"] { text = read("lib/contract.pkl").text }
     ["src/lib/shared.pkl"] { text = read("lib/shared.pkl").text }
+    ["src/lib/modernize.pkl"] { text = read("lib/modernize.pkl").text }
     ["src/lib/staged.pkl"] { text = read("lib/staged.pkl").text }
     ["src/lib/githooks.pkl"] { text = read("lib/githooks.pkl").text }
     // Linked as ~/.config/hk/config.pkl. Absolute, because Pkl resolves relative

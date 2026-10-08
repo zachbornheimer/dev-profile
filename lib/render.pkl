@@ -6,6 +6,7 @@ import "package://pkg.pkl-lang.org/pkl-pantry/pkl.toml@1.0.3#/toml.pkl"
 import "../profile.pkl"
 import "contract.pkl"
 import "githooks.pkl"
+import "modernize.pkl"
 import "staged.pkl"
 import "types.pkl"
 
@@ -632,7 +633,7 @@ local rustfmt =
   """
   \(bash)
   if ! command -v rustfmt >/dev/null 2>&1; then
-    cat
+    [[ $# -gt 0 ]] || cat
     exit 0
   fi
   if [[ $# -eq 0 ]]; then
@@ -675,7 +676,7 @@ local swiftFormat =
     fi
     exit 0
   fi
-  cat
+  [[ $# -gt 0 ]] || cat
   """
 
 local swiftlintFix =
@@ -908,6 +909,7 @@ wrappers: Mapping<String, String> = new {
   ["dev-profile-pkl-fmt"] = pklFmt
   ["dev-profile-ty"] = ty
   ...contract.wrappers
+  ...modernize.wrappers
   ...staged.wrappers
   ...githooks.wrappers
 }
