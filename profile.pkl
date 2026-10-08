@@ -571,13 +571,31 @@ languages: Listing<types.Spec> = new {
   new {
     id = "html"
     extensions { "html"; "htm" }
-    nvimFiletypes { "html" }
+    nvimFiletypes { "html"; "htmlangular" }
+    dprint { kind = "wasm"; plugin = "markup" }
+  }
+  new {
+    id = "jinja"
+    extensions { "jinja"; "jinja2"; "j2" }
+    nvimFiletypes { "jinja" }
+    dprint { kind = "wasm"; plugin = "markup" }
+  }
+  new {
+    id = "twig"
+    extensions { "twig" }
+    nvimFiletypes { "twig" }
+    dprint { kind = "wasm"; plugin = "markup" }
+  }
+  new {
+    id = "mustache"
+    extensions { "mustache"; "hbs" }
+    nvimFiletypes { "mustache" }
     dprint { kind = "wasm"; plugin = "markup" }
   }
   new {
     id = "css"
-    extensions { "css"; "scss"; "less" }
-    nvimFiletypes { "css"; "scss"; "less" }
+    extensions { "css"; "scss"; "sass"; "less" }
+    nvimFiletypes { "css"; "scss"; "sass"; "less" }
     dprint { kind = "wasm"; plugin = "malva" }
   }
   new {

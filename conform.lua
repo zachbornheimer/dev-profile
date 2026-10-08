@@ -3,6 +3,8 @@
 local out = vim.env.DEV_PROFILE_OUT or vim.fn.expand("~/.local/share/dev-profile")
 local path = out .. "/profile.json"
 
+local FORMAT_TIMEOUT_MS = 3000
+
 local formatters_by_ft, skip = {}, {}
 if vim.fn.filereadable(path) == 1 then
   local profile = vim.json.decode(table.concat(vim.fn.readfile(path), "\n"))
@@ -32,12 +34,12 @@ return {
   opts = {
     formatters_by_ft = formatters_by_ft,
     formatters = { dprint = { cwd = dprint_cwd } },
-    format_after_save = function(bufnr)
+    format_on_save = function(bufnr)
       local ft = vim.bo[bufnr].filetype
       if vim.g.disable_autoformat or vim.b[bufnr].disable_autoformat or skip[ft] then
         return nil
       end
-      return { lsp_format = "fallback" }
+      return { timeout_ms = FORMAT_TIMEOUT_MS, lsp_format = "fallback" }
     end,
   },
 }
