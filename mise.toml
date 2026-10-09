@@ -156,7 +156,7 @@ echo "doctor ok"
 [tasks.explain]
 description = "What runs at each hook: mise run explain [tool-or-category]"
 depends = ["generate"]
-run = """
+run = '''
 #!/usr/bin/env bash
 set -euo pipefail
 # Reads the rendered profile.json; a tool name or a tools/ category narrows it.
@@ -173,7 +173,7 @@ jq -r --arg q "${1:-}" '
       (if (.value.after | length) > 0 then "  after: \(.value.after | join(" "))" else "" end)),
     (if (.scripts | length) > 0 then "  scripts: \(.scripts | join(" "))" else empty end)
 ' "$DEV_PROFILE_OUT/profile.json"
-"""
+'''
 
 [tasks.fmt]
 description = "Format this repo with the generated dprint config"
