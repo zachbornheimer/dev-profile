@@ -49,7 +49,9 @@ mise run rollback    # restore the backed-up originals
 | `git push`            | the pushed range| check only                 | every tool's `pre-push` entry                |
 | `hk fix` / `hk check` | modified        | fix / check                | the `pre-commit` entries                     |
 | `hk check --slow --all` | whole tree    | check                      | the `pre-commit` and `pre-push` entries      |
-| `mise run lint`, `scan`, `test`, `ci` | whole tree | native tools  | the contract adapters, not hk                |
+| `mise run lint`       | whole tree      | check                      | `hk check --all --slow --profile lint` (commit guards off) plus the suppressions report |
+| `mise run test`, `scan` | whole tree    | native tools               | the contract adapters in `lib/contract.pkl`, not hk |
+| `mise run ci`         | whole tree      | all of the above           | `lint`, then `test`, then `scan`            |
 
 A `fix` rewrites what it safely can and never blocks: push judges the rest. A
 `check` may block. Per-file push checks run on the files changed since the
@@ -78,6 +80,8 @@ The template's fields:
   rewrites and is restaged, a `check` is a guard that blocks the commit.
   `pre-push` runs on the pushed range in check mode and must have a `check`.
   `depends` orders a step after others in the same hook, by hk step name.
+- `afterFixers`: a pre-commit `check` that must see the result of every fixer
+  runs after all of them, as go-vet does after go fix.
 - `scripts`: generated `bin/dev-profile-<x>` scripts, called by name from the
   commands. The hidden `bash`, `nearestUp`, `goModules` and `goPackages`
   fragments are available inside them.
@@ -87,7 +91,7 @@ The template's fields:
 
 ### Worked example: go mod tidy
 
-The simplest version is eight lines on hk's builtin and is enough for a
+The simplest version is seven lines on hk's builtin and is enough for a
 single-module repo:
 
 ```pkl
