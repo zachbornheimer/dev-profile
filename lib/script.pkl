@@ -41,9 +41,9 @@ nearestUp: String =
   }
   """#
 
-/// Script fragment: `root`, `physical`, `nearest`, `gowork_for`, `packages` and
-/// `pattern`, for Go steps that group staged files by package and module.
-goPackages: String =
+/// Script fragment: `root`, `physical`, `nearest`, `gowork_for` and `packages`,
+/// for Go steps that group the given files by package and module.
+goModules: String =
   #"""
   root="$(cd "$(git rev-parse --show-toplevel)" && pwd -P)"
 
@@ -89,7 +89,13 @@ goPackages: String =
       printf '%s\x1f%s\x1f%s\n' "${module}" "$(gowork_for "${module}")" "${dir}"
     done | sort
   }
+  """#
 
+/// `goModules` plus `pattern`, for Go steps that run a tool per package.
+goPackages: String = goModules + "\n" + goPattern
+
+local goPattern: String =
+  #"""
   # The go package pattern for a package dir, relative to its module ("./x" or ".").
   pattern() {
     echo ".${2#"$1"}"

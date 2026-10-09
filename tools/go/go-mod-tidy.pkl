@@ -1,8 +1,42 @@
 amends "../../lib/Tool.pkl"
 
 doc =
-  "Keep go.mod and go.sum in step with the imports: tidy at commit once goimports has run, and refuse a push whose modules are untidy."
+  "Keep go.mod and go.sum in step with the imports: tidy at commit, last of the Go fixers, and refuse a push whose modules are untidy."
+glob = List("**/*.go", "**/go.mod", "**/go.sum")
 on {
-  ["pre-commit"] = (module.builtins.gomod_tidy) { depends = List("go-imports") }
-  ["pre-push"] = module.builtins.gomod_tidy
+  // After every fixer that can add or drop an import: goimports resolves new
+  // ones, go fix and golangci can replace a third-party package with stdlib.
+  ["pre-commit"] {
+    depends = List("go-imports", "go-fix", "go-modernize", "golangci-lint-fix")
+    stage = List("**/go.mod", "**/go.sum")
+    fix = "dev-profile-go-mod-tidy {{files}}"
+  }
+  ["pre-push"] { check = "dev-profile-go-mod-tidy --diff {{files}}" }
 }
+
+local goModTidy =
+  #"""
+  \#(bash)
+  # go mod tidy for every module that owns one of the given files, run from the
+  # module directory. A module a parent go.work omits gets GOWORK=off, as the
+  # other Go steps do. --diff: report instead of rewrite (push).
+  mode="tidy"
+  if [[ "${1:-}" == "--diff" ]]; then
+    mode="diff"
+    shift
+  fi
+  (($#)) || exit 0
+  \#(goModules)
+
+  failed=0
+  while IFS=$'\x1f' read -r module gowork; do
+    if [[ "${mode}" == diff ]]; then
+      (cd "${module}" && GOWORK="${gowork}" go mod tidy -diff) || failed=1
+    else
+      (cd "${module}" && GOWORK="${gowork}" go mod tidy) || failed=1
+    fi
+  done < <(packages "$@" | cut -d $'\x1f' -f 1,2 | sort -u)
+  exit "${failed}"
+  """#
+
+scripts { ["dev-profile-go-mod-tidy"] = goModTidy }

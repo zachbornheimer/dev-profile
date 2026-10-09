@@ -59,6 +59,9 @@ hidden nearestUp: String = script.nearestUp
 /// Script fragment for Go steps that group staged files by package and module.
 hidden goPackages: String = script.goPackages
 
+/// The same without `pattern`, for Go steps that work per module.
+hidden goModules: String = script.goModules
+
 local function hasCheck(step: hk.Step): Boolean =
   step.check != null || step.check_diff != null || step.check_list_files != null
 
