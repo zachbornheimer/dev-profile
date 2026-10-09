@@ -391,7 +391,26 @@ fixture_every_task_renders() {
 	done <"${work}/task-names.txt"
 }
 
+# Real rustfmt. Bare rustfmt assumes edition 2015, which sorts imports differently
+# from `cargo fmt` on a 2024 crate; the wrapper must agree with the crate's edition.
+fixture_rustfmt_follows_crate_edition() {
+	local repo
+	repo="$(new_repo rust-edition)"
+	mkdir -p "${repo}/src"
+	printf '[package]\nname = "fixture"\nversion = "0.1.0"\nedition = "2024"\n' >"${repo}/Cargo.toml"
+	printf 'use std::collections::{HashMap, hash_map};\n\nfn main() {}\n' >"${repo}/src/main.rs"
+	cp "${repo}/src/main.rs" "${work}/main.before"
+
+	(cd "$work" && dev-profile-rustfmt --stdin-path "${repo}/src/main.rs" <"${repo}/src/main.rs") >"${work}/main.stdin" 2>"$output" ||
+		fail "rustfmt: stdin mode failed"
+	cmp -s "${work}/main.before" "${work}/main.stdin" || fail "rustfmt: stdin mode reformatted a 2024-formatted file"
+
+	(cd "$work" && dev-profile-rustfmt "${repo}/src/main.rs") >"$output" 2>&1 || fail "rustfmt: file mode failed"
+	cmp -s "${work}/main.before" "${repo}/src/main.rs" || fail "rustfmt: file mode reformatted a 2024-formatted file"
+}
+
 fixture_every_task_renders
+fixture_rustfmt_follows_crate_edition
 fixture_go_work
 fixture_dotnet_targets
 fixture_nested_node_setup

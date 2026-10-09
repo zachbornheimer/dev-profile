@@ -675,7 +675,7 @@ languages: Listing<types.Spec> = new {
     nativeConfigs { "Cargo.toml"; "rustfmt.toml"; ".rustfmt.toml" }
     dprint {
       kind = "exec"
-      command = "dev-profile-rustfmt"
+      command = "dev-profile-rustfmt --stdin-path {{file_path}}"
       exts { "rs" }
     }
   }
