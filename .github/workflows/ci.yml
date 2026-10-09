@@ -23,6 +23,10 @@ jobs:
       - name: System tools doctor needs
         run: sudo apt-get update -q && sudo apt-get install -y -q lua5.4 zsh ruby-full
       - name: Install the profile's tools
+        env:
+          # mise reads release metadata from the GitHub API; unauthenticated it
+          # shares a 60/hour budget with every runner on the same address.
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           out="${RUNNER_TEMP}/profile"
           DEV_PROFILE_OUT="${out}" mise run generate
@@ -32,4 +36,5 @@ jobs:
         # mise's global config, the way bootstrap links it.
         env:
           MISE_GLOBAL_CONFIG_FILE: ${{ runner.temp }}/profile/mise-profile.toml
+          GITHUB_TOKEN: ${{ github.token }}
         run: mise run test

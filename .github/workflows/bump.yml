@@ -26,6 +26,9 @@ jobs:
       - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
       - name: Bump outdated pins
         id: bump
+        env:
+          # `mise latest` reads release metadata from the GitHub API.
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           BUMP_SUMMARY="${RUNNER_TEMP}/summary.md" mise run bump
           if [ -s "${RUNNER_TEMP}/summary.md" ]; then
