@@ -41,6 +41,10 @@ jobs:
         id: doctor
         if: steps.bump.outputs.changed == 'true'
         continue-on-error: true
+        # The installed toolset is active only with the rendered profile as
+        # mise's global config, the way bootstrap links it.
+        env:
+          MISE_GLOBAL_CONFIG_FILE: ${{ runner.temp }}/profile/mise-profile.toml
         run: mise run test
       - name: Describe the result
         if: steps.bump.outputs.changed == 'true'
