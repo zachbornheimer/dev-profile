@@ -80,6 +80,7 @@ liveTargets: Mapping<String, String> = new {
   // Shared tool configs, found by parent-directory lookup from every repo.
   ["\(codeRoot)/.golangci.yml"] = "golangci.yml"
   ["\(codeRoot)/.editorconfig"] = "editorconfig"
+  ["\(codeRoot)/deny.toml"] = "deny.toml"
   // User-level defaults; a repo's own .markdownlint* / .yamllint still wins.
   ["~/.markdownlintrc"] = "markdownlintrc.json"
   ["~/.config/yamllint/config"] = "yamllint.yaml"
@@ -140,6 +141,9 @@ fixers: Mapping<String, hk.Step> = new {
     }
   }
 }
+
+/// hk profile the lint verb enables; commit guards are tagged to skip it.
+lintProfile: String = "lint"
 
 /// Commit guards: the pre-commit `check` entries. They judge the staged change
 /// and may block the commit; an `afterFixers` guard runs after every fixer.
@@ -493,7 +497,7 @@ languages: Listing<types.Spec> = new {
     nativeConfigs { "Cargo.toml"; "rustfmt.toml"; ".rustfmt.toml" }
     dprint {
       kind = "exec"
-      command = "dev-profile-rustfmt"
+      command = "dev-profile-rustfmt --stdin-path {{file_path}}"
       exts { "rs" }
     }
   }
@@ -622,6 +626,7 @@ output {
     ["personal-overlay.toml"] { text = render.tomlFile(render.personalOverlay) }
     ["golangci.yml"] { text = render.yamlFile(shared.golangci) }
     ["editorconfig"] { text = shared.editorconfig }
+    ["deny.toml"] { text = render.tomlFile(shared.denyConfig) }
     // Hand-written adapter; copied so install-live links one directory.
     ["shell.zsh"] { text = render.shellZsh }
     ["markdownlintrc.json"] {

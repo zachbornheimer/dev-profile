@@ -4,6 +4,23 @@ doc = "Go security scanner at push; skips silently when gosec is not installed."
 pin { id = "aqua:securego/gosec"; version = "2.29.0" }
 on {
   ["pre-push"] = (module.builtins.go_sec) {
-    check = "dev-profile-if-installed gosec gosec ./..."
+    check = "dev-profile-gosec-packages {{files}}"
   }
 }
+
+local gosecPackages =
+  #"""
+  \#(bash)
+  # dev-profile-gosec-packages <files…>: gosec only the Go packages that contain
+  # the given files, so findings in untouched packages never block a push.
+  # Skips when gosec is not installed or no Go file is given.
+  command -v gosec >/dev/null 2>&1 || exit 0
+  packages=()
+  for file in "$@"; do
+    [[ "${file}" == *.go ]] && packages+=("./$(dirname "${file}")")
+  done
+  ((${#packages[@]})) || exit 0
+  printf '%s\n' "${packages[@]}" | sort -u | xargs gosec
+  """#
+
+scripts { ["dev-profile-gosec-packages"] = gosecPackages }

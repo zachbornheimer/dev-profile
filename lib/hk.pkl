@@ -22,7 +22,15 @@ steps {
     depends = profile.fixers.keys.toList()
   }
   ...profile.fixers
-  ...profile.commitGuards
+  // Commit guards judge the commit being made, not the code: the lint verb
+  // disables them. A hygiene tool (same step at commit and push) stays on.
+  for (id, step in profile.commitGuards) {
+    [id] =
+      if (profile.checks.containsKey(id))
+        step
+      else
+        (step) { profiles = List("!" + profile.lintProfile) }
+  }
   // Push checks, only on request (`hk check --slow`). A tool with the same step
   // at commit and push (hygiene) is already above under that name.
   for (id, step in profile.checks) {

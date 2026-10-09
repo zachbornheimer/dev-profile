@@ -10,18 +10,57 @@ on {
 }
 
 local rustfmt =
-  """
-  \(bash)
+  #"""
+  \#(bash)
+  # rustfmt never reads Cargo.toml: run bare it assumes edition 2015 and formats a
+  # 2024 crate differently from `cargo fmt`. Pass the crate's edition so both agree.
+  # Usage: dev-profile-rustfmt --stdin-path FILE   stdin to stdout (dprint)
+  #        dev-profile-rustfmt FILE...             in place (hk)
   if ! command -v rustfmt >/dev/null 2>&1; then
     [[ $# -gt 0 ]] || cat
     exit 0
   fi
-  if [[ $# -eq 0 ]]; then
+
+  # Edition the nearest Cargo.toml above FILE declares; empty when none does.
+  edition_of() {
+    local dir manifest edition
+    dir="$(cd "$(dirname "$1")" && pwd)"
+    while [[ "${dir}" != "/" ]]; do
+      manifest="${dir}/Cargo.toml"
+      if [[ -f "${manifest}" ]]; then
+        edition="$(sed -nE 's/^edition[[:space:]]*=[[:space:]]*"([0-9]+)".*/\1/p' "${manifest}" | head -n1)"
+        if [[ -n "${edition}" ]]; then
+          echo "${edition}"
+          return 0
+        fi
+      fi
+      dir="$(dirname "${dir}")"
+    done
+  }
+
+  # Format a file, or stdin standing in for it, with its crate's edition. Stdin runs
+  # from the file's directory: rustfmt finds rustfmt.toml from the working directory,
+  # and dprint's is the config dir.
+  format() { # <stdin|file> <path>
+    local edition args=()
+    edition="$(edition_of "$2")"
+    [[ -z "${edition}" ]] || args+=(--edition "${edition}")
+    if [[ "$1" == "stdin" ]]; then
+      cd "$(dirname "$2")"
+      rustfmt "${args[@]+"${args[@]}"}"
+    else
+      rustfmt "${args[@]+"${args[@]}"}" "$2"
+    fi
+  }
+
+  if [[ "${1:-}" == "--stdin-path" ]]; then
+    format stdin "$2"
+  elif [[ $# -eq 0 ]]; then
     rustfmt
   else
-    rustfmt "$@"
+    for file in "$@"; do format file "${file}"; done
   fi
-  """
+  """#
 
 scripts {
   ["dev-profile-rustfmt"] = rustfmt

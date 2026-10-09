@@ -121,6 +121,40 @@ editorconfigSections: Mapping<String, Mapping<String, Any>> = new {
   ["*.py"] { ["indent_size"] = 4 }
 }
 
+/// cargo-deny policy for every Rust repo under the code root. Permissive
+/// licenses only; copyleft needs an explicit decision, not a silent allow.
+denyConfig: Dynamic = new {
+  advisories {
+    version = 2
+    yanked = "deny"
+  }
+  licenses {
+    version = 2
+    // One list serves every repo, so most repos never use most entries.
+    ["unused-allowed-license"] = "allow"
+    allow =
+      List(
+        "MIT",
+        "Apache-2.0",
+        "BSD-2-Clause",
+        "BSD-3-Clause",
+        "ISC",
+        "Unicode-3.0",
+        "Zlib",
+        "MPL-2.0",
+        "CC0-1.0",
+      )
+  }
+  bans {
+    ["multiple-versions"] = "warn"
+    wildcards = "deny"
+  }
+  sources {
+    ["unknown-registry"] = "deny"
+    ["unknown-git"] = "deny"
+  }
+}
+
 /// .editorconfig file body (INI; Pkl ships no INI renderer).
 editorconfig: String =
   new Listing<String> {

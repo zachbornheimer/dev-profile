@@ -187,7 +187,7 @@ examples {
         check = "dev-profile-go-vet {{files}}"
         files = "**/*.go"
         after = List("clang-tidy", "stylelint", "dotnet-format", "go-fix", "go-imports", "go-mod-tidy-fix", "go-modernize", "golangci-lint-fix", "oxlint-fix", "markdownlint-fix", "perltidy", "php-fmt", "rector", "ruff-fix", "newlines", "trailing-whitespace", "uv-instead-of-python-in-tasks", "rubocop-fix", "clippy-fix", "rustfmt", "shellharden", "swift-format", "swiftlint-fix", "tofu-fix")
-        profiles = null
+        profiles = List("!lint")
       }
       ["case-conflicts"] {
         fix = null
@@ -201,49 +201,49 @@ examples {
         check = "hk util check-added-large-files {{files}}"
         files = "**/*"
         after = List()
-        profiles = null
+        profiles = List("!lint")
       }
       ["check-executables-have-shebangs"] {
         fix = null
         check = "hk util check-executables-have-shebangs {{files}}"
         files = "text"
         after = List()
-        profiles = null
+        profiles = List("!lint")
       }
       ["check-shebang-scripts-are-executable"] {
         fix = null
         check = "hk util check-shebang-scripts-are-executable {{files}}"
         files = "text"
         after = List()
-        profiles = null
+        profiles = List("!lint")
       }
       ["check-symlinks"] {
         fix = null
         check = "hk util check-symlinks {{files}}"
         files = "**/*"
         after = List()
-        profiles = null
+        profiles = List("!lint")
       }
       ["destroyed-symlinks"] {
         fix = null
         check = "hk util destroyed-symlinks"
         files = null
         after = List()
-        profiles = null
+        profiles = List("!lint")
       }
       ["forbid-submodules"] {
         fix = null
         check = "hk util forbid-submodules"
         files = "**/.gitmodules"
         after = List()
-        profiles = null
+        profiles = List("!lint")
       }
       ["gitleaks-staged"] {
         fix = null
         check = "gitleaks git --pre-commit --staged --redact --no-banner"
         files = null
         after = List()
-        profiles = null
+        profiles = List("!lint")
       }
       ["merge-conflicts"] {
         fix = null
@@ -257,14 +257,14 @@ examples {
         check = "dev-profile-no-commit-to-default-branch"
         files = null
         after = List()
-        profiles = null
+        profiles = List("!lint")
       }
       ["no-trunk-prettier"] {
         fix = null
         check = "dev-profile-ban-trunk-prettier"
         files = null
         after = List()
-        profiles = null
+        profiles = List("!lint")
       }
       ["private-keys"] {
         fix = null
@@ -310,7 +310,7 @@ examples {
       }
       ["go-sec"] {
         fix = null
-        check = "dev-profile-if-installed gosec gosec ./..."
+        check = "dev-profile-gosec-packages {{files}}"
         files = "**/*.go"
         after = List()
         profiles = List("slow")
@@ -524,7 +524,7 @@ examples {
       }
       ["go-sec"] {
         fix = null
-        check = "dev-profile-if-installed gosec gosec ./..."
+        check = "dev-profile-gosec-packages {{files}}"
         files = "**/*.go"
         after = List()
         profiles = null
@@ -721,7 +721,7 @@ examples {
     }
   }
   ["generated bin scripts"] {
-    List("dev-profile-ban-trunk-prettier", "dev-profile-clang-format", "dev-profile-clang-tidy-fix", "dev-profile-clippy-fix", "dev-profile-commit-msg", "dev-profile-contract", "dev-profile-contract-buf", "dev-profile-contract-dotnet", "dev-profile-contract-go", "dev-profile-contract-node", "dev-profile-contract-opentofu", "dev-profile-contract-perl", "dev-profile-contract-php", "dev-profile-contract-push", "dev-profile-contract-python", "dev-profile-contract-repo", "dev-profile-contract-ruby", "dev-profile-contract-swift", "dev-profile-dotnet-format-fix", "dev-profile-fix", "dev-profile-git-hook", "dev-profile-go-fix", "dev-profile-go-modernize", "dev-profile-go-vet", "dev-profile-golangci-ratchet", "dev-profile-if-installed", "dev-profile-no-commit-to-default-branch", "dev-profile-oxlint-fix", "dev-profile-perltidy-fix", "dev-profile-php-context", "dev-profile-php-fmt", "dev-profile-php-lint", "dev-profile-pkl-fmt", "dev-profile-pushed-diagnostics", "dev-profile-rector-fix", "dev-profile-rubocop-fix", "dev-profile-rustfmt", "dev-profile-stylelint-fix", "dev-profile-suppressions", "dev-profile-swift-format", "dev-profile-swiftlint-fix", "dev-profile-ty", "dev-profile-uv-instead-of-python-in-tasks")
+    List("dev-profile-ban-trunk-prettier", "dev-profile-ci", "dev-profile-clang-format", "dev-profile-clang-tidy-fix", "dev-profile-clippy-fix", "dev-profile-commit-msg", "dev-profile-contract", "dev-profile-contract-buf", "dev-profile-contract-dotnet", "dev-profile-contract-go", "dev-profile-contract-node", "dev-profile-contract-opentofu", "dev-profile-contract-perl", "dev-profile-contract-php", "dev-profile-contract-push", "dev-profile-contract-python", "dev-profile-contract-repo", "dev-profile-contract-ruby", "dev-profile-contract-swift", "dev-profile-dotnet-format-fix", "dev-profile-fix", "dev-profile-git-hook", "dev-profile-go-fix", "dev-profile-go-modernize", "dev-profile-go-vet", "dev-profile-golangci-ratchet", "dev-profile-gosec-packages", "dev-profile-if-installed", "dev-profile-no-commit-to-default-branch", "dev-profile-oxlint-fix", "dev-profile-perltidy-fix", "dev-profile-php-context", "dev-profile-php-fmt", "dev-profile-php-lint", "dev-profile-pkl-fmt", "dev-profile-pushed-diagnostics", "dev-profile-rector-fix", "dev-profile-rubocop-fix", "dev-profile-rustfmt", "dev-profile-stylelint-fix", "dev-profile-suppressions", "dev-profile-swift-format", "dev-profile-swiftlint-fix", "dev-profile-ty", "dev-profile-uv-instead-of-python-in-tasks")
   }
   ["mise tools"] {
     new {

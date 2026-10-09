@@ -19,10 +19,13 @@ local pytestNoTests = 5
 local bash = "#!/usr/bin/env bash\nset -euo pipefail\n" + render.header("#") + "\n"
 
 // ---- Root overlay tasks
+/// A bin script, not an inline task `run`: mise renders task scripts through Tera,
+/// which reads the `#` of bash's array-length expansion as a comment opener.
 local ciScript =
   """
   #!/usr/bin/env bash
   set -uo pipefail
+  \(render.header("#"))
   # Run every ci verb (repo overrides included), then fail if any failed.
   failed=()
   for verb in \(profile.ciVerbs.join(" ")); do
@@ -52,7 +55,7 @@ tasks: Dynamic = new {
   ["\(namespace):ci"] {
     description = "\(profile.ciVerbs.join(" + ")): the full gate"
     dir = "{{cwd}}"
-    run = ciScript
+    run = "dev-profile-ci"
   }
   ["ci"] {
     description = "\(profile.ciVerbs.join(" + ")): the full gate"
@@ -479,7 +482,7 @@ local repo =
       ;;
     # hk owns format checks and static analysis for every language.
     lint)
-      step hk check --all --slow
+      step hk check --all --slow --profile \(profile.lintProfile)
       step dev-profile-suppressions --tree
       ;;
     scan) scan_tree ;;
@@ -634,6 +637,7 @@ pushVerbs: Listing<String> = new { "test"; "scan" }
 /// Generated bin/ scripts for the contract.
 wrappers: Mapping<String, String> = new {
   ["dev-profile-contract"] = dispatcher
+  ["dev-profile-ci"] = ciScript
   ["dev-profile-contract-push"] = contractPush
   for (adapter in profile.contractAdapters) {
     ["dev-profile-contract-\(adapter.id)"] = adapterScript(adapter.id, adapterBodies[adapter.id])
