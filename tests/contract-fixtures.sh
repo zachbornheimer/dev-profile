@@ -344,6 +344,15 @@ run = "PYTHONPATH=src python scripts/b.py"
 run = ["uv run tools/c.py", "uv run --script d.py && python3 e.py"]
 [tasks.keep]
 run = ["python3 -c 'print(1)'", "uv run pytest -q", "python3 -m http.server", "mise run conformance:_run python"]
+[tools]
+python = "3.12"
+python="3.12"
+"python" = "3.12"
+python3 = "3.12"
+[tasks.multi]
+run = """
+python script.py
+"""
 EOF
 	cat >"$want" <<'EOF'
 [tasks.a]
@@ -354,6 +363,15 @@ run = "PYTHONPATH=src uv run scripts/b.py"
 run = ["uv run tools/c.py", "uv run --script d.py && uv run e.py"]
 [tasks.keep]
 run = ["uv run python3 -c 'print(1)'", "uv run pytest -q", "uv run python3 -m http.server", "mise run conformance:_run python"]
+[tools]
+python = "3.12"
+python="3.12"
+"python" = "3.12"
+python3 = "3.12"
+[tasks.multi]
+run = """
+uv run script.py
+"""
 EOF
 	dev-profile-uv-instead-of-python-in-tasks "$file"
 	diff -u "$want" "$file" >"$output" || fail "uv-instead-of-python-in-tasks: unexpected rewrite"
