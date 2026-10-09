@@ -20,16 +20,33 @@ local ifInstalled =
 local gosecPackages =
   #"""
   \#(bash)
-  # dev-profile-gosec-packages <files…>: gosec only the Go packages that contain
-  # the given files, so findings in untouched packages never block a push.
+  # dev-profile-gosec-packages <files…>: gosec the Go packages that contain the
+  # given files, but fail only on findings located in those files, so findings
+  # already sitting in untouched files never block a push.
   # Skips when gosec is not installed or no Go file is given.
   command -v gosec >/dev/null 2>&1 || exit 0
+  root="$(pwd -P)"
   packages=()
+  changed=()
   for file in "$@"; do
-    [[ "${file}" == *.go ]] && packages+=("./$(dirname "${file}")")
+    [[ "${file}" == *.go ]] || continue
+    packages+=("./$(dirname "${file}")")
+    changed+=("${root}/${file#./}")
   done
   ((${#packages[@]})) || exit 0
-  printf '%s\n' "${packages[@]}" | sort -u | xargs gosec
+  # gosec exits 1 on any finding; the verdict comes from the report below.
+  report="$(printf '%s\n' "${packages[@]}" | sort -u | xargs gosec -fmt json 2>/dev/null || true)"
+  if ! jq -e .Issues >/dev/null 2>&1 <<<"${report}"; then
+    echo "gosec produced no readable report:" >&2
+    echo "${report}" >&2
+    exit 1
+  fi
+  findings="$(jq -r --arg root "${root}/" '
+    .Issues[]
+    | select(.file as $path | $ARGS.positional | index($path))
+    | "\(.file | ltrimstr($root)):\(.line) \(.rule_id) \(.details)"
+  ' --args "${changed[@]}" <<<"${report}")"
+  [[ -z "${findings}" ]] || { echo "${findings}" >&2; exit 1; }
   """#
 
 local noCommitToDefaultBranch =

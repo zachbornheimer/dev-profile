@@ -115,7 +115,25 @@ fixture_if_installed() {
 	if dev-profile-if-installed bash false; then fail "if-installed: a failing command must fail"; fi
 }
 
+# gosec scans the whole package, but only findings in the pushed files block.
+fixture_gosec_changed_files_only() {
+	command -v gosec >/dev/null 2>&1 || return 0
+	local repo
+	repo="$(new_repo gosec)"
+	mkdir -p "${repo}/pkg"
+	printf 'module example.com/fixture\n\ngo 1.22\n' >"${repo}/go.mod"
+	printf 'package pkg\n\nfunc Clean() int { return 1 }\n' >"${repo}/pkg/clean.go"
+	printf 'package pkg\n\nimport "math/rand"\n\nfunc Roll() int { return rand.Intn(6) }\n' >"${repo}/pkg/dirty.go"
+	(cd "$repo" && dev-profile-gosec-packages pkg/clean.go) >"${work}/output.txt" 2>&1 ||
+		fail "gosec: a clean changed file must pass despite a dirty untouched file"
+	if (cd "$repo" && dev-profile-gosec-packages pkg/dirty.go) >"${work}/output.txt" 2>&1; then
+		fail "gosec: a dirty changed file must fail"
+	fi
+	grep -q 'pkg/dirty.go:5 G404' "${work}/output.txt" || fail "gosec: the finding must be printed"
+}
+
 fixture_if_installed
+fixture_gosec_changed_files_only
 fixture_clean_change_passes
 fixture_broken_symlink_blocks
 fixture_non_executable_script_blocks
