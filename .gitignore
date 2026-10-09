@@ -3,6 +3,11 @@
 !/.gitignore
 !/README.md
 !/mise.toml
+!/mise-tasks/
+!/mise-tasks/*
+!/.github/
+!/.github/workflows/
+!/.github/workflows/*.yml
 !/profile.pkl
 !/conform.lua
 !/lib/

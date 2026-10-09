@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+#MISE description="Bump every outdated pin to its latest release (mise latest), then regenerate the snapshot"
+# Pins: `id = "<id>"; version = "<v>"` in profile.pkl and tools/**/*.pkl, the npm
+# and plugins.dprint.dev entries of dprintPlugins, and the hk package URIs, which
+# follow the hk pin. A pin shorter than the release keeps its depth: "1.27" moves
+# to "1.28" only when a 1.28 release exists. "latest" pins are left alone.
+# Prints a Markdown table of what changed; BUMP_SUMMARY=<file> writes it there too.
+# BUMP_LATEST=<command> replaces `mise latest` (the fixture uses a stub).
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+
+latest_of() { # <mise tool id> -> version, no leading v; empty when unknown
+	local v
+	v="$(${BUMP_LATEST:-mise latest} "$1" 2>/dev/null | tail -1 || true)"
+	v="${v#v}"
+	[[ "${v}" =~ ^[0-9]+(\.[0-9]+)*$ ]] && echo "${v}"
+	return 0
+}
+
+# The release cut to the pin's depth: trim 1.28.3 to "1.28" for a pin like "1.27".
+same_depth() { # <pin> <release>
+	local depth
+	depth="$(tr -dc . <<<"$1" | wc -c)"
+	cut -d. -f1-$((depth + 1)) <<<"$2"
+}
+
+rows=()
+bump() { # <label> <current> <release> <file> <sed expression>
+	local want
+	[[ -n "$3" ]] || { echo "skip  $1 ${2}: no release found" >&2; return 0; }
+	want="$(same_depth "$2" "$3")"
+	[[ "${want}" != "$2" ]] || return 0
+	sed -i.bak -e "$5" "$4" && rm -f "$4.bak"
+	rows+=("| $1 | $2 | ${want} |")
+	echo "bump  $1 $2 -> ${want}" >&2
+}
+
+# mise tool pins.
+while IFS=$'\t' read -r file id current; do
+	[[ "${current}" != "latest" ]] || continue
+	release="$(latest_of "${id}")"
+	bump "${id}" "${current}" "${release}" "${file}" \
+		"s|id = \"${id}\"; version = \"${current}\"|id = \"${id}\"; version = \"$(same_depth "${current}" "${release:-$current}")\"|"
+	if [[ "${id}" == "hk" && -n "${release}" && "${release}" != "${current}" ]]; then
+		# The hk package the Pkl sources import follows the hk pin.
+		grep -rlF "hk@${current}" profile.pkl lib tools tests | while IFS= read -r f; do
+			sed -i.bak -e "s|/v${current}/hk@${current}|/v${release}/hk@${release}|g" "$f" && rm -f "$f.bak"
+		done
+	fi
+done < <(grep -HoE 'id = "[^"]+"; version = "[^"]+"' profile.pkl tools/*/*.pkl |
+	sed -E 's/^([^:]+):id = "([^"]+)"; version = "([^"]+)"$/\1\t\2\t\3/')
+
+# dprint wasm plugins from npm.
+while IFS=$'\t' read -r name current; do
+	release="$(latest_of "npm:${name}")"
+	bump "npm:${name}" "${current}" "${release}" profile.pkl \
+		"s|\"npm:${name}@${current}\"|\"npm:${name}@${release:-$current}\"|"
+done < <(grep -oE '"npm:@?[^@"]+@[0-9][^"/]*"' profile.pkl | sed -E 's/^"npm:(@?[^@]+)@([^"]+)"$/\1\t\2/')
+
+# dprint wasm plugins published as GitHub releases on plugins.dprint.dev.
+while IFS=$'\t' read -r owner name current; do
+	release="$(latest_of "github:${owner}/${name}")"
+	bump "${owner}/${name}" "${current}" "${release}" profile.pkl \
+		"s|/${owner}/${name}-v${current}.wasm|/${owner}/${name}-v${release:-$current}.wasm|"
+done < <(grep -oE 'plugins.dprint.dev/[^/]+/[^"]+-v[0-9.]+\.wasm' profile.pkl |
+	sed -E 's#^plugins.dprint.dev/([^/]+)/(.+)-v([0-9.]+)\.wasm$#\1\t\2\t\3#')
+
+if ((${#rows[@]} == 0)); then
+	echo "everything is at its latest release" >&2
+	exit 0
+fi
+
+# The snapshot records the mise tools table; the pins moved, so regenerate it.
+out="$(cd "$(mktemp -d)" && pwd -P)"
+trap 'rm -rf "${out}"' EXIT
+DEV_PROFILE_OUT="${out}" pkl test --overwrite tests/profile.test.pkl >/dev/null || true
+DEV_PROFILE_OUT="${out}" pkl test tests/profile.test.pkl >/dev/null
+
+summary="$(printf '| Pin | From | To |\n| --- | --- | --- |\n%s\n' "$(printf '%s\n' "${rows[@]}")")"
+echo "${summary}"
+[[ -z "${BUMP_SUMMARY:-}" ]] || echo "${summary}" >"${BUMP_SUMMARY}"
