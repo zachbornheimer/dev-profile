@@ -482,7 +482,7 @@ local repo =
       ;;
     # hk owns format checks and static analysis for every language.
     lint)
-      step hk check --all --slow
+      step hk check --all --slow --profile \(profile.lintProfile)
       step dev-profile-suppressions --tree
       ;;
     scan) scan_tree ;;

@@ -12,7 +12,7 @@ root="${work}/root"
 stubs="${work}/stubs"
 log="${work}/calls.log"
 output="${work}/output.txt"
-stubbed_tools=(go goimports golangci-lint govulncheck pnpm npm composer aube uv oxlint gitleaks dotnet dprint shellcheck shellharden)
+stubbed_tools=(go goimports golangci-lint govulncheck pnpm npm composer aube uv oxlint gitleaks dotnet dprint shellcheck shellharden markdownlint betterleaks)
 
 mkdir -p "$root" "$stubs" "${work}/mise-config" "${work}/hk-config"
 cp "${out}/personal-overlay.toml" "${root}/mise.toml"
@@ -380,6 +380,32 @@ fixture_git_hook_skips_undefined_hook
 # mise renders a task script through Tera only when the task runs, so `mise tasks`
 # passes on a script Tera rejects (a `${#array[@]}` reads as a comment opener).
 # A dry run renders every task without executing it.
+# A clean repo on its default branch with an origin, the shape CI and `mise run lint` see.
+new_published_default_branch_repo() {
+	local repo
+	repo="$(new_repo "$1")"
+	git -C "$repo" checkout -q -b main
+	git -C "$repo" remote add origin "https://example.invalid/${1}.git"
+	commit_all "$repo"
+	echo "$repo"
+}
+
+fixture_lint_ignores_commit_guards_on_default_branch() {
+	local repo
+	repo="$(new_published_default_branch_repo lint-on-main)"
+	HK_CONFIG_DIR="${work}/hk-config" run_task "$repo" lint ||
+		fail "lint on default branch: a commit-only guard failed the lint verb"
+}
+
+fixture_commit_guard_still_blocks_commit_on_default_branch() {
+	local repo
+	repo="$(new_published_default_branch_repo commit-on-main)"
+	echo change >>"${repo}/README.md"
+	git -C "$repo" add -A
+	if run_hook "$repo" pre-commit --staged; then fail "commit guard: a commit on the default branch was allowed"; fi
+	expect_output "protected branch" "commit guard"
+}
+
 fixture_every_task_renders() {
 	local repo task
 	repo="$(new_repo task-render)"
@@ -423,4 +449,6 @@ fixture_no_ecosystem
 fixture_override_and_extend
 fixture_failure_runs_every_adapter
 fixture_suppressions
+fixture_lint_ignores_commit_guards_on_default_branch
+fixture_commit_guard_still_blocks_commit_on_default_branch
 echo "contract fixtures ok"

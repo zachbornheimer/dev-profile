@@ -291,7 +291,10 @@ hygiene: Mapping<String, hk.Step> = new {
   ["case-conflicts"] = Builtins.check_case_conflict
 }
 
-/// Commit-only guards on the staged change; nothing to judge at push.
+/// hk profile the lint verb enables; commit-only guards are tagged to skip it.
+lintProfile: String = "lint"
+
+/// Commit-only guards on the staged change; nothing to judge at push or in lint.
 commitGuards: Mapping<String, hk.Step> = new {
   // Blocks a staged secret: once committed and pushed it must be rotated.
   ["secrets"] { check = "gitleaks git --pre-commit --staged --redact --no-banner" }
