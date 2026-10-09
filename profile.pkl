@@ -44,13 +44,13 @@ dprintExcludes: Listing<String> = new {
 /// Wasm plugins. PHP is never mago — WordPress PHPCBF/WPCS owns PHP formatting.
 dprintPlugins: Listing<String> = new {
   "npm:@dprint/typescript@0.96.1"
-  "npm:@dprint/json@0.25.1"
+  "npm:@dprint/json@0.25.2"
   "npm:@dprint/markdown@0.26.0"
-  "npm:@dprint/toml@0.8.0"
-  "npm:@dprint/dockerfile@0.6.0"
+  "npm:@dprint/toml@0.9.0"
+  "npm:@dprint/dockerfile@0.7.0"
   "npm:dprint-plugin-yaml@0.6.0"
   "npm:@dprint/ruff@0.9.1"
-  "npm:@jakebailey/dprint-plugin-gofumpt@0.0.18"
+  "npm:@jakebailey/dprint-plugin-gofumpt@0.0.19"
   "npm:@dprint/exec@0.7.3/plugin.json@704701df449dd7e942a71144773778ac529d68c2e4657bfc236d393b898b9a67"
   "npm:@kachick/dprint-plugin-sh@0.1.2"
   // HTML/Vue/Svelte/Astro templates (markup_fmt) and CSS/SCSS/Less (malva).
@@ -287,13 +287,13 @@ kernelTools: Listing<types.Pin> = new {
 /// Kernel and runtime pins. A tool's own pin lives in its `tools/` file.
 tools: Listing<types.Pin> = new {
   new { id = "hk"; version = "2.5.0" }
-  new { id = "dprint"; version = "0.59.0" }
+  new { id = "dprint"; version = "0.61.1" }
   new { id = "worktrunk"; version = "0.80.0" }
   new { id = "go"; version = "1.27" }
   new { id = "node"; version = "24" }
   new { id = "stylua"; version = "2.5.2" }
-  new { id = "aube"; version = "2.5.1" }
-  new { id = "uv"; version = "0.12.23" }
+  new { id = "aube"; version = "2.7.0" }
+  new { id = "uv"; version = "0.12.24" }
   // Worktree env isolation (deps symlinks, ports, DB names); run by the wt pre-start hook.
   new { id = "github:rohansx/workz"; version = "0.11.0" }
   // Contract adapters: OpenTofu lint and protobuf lint/breaking/generate.

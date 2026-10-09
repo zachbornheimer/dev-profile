@@ -2,7 +2,7 @@ amends "../../lib/Tool.pkl"
 
 doc =
   "Python lint. Commit applies safe and unsafe fixes plus the modernizing rule sets; push reports what is left."
-pin { id = "ruff"; version = "0.16.9" }
+pin { id = "ruff"; version = "0.16.10" }
 on {
   ["pre-commit"] {
     types = List("python")

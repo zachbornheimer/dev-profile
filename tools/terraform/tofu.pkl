@@ -1,7 +1,7 @@
 amends "../../lib/Tool.pkl"
 
 doc = "OpenTofu formatting: fix at commit, check at push."
-pin { id = "opentofu"; version = "1.11" }
+pin { id = "opentofu"; version = "1.13" }
 on {
   ["pre-commit"] {
     glob = List("**/*.tf", "**/*.tfvars")

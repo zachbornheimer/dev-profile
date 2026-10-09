@@ -2,7 +2,7 @@ amends "../../lib/Tool.pkl"
 
 doc =
   "Go meta-linter. Commit applies its fixers to what this commit changes; push fails only on issues new since the upstream default branch."
-pin { id = "golangci-lint"; version = "2.13.2" }
+pin { id = "golangci-lint"; version = "2.14.0" }
 on {
   ["pre-commit"] {
     glob = List("**/*.go")
