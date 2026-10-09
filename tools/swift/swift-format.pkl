@@ -1,0 +1,37 @@
+amends "../../lib/Tool.pkl"
+
+doc =
+  "swift-format (or swiftformat) after swiftlint's fixes. Also the dprint exec command for Swift."
+on {
+  ["pre-commit"] {
+    glob = List("**/*.swift")
+    depends = List("swiftlint-fix")
+    fix = "dev-profile-swift-format {{files}}"
+  }
+}
+
+local swiftFormat =
+  """
+  \(bash)
+  if command -v swift-format >/dev/null 2>&1; then
+    if [[ $# -eq 0 ]]; then
+      swift-format format --stdin
+    else
+      swift-format format --in-place "$@"
+    fi
+    exit 0
+  fi
+  if command -v swiftformat >/dev/null 2>&1; then
+    if [[ $# -eq 0 ]]; then
+      swiftformat --quiet stdin
+    else
+      swiftformat --quiet "$@"
+    fi
+    exit 0
+  fi
+  [[ $# -gt 0 ]] || cat
+  """
+
+scripts {
+  ["dev-profile-swift-format"] = swiftFormat
+}

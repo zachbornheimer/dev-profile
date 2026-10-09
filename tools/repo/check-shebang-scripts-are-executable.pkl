@@ -1,0 +1,6 @@
+amends "../../lib/Tool.pkl"
+
+doc = "Files with a shebang are executable. An hk builtin; no external tool."
+on {
+  ["pre-commit"] = module.builtins.check_shebang_scripts_are_executable
+}

@@ -40,7 +40,7 @@ expect_call() { grep -qxF -- "$1" "$log" || fail "$2: expected call '$1'; got: $
 expect_no_call() { [[ ! -s "$log" ]] || fail "$1: expected no tool call; got: $(cat "$log")"; }
 
 fixture_ruff_modernize_rules() {
-	grep -qF -- "--extend-select UP,FURB,SIM,PERF,C4,PIE" "${out}/src/profile.pkl" ||
+	grep -qF -- "--extend-select UP,FURB,SIM,PERF,C4,PIE" "${out}/src/tools/python/ruff.pkl" ||
 		fail "ruff: the commit fixer must select the modernize rule families"
 }
 

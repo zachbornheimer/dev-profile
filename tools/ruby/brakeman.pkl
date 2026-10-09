@@ -1,0 +1,10 @@
+amends "../../lib/Tool.pkl"
+
+doc =
+  "Rails security scanner at push; a Ruby gem pinned here, installed by mise install, skipped until then."
+pin { id = "gem:brakeman"; version = "8.1.0" }
+on {
+  ["pre-push"] = (module.builtins.brakeman) {
+    check = "dev-profile-if-installed brakeman brakeman -q -w2 {{files}}"
+  }
+}

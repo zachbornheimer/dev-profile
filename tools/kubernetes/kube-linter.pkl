@@ -1,0 +1,10 @@
+amends "../../lib/Tool.pkl"
+
+doc = "Kubernetes manifest best practices at push; skips when kube-linter is not installed."
+pin { id = "kube-linter"; version = "0.8.3" }
+on {
+  ["pre-push"] = (module.builtins.kube_linter) {
+    check =
+      "dev-profile-if-installed kube-linter kube-linter lint --fail-if-no-objects-found {{files}}"
+  }
+}

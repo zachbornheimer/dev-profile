@@ -1,0 +1,12 @@
+amends "../../lib/Tool.pkl"
+
+doc =
+  "GitHub Actions must be pinned to commit SHAs; checked at push, skipped when pinact is not installed."
+pin { id = "pinact"; version = "5.0.0" }
+on {
+  ["pre-push"] = (module.builtins.pinact) {
+    check = "dev-profile-if-installed pinact pinact run --verify-comment --check {{files}}"
+    check_diff = null
+    fix = null
+  }
+}

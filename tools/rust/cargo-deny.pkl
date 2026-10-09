@@ -1,0 +1,10 @@
+amends "../../lib/Tool.pkl"
+
+doc =
+  "Rust dependency licenses, bans and advisories at push; skips when cargo-deny is not installed."
+pin { id = "cargo-deny"; version = "0.20.2" }
+on {
+  ["pre-push"] = (module.builtins.cargo_deny) {
+    check = "dev-profile-if-installed cargo-deny cargo-deny --locked --workspace check"
+  }
+}

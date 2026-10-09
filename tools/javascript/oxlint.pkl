@@ -1,0 +1,42 @@
+amends "../../lib/Tool.pkl"
+
+doc =
+  "JS and TS lint. Commit applies safe fixes and suggestions, never --fix-dangerously; push reports what is left."
+pin { id = "oxlint"; version = "1.84.0" }
+on {
+  ["pre-commit"] {
+    glob =
+      List(
+        "**/*.js",
+        "**/*.mjs",
+        "**/*.cjs",
+        "**/*.ts",
+        "**/*.mts",
+        "**/*.cts",
+        "**/*.jsx",
+        "**/*.tsx",
+        "**/*.vue",
+        "**/*.svelte",
+        "**/*.astro",
+      )
+    fix = "dev-profile-oxlint-fix {{files}}"
+  }
+  ["pre-push"] = (module.builtins.ox_lint) {
+    check = "oxlint {{files}}"
+    fix = "dev-profile-oxlint-fix {{files}}"
+  }
+}
+
+local oxlintFix =
+  """
+  \(bash)
+  # Safe fixes plus suggestions (modernize); never --fix-dangerously.
+  # Exit 1 = diagnostics left for push; anything else is a real error.
+  code=0
+  oxlint --fix --fix-suggestions "$@" || code=$?
+  [[ "${code}" -le 1 ]] || exit "${code}"
+  """
+
+scripts {
+  ["dev-profile-oxlint-fix"] = oxlintFix
+}

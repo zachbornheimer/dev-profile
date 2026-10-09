@@ -1,0 +1,6 @@
+amends "../../lib/Tool.pkl"
+
+doc = "No symlinks replaced by the file they pointed to. An hk builtin; no external tool."
+on {
+  ["pre-commit"] = module.builtins.destroyed_symlinks
+}

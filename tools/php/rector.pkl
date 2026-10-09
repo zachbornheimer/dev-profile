@@ -1,0 +1,30 @@
+amends "../../lib/Tool.pkl"
+
+doc = "Rector applies the repo rector.php PHP-version set first; php-fmt formats after."
+on {
+  ["pre-commit"] { glob = List("**/*.php"); fix = "dev-profile-rector-fix {{files}}" }
+}
+
+local rectorFix =
+  #"""
+  \#(bash)
+  # Rector rewrites PHP to the project's PHP-version set. The set lives in the
+  # repo's rector.php, so a repo without one opts out.
+  (($#)) || exit 0
+  \#(nearestUp)
+
+  [[ -f "${root}/rector.php" ]] || exit 0
+  if [[ -x "${root}/vendor/bin/rector" ]]; then
+    rector="${root}/vendor/bin/rector"
+  elif command -v rector >/dev/null 2>&1; then
+    rector="$(command -v rector)"
+  else
+    exit 0
+  fi
+  cd "${root}"
+  exec "${rector}" process --no-progress-bar --no-diffs --clear-cache --config rector.php "$@"
+  """#
+
+scripts {
+  ["dev-profile-rector-fix"] = rectorFix
+}

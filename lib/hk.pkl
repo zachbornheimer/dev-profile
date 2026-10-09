@@ -1,8 +1,9 @@
 /// Global hk config, derived from profile.pkl. hk evaluates and type-checks this
 /// module itself; ~/.config/hk/config.pkl links here.
-///   commit / `hk fix`        → fixers + hygiene + commit guards, on staged files, fixes restaged
-///   push                     → checks + hygiene on the pushed range only, no fixing, may block
-///   `hk check --slow`        → the same checks, explicit and full-tree
+///   commit / `hk fix`        → fixers + commit guards, on staged files, fixes restaged
+///   `hk check`               → the same steps in check mode; `--slow` adds the push checks
+///   push                     → checks on the pushed range only, no fixing, may block
+/// Each step comes from one file under tools/; profile.pkl derives the maps.
 amends "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pkl"
 
 import "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Builtins.pkl"
@@ -14,19 +15,28 @@ stash_backup_count = 20
 // A fresh Listing: hk rejects a typed Listing<String> passed through as-is.
 exclude = new Listing { ...profile.exclude }
 
+// Top-level steps feed the implicit pre-commit, fix and check hooks.
 steps {
   // Format last, after fixers have removed or rewritten code.
   ["dprint"] = (Builtins.dprint) {
     depends = profile.fixers.keys.toList()
   }
   ...profile.fixers
-  ...profile.hygiene
-  // Commit guards judge the commit being made, not the code: the lint verb disables them.
+  // Commit guards judge the commit being made, not the code: the lint verb
+  // disables them. A hygiene tool (same step at commit and push) stays on.
   for (id, step in profile.commitGuards) {
-    [id] = (step) { profiles = List("!" + profile.lintProfile) }
+    [id] =
+      if (profile.checks.containsKey(id))
+        step
+      else
+        (step) { profiles = List("!" + profile.lintProfile) }
   }
+  // Push checks, only on request (`hk check --slow`). A tool with the same step
+  // at commit and push (hygiene) is already above under that name.
   for (id, step in profile.checks) {
-    [id] = (step) { profiles = List("slow") }
+    when (!profile.fixers.containsKey(id) && !profile.commitGuards.containsKey(id)) {
+      [id] = (step) { profiles = List("slow") }
+    }
   }
 }
 
@@ -39,7 +49,6 @@ hooks {
   ["pre-push"] {
     steps {
       ...profile.checks
-      ...profile.hygiene
     }
   }
 }

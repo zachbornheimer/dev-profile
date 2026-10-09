@@ -1,0 +1,6 @@
+amends "../../lib/Tool.pkl"
+
+doc = "Perl static analysis at push."
+on {
+  ["pre-push"] { glob = List("**/*.pl", "**/*.pm", "**/*.t"); check = "perlcritic {{files}}" }
+}

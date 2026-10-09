@@ -1,0 +1,7 @@
+amends "../../lib/Tool.pkl"
+
+doc = "GitHub Actions workflow lint at push."
+pin { id = "aqua:rhysd/actionlint"; version = "1.7.12" }
+on {
+  ["pre-push"] = module.builtins.actionlint
+}

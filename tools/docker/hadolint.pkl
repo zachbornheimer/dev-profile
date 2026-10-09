@@ -1,0 +1,7 @@
+amends "../../lib/Tool.pkl"
+
+doc = "Dockerfile lint at push."
+pin { id = "hadolint"; version = "latest" }
+on {
+  ["pre-push"] = module.builtins.hadolint
+}

@@ -1,0 +1,19 @@
+amends "../../lib/Tool.pkl"
+
+doc =
+  "Runs a command only when its tool is on PATH (mise shims count). A missing scanner is not a failure."
+
+local ifInstalled =
+  #"""
+  \#(bash)
+  # dev-profile-if-installed <tool> <command…>: run the command only when <tool>
+  # is on PATH (mise shims count). A missing scanner is not a failure.
+  tool="${1:?usage: dev-profile-if-installed <tool> <command…>}"
+  shift
+  command -v "${tool}" >/dev/null 2>&1 || exit 0
+  exec "$@"
+  """#
+
+scripts {
+  ["dev-profile-if-installed"] = ifInstalled
+}

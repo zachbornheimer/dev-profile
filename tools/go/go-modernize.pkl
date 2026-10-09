@@ -1,0 +1,55 @@
+amends "../../lib/Tool.pkl"
+
+doc =
+  "go fix modernizers applied to the staged files only: go fix rewrites whole packages, so only its hunks for staged files are kept."
+on {
+  ["pre-commit"] {
+    glob = List("**/*.go")
+    depends = List("go-imports", "go-fix")
+    fix = "dev-profile-go-modernize {{files}}"
+  }
+}
+
+local goModernize =
+  #"""
+  \#(bash)
+  # Commit fixer: `go fix` modernizations, applied to the staged files only.
+  # `go fix` rewrites whole packages; `go fix -diff` previews them, and only the
+  # hunks for staged files are applied. A package that does not type-check yields
+  # no fixes; go-vet judges it after every fixer.
+  (($#)) || exit 0
+  \#(goPackages)
+
+  # Keep the diff blocks whose file is staged, rebased onto the repo root.
+  # go prints "--- /abs/file.go (old)" / "+++ /abs/file.go (new)" headers.
+  keep_staged() {
+    STAGED="${staged}" ROOT="${root}/" awk '
+      BEGIN { n = split(ENVIRON["STAGED"], files, "\n"); for (i = 1; i <= n; i++) keep[files[i]] = 1 }
+      /^--- \/.* \(old\)$/ {
+        path = substr($0, 5, length($0) - 10)
+        on = (path in keep)
+        rel = substr(path, length(ENVIRON["ROOT"]) + 1)
+        if (on) print "--- a/" rel
+        next
+      }
+      /^\+\+\+ \/.* \(new\)$/ { if (on) print "+++ b/" rel; next }
+      on { print }
+    '
+  }
+
+  staged="$(for file in "$@"; do if [[ -f "${file}" ]]; then physical "${file}"; fi; done)"
+  patch="$(mktemp)"
+  trap 'rm -f "${patch}"' EXIT
+  while IFS=$'\x1f' read -r module gowork dir; do
+    # Exit 1 means "has fixes" or "does not type-check"; the diff says which.
+    { (cd "${module}" && GOWORK="${gowork}" go fix -diff "$(pattern "${module}" "${dir}")") || true; } |
+      keep_staged >>"${patch}"
+  done < <(packages "$@")
+  if [[ -s "${patch}" ]]; then
+    git -C "${root}" apply --whitespace=nowarn "${patch}"
+  fi
+  """#
+
+scripts {
+  ["dev-profile-go-modernize"] = goModernize
+}

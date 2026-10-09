@@ -1,0 +1,38 @@
+amends "../../lib/Tool.pkl"
+
+doc =
+  "Rust lint. Commit applies cargo clippy --fix per crate, each fix verified to build; clippy has no new-issues mode, so at push only diagnostics in pushed files fail."
+on {
+  ["pre-commit"] { glob = List("**/*.rs"); fix = "dev-profile-clippy-fix {{files}}" }
+  ["pre-push"] = (module.builtins.cargo_clippy) {
+    check =
+      "dev-profile-pushed-diagnostics cargo clippy --quiet --message-format=short :: {{files}}"
+  }
+}
+
+local clippyFix =
+  #"""
+  \#(bash)
+  # `cargo clippy --fix` rewrites whole crates and verifies each fix still builds.
+  # A crate with unstaged edits is left alone: the fixes would land in files this
+  # commit does not stage.
+  (($#)) || exit 0
+  command -v cargo >/dev/null 2>&1 || exit 0
+  cargo clippy --version >/dev/null 2>&1 || exit 0
+  \#(nearestUp)
+
+  for file in "$@"; do
+    nearest_up "$(absolute "${file}")" Cargo.toml
+  done | sort -u | while IFS= read -r crate; do
+    [[ -n "${crate}" ]] || continue
+    if ! git diff --quiet -- "${crate}"; then
+      echo "clippy-fix: skipping ${crate#"${root}/"} (unstaged changes)" >&2
+      continue
+    fi
+    (cd "${crate}" && cargo clippy --fix --allow-dirty --allow-staged --quiet) || true
+  done
+  """#
+
+scripts {
+  ["dev-profile-clippy-fix"] = clippyFix
+}

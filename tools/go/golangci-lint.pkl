@@ -1,0 +1,38 @@
+amends "../../lib/Tool.pkl"
+
+doc =
+  "Go meta-linter. Commit applies its fixers to what this commit changes; push fails only on issues new since the upstream default branch."
+pin { id = "golangci-lint"; version = "2.13.2" }
+on {
+  ["pre-commit"] {
+    glob = List("**/*.go")
+    workspace_indicator = "go.mod"
+    dir = "{{workspace}}"
+    fix = "dev-profile-fix golangci-lint run --fix --new-from-rev=HEAD ./..."
+  }
+  ["pre-push"] = (module.builtins.golangci_lint) { check = "dev-profile-golangci-ratchet" }
+}
+
+local golangciRatchet =
+  """
+  \(bash)
+  # Push gate: fail only on issues the branch adds relative to the upstream default
+  # branch, so old debt in untouched files never blocks a push. Without a base ref
+  # (no remote, fresh clone) fall back to the full tree. `mise run lint` stays full-tree.
+  base=""
+  for ref in "$(git symbolic-ref -q --short refs/remotes/origin/HEAD || true)" origin/main origin/master; do
+    if [[ -n "${ref}" ]] && git rev-parse -q --verify "${ref}^{commit}" >/dev/null; then
+      base="${ref}"
+      break
+    fi
+  done
+  if [[ -z "${base}" ]]; then
+    echo "golangci-ratchet: no upstream default branch; linting the full tree" >&2
+    exec golangci-lint run --fix=false --allow-parallel-runners ./...
+  fi
+  exec golangci-lint run --fix=false --allow-parallel-runners --new-from-merge-base="${base}" ./...
+  """
+
+scripts {
+  ["dev-profile-golangci-ratchet"] = golangciRatchet
+}

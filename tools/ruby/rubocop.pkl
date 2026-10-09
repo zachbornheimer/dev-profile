@@ -1,0 +1,26 @@
+amends "../../lib/Tool.pkl"
+
+doc = "Ruby lint. Commit applies -A, unsafe cops included; push reports what is left."
+on {
+  ["pre-commit"] { glob = List("**/*.rb", "**/*.rake"); fix = "dev-profile-rubocop-fix {{files}}" }
+  ["pre-push"] = module.builtins.rubocop
+}
+
+local rubocopFix =
+  """
+  \(bash)
+  if ! command -v rubocop >/dev/null 2>&1; then
+    exit 0
+  fi
+  if [[ $# -eq 0 ]]; then
+    exit 0
+  fi
+  # -A includes unsafe cops (modernize). Exit 1 = offenses left for push; 2 = real error.
+  code=0
+  rubocop -A --fail-level F "$@" || code=$?
+  [[ "${code}" -le 1 ]] || exit "${code}"
+  """
+
+scripts {
+  ["dev-profile-rubocop-fix"] = rubocopFix
+}

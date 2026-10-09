@@ -1,0 +1,10 @@
+amends "../../lib/Tool.pkl"
+
+doc = "Kubernetes manifest schema validation at push; skips when kubeconform is not installed."
+pin { id = "kubeconform"; version = "0.8.0" }
+on {
+  ["pre-push"] = (module.builtins.kubeconform) {
+    check =
+      "dev-profile-if-installed kubeconform kubeconform -summary -strict -ignore-missing-schemas {{files}}"
+  }
+}

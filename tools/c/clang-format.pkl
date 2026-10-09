@@ -1,0 +1,22 @@
+amends "../../lib/Tool.pkl"
+
+doc =
+  "The dprint exec command for C and C++: clang-format on stdin, or in place on files. Passes input through when clang-format is absent."
+
+local clang =
+  """
+  \(bash)
+  if ! command -v clang-format >/dev/null 2>&1; then
+    cat
+    exit 0
+  fi
+  if [[ $# -eq 0 ]]; then
+    clang-format
+  else
+    clang-format -i "$@"
+  fi
+  """
+
+scripts {
+  ["dev-profile-clang-format"] = clang
+}

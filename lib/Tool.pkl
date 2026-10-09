@@ -1,0 +1,73 @@
+/// One program the hooks run, defined once. Amend this from
+/// `tools/<category>/<name>.pkl`; the file name is the hk step name.
+///
+/// A tool says what it can do. The `on` mapping says when:
+///   pre-commit: staged files; `fix` rewrites and is restaged, `check` is a
+///               guard that blocks the commit. Never both at once.
+///   pre-push:   the pushed range, check mode only; a check may block the push.
+/// `hk fix` and `hk check` reuse the pre-commit entries; `hk check --slow`
+/// adds the pre-push ones. A tool listed in both hooks gets `<name>-fix` or
+/// `<name>-staged` at commit and `<name>` at push, unless both entries are the
+/// same step (hygiene), which keeps one name.
+module Tool
+
+import "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Builtins.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pkl" as hk
+
+import "script.pkl"
+import "types.pkl" as profileTypes
+
+/// The git hooks a tool can run in.
+typealias Hook = "pre-commit" | "pre-push"
+
+/// One line: what the tool does here and why.
+doc: String
+
+/// mise pin, when this profile installs the tool. Null: the runtime (go, node)
+/// or the repo (vendor/bin, node_modules) provides it.
+pin: profileTypes.Pin?
+
+/// Files the tool runs on, as hk globs (`List("**/*.go")`). A hook entry
+/// without its own `glob` or `types` inherits it. Null: hk's default, every file.
+glob: List<String>?
+
+/// hk file types (`List("python")`), an alternative to `glob`.
+types: List<String>?
+
+/// The hk step per hook. Start from a builtin (`(module.builtins.ruff) { ... }`;
+/// inside `on`, inherited members need the `module.` prefix) or
+/// write the step; `fix` and `check` are the commands, `depends` orders it
+/// after other steps in the same hook, by their hk step names.
+on: Mapping<Hook, hk.Step>(entriesRun(this)) = new {}
+
+/// A pre-commit guard that must see the result of every fixer (go vet after go fix).
+afterFixers: Boolean = false
+
+/// Generated `bin/` scripts: full name (`dev-profile-<x>`) to bash body. Step
+/// commands call them by name; a tool may ship a script and no hook entry.
+scripts: Mapping<String, String> = new {}
+
+/// hk's builtin steps, for `on` entries.
+hidden builtins: Builtins = Builtins
+
+/// Script preamble: strict bash and the generated-file banner.
+hidden bash: String = script.bash
+
+/// Script fragment for fixers that walk up from a staged file to a config or crate.
+hidden nearestUp: String = script.nearestUp
+
+/// Script fragment for Go steps that group staged files by package and module.
+hidden goPackages: String = script.goPackages
+
+/// The same without `pattern`, for Go steps that work per module.
+hidden goModules: String = script.goModules
+
+local function hasCheck(step: hk.Step): Boolean =
+  step.check != null || step.check_diff != null || step.check_list_files != null
+
+// Every entry has a command, and pre-push has a check. Written for hk's own
+// Pkl evaluator: no Map.every, no List indexing, no trailing comma in a
+// constraint list.
+local function entriesRun(entries: Mapping<Hook, hk.Step>): Boolean =
+  entries.keys.every((hook) -> hasCheck(entries[hook]) || entries[hook].fix != null)
+    && (!entries.containsKey("pre-push") || hasCheck(entries["pre-push"]))

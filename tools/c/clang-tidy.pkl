@@ -1,0 +1,39 @@
+amends "../../lib/Tool.pkl"
+
+doc = "clang-tidy modernize-* fixes at commit. Needs compile_commands.json; silent otherwise."
+on {
+  ["pre-commit"] {
+    glob = List("**/*.c", "**/*.cc", "**/*.cpp", "**/*.cxx", "**/*.h", "**/*.hpp")
+    fix = "dev-profile-clang-tidy-fix {{files}}"
+  }
+}
+
+local clangTidyFix =
+  #"""
+  \#(bash)
+  # clang-tidy modernize-* fixes. Needs compile_commands.json beside the file, in a
+  # parent directory, or in a build/ directory; without one there is nothing to do.
+  (($#)) || exit 0
+  command -v clang-tidy >/dev/null 2>&1 || exit 0
+  \#(nearestUp)
+
+  database_dir() {
+    local dir
+    dir="$(nearest_up "$1" compile_commands.json)"
+    if [[ -n "${dir}" ]]; then echo "${dir}"; return 0; fi
+    dir="$(nearest_up "$1" build/compile_commands.json)"
+    if [[ -n "${dir}" ]]; then echo "${dir}/build"; fi
+  }
+
+  for file in "$@"; do
+    abs="$(absolute "${file}")"
+    db="$(database_dir "${abs}")"
+    [[ -n "${db}" ]] || continue
+    # Exit is non-zero for files outside the database; that is not a commit failure.
+    clang-tidy -p "${db}" --checks='-*,modernize-*' --fix --quiet "${abs}" || true
+  done
+  """#
+
+scripts {
+  ["dev-profile-clang-tidy-fix"] = clangTidyFix
+}

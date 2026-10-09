@@ -1,0 +1,11 @@
+amends "../../lib/Tool.pkl"
+
+doc =
+  "Ruby gem vulnerabilities at push; a Ruby gem pinned here, installed by mise install, skipped until then."
+pin { id = "gem:bundler-audit"; version = "0.9.3" }
+on {
+  ["pre-push"] = (module.builtins.bundle_audit) {
+    check = "dev-profile-if-installed bundle-audit bundle-audit check {{files}}"
+    fix = null
+  }
+}

@@ -1,0 +1,17 @@
+amends "../../lib/Tool.pkl"
+
+doc =
+  "Runs a fixer and treats exit 1 as issues left for push to judge, not a failure. Commit fixers wrap themselves in it."
+
+local tolerantFix =
+  """
+  \(bash)
+  # Run a fixer; exit 1 means "issues left for push to judge", not a failure.
+  code=0
+  "$@" || code=$?
+  [[ "${code}" -le 1 ]] || exit "${code}"
+  """
+
+scripts {
+  ["dev-profile-fix"] = tolerantFix
+}

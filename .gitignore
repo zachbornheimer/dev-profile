@@ -7,5 +7,10 @@
 !/conform.lua
 !/lib/
 !/lib/*.pkl
+!/tools/
+!/tools/*/
+!/tools/*/*.pkl
 !/tests/
 !/tests/*.sh
+!/tests/*.pkl
+!/tests/*.pcf

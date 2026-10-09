@@ -1,0 +1,22 @@
+amends "../../lib/Tool.pkl"
+
+doc = "perltidy in place at commit; its .perltidyrc is found by parent-directory lookup."
+on {
+  ["pre-commit"] {
+    glob = List("**/*.pl", "**/*.pm", "**/*.t")
+    fix = "dev-profile-perltidy-fix {{files}}"
+  }
+}
+
+local perltidyFix =
+  #"""
+  \#(bash)
+  # perltidy in place (its .perltidyrc is found by parent-directory lookup).
+  (($#)) || exit 0
+  command -v perltidy >/dev/null 2>&1 || exit 0
+  exec perltidy -b -bext='/' -q "$@"
+  """#
+
+scripts {
+  ["dev-profile-perltidy-fix"] = perltidyFix
+}

@@ -1,0 +1,19 @@
+amends "../../lib/Tool.pkl"
+
+doc = "Python type check at push; skips when ty is not installed."
+on {
+  ["pre-push"] { types = List("python"); check = "dev-profile-ty {{files}}" }
+}
+
+local ty =
+  """
+  \(bash)
+  if ! command -v ty >/dev/null 2>&1; then
+    exit 0
+  fi
+  ty check "$@"
+  """
+
+scripts {
+  ["dev-profile-ty"] = ty
+}

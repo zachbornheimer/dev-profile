@@ -1,0 +1,44 @@
+amends "../../lib/Tool.pkl"
+
+doc =
+  "Staged Go packages must still build and vet after every commit fixer. go vet has no new-issues mode, so at push only diagnostics in pushed files fail."
+on {
+  ["pre-commit"] { glob = List("**/*.go"); check = "dev-profile-go-vet {{files}}" }
+  ["pre-push"] = (module.builtins.go_vet) {
+    check = "dev-profile-pushed-diagnostics go vet ./... :: {{files}}"
+  }
+}
+afterFixers = true
+
+local goVet =
+  #"""
+  \#(bash)
+  # Commit guard, after every fixer: each staged package still builds and vets.
+  # A fixer that broke compilation blocks the commit here.
+  (($#)) || exit 0
+  \#(goPackages)
+
+  # The staged files inside one package dir, repo-relative.
+  staged_in() {
+    local file path
+    for file in "${@:2}"; do
+      [[ -f "${file}" ]] || continue
+      path="$(physical "${file}")"
+      if [[ "$(dirname "${path}")" == "$1" ]]; then printf '%s ' "${path#"${root}/"}"; fi
+    done
+  }
+
+  failed=0
+  while IFS=$'\x1f' read -r module gowork dir; do
+    if ! (cd "${module}" && GOWORK="${gowork}" go vet "$(pattern "${module}" "${dir}")"); then
+      echo "go-vet: commit blocked: ${dir#"${root}/"} does not build or vet clean after the commit fixers." >&2
+      echo "  staged: $(staged_in "${dir}" "$@")" >&2
+      failed=1
+    fi
+  done < <(packages "$@")
+  exit "${failed}"
+  """#
+
+scripts {
+  ["dev-profile-go-vet"] = goVet
+}

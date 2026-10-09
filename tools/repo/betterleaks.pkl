@@ -1,0 +1,10 @@
+amends "../../lib/Tool.pkl"
+
+doc = "A second secret engine alongside gitleaks, at push; skips when betterleaks is not installed."
+pin { id = "betterleaks"; version = "1.9.0" }
+on {
+  ["pre-push"] = (module.builtins.betterleaks) {
+    check =
+      "dev-profile-if-installed betterleaks betterleaks dir --redact --verbose --no-banner {{files}}"
+  }
+}
