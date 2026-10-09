@@ -92,7 +92,7 @@ goModules: String =
   """#
 
 /// `goModules` plus `pattern`, for Go steps that run a tool per package.
-goPackages: String = goModules + "\n" + goPattern
+goPackages: String = goModules + "\n\n" + goPattern
 
 local goPattern: String =
   #"""
