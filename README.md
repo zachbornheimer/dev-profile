@@ -160,5 +160,7 @@ Then `mise run bootstrap` (or `mise run install-live`) to deploy the render.
 dprint plugins, the hk package the Pkl sources import), rewrites the ones that
 are behind, and regenerates the snapshot. A pin shorter than the release keeps
 its depth: `go = "1.27"` moves to `1.28` only when a 1.28 release exists;
-`latest` pins are left alone. The `bump` workflow runs it every Monday, runs
-doctor with the bumped toolset, and opens a PR with the table of changes.
+`latest` pins are left alone. The `bump` workflow runs it every Monday and
+opens a PR with the table of changes, dispatches `ci` on it, and arms
+auto-merge: the PR merges itself once the `test` check passes, and stays open
+and red when it does not.
