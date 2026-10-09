@@ -21,7 +21,10 @@ steps {
   }
   ...profile.fixers
   ...profile.hygiene
-  ...profile.commitGuards
+  // Commit guards judge the commit being made, not the code: the lint verb disables them.
+  for (id, step in profile.commitGuards) {
+    [id] = (step) { profiles = List("!" + profile.lintProfile) }
+  }
   for (id, step in profile.checks) {
     [id] = (step) { profiles = List("slow") }
   }

@@ -80,6 +80,7 @@ liveTargets: Mapping<String, String> = new {
   // Shared tool configs, found by parent-directory lookup from every repo.
   ["\(codeRoot)/.golangci.yml"] = "golangci.yml"
   ["\(codeRoot)/.editorconfig"] = "editorconfig"
+  ["\(codeRoot)/deny.toml"] = "deny.toml"
   // User-level defaults; a repo's own .markdownlint* / .yamllint still wins.
   ["~/.markdownlintrc"] = "markdownlintrc.json"
   ["~/.config/yamllint/config"] = "yamllint.yaml"
@@ -290,7 +291,10 @@ hygiene: Mapping<String, hk.Step> = new {
   ["case-conflicts"] = Builtins.check_case_conflict
 }
 
-/// Commit-only guards on the staged change; nothing to judge at push.
+/// hk profile the lint verb enables; commit-only guards are tagged to skip it.
+lintProfile: String = "lint"
+
+/// Commit-only guards on the staged change; nothing to judge at push or in lint.
 commitGuards: Mapping<String, hk.Step> = new {
   // Blocks a staged secret: once committed and pushed it must be rotated.
   ["secrets"] { check = "gitleaks git --pre-commit --staged --redact --no-banner" }
@@ -675,7 +679,7 @@ languages: Listing<types.Spec> = new {
     nativeConfigs { "Cargo.toml"; "rustfmt.toml"; ".rustfmt.toml" }
     dprint {
       kind = "exec"
-      command = "dev-profile-rustfmt"
+      command = "dev-profile-rustfmt --stdin-path {{file_path}}"
       exts { "rs" }
     }
   }
@@ -809,6 +813,7 @@ output {
     ["personal-overlay.toml"] { text = render.tomlFile(render.personalOverlay) }
     ["golangci.yml"] { text = render.yamlFile(shared.golangci) }
     ["editorconfig"] { text = shared.editorconfig }
+    ["deny.toml"] { text = render.tomlFile(shared.denyConfig) }
     // Hand-written adapter; copied so install-live links one directory.
     ["shell.zsh"] { text = render.shellZsh }
     ["markdownlintrc.json"] {
