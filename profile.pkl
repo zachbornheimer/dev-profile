@@ -290,7 +290,7 @@ tools: Listing<types.Pin> = new {
   new { id = "dprint"; version = "0.61.1" }
   new { id = "worktrunk"; version = "0.80.0" }
   new { id = "go"; version = "1.27" }
-  new { id = "node"; version = "24" }
+  new { id = "node"; version = "26" }
   new { id = "stylua"; version = "2.5.2" }
   new { id = "aube"; version = "2.7.0" }
   new { id = "uv"; version = "0.12.24" }
