@@ -24,6 +24,9 @@ new_repo() {
 	git -C "$dir" init -q -b feature
 	git -C "$dir" config user.email t@example.com
 	git -C "$dir" config user.name t
+	# The generated dprint config, so the dprint step never depends on a global
+	# config this machine may or may not have. Untracked: hk sees staged files only.
+	cp "${out}/dprint.jsonc" "${dir}/dprint.jsonc"
 	echo "$dir"
 }
 
