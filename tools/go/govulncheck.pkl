@@ -1,0 +1,7 @@
+amends "../../lib/Tool.pkl"
+
+doc = "Go dependency vulnerabilities, only when go.mod or go.sum is part of the push."
+pin { id = "go:golang.org/x/vuln/cmd/govulncheck"; version = "1.8.0" }
+on {
+  ["pre-push"] = (module.builtins.go_vuln_check) { glob = List("**/go.mod", "**/go.sum") }
+}

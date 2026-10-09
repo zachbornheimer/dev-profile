@@ -1,0 +1,6 @@
+amends "../../lib/Tool.pkl"
+
+doc = "No large files staged by accident."
+on {
+  ["pre-commit"] = module.builtins.check_added_large_files
+}

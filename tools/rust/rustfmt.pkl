@@ -1,0 +1,28 @@
+amends "../../lib/Tool.pkl"
+
+doc = "rustfmt after clippy's fixes. Also the dprint exec command for Rust."
+on {
+  ["pre-commit"] {
+    glob = List("**/*.rs")
+    depends = List("clippy-fix")
+    fix = "dev-profile-rustfmt {{files}}"
+  }
+}
+
+local rustfmt =
+  """
+  \(bash)
+  if ! command -v rustfmt >/dev/null 2>&1; then
+    [[ $# -gt 0 ]] || cat
+    exit 0
+  fi
+  if [[ $# -eq 0 ]]; then
+    rustfmt
+  else
+    rustfmt "$@"
+  fi
+  """
+
+scripts {
+  ["dev-profile-rustfmt"] = rustfmt
+}

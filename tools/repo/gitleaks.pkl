@@ -1,0 +1,11 @@
+amends "../../lib/Tool.pkl"
+
+doc =
+  "Secrets. A staged secret blocks the commit: once pushed it must be rotated. At push, every commit about to leave the machine is scanned."
+pin { id = "aqua:gitleaks/gitleaks"; version = "8.30.1" }
+on {
+  ["pre-commit"] { check = "gitleaks git --pre-commit --staged --redact --no-banner" }
+  ["pre-push"] {
+    check = "gitleaks git --redact --no-banner --log-opts=\"HEAD --not --remotes\""
+  }
+}

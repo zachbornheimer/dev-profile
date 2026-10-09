@@ -1,0 +1,6 @@
+amends "../../lib/Tool.pkl"
+
+doc = "Strip trailing whitespace at commit."
+on {
+  ["pre-commit"] = module.builtins.trailing_whitespace
+}

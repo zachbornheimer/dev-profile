@@ -1,0 +1,17 @@
+amends "../../lib/Tool.pkl"
+
+doc =
+  "The dprint exec command for Pkl: pkl format on stdin. Exit 11 means it changed formatting, which is success here."
+
+local pklFmt =
+  """
+  \(bash)
+  # stdin → stdout. pkl exits 11 when it changed formatting; that is success here.
+  code=0
+  pkl format - || code=$?
+  [[ "${code}" -eq 0 || "${code}" -eq 11 ]] || exit "${code}"
+  """
+
+scripts {
+  ["dev-profile-pkl-fmt"] = pklFmt
+}

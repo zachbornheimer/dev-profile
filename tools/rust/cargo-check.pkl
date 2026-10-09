@@ -1,0 +1,6 @@
+amends "../../lib/Tool.pkl"
+
+doc = "Rust crates must compile at push."
+on {
+  ["pre-push"] = module.builtins.cargo_check
+}

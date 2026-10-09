@@ -1,0 +1,100 @@
+amends "../../lib/Tool.pkl"
+
+doc =
+  "PHP formatting by repo context: WordPress gets PHPCBF only, never mago or php-cs-fixer after it. Also the dprint exec command for PHP."
+on {
+  ["pre-commit"] {
+    glob = List("**/*.php")
+    depends = List("rector")
+    fix = "dev-profile-php-fmt {{files}}"
+  }
+}
+
+local phpFmt =
+  """
+  \(bash)
+  # Format PHP. WordPress → PHPCBF only. Never mago / php-cs-fixer after PHPCBF.
+
+  phpcbf_ok() {
+    local code=0
+    "$@" || code=$?
+    # 0 nothing to fix, 1 fixed, 2 unfixable remain (push judges); 3+ is a real error.
+    if [[ "${code}" -le 2 ]]; then
+      return 0
+    fi
+    return "${code}"
+  }
+
+  # $1 = file to rewrite; $2 = path whose repo decides the context (defaults to $1).
+  format_file() {
+    local file="$1"
+    local ctx root
+    ctx="$(dev-profile-php-context "${2:-$1}")"
+    root="${ctx#* }"
+    case "${ctx%% *}" in
+      wordpress)
+        if [[ -f "${root}/phpcs.xml" ]]; then
+          phpcbf_ok phpcbf --standard="${root}/phpcs.xml" "${file}"
+        elif [[ -f "${root}/phpcs.xml.dist" ]]; then
+          phpcbf_ok phpcbf --standard="${root}/phpcs.xml.dist" "${file}"
+        elif [[ -f "${root}/.phpcs.xml" ]]; then
+          phpcbf_ok phpcbf --standard="${root}/.phpcs.xml" "${file}"
+        elif [[ -f "${root}/.phpcs.xml.dist" ]]; then
+          phpcbf_ok phpcbf --standard="${root}/.phpcs.xml.dist" "${file}"
+        else
+          phpcbf_ok phpcbf --standard=WordPress "${file}"
+        fi
+        ;;
+      php-cs-fixer)
+        php-cs-fixer fix --using-cache=no "${file}"
+        ;;
+      phpcs)
+        if [[ -f "${root}/phpcs.xml" ]]; then
+          phpcbf_ok phpcbf --standard="${root}/phpcs.xml" "${file}"
+        elif [[ -f "${root}/phpcs.xml.dist" ]]; then
+          phpcbf_ok phpcbf --standard="${root}/phpcs.xml.dist" "${file}"
+        else
+          phpcbf_ok phpcbf "${file}"
+        fi
+        ;;
+      *)
+        if command -v php-cs-fixer >/dev/null 2>&1 && [[ -f "${HOME}/.config/php-cs-fixer/.php-cs-fixer.dist.php" ]]; then
+          php-cs-fixer fix --using-cache=no --config="${HOME}/.config/php-cs-fixer/.php-cs-fixer.dist.php" "${file}"
+        elif command -v phpcbf >/dev/null 2>&1; then
+          phpcbf_ok phpcbf "${file}"
+        else
+          cat "${file}" >/dev/null
+        fi
+        ;;
+    esac
+  }
+
+  format_stdin() {
+    # Global, not local: the EXIT trap runs after this function returns.
+    # A real .php name in a temp dir: phpcbf skips files without the extension.
+    tmpdir="$(mktemp -d)"
+    trap 'rm -rf "${tmpdir}"' EXIT
+    local tmp="${tmpdir}/stdin.php"
+    cat >"${tmp}"
+    # stdout is the formatted file for dprint; formatter chatter goes to stderr.
+    format_file "${tmp}" "$1" >&2
+    cat "${tmp}"
+  }
+
+  if [[ "${1:-}" == "--stdin-path" ]]; then
+    format_stdin "$2"
+    exit 0
+  fi
+  if [[ $# -eq 0 ]]; then
+    format_stdin "${PWD}"
+    exit 0
+  fi
+
+  for f in "$@"; do
+    format_file "${f}"
+  done
+  """
+
+scripts {
+  ["dev-profile-php-fmt"] = phpFmt
+}

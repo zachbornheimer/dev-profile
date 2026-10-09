@@ -1,21 +1,12 @@
-/// Wrappers for supply-chain checks and commit guards: each skips cleanly when
-/// the tool it needs is not installed, so no repo fails for a missing scanner.
-module guards
+amends "../../lib/Tool.pkl"
 
-import "render.pkl"
-
-local bash = "#!/usr/bin/env bash\nset -euo pipefail\n" + render.header("#") + "\n"
-
-local ifInstalled =
-  #"""
-  \#(bash)
-  # dev-profile-if-installed <tool> <command…>: run the command only when <tool>
-  # is on PATH (mise shims count). A missing scanner is not a failure.
-  tool="${1:?usage: dev-profile-if-installed <tool> <command…>}"
-  shift
-  command -v "${tool}" >/dev/null 2>&1 || exit 0
-  exec "$@"
-  """#
+doc =
+  "No direct commits on main or master, except when finishing a merge, cherry-pick, revert or rebase, in a repo with no origin, or with DEV_PROFILE_ALLOW_DEFAULT_BRANCH_COMMIT set."
+on {
+  ["pre-commit"] = (module.builtins.no_commit_to_branch) {
+    check = "dev-profile-no-commit-to-default-branch"
+  }
+}
 
 local noCommitToDefaultBranch =
   #"""
@@ -34,8 +25,6 @@ local noCommitToDefaultBranch =
   fi
   """#
 
-/// Generated bin/ scripts the supply-chain checks and commit guards run.
-wrappers: Mapping<String, String> = new {
-  ["dev-profile-if-installed"] = ifInstalled
+scripts {
   ["dev-profile-no-commit-to-default-branch"] = noCommitToDefaultBranch
 }

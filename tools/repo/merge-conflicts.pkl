@@ -1,0 +1,8 @@
+amends "../../lib/Tool.pkl"
+
+doc =
+  "No merge-conflict markers in staged or pushed files. Cheap, so it runs at commit and again at push."
+on {
+  ["pre-commit"] = module.builtins.check_merge_conflict
+  ["pre-push"] = module.builtins.check_merge_conflict
+}

@@ -1,0 +1,49 @@
+amends "../../lib/Tool.pkl"
+
+doc = "Full PHP lint at push: PHPCS with WPCS on WordPress, the repo standard elsewhere."
+on {
+  ["pre-push"] { glob = List("**/*.php"); check = "dev-profile-php-lint {{files}}" }
+}
+
+local phpLint =
+  """
+  \(bash)
+  # Full PHP lint for push. WordPress → PHPCS/WPCS. Never a generic PHP formatter.
+
+  if [[ $# -eq 0 ]]; then
+    echo "dev-profile-php-lint: files required" >&2
+    exit 2
+  fi
+
+  ctx="$(dev-profile-php-context "$1")"
+  root="${ctx#* }"
+  case "${ctx%% *}" in
+    wordpress)
+      if [[ -f "${root}/phpcs.xml" ]]; then
+        phpcs --standard="${root}/phpcs.xml" "$@"
+      elif [[ -f "${root}/phpcs.xml.dist" ]]; then
+        phpcs --standard="${root}/phpcs.xml.dist" "$@"
+      elif [[ -f "${root}/.phpcs.xml" ]]; then
+        phpcs --standard="${root}/.phpcs.xml" "$@"
+      elif [[ -f "${root}/.phpcs.xml.dist" ]]; then
+        phpcs --standard="${root}/.phpcs.xml.dist" "$@"
+      else
+        phpcs --standard=WordPress "$@"
+      fi
+      ;;
+    phpcs)
+      phpcs "$@"
+      ;;
+    *)
+      if command -v phpcs >/dev/null 2>&1; then
+        phpcs "$@"
+      else
+        echo "phpcs not on PATH; skipping PHP lint" >&2
+      fi
+      ;;
+  esac
+  """
+
+scripts {
+  ["dev-profile-php-lint"] = phpLint
+}

@@ -1,0 +1,7 @@
+amends "../../lib/Tool.pkl"
+
+doc = "No private keys in staged or pushed files. Cheap, so it runs at commit and again at push."
+on {
+  ["pre-commit"] = module.builtins.detect_private_key
+  ["pre-push"] = module.builtins.detect_private_key
+}

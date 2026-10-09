@@ -1,0 +1,33 @@
+amends "../../lib/Tool.pkl"
+
+doc = "stylelint --fix at commit; exit 2 leaves problems for push, 78 means no config here."
+pin { id = "npm:stylelint"; version = "latest" }
+on {
+  ["pre-commit"] {
+    glob = List("**/*.css", "**/*.scss", "**/*.sass")
+    fix = "dev-profile-stylelint-fix {{files}}"
+  }
+}
+
+local stylelintFix =
+  #"""
+  \#(bash)
+  # stylelint --fix. Exit 2 = problems left for push; 78 = no config here.
+  (($#)) || exit 0
+  \#(nearestUp)
+
+  if [[ -x "${root}/node_modules/.bin/stylelint" ]]; then
+    stylelint="${root}/node_modules/.bin/stylelint"
+  elif command -v stylelint >/dev/null 2>&1; then
+    stylelint="$(command -v stylelint)"
+  else
+    exit 0
+  fi
+  code=0
+  "${stylelint}" --fix --allow-empty-input "$@" || code=$?
+  [[ "${code}" -le 2 || "${code}" -eq 78 ]] || exit "${code}"
+  """#
+
+scripts {
+  ["dev-profile-stylelint-fix"] = stylelintFix
+}

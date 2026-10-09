@@ -1,0 +1,8 @@
+amends "../../lib/Tool.pkl"
+
+doc =
+  "No file names that differ only by case in staged or pushed files. Cheap, so it runs at commit and again at push."
+on {
+  ["pre-commit"] = module.builtins.check_case_conflict
+  ["pre-push"] = module.builtins.check_case_conflict
+}

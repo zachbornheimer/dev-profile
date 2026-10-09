@@ -1,0 +1,116 @@
+amends "../../lib/Tool.pkl"
+
+doc =
+  "go fix on the staged packages, then prove they still vet; a rewrite that breaks vet is reverted and blocks the commit. Needs compiling code, so goimports runs first."
+on {
+  ["pre-commit"] {
+    glob = List("**/*.go")
+    depends = List("go-imports")
+    fix = "dev-profile-go-fix {{files}}"
+  }
+}
+
+local goFix =
+  """
+  \(bash)
+  # Modernize the packages of staged Go files, per module, then prove the result
+  # still vets. A rewrite that breaks vet is reverted and fails the commit.
+  # Files in those packages that are not staged are always put back untouched.
+  if [[ $# -eq 0 ]]; then
+    exit 0
+  fi
+  backup="$(mktemp -d)"
+  trap 'rm -rf "${backup}"' EXIT
+
+  module_of() {
+    local dir
+    dir="$(dirname "$1")"
+    while [[ ! -f "${dir}/go.mod" ]]; do
+      if [[ "${dir}" == "." || "${dir}" == "/" ]]; then
+        return 0 # no module: prints nothing
+      fi
+      dir="$(dirname "${dir}")"
+    done
+    echo "${dir}"
+  }
+
+  in_list() { # <item> <list...>
+    local want="$1" got
+    shift
+    for got in "$@"; do [[ "${got}" != "${want}" ]] || return 0; done
+    return 1
+  }
+
+  # Every .go file of a package, as a path relative to the repo root.
+  package_files() {
+    local file
+    for file in "$1"/*.go; do echo "${file#./}"; done
+  }
+
+  put_back() { # <path relative to root>
+    cmp -s "${backup}/$1" "$1" || cat "${backup}/$1" >"$1"
+  }
+
+  vets() { # <module> <gowork> <package args...>
+    local module="$1" gowork="$2"
+    shift 2
+    (cd "${module}" && GOWORK="${gowork}" go vet "$@" >/dev/null 2>&1)
+  }
+
+  # Prints "off" unless the module's own directory is a member of the active workspace.
+  workspace_override() { # <module>
+    local dir members
+    dir="$(cd "$1" && pwd -P)"
+    members="$(cd "$1" && go list -m -f '{{.Dir}}' 2>/dev/null)" || { echo off; return 0; }
+    grep -qxF -- "${dir}" <<<"${members}" || echo off
+  }
+
+  fix_module() { # <module> <staged files in module...>
+    local module="$1" file pkg sub gowork="" fixed=0 pkgs=() args=() staged=("${@:2}")
+    for file in "${staged[@]}"; do
+      pkg="$(dirname "${file}")"
+      in_list "${pkg}" "${pkgs[@]+"${pkgs[@]}"}" && continue
+      pkgs+=("${pkg}")
+      sub="${pkg#"${module}"}"
+      args+=("./${sub#/}")
+      while IFS= read -r file; do
+        mkdir -p "$(dirname "${backup}/${file}")" || return 1
+        cat "${file}" >"${backup}/${file}" || return 1
+      done < <(package_files "${pkg}")
+    done
+    gowork="$(workspace_override "${module}")"
+
+    (cd "${module}" && GOWORK="${gowork}" go fix "${args[@]}" >/dev/null 2>&1) || fixed=1
+    for pkg in "${pkgs[@]}"; do
+      while IFS= read -r file; do
+        in_list "${file}" "${staged[@]}" || put_back "${file}"
+      done < <(package_files "${pkg}")
+    done
+    if [[ "${fixed}" -eq 0 ]] && vets "${module}" "${gowork}" "${args[@]}"; then
+      return 0
+    fi
+    for file in "${staged[@]}"; do put_back "${file}"; done
+    # go fix could not run: push judges the code. It ran and broke vet: block.
+    [[ "${fixed}" -eq 0 ]] || return 0
+    if vets "${module}" "${gowork}" "${args[@]}"; then
+      echo "go fix broke go vet in ${module}; rewrite reverted. Fix the code or run go fix by hand." >&2
+      return 1
+    fi
+    return 0
+  }
+
+  failed=0
+  while IFS= read -r module; do
+    [[ -n "${module}" ]] || continue
+    in_module=()
+    for file in "$@"; do
+      [[ "$(module_of "${file}")" != "${module}" ]] || in_module+=("${file}")
+    done
+    fix_module "${module}" "${in_module[@]}" || failed=1
+  done < <(for file in "$@"; do module_of "${file}"; done | sort -u)
+  exit "${failed}"
+  """
+
+scripts {
+  ["dev-profile-go-fix"] = goFix
+}

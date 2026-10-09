@@ -1,0 +1,6 @@
+amends "../../lib/Tool.pkl"
+
+doc = "Every file ends with exactly one newline at commit."
+on {
+  ["pre-commit"] = module.builtins.newlines
+}

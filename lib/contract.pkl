@@ -628,59 +628,6 @@ local contractPush =
   fi
   """
 
-// ---- mise tasks run Python through uv
-// Raw string (#"""…"""#): perl keeps its backslashes.
-local uvInsteadOfPythonInTasks =
-  #"""
-  #!/usr/bin/env bash
-  set -euo pipefail
-  # Commit-time fixer: Python in a mise task runs through uv. `python3 x.py`
-  # becomes `uv run x.py` (honoring the uv project or the script's PEP 723
-  # header); any other bare python/python3 becomes `uv run python3`. Missing
-  # dependencies then fail loudly instead of being guessed.
-  (($#)) || exit 0
-  cmd='(^|[;&|(]|=\s*"|\[\s*"|,\s*")(\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*)'
-  perl -pi -e "
-    s{${cmd}python3?\s+(?=[^\s\"';&|]+\.py(?:[\s\"';&|)]|\$))}{\$1\$2uv run }g;
-    s{${cmd}(python3?)(?=[\s\"';&|)]|\$)}{\$1\$2uv run \$3}g;
-  " "$@"
-  """#
-
-// ---- commit-time ban: trunk and prettier never come back
-// Raw string (#"""…"""#): the regexes keep their backslashes.
-local banTrunkPrettier =
-  #"""
-  #!/usr/bin/env bash
-  set -euo pipefail
-  # Commit guard: a staged add or modify of trunk or prettier config fails. Deleting stays allowed.
-  banned_file='(^|/)(\.trunk/|\.prettierrc[^/]*$|prettier\.config\.[^/]*$|\.prettierignore$)'
-  # Added lines only: removing a dependency or tool line must pass.
-  banned_package_line='^\+.*"(prettier|@prettier/[^"]*)"[[:space:]]*:'
-  banned_mise_line='^\+[[:space:]]*"?[^=]*\b(prettier|trunk)\b[^=]*"?[[:space:]]*='
-  failed=0
-  while IFS= read -r path; do
-    [[ -n "${path}" ]] || continue
-    if [[ "${path}" =~ ${banned_file} ]]; then
-      echo "banned: ${path}" >&2
-      failed=1
-      continue
-    fi
-    case "${path}" in
-      package.json | */package.json) pattern="${banned_package_line}" ;;
-      mise.toml | */mise.toml | .mise*.toml | */.mise*.toml | mise.*.toml | */mise.*.toml | */mise/*.toml)pattern="${banned_mise_line}" ;;
-      *) continue ;;
-    esac
-    if git diff --cached -U0 --no-color -- "${path}" | grep -Eq "${pattern}"; then
-      echo "banned: ${path} adds trunk or prettier" >&2
-      failed=1
-    fi
-  done < <(git diff --cached --name-only --diff-filter=ACMRT)
-  if [[ "${failed}" -ne 0 ]]; then
-    echo "trunk and prettier are banned on this machine. Use dprint via mise (system config ~/Developer/Personal/dprint.jsonc); delete the files instead." >&2
-    exit 1
-  fi
-  """#
-
 /// Contract verbs every push runs (lint is the hk checks that run beside them).
 pushVerbs: Listing<String> = new { "test"; "scan" }
 
@@ -688,11 +635,9 @@ pushVerbs: Listing<String> = new { "test"; "scan" }
 wrappers: Mapping<String, String> = new {
   ["dev-profile-contract"] = dispatcher
   ["dev-profile-contract-push"] = contractPush
-  ["dev-profile-uv-instead-of-python-in-tasks"] = uvInsteadOfPythonInTasks
   for (adapter in profile.contractAdapters) {
     ["dev-profile-contract-\(adapter.id)"] = adapterScript(adapter.id, adapterBodies[adapter.id])
   }
   ["dev-profile-suppressions"] = suppressions
   ["dev-profile-commit-msg"] = commitMsg
-  ["dev-profile-ban-trunk-prettier"] = banTrunkPrettier
 }

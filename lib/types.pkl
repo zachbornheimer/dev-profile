@@ -22,9 +22,6 @@ class Spec {
 
   /// dprint coverage for this language.
   dprint: DprintBinding = new DprintBinding {}
-
-  /// mise tool ids to install when this language is globally supported.
-  tools: Listing<String> = new {}
 }
 
 class DprintBinding {

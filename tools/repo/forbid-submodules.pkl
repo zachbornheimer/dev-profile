@@ -1,0 +1,7 @@
+amends "../../lib/Tool.pkl"
+
+doc =
+  "No new submodules. Only when .gitmodules is staged: existing submodules never block a commit."
+on {
+  ["pre-commit"] = (module.builtins.forbid_submodules) { glob = List("**/.gitmodules") }
+}

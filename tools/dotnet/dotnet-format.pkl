@@ -1,0 +1,48 @@
+amends "../../lib/Tool.pkl"
+
+doc =
+  "dotnet format style and analyzer fixes, limited to the staged files of each solution or project."
+on {
+  ["pre-commit"] {
+    glob = List("**/*.cs", "**/*.vb")
+    fix = "dev-profile-dotnet-format-fix {{files}}"
+  }
+}
+
+local dotnetFormatFix =
+  #"""
+  \#(bash)
+  # `dotnet format` style and analyzer fixes, limited to the staged files of each
+  # solution or project.
+  (($#)) || exit 0
+  command -v dotnet >/dev/null 2>&1 || exit 0
+  \#(nearestUp)
+
+  for file in "$@"; do
+    abs="$(absolute "${file}")"
+    dir="$(nearest_up "${abs}" '*.sln')"
+    [[ -n "${dir}" ]] || dir="$(nearest_up "${abs}" '*.csproj')"
+    [[ -n "${dir}" ]] || continue
+    printf '%s\x1f%s\n' "${dir}" "${abs}"
+  done | sort | {
+    current=""
+    files=()
+    flush() {
+      [[ -n "${current}" ]] || return 0
+      (cd "${current}" && dotnet format --no-restore --include "${files[@]}") || true
+    }
+    while IFS=$'\x1f' read -r dir abs; do
+      if [[ "${dir}" != "${current}" ]]; then
+        flush
+        current="${dir}"
+        files=()
+      fi
+      files+=("${abs}")
+    done
+    flush
+  }
+  """#
+
+scripts {
+  ["dev-profile-dotnet-format-fix"] = dotnetFormatFix
+}

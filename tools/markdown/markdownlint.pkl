@@ -1,0 +1,14 @@
+amends "../../lib/Tool.pkl"
+
+doc =
+  "Markdown lint. Commit applies --fix and never blocks; push reports what is left. Layout rules are off (~/.markdownlintrc): dprint owns layout."
+pin { id = "npm:markdownlint-cli"; version = "0.49.1" }
+on {
+  ["pre-commit"] = (module.builtins.markdown_lint) {
+    check = null
+    fix = "dev-profile-fix markdownlint --fix {{files}}"
+  }
+  ["pre-push"] = (module.builtins.markdown_lint) {
+    fix = "dev-profile-fix markdownlint --fix {{files}}"
+  }
+}

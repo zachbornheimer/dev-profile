@@ -1,0 +1,83 @@
+/// Invariants of the profile, and a snapshot of what each hook runs.
+/// `pkl test tests/profile.test.pkl` (doctor runs it). After an intended change
+/// to the hooks, regenerate the snapshot: `pkl test --overwrite tests/profile.test.pkl`.
+amends "pkl:test"
+
+import "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pkl" as hk
+
+import "../lib/hk.pkl" as config
+import "../lib/render.pkl"
+import "../profile.pkl"
+
+local pushSteps: Mapping<String, hk.Step> = config.hooks["pre-push"].steps
+
+local function hasCheck(step: hk.Step): Boolean =
+  step.check != null || step.check_diff != null || step.check_list_files != null
+
+local function dependsOf(step: hk.Step): List<String> =
+  if (step.depends is String) List(step.depends) else step.depends
+
+local function commandsOf(step: hk.Step): List<String> =
+  List(step.check, step.check_diff, step.check_list_files, step.fix)
+    .filter((c) -> c != null)
+    .map((c) -> render.describe(c))
+
+local scriptRef = Regex(#"dev-profile-[a-z0-9-]+"#)
+
+/// One hook's steps as plain values, so the snapshot reads as a plan.
+local function plan(steps: Mapping<String, hk.Step>): Mapping<String, Dynamic> = new {
+  for (id, step in steps) {
+    [id] {
+      fix = render.describe(step.fix)
+      check = render.describe(step.check ?? step.check_diff ?? step.check_list_files)
+      files =
+        if (step.glob is List)
+          step.glob.join(" ")
+        else
+          step.glob?.toString() ?? step.types?.join(" ")
+      after = dependsOf(step)
+      profiles = step.profiles
+    }
+  }
+}
+
+facts {
+  ["every pre-push step judges: a check, never only a fix"] {
+    for (_, step in pushSteps) { hasCheck(step) }
+  }
+  ["every depends names a step in the same hook"] {
+    for (_, step in config.steps) { dependsOf(step).every((d) -> config.steps.containsKey(d)) }
+    for (_, step in pushSteps) { dependsOf(step).every((d) -> pushSteps.containsKey(d)) }
+  }
+  ["every dev-profile command a step runs has a generated script"] {
+    for (_, step in config.steps) {
+      commandsOf(step)
+        .every((c) -> scriptRef.findMatchesIn(c).every((m) -> render.wrappers.containsKey(m.value)))
+    }
+    for (_, step in pushSteps) {
+      commandsOf(step)
+        .every((c) -> scriptRef.findMatchesIn(c).every((m) -> render.wrappers.containsKey(m.value)))
+    }
+  }
+  ["every tool has a hook entry or a script"] {
+    for (_, tool in profile.catalog) { !tool.on.isEmpty || !tool.scripts.isEmpty }
+  }
+  ["tool pins do not repeat a kernel or runtime pin"] {
+    for (pin in profile.toolPins) { !profile.tools.toList().any((p) -> p.id == pin.id) }
+  }
+  ["push checks run only on request from the top-level steps"] {
+    for (id, step in config.steps) {
+      profile.fixers.containsKey(id)
+        || profile.commitGuards.containsKey(id)
+        || id == "dprint"
+        || step.profiles == List("slow")
+    }
+  }
+}
+
+examples {
+  ["pre-commit: fixers, then guards (dprint last)"] { plan(config.steps) }
+  ["pre-push"] { plan(pushSteps) }
+  ["generated bin scripts"] { render.wrappers.keys.toList().sort() }
+  ["mise tools"] { render.mise.tools }
+}

@@ -2,12 +2,12 @@
 /// Consumers (hk, dprint, mise, worktrunk, Conform) are generated from this file.
 module profile
 
-import "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Builtins.pkl"
 import "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pkl" as hk
 
 import "lib/contract.pkl"
 import "lib/render.pkl"
 import "lib/shared.pkl"
+import "lib/Tool.pkl"
 import "lib/types.pkl"
 
 exclude: Listing<String> = new {
@@ -95,224 +95,78 @@ shellInit: Mapping<String, String> = new {
   ["wt"] = "wt config shell init zsh"
 }
 
-/// Commit: each fixer rewrites what it safely can (modernize included) and is
-/// staged. Fixers never fail on what they cannot fix; checks judge that at push.
+/// Every tool the hooks run, keyed by hk step name: one file per tool under
+/// `tools/<category>/<name>.pkl`, each amending lib/Tool.pkl. A tool declares
+/// its pin, scripts and the step it contributes to each hook; the maps below
+/// are derived from that. Adding a tool is adding a file.
+catalog: Mapping<String, Tool>(length == toolModules.length) = new {
+  for (path, tool in toolModules) { [toolName(path)] = tool }
+}
+
+/// Tool name → `tools/` subdirectory, for profile.json and `mise run explain`.
+toolCategories: Mapping<String, String> = new {
+  for (path, _ in toolModules) { [toolName(path)] = path.replaceAll("tools/", "").split("/").first }
+}
+
+local toolModules: Mapping<String, Tool> = import*("tools/**/*.pkl")
+
+local function toolName(path: String): String = path.split("/").last.replaceAll(".pkl", "")
+
+/// The hk step name of a tool's pre-commit entry. A tool in both hooks with
+/// different steps is `<name>-fix` or `<name>-staged` at commit, so the push
+/// step keeps the plain name; a hygiene tool (same step in both) keeps one name.
+function commitStepName(name: String, tool: Tool): String =
+  if (!tool.on.containsKey("pre-push") || tool.on["pre-commit"] == tool.on["pre-push"])
+    name
+  else if (tool.on["pre-commit"].fix != null)
+    "\(name)-fix"
+  else
+    "\(name)-staged"
+
+/// A hook entry, with the tool-level glob or types filled in when it has none.
+local function entry(tool: Tool, hook: Tool.Hook): hk.Step = (tool.on[hook]) {
+  when (tool.on[hook].glob == null && tool.on[hook].types == null) {
+    when (tool.glob != null) { glob = tool.glob }
+    when (tool.types != null) { types = tool.types }
+  }
+}
+
+/// Commit: the pre-commit `fix` entries. Each rewrites what it safely can and
+/// is restaged; fixers never fail on what they cannot fix. Push judges that.
 fixers: Mapping<String, hk.Step> = new {
-  ["ruff-fix"] {
-    types = List("python")
-    fix =
-      "ruff check --force-exclude --fix-only --unsafe-fixes --extend-select UP,FURB,SIM,PERF,C4,PIE {{files}}"
-  }
-  // Rector applies the repo rector.php PHP-version set first; php-fmt formats after.
-  ["rector"] { glob = List("**/*.php"); fix = "dev-profile-rector-fix {{files}}" }
-  ["php-fmt"] {
-    glob = List("**/*.php")
-    depends = List("rector")
-    fix = "dev-profile-php-fmt {{files}}"
-  }
-  ["go-imports"] = Builtins.go_imports
-  // go fix needs compiling code, so goimports adds missing imports first; the
-  // wrapper vets afterwards and fails the commit on a rewrite that breaks it.
-  ["go-fix"] {
-    glob = List("**/*.go")
-    depends = List("go-imports")
-    fix = "dev-profile-go-fix {{files}}"
-  }
-  // `go fix` rewrites whole packages; this applies only its hunks for staged
-  // files. It needs compiling code, so goimports adds missing imports first.
-  ["go-modernize"] {
-    glob = List("**/*.go")
-    depends = List("go-imports", "go-fix")
-    fix = "dev-profile-go-modernize {{files}}"
-  }
-  ["oxlint-fix"] {
-    glob =
-      List(
-        "**/*.js",
-        "**/*.mjs",
-        "**/*.cjs",
-        "**/*.ts",
-        "**/*.mts",
-        "**/*.cts",
-        "**/*.jsx",
-        "**/*.tsx",
-        "**/*.vue",
-        "**/*.svelte",
-        "**/*.astro",
-      )
-    fix = "dev-profile-oxlint-fix {{files}}"
-  }
-  ["rubocop-fix"] { glob = List("**/*.rb", "**/*.rake"); fix = "dev-profile-rubocop-fix {{files}}" }
-  ["perltidy"] {
-    glob = List("**/*.pl", "**/*.pm", "**/*.t")
-    fix = "dev-profile-perltidy-fix {{files}}"
-  }
-  ["shellharden"] = Builtins.shellharden
-  ["markdownlint-fix"] = (Builtins.markdown_lint) {
-    check = null
-    fix = "dev-profile-fix markdownlint --fix {{files}}"
-  }
-  ["swiftlint-fix"] { glob = List("**/*.swift"); fix = "dev-profile-swiftlint-fix {{files}}" }
-  // Rust: clippy fixes (each verified to build by cargo), then rustfmt.
-  ["clippy-fix"] { glob = List("**/*.rs"); fix = "dev-profile-clippy-fix {{files}}" }
-  ["rustfmt"] {
-    glob = List("**/*.rs")
-    depends = List("clippy-fix")
-    fix = "dev-profile-rustfmt {{files}}"
-  }
-  ["swift-format"] {
-    glob = List("**/*.swift")
-    depends = List("swiftlint-fix")
-    fix = "dev-profile-swift-format {{files}}"
-  }
-  ["dotnet-format"] {
-    glob = List("**/*.cs", "**/*.vb")
-    fix = "dev-profile-dotnet-format-fix {{files}}"
-  }
-  ["stylelint-fix"] {
-    glob = List("**/*.css", "**/*.scss", "**/*.sass")
-    fix = "dev-profile-stylelint-fix {{files}}"
-  }
-  // Needs compile_commands.json; silent otherwise.
-  ["clang-tidy-modernize"] {
-    glob = List("**/*.c", "**/*.cc", "**/*.cpp", "**/*.cxx", "**/*.h", "**/*.hpp")
-    fix = "dev-profile-clang-tidy-fix {{files}}"
-  }
-  ["tofu-fmt"] {
-    glob = List("**/*.tf", "**/*.tfvars")
-    fix = "tofu fmt {{files}}"
-  }
-  // mise tasks: bare python3 → uv run (python3 x.py → uv run x.py).
-  // Modernize Go: golangci fixers, limited to what this commit changes.
-  ["golangci-lint-fix"] {
-    glob = List("**/*.go")
-    workspace_indicator = "go.mod"
-    dir = "{{workspace}}"
-    fix = "dev-profile-fix golangci-lint run --fix --new-from-rev=HEAD ./..."
-  }
-  ["trailing-whitespace"] = Builtins.trailing_whitespace
-  ["newlines"] = Builtins.newlines
-  ["uv-instead-of-python-in-tasks"] {
-    glob = List("**/mise.toml", "**/.mise.toml", "**/mise-tasks/**", "**/.mise/tasks/**")
-    fix = "dev-profile-uv-instead-of-python-in-tasks {{files}}"
+  for (name, tool in catalog) {
+    when (tool.on.containsKey("pre-commit") && tool.on["pre-commit"].fix != null) {
+      [commitStepName(name, tool)] = entry(tool, "pre-commit")
+    }
   }
 }
 
-/// Pre-push checks (no fixing). hk selects the files in the pushed range (the
-/// default branch to HEAD), so per-file linters judge only what is uploaded.
-/// Whole-program linters use a new-issues mode against that same base. Full-tree
-/// runs are explicit: `mise run lint` / `mise run scan`, or `hk check --slow --all`.
-checks: Mapping<String, hk.Step> = new {
-  ["ruff"] = Builtins.ruff
-  ["ty"] { types = List("python"); check = "dev-profile-ty {{files}}" }
-  ["php-lint"] { glob = List("**/*.php"); check = "dev-profile-php-lint {{files}}" }
-  // Gates on issues new since the upstream default branch; mise lint runs the full tree.
-  ["golangci-lint"] = (Builtins.golangci_lint) { check = "dev-profile-golangci-ratchet" }
-  // go vet has no new-issues mode: only diagnostics in pushed files fail.
-  ["go-vet"] = (Builtins.go_vet) {
-    check = "dev-profile-pushed-diagnostics go vet ./... :: {{files}}"
-  }
-  // Dependency vulnerabilities: only when go.mod or go.sum is part of the push.
-  ["govulncheck"] = (Builtins.go_vuln_check) { glob = List("**/go.mod", "**/go.sum") }
-  ["oxlint"] = (Builtins.ox_lint) {
-    check = "oxlint {{files}}"
-    fix = "dev-profile-oxlint-fix {{files}}"
-  }
-  ["rubocop"] = Builtins.rubocop
-  ["perlcritic"] { glob = List("**/*.pl", "**/*.pm", "**/*.t"); check = "perlcritic {{files}}" }
-  ["shellcheck"] = Builtins.shellcheck
-  ["swiftlint"] = Builtins.swiftlint
-  ["tofu-validate-fmt"] {
-    glob = List("**/*.tf", "**/*.tfvars")
-    check = "tofu fmt -check {{files}}"
-  }
-  ["hadolint"] = Builtins.hadolint
-  ["markdownlint"] = (Builtins.markdown_lint) {
-    fix = "dev-profile-fix markdownlint --fix {{files}}"
-  }
-  ["yamllint"] = Builtins.yamllint
-  ["actionlint"] = Builtins.actionlint
-  // Every commit about to leave the machine (not just changed files).
-  ["gitleaks"] {
-    check = "gitleaks git --redact --no-banner --log-opts=\"HEAD --not --remotes\""
-  }
-  // Inline suppressions added by unpushed commits (suppressionMode decides blocking).
-  ["suppressions"] { check = "dev-profile-suppressions --unpushed" }
-  ["cargo-check"] = Builtins.cargo_check
-  // Supply chain: each skips silently when its tool is not installed (bundle-audit and
-  // brakeman are Ruby gems pinned in `tools`, installed by `mise install`).
-  ["pinact"] = (Builtins.pinact) {
-    check = "dev-profile-if-installed pinact pinact run --verify-comment --check {{files}}"
-    check_diff = null
-    fix = null
-  }
-  ["zizmor"] = (Builtins.zizmor) {
-    check = "dev-profile-if-installed zizmor zizmor --no-progress {{files}}"
-    fix = null
-  }
-  ["cargo-deny"] = (Builtins.cargo_deny) {
-    check = "dev-profile-if-installed cargo-deny cargo-deny --locked --workspace check"
-  }
-  ["bundle-audit"] = (Builtins.bundle_audit) {
-    check = "dev-profile-if-installed bundle-audit bundle-audit check {{files}}"
-    fix = null
-  }
-  ["brakeman"] = (Builtins.brakeman) {
-    check = "dev-profile-if-installed brakeman brakeman -q -w2 {{files}}"
-  }
-  ["go-sec"] = (Builtins.go_sec) {
-    check = "dev-profile-if-installed gosec gosec ./..."
-  }
-  ["kube-linter"] = (Builtins.kube_linter) {
-    check =
-      "dev-profile-if-installed kube-linter kube-linter lint --fail-if-no-objects-found {{files}}"
-  }
-  ["kubeconform"] = (Builtins.kubeconform) {
-    check =
-      "dev-profile-if-installed kubeconform kubeconform -summary -strict -ignore-missing-schemas {{files}}"
-  }
-  // A second secret engine alongside gitleaks.
-  ["betterleaks"] = (Builtins.betterleaks) {
-    check =
-      "dev-profile-if-installed betterleaks betterleaks dir --redact --verbose --no-banner {{files}}"
-  }
-  // clippy has no new-issues mode: only diagnostics in pushed files fail.
-  ["clippy"] = (Builtins.cargo_clippy) {
-    check =
-      "dev-profile-pushed-diagnostics cargo clippy --quiet --message-format=short :: {{files}}"
-  }
-}
-
-/// Cheap guards on pushed files: run at commit and again at push.
-hygiene: Mapping<String, hk.Step> = new {
-  ["merge-conflicts"] = Builtins.check_merge_conflict
-  ["private-keys"] = Builtins.detect_private_key
-  ["case-conflicts"] = Builtins.check_case_conflict
-}
-
-/// Commit-only guards on the staged change; nothing to judge at push.
+/// Commit guards: the pre-commit `check` entries. They judge the staged change
+/// and may block the commit; an `afterFixers` guard runs after every fixer.
 commitGuards: Mapping<String, hk.Step> = new {
-  // Blocks a staged secret: once committed and pushed it must be rotated.
-  ["secrets"] { check = "gitleaks git --pre-commit --staged --redact --no-banner" }
-  // trunk and prettier are banned: staged adds/modifies fail, deletions pass.
-  ["no-trunk-prettier"] { check = "dev-profile-ban-trunk-prettier" }
-  // Staged Go packages must still build after every commit fixer.
-  ["go-vet-staged"] {
-    glob = List("**/*.go")
-    depends = fixers.keys.toList()
-    check = "dev-profile-go-vet {{files}}"
+  for (name, tool in catalog) {
+    when (tool.on.containsKey("pre-commit") && tool.on["pre-commit"].fix == null) {
+      [commitStepName(name, tool)] = (entry(tool, "pre-commit")) {
+        when (tool.afterFixers) { depends = fixers.keys.toList() }
+      }
+    }
   }
-  // Cheap guards on the staged change (hk built-ins; no external tools).
-  ["check-added-large-files"] = Builtins.check_added_large_files
-  // Only when .gitmodules is staged: existing submodules never block a commit.
-  ["forbid-submodules"] = (Builtins.forbid_submodules) { glob = List("**/.gitmodules") }
-  ["no-commit-to-branch"] = (Builtins.no_commit_to_branch) {
-    check = "dev-profile-no-commit-to-default-branch"
+}
+
+/// Push: the pre-push entries, check mode only, so nothing is rewritten. hk
+/// selects the files in the pushed range (the default branch to HEAD), so
+/// per-file linters judge only what is uploaded; whole-program linters use a
+/// new-issues mode against that same base. Full-tree runs are explicit:
+/// `mise run lint` / `mise run scan`, or `hk check --slow --all`.
+checks: Mapping<String, hk.Step> = new {
+  for (name, tool in catalog) {
+    when (tool.on.containsKey("pre-push")) { [name] = entry(tool, "pre-push") }
   }
-  ["check-symlinks"] = Builtins.check_symlinks
-  ["destroyed-symlinks"] = Builtins.destroyed_symlinks
-  ["check-executables-have-shebangs"] = Builtins.check_executables_have_shebangs
-  ["check-shebang-scripts-are-executable"] = Builtins.check_shebang_scripts_are_executable
+}
+
+/// The pins tools declare; mise installs them after `tools`.
+toolPins: Listing<types.Pin> = new {
+  for (_, tool in catalog) { when (tool.pin != null) { tool.pin } }
 }
 
 /// Global git hooks (git 2.54+ config-based hooks), written by bootstrap.
@@ -426,42 +280,19 @@ kernelTools: Listing<types.Pin> = new {
   new { id = "pkl"; version = "0.32.1" }
 }
 
+/// Kernel and runtime pins. A tool's own pin lives in its `tools/` file.
 tools: Listing<types.Pin> = new {
   new { id = "hk"; version = "2.5.0" }
   new { id = "dprint"; version = "0.59.0" }
   new { id = "worktrunk"; version = "0.80.0" }
   new { id = "go"; version = "1.27" }
   new { id = "node"; version = "24" }
-  new { id = "ruff"; version = "0.16.9" }
-  new { id = "oxlint"; version = "1.84.0" }
-  new { id = "golangci-lint"; version = "2.13.2" }
   new { id = "stylua"; version = "2.5.2" }
-  new { id = "shellcheck"; version = "0.11.0" }
-  new { id = "shellharden"; version = "4.3.2" }
   new { id = "aube"; version = "2.5.1" }
   new { id = "uv"; version = "0.12.23" }
-  new { id = "hadolint"; version = "latest" }
-  new { id = "npm:stylelint"; version = "latest" }
-  // Supply-chain scanners behind pre-push checks; each step skips when its tool is absent.
-  new { id = "pinact"; version = "5.0.0" }
-  new { id = "zizmor"; version = "1.30.1" }
-  new { id = "cargo-deny"; version = "0.20.2" }
-  new { id = "kube-linter"; version = "0.8.3" }
-  new { id = "kubeconform"; version = "0.8.0" }
-  new { id = "betterleaks"; version = "1.9.0" }
-  new { id = "aqua:securego/gosec"; version = "2.29.0" }
-  new { id = "gem:bundler-audit"; version = "0.9.3" }
-  new { id = "gem:brakeman"; version = "8.1.0" }
   // Worktree env isolation (deps symlinks, ports, DB names); run by the wt pre-start hook.
   new { id = "github:rohansx/workz"; version = "0.11.0" }
-  new { id = "npm:markdownlint-cli"; version = "0.49.1" }
-  new { id = "pypi:yamllint"; version = "1.38.0" }
-  new { id = "aqua:rhysd/actionlint"; version = "1.7.12" }
-  new { id = "aqua:gitleaks/gitleaks"; version = "8.30.1" }
-  new { id = "go:golang.org/x/tools/cmd/goimports"; version = "latest" }
-  new { id = "go:golang.org/x/vuln/cmd/govulncheck"; version = "1.8.0" }
   // Contract adapters: OpenTofu lint and protobuf lint/breaking/generate.
-  new { id = "opentofu"; version = "1.11" }
   new { id = "tflint"; version = "0.64.0" }
   new { id = "buf"; version = "1.73.0" }
   new { id = "npm:@agentclientprotocol/codex-acp"; version = "latest" }
@@ -484,12 +315,6 @@ languages: Listing<types.Spec> = new {
     nvimFiletypes { "go" }
     nativeConfigs { "go.mod"; ".golangci.yml"; ".golangci.yaml"; ".golangci.toml" }
     dprint { kind = "wasm"; plugin = "gofumpt" }
-    tools {
-      "go"
-      "go:golang.org/x/tools/cmd/goimports"
-      "go:golang.org/x/vuln/cmd/govulncheck"
-      "golangci-lint"
-    }
   }
   new {
     id = "python"
@@ -501,7 +326,6 @@ languages: Listing<types.Spec> = new {
     }
     nativeConfigs { "pyproject.toml"; "ruff.toml"; ".ruff.toml" }
     dprint { kind = "wasm"; plugin = "ruff" }
-    tools { "ruff" }
   }
   new {
     id = "php"
@@ -538,7 +362,6 @@ languages: Listing<types.Spec> = new {
       "tsconfig.json"
     }
     dprint { kind = "wasm"; plugin = "typescript" }
-    tools { "oxlint"; "node" }
   }
   new {
     id = "typescript"
@@ -552,7 +375,6 @@ languages: Listing<types.Spec> = new {
       "oxlint.config.ts"
     }
     dprint { kind = "wasm"; plugin = "typescript" }
-    tools { "oxlint"; "node" }
   }
   new {
     id = "vue"
@@ -601,7 +423,6 @@ languages: Listing<types.Spec> = new {
     extensions { "Dockerfile" }
     nvimFiletypes { "dockerfile" }
     dprint { kind = "wasm"; plugin = "dockerfile" }
-    tools { "hadolint" }
   }
   new {
     id = "shell"
@@ -614,7 +435,6 @@ languages: Listing<types.Spec> = new {
       ["#!/bin/sh"] = "sh"
     }
     dprint { kind = "wasm"; plugin = "sh" }
-    tools { "shellcheck"; "shellharden" }
   }
   new {
     id = "zsh"
@@ -655,7 +475,6 @@ languages: Listing<types.Spec> = new {
       command = "stylua -"
       exts { "lua" }
     }
-    tools { "stylua" }
   }
   new {
     id = "pkl"
@@ -666,7 +485,6 @@ languages: Listing<types.Spec> = new {
       command = "dev-profile-pkl-fmt"
       exts { "pkl" }
     }
-    tools { "pkl" }
   }
   new {
     id = "rust"
@@ -788,17 +606,12 @@ languages: Listing<types.Spec> = new {
 // Rendered outputs: `mise run generate` evaluates this into installDir.
 output {
   files {
-    // hk evaluates its config as Pkl, so ship the typed sources it imports.
+    // hk evaluates its config as Pkl, so ship the sources it imports. The glob
+    // imports are lazy: only their keys are used here, and hk's evaluator has
+    // no `read*`, so paths come from `import*`.
     ["src/profile.pkl"] { text = read("profile.pkl").text }
-    ["src/lib/types.pkl"] { text = read("lib/types.pkl").text }
-    ["src/lib/render.pkl"] { text = read("lib/render.pkl").text }
-    ["src/lib/hk.pkl"] { text = read("lib/hk.pkl").text }
-    ["src/lib/contract.pkl"] { text = read("lib/contract.pkl").text }
-    ["src/lib/shared.pkl"] { text = read("lib/shared.pkl").text }
-    ["src/lib/modernize.pkl"] { text = read("lib/modernize.pkl").text }
-    ["src/lib/guards.pkl"] { text = read("lib/guards.pkl").text }
-    ["src/lib/staged.pkl"] { text = read("lib/staged.pkl").text }
-    ["src/lib/githooks.pkl"] { text = read("lib/githooks.pkl").text }
+    for (path, _ in import*("lib/*.pkl")) { ["src/\(path)"] { text = read(path).text } }
+    for (path, _ in toolModules) { ["src/\(path)"] { text = read(path).text } }
     // Linked as ~/.config/hk/config.pkl. Absolute, because Pkl resolves relative
     // imports from the symlink's directory, not its target's.
     ["hk-config.pkl"] { text = "amends \"\(installPath)/src/lib/hk.pkl\"\n" }

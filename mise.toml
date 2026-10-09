@@ -140,7 +140,8 @@ golangci-lint config verify --config "$out/golangci.yml" || fail golangci.yml
 grep -F "allow-parallel-runners: true" "$out/golangci.yml" || fail "golangci allow-parallel-runners"
 grep -F "composer audit --locked" "$out/bin/dev-profile-contract-php" || fail "composer audit --locked"
 if pkl eval -x 'checks["oxlint"].check' profile.pkl | grep -F -- "--deny-warnings"; then fail "oxlint must not deny-warnings"; fi
-for cmd in $(grep -ohE "dev-profile-[a-z0-9-]+" "$out/src/profile.pkl" | sort -u); do [[ -x "$out/bin/$cmd" ]] || fail "hk step command without a rendered bin script: $cmd"; done
+for cmd in $(grep -ohE "dev-profile-[a-z0-9-]+" "$out/src/profile.pkl" "$out"/src/tools/*/*.pkl | sort -u); do [[ -x "$out/bin/$cmd" ]] || fail "hk step command without a rendered bin script: $cmd"; done
+pkl test tests/profile.test.pkl || fail "pkl test (regenerate the snapshot with: pkl test --overwrite tests/profile.test.pkl)"
 bash tests/contract-fixtures.sh "$out" || fail "contract fixtures"
 bash tests/go-fix-fixture.sh "$out" || fail "go-fix fixture"
 bash tests/modernizer-fixture.sh "$out" || fail "modernizer fixture"
@@ -148,6 +149,28 @@ bash tests/guards-fixture.sh "$out" || fail "guards fixture"
 for gem_tool in bundle-audit brakeman; do command -v "$gem_tool" >/dev/null || echo "note: $gem_tool is not installed; run mise install (pinned in profile.pkl tools). Its push check is skipped until then."; done
 bash tests/ship-fixture.sh "$out" || fail "ship fixture"
 echo "doctor ok"
+"""
+
+[tasks.explain]
+description = "What runs at each hook: mise run explain [tool-or-category]"
+depends = ["generate"]
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+# Reads the rendered profile.json; a tool name or a tools/ category narrows it.
+jq -r --arg q "${1:-}" '
+  .tools | to_entries
+  | map(select($q == "" or .key == $q or .value.category == $q))
+  | if length == 0 then "no tool or category named \($q)" | halt_error(1) else . end
+  | .[] | .key as $tool | .value
+  | "\(.category)/\($tool): \(.doc)",
+    (.hooks | to_entries[] | "  \(.key): \(.value.step)" +
+      (if .value.fix then "  fix: \(.value.fix)" else "" end) +
+      (if .value.check then "  check: \(.value.check)" else "" end) +
+      (if .value.files then "  files: \(.value.files)" else "" end) +
+      (if (.value.after | length) > 0 then "  after: \(.value.after | join(" "))" else "" end)),
+    (if (.scripts | length) > 0 then "  scripts: \(.scripts | join(" "))" else empty end)
+' "$DEV_PROFILE_OUT/profile.json"
 """
 
 [tasks.fmt]

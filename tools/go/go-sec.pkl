@@ -1,0 +1,9 @@
+amends "../../lib/Tool.pkl"
+
+doc = "Go security scanner at push; skips silently when gosec is not installed."
+pin { id = "aqua:securego/gosec"; version = "2.29.0" }
+on {
+  ["pre-push"] = (module.builtins.go_sec) {
+    check = "dev-profile-if-installed gosec gosec ./..."
+  }
+}
