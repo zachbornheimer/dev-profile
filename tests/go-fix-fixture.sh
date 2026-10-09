@@ -56,28 +56,25 @@ fixture_rewrites_staged_file_only() {
 	cmp -s "${repo}/untouched.go" "${work}/untouched.before" || fail "modernize: unstaged file in the same package was rewritten"
 }
 
-fixture_blocks_asType_on_non_error() {
-	local repo
-	repo="$(new_module astype)"
-	cat >"${repo}/bad.go" <<'GO'
-package fixture
-
-import "errors"
-
-type statusCoder interface{ Code() int }
-
-func Code(err error) int {
-	var sc statusCoder
-	if errors.As(err, &sc) {
-		return sc.Code()
-	}
-	return 0
-}
-GO
+# A go whose `fix` leaves an undefined identifier behind, as a faulty analyzer
+# would: no real analyzer is guaranteed to break code on a given Go release.
+fixture_blocks_rewrite_that_breaks_vet() {
+	local repo shim="${work}/broken-fix-shim" real_go
+	real_go="$(command -v go)"
+	mkdir -p "$shim"
+	cat >"${shim}/go" <<EOF
+#!/usr/bin/env bash
+if [[ "\${1:-}" != fix ]]; then exec "${real_go}" "\$@"; fi
+"${real_go}" "\$@"
+for file in ./*.go; do echo 'var _ = brokenByFix' >>"\${file}"; done
+EOF
+	chmod +x "${shim}/go"
+	repo="$(new_module broken-fix)"
+	write_old_style "${repo}/bad.go"
 	cp "${repo}/bad.go" "${work}/bad.before"
-	if run_go_fix "$repo" bad.go 2>"${work}/stderr"; then fail "astype: broken rewrite did not block the commit"; fi
-	cmp -s "${repo}/bad.go" "${work}/bad.before" || fail "astype: broken rewrite was left in the file"
-	grep -q 'go vet' "${work}/stderr" || fail "astype: no explanation on stderr"
+	if PATH="${shim}:${PATH}" run_go_fix "$repo" bad.go 2>"${work}/stderr"; then fail "broken rewrite did not block the commit"; fi
+	cmp -s "${repo}/bad.go" "${work}/bad.before" || fail "broken rewrite was left in the file"
+	grep -q 'go vet' "${work}/stderr" || fail "no explanation on stderr"
 }
 fixture_modernizes_module_outside_go_work() {
 	local repo
@@ -93,6 +90,6 @@ fixture_modernizes_module_outside_go_work() {
 }
 
 fixture_rewrites_staged_file_only
-fixture_blocks_asType_on_non_error
+fixture_blocks_rewrite_that_breaks_vet
 fixture_modernizes_module_outside_go_work
 echo "go-fix fixture ok"
