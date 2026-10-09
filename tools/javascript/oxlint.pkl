@@ -2,7 +2,7 @@ amends "../../lib/Tool.pkl"
 
 doc =
   "JS and TS lint. Commit applies safe fixes and suggestions, never --fix-dangerously; push reports what is left."
-pin { id = "oxlint"; version = "1.87.0" }
+pin { id = "npm:oxlint"; version = "1.87.0" }
 on {
   ["pre-commit"] {
     glob =

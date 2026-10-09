@@ -39,6 +39,8 @@ mise run rollback    # restore the backed-up originals
 | `lib/contract.pkl`       | the repo task contract (`mise run lint`, `test`, `scan`...) |
 | `tests/profile.test.pkl` | invariants and a snapshot of what each hook runs            |
 | `tests/*-fixture.sh`     | the generated scripts against real git and go               |
+| `mise-tasks/bump`        | bump every outdated pin to its latest release               |
+| `.github/workflows/`     | `ci` runs doctor on every push and PR; `bump` runs weekly   |
 
 ## What runs when
 
@@ -151,3 +153,12 @@ Step by step, that was:
    at commit after the Go fixers, `go-mod-tidy` at push.
 
 Then `mise run bootstrap` (or `mise run install-live`) to deploy the render.
+
+## Keeping the pins current
+
+`mise run bump` asks mise for the latest release of every pin (tool pins, the
+dprint plugins, the hk package the Pkl sources import), rewrites the ones that
+are behind, and regenerates the snapshot. A pin shorter than the release keeps
+its depth: `go = "1.27"` moves to `1.28` only when a 1.28 release exists;
+`latest` pins are left alone. The `bump` workflow runs it every Monday, runs
+doctor with the bumped toolset, and opens a PR with the table of changes.

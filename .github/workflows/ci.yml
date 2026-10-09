@@ -1,0 +1,35 @@
+name: ci
+
+# The repo contract on every push and PR: render the profile and run doctor,
+# which validates each generated file with the tool that consumes it.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+      - name: System tools doctor needs
+        run: sudo apt-get update -q && sudo apt-get install -y -q lua5.4 zsh ruby-full
+      - name: Install the profile's tools
+        run: |
+          out="${RUNNER_TEMP}/profile"
+          DEV_PROFILE_OUT="${out}" mise run generate
+          MISE_GLOBAL_CONFIG_FILE="${out}/mise-profile.toml" mise install --yes
+      - name: Test
+        # The installed toolset is active only with the rendered profile as
+        # mise's global config, the way bootstrap links it.
+        env:
+          MISE_GLOBAL_CONFIG_FILE: ${{ runner.temp }}/profile/mise-profile.toml
+        run: mise run test
