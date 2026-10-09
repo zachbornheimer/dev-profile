@@ -377,6 +377,21 @@ fixture_go_modernize_staged_only
 fixture_go_fix_that_breaks_compilation_blocks
 fixture_go_guard_package_patterns
 fixture_git_hook_skips_undefined_hook
+# mise renders a task script through Tera only when the task runs, so `mise tasks`
+# passes on a script Tera rejects (a `${#array[@]}` reads as a comment opener).
+# A dry run renders every task without executing it.
+fixture_every_task_renders() {
+	local repo task
+	repo="$(new_repo task-render)"
+	(cd "$repo" && mise tasks ls --json | jq -r '.[].name') >"${work}/task-names.txt" ||
+		fail "task render: could not list tasks"
+	[[ -s "${work}/task-names.txt" ]] || fail "task render: the overlay defines no tasks"
+	while IFS= read -r task; do
+		(cd "$repo" && mise run -n "$task") >"$output" 2>&1 || fail "task render: '${task}' does not load"
+	done <"${work}/task-names.txt"
+}
+
+fixture_every_task_renders
 fixture_go_work
 fixture_dotnet_targets
 fixture_nested_node_setup
