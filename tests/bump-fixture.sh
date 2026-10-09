@@ -51,6 +51,21 @@ expect tests/profile.test.pkl-expected.pcf '["ruff"] = "0.17.0"'
 expect summary.md '| ruff | 0.16.10 | 0.17.0 |'
 expect summary.md '| go | 1.27 | 1.28 |'
 grep -qF '| node |' "${summary}" && fail "node must not be reported: same major"
+grep -qF 'Lookups that failed' "${summary}" || fail "the summary must list the lookups the stub refused"
+grep -qE 'Lookups that failed.* dprint( |$)' "${summary}" || fail "dprint's failed lookup must be listed"
+
+# Nothing newer and some lookups failed: the task must say so and fail rather
+# than claim every pin is current.
+rm -rf "${work}/quiet" && mkdir "${work}/quiet"
+cp -R "${src}/profile.pkl" "${src}/lib" "${src}/tools" "${src}/tests" "${src}/mise-tasks" "${src}/mise.toml" "${work}/quiet/"
+git -C "${work}/quiet" init -q
+if (cd "${work}/quiet" && BUMP_LATEST=false bash mise-tasks/bump >/dev/null 2>"${work}/quiet.err"); then
+	fail "all lookups failing must fail the task"
+fi
+grep -q 'lookup(s) failed' "${work}/quiet.err" || fail "failed lookups must be reported: $(cat "${work}/quiet.err")"
+for part in profile.pkl lib tools; do
+	diff -rq "${src}/${part}" "${work}/quiet/${part}" >/dev/null || fail "nothing may be rewritten when no lookup succeeds: ${part}"
+done
 
 # A new hk moves the package URIs with the pin. No such release exists, so the
 # snapshot step must fail and the task with it; the rewrite itself must be done.

@@ -53,7 +53,7 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           {
-            echo "Weekly pin bump from \`mise run bump\`; every other pin is at its latest release."
+            echo "Weekly pin bump from \`mise run bump\`."
             echo
             cat "${RUNNER_TEMP}/summary.md"
             echo

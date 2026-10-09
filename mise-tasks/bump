@@ -25,12 +25,14 @@ same_depth() { # <pin> <release>
 }
 
 rows=()
-bump() { # <label> <current> <release> <file> <sed expression>
+failed=()
+# <label> <current> <release> <file> <sed expression with __WANT__ for the new version>
+bump() {
 	local want
-	[[ -n "$3" ]] || { echo "skip  $1 ${2}: no release found" >&2; return 0; }
+	[[ -n "$3" ]] || { failed+=("$1"); echo "skip  $1 ${2}: lookup failed" >&2; return 0; }
 	want="$(same_depth "$2" "$3")"
 	[[ "${want}" != "$2" ]] || return 0
-	sed -i.bak -e "$5" "$4" && rm -f "$4.bak"
+	sed -i.bak -e "${5//__WANT__/${want}}" "$4" && rm -f "$4.bak"
 	rows+=("| $1 | $2 | ${want} |")
 	echo "bump  $1 $2 -> ${want}" >&2
 }
@@ -40,7 +42,7 @@ while IFS=$'\t' read -r file id current; do
 	[[ "${current}" != "latest" ]] || continue
 	release="$(latest_of "${id}")"
 	bump "${id}" "${current}" "${release}" "${file}" \
-		"s|id = \"${id}\"; version = \"${current}\"|id = \"${id}\"; version = \"$(same_depth "${current}" "${release:-$current}")\"|"
+		"s|id = \"${id}\"; version = \"${current}\"|id = \"${id}\"; version = \"__WANT__\"|"
 	if [[ "${id}" == "hk" && -n "${release}" && "${release}" != "${current}" ]]; then
 		# The hk package the Pkl sources import follows the hk pin.
 		grep -rlF "hk@${current}" profile.pkl lib tools tests | while IFS= read -r f; do
@@ -54,18 +56,22 @@ done < <(grep -HoE 'id = "[^"]+"; version = "[^"]+"' profile.pkl tools/*/*.pkl |
 while IFS=$'\t' read -r name current; do
 	release="$(latest_of "npm:${name}")"
 	bump "npm:${name}" "${current}" "${release}" profile.pkl \
-		"s|\"npm:${name}@${current}\"|\"npm:${name}@${release:-$current}\"|"
+		"s|\"npm:${name}@${current}\"|\"npm:${name}@__WANT__\"|"
 done < <(grep -oE '"npm:@?[^@"]+@[0-9][^"/]*"' profile.pkl | sed -E 's/^"npm:(@?[^@]+)@([^"]+)"$/\1\t\2/')
 
 # dprint wasm plugins published as GitHub releases on plugins.dprint.dev.
 while IFS=$'\t' read -r owner name current; do
 	release="$(latest_of "github:${owner}/${name}")"
 	bump "${owner}/${name}" "${current}" "${release}" profile.pkl \
-		"s|/${owner}/${name}-v${current}.wasm|/${owner}/${name}-v${release:-$current}.wasm|"
+		"s|/${owner}/${name}-v${current}.wasm|/${owner}/${name}-v__WANT__.wasm|"
 done < <(grep -oE 'plugins.dprint.dev/[^/]+/[^"]+-v[0-9.]+\.wasm' profile.pkl |
 	sed -E 's#^plugins.dprint.dev/([^/]+)/(.+)-v([0-9.]+)\.wasm$#\1\t\2\t\3#')
 
 if ((${#rows[@]} == 0)); then
+	if ((${#failed[@]})); then
+		echo "no newer release found, but ${#failed[@]} lookup(s) failed: ${failed[*]}" >&2
+		exit 1
+	fi
 	echo "everything is at its latest release" >&2
 	exit 0
 fi
@@ -77,5 +83,10 @@ DEV_PROFILE_OUT="${out}" pkl test --overwrite tests/profile.test.pkl >/dev/null 
 DEV_PROFILE_OUT="${out}" pkl test tests/profile.test.pkl >/dev/null
 
 summary="$(printf '| Pin | From | To |\n| --- | --- | --- |\n%s\n' "$(printf '%s\n' "${rows[@]}")")"
+if ((${#failed[@]})); then
+	summary+="$(printf '\n\nLookups that failed, so these pins were not checked: %s' "${failed[*]}")"
+else
+	summary+=$'\n\nEvery other pin is at its latest release.'
+fi
 echo "${summary}"
 [[ -z "${BUMP_SUMMARY:-}" ]] || echo "${summary}" >"${BUMP_SUMMARY}"
