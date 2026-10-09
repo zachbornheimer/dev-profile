@@ -5,7 +5,7 @@ examples {
         fix = "dprint fmt --allow-no-files {{files}}"
         check = "dprint check --allow-no-files {{files}}"
         files = "text"
-        after = List("clang-tidy", "stylelint", "dotnet-format", "go-fix", "go-imports", "go-modernize", "golangci-lint-fix", "oxlint-fix", "markdownlint-fix", "perltidy", "php-fmt", "rector", "ruff-fix", "newlines", "trailing-whitespace", "uv-instead-of-python-in-tasks", "rubocop-fix", "clippy-fix", "rustfmt", "shellharden", "swift-format", "swiftlint-fix", "tofu-fix")
+        after = List("clang-tidy", "stylelint", "dotnet-format", "go-fix", "go-imports", "go-mod-tidy-fix", "go-modernize", "golangci-lint-fix", "oxlint-fix", "markdownlint-fix", "perltidy", "php-fmt", "rector", "ruff-fix", "newlines", "trailing-whitespace", "uv-instead-of-python-in-tasks", "rubocop-fix", "clippy-fix", "rustfmt", "shellharden", "swift-format", "swiftlint-fix", "tofu-fix")
         profiles = null
       }
       ["clang-tidy"] {
@@ -47,6 +47,13 @@ examples {
           """
         files = "**/*.go"
         after = List()
+        profiles = null
+      }
+      ["go-mod-tidy-fix"] {
+        fix = "go mod tidy"
+        check = "go mod tidy -diff"
+        files = "**/*.go **/go.mod **/go.sum"
+        after = List("go-imports")
         profiles = null
       }
       ["go-modernize"] {
@@ -179,7 +186,7 @@ examples {
         fix = null
         check = "dev-profile-go-vet {{files}}"
         files = "**/*.go"
-        after = List("clang-tidy", "stylelint", "dotnet-format", "go-fix", "go-imports", "go-modernize", "golangci-lint-fix", "oxlint-fix", "markdownlint-fix", "perltidy", "php-fmt", "rector", "ruff-fix", "newlines", "trailing-whitespace", "uv-instead-of-python-in-tasks", "rubocop-fix", "clippy-fix", "rustfmt", "shellharden", "swift-format", "swiftlint-fix", "tofu-fix")
+        after = List("clang-tidy", "stylelint", "dotnet-format", "go-fix", "go-imports", "go-mod-tidy-fix", "go-modernize", "golangci-lint-fix", "oxlint-fix", "markdownlint-fix", "perltidy", "php-fmt", "rector", "ruff-fix", "newlines", "trailing-whitespace", "uv-instead-of-python-in-tasks", "rubocop-fix", "clippy-fix", "rustfmt", "shellharden", "swift-format", "swiftlint-fix", "tofu-fix")
         profiles = null
       }
       ["case-conflicts"] {
@@ -291,6 +298,13 @@ examples {
         fix = null
         check = "dev-profile-if-installed zizmor zizmor --no-progress {{files}}"
         files = ".github/workflows/*.yml .github/workflows/*.yaml .github/dependabot.yml **/action.yml **/action.yaml"
+        after = List()
+        profiles = List("slow")
+      }
+      ["go-mod-tidy"] {
+        fix = "go mod tidy"
+        check = "go mod tidy -diff"
+        files = "**/*.go **/go.mod **/go.sum"
         after = List()
         profiles = List("slow")
       }
@@ -498,6 +512,13 @@ examples {
         fix = null
         check = "dev-profile-if-installed zizmor zizmor --no-progress {{files}}"
         files = ".github/workflows/*.yml .github/workflows/*.yaml .github/dependabot.yml **/action.yml **/action.yaml"
+        after = List()
+        profiles = null
+      }
+      ["go-mod-tidy"] {
+        fix = "go mod tidy"
+        check = "go mod tidy -diff"
+        files = "**/*.go **/go.mod **/go.sum"
         after = List()
         profiles = null
       }

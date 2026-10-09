@@ -1,0 +1,8 @@
+amends "../../lib/Tool.pkl"
+
+doc =
+  "Keep go.mod and go.sum in step with the imports: tidy at commit once goimports has run, and refuse a push whose modules are untidy."
+on {
+  ["pre-commit"] = (module.builtins.gomod_tidy) { depends = List("go-imports") }
+  ["pre-push"] = module.builtins.gomod_tidy
+}
