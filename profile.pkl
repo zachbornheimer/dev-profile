@@ -80,6 +80,7 @@ liveTargets: Mapping<String, String> = new {
   // Shared tool configs, found by parent-directory lookup from every repo.
   ["\(codeRoot)/.golangci.yml"] = "golangci.yml"
   ["\(codeRoot)/.editorconfig"] = "editorconfig"
+  ["\(codeRoot)/deny.toml"] = "deny.toml"
   // User-level defaults; a repo's own .markdownlint* / .yamllint still wins.
   ["~/.markdownlintrc"] = "markdownlintrc.json"
   ["~/.config/yamllint/config"] = "yamllint.yaml"
@@ -809,6 +810,7 @@ output {
     ["personal-overlay.toml"] { text = render.tomlFile(render.personalOverlay) }
     ["golangci.yml"] { text = render.yamlFile(shared.golangci) }
     ["editorconfig"] { text = shared.editorconfig }
+    ["deny.toml"] { text = render.tomlFile(shared.denyConfig) }
     // Hand-written adapter; copied so install-live links one directory.
     ["shell.zsh"] { text = render.shellZsh }
     ["markdownlintrc.json"] {

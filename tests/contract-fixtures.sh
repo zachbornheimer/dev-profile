@@ -401,7 +401,7 @@ fixture_rustfmt_follows_crate_edition() {
 	printf 'use std::collections::{HashMap, hash_map};\n\nfn main() {}\n' >"${repo}/src/main.rs"
 	cp "${repo}/src/main.rs" "${work}/main.before"
 
-	(cd "$work" && dev-profile-rustfmt --stdin-path "${repo}/src/main.rs" <"${repo}/src/main.rs") >"${work}/main.stdin" 2>"$output" ||
+	(cd "$work" && dev-profile-rustfmt --stdin-path "${repo}/src/main.rs" <"${work}/main.before") >"${work}/main.stdin" 2>"$output" ||
 		fail "rustfmt: stdin mode failed"
 	cmp -s "${work}/main.before" "${work}/main.stdin" || fail "rustfmt: stdin mode reformatted a 2024-formatted file"
 
