@@ -1,8 +1,10 @@
 name: bump
 
-# Weekly: bump every outdated pin to its latest release, run doctor against the
-# result, and open a PR with the diff. `mise run bump` does the bumping; this
-# schedules it, installs the toolset doctor needs, and files the PR.
+# Weekly: bump every outdated pin to its latest release and open a PR with the
+# diff, armed to merge itself once ci passes on it. `mise run bump` does the
+# bumping. A PR opened with the workflow token does not trigger ci by itself,
+# so this dispatches ci on the branch; the main ruleset requires its `test`
+# check, and auto-merge waits for it.
 on:
   schedule:
     - cron: "17 9 * * 1" # Mondays 09:17 UTC
@@ -14,6 +16,7 @@ jobs:
   bump:
     runs-on: ubuntu-latest
     permissions:
+      actions: write
       contents: write
       pull-requests: write
     steps:
@@ -23,47 +26,23 @@ jobs:
       - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
       - name: Bump outdated pins
         id: bump
+        env:
+          # `mise latest` reads release metadata from the GitHub API.
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           BUMP_SUMMARY="${RUNNER_TEMP}/summary.md" mise run bump
           if [ -s "${RUNNER_TEMP}/summary.md" ]; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
+            {
+              echo "Weekly pin bump from \`mise run bump\`."
+              echo
+              cat "${RUNNER_TEMP}/summary.md"
+              echo
+              echo "ci runs doctor on this PR; it merges itself when the \`test\` check passes."
+            } > "${RUNNER_TEMP}/body.md"
           fi
-      - name: System tools doctor needs
-        if: steps.bump.outputs.changed == 'true'
-        run: sudo apt-get update -q && sudo apt-get install -y -q lua5.4 zsh ruby-full
-      - name: Install the bumped toolset
-        if: steps.bump.outputs.changed == 'true'
-        run: |
-          out="${RUNNER_TEMP}/profile"
-          DEV_PROFILE_OUT="${out}" mise run generate
-          MISE_GLOBAL_CONFIG_FILE="${out}/mise-profile.toml" mise install --yes
-      - name: Doctor
-        id: doctor
-        if: steps.bump.outputs.changed == 'true'
-        continue-on-error: true
-        # The installed toolset is active only with the rendered profile as
-        # mise's global config, the way bootstrap links it.
-        env:
-          MISE_GLOBAL_CONFIG_FILE: ${{ runner.temp }}/profile/mise-profile.toml
-        run: mise run test
-      - name: Describe the result
-        if: steps.bump.outputs.changed == 'true'
-        env:
-          DOCTOR: ${{ steps.doctor.outcome }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          {
-            echo "Weekly pin bump from \`mise run bump\`."
-            echo
-            cat "${RUNNER_TEMP}/summary.md"
-            echo
-            if [ "${DOCTOR}" = "success" ]; then
-              echo "\`mise run test\` passed with the bumped toolset."
-            else
-              echo "**\`mise run test\` failed with the bumped toolset**: see the [run](${RUN_URL}) before merging."
-            fi
-          } > "${RUNNER_TEMP}/body.md"
       - uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        id: pr
         if: steps.bump.outputs.changed == 'true'
         with:
           branch: chore/bump-pins
@@ -71,3 +50,11 @@ jobs:
           commit-message: "chore(tools): bump the outdated pins"
           body-path: ${{ runner.temp }}/body.md
           delete-branch: true
+      - name: Run ci on the PR and arm auto-merge
+        if: steps.pr.outputs.pull-request-number != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ steps.pr.outputs.pull-request-number }}
+        run: |
+          gh workflow run ci.yml --ref chore/bump-pins
+          gh pr merge "${PR}" --auto --merge

@@ -27,7 +27,7 @@ case "$1" in
 	ruff) echo 0.17.0 ;;                    # a tool pin in tools/
 	npm:@dprint/json) echo 0.26.0 ;;        # dprint plugin from npm
 	github:g-plane/malva) echo v0.17.0 ;;   # dprint plugin from GitHub, leading v
-	node) echo 24.9.0 ;;                    # same major: unchanged
+	node) echo 26.11.1 ;;                   # major-only pin: held, never moved
 	*) exit 1 ;;                            # unknown: skipped, never rewritten
 esac
 STUB
@@ -50,7 +50,9 @@ expect tools/python/ruff.pkl 'version = "0.17.0"'
 expect tests/profile.test.pkl-expected.pcf '["ruff"] = "0.17.0"'
 expect summary.md '| ruff | 0.16.10 | 0.17.0 |'
 expect summary.md '| go | 1.27 | 1.28 |'
-grep -qF '| node |' "${summary}" && fail "node must not be reported: same major"
+grep -qF '| node |' "${summary}" && fail "node must not be bumped: a major-only pin is held"
+expect profile.pkl 'id = "node"; version = "24"'
+grep -qF 'Held, a major-only pin moves by hand: node 24 -> 26' "${summary}" || fail "the held pin must be reported"
 grep -qF 'Lookups that failed' "${summary}" || fail "the summary must list the lookups the stub refused"
 grep -qE 'Lookups that failed.* dprint( |$)' "${summary}" || fail "dprint's failed lookup must be listed"
 

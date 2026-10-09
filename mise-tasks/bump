@@ -4,7 +4,9 @@
 # and plugins.dprint.dev entries of dprintPlugins, and the hk package URIs, which
 # follow the hk pin. A pin shorter than the release keeps its depth: "1.27" moves
 # to "1.28" only when a 1.28 release exists. "latest" pins are left alone.
-# Prints a Markdown table of what changed; BUMP_SUMMARY=<file> writes it there too.
+# A major-only pin (node = "24") is never moved across majors here: it is reported
+# as held, for a person to bump. Prints a Markdown table of what changed;
+# BUMP_SUMMARY=<file> writes it there too.
 # BUMP_LATEST=<command> replaces `mise latest` (the fixture uses a stub).
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
@@ -26,12 +28,18 @@ same_depth() { # <pin> <release>
 
 rows=()
 failed=()
+held=()
 # <label> <current> <release> <file> <sed expression with __WANT__ for the new version>
 bump() {
 	local want
 	[[ -n "$3" ]] || { failed+=("$1"); echo "skip  $1 ${2}: lookup failed" >&2; return 0; }
 	want="$(same_depth "$2" "$3")"
 	[[ "${want}" != "$2" ]] || return 0
+	if [[ "$2" != *.* ]]; then
+		held+=("$1 $2 -> ${want}")
+		echo "hold  $1 $2 -> ${want}: a major-only pin moves by hand" >&2
+		return 0
+	fi
 	sed -i.bak -e "${5//__WANT__/${want}}" "$4" && rm -f "$4.bak"
 	rows+=("| $1 | $2 | ${want} |")
 	echo "bump  $1 $2 -> ${want}" >&2
@@ -72,7 +80,7 @@ if ((${#rows[@]} == 0)); then
 		echo "no newer release found, but ${#failed[@]} lookup(s) failed: ${failed[*]}" >&2
 		exit 1
 	fi
-	echo "everything is at its latest release" >&2
+	((${#held[@]})) || echo "everything is at its latest release" >&2
 	exit 0
 fi
 
@@ -83,6 +91,9 @@ DEV_PROFILE_OUT="${out}" pkl test --overwrite tests/profile.test.pkl >/dev/null 
 DEV_PROFILE_OUT="${out}" pkl test tests/profile.test.pkl >/dev/null
 
 summary="$(printf '| Pin | From | To |\n| --- | --- | --- |\n%s\n' "$(printf '%s\n' "${rows[@]}")")"
+if ((${#held[@]})); then
+	summary+="$(printf '\n\nHeld, a major-only pin moves by hand: %s' "$(IFS=,; echo "${held[*]}")")"
+fi
 if ((${#failed[@]})); then
 	summary+="$(printf '\n\nLookups that failed, so these pins were not checked: %s' "${failed[*]}")"
 else
