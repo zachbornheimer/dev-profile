@@ -17,6 +17,21 @@ local ifInstalled =
   exec "$@"
   """#
 
+local gosecPackages =
+  #"""
+  \#(bash)
+  # dev-profile-gosec-packages <files…>: gosec only the Go packages that contain
+  # the given files, so findings in untouched packages never block a push.
+  # Skips when gosec is not installed or no Go file is given.
+  command -v gosec >/dev/null 2>&1 || exit 0
+  packages=()
+  for file in "$@"; do
+    [[ "${file}" == *.go ]] && packages+=("./$(dirname "${file}")")
+  done
+  ((${#packages[@]})) || exit 0
+  printf '%s\n' "${packages[@]}" | sort -u | xargs gosec
+  """#
+
 local noCommitToDefaultBranch =
   #"""
   \#(bash)
@@ -37,5 +52,6 @@ local noCommitToDefaultBranch =
 /// Generated bin/ scripts the supply-chain checks and commit guards run.
 wrappers: Mapping<String, String> = new {
   ["dev-profile-if-installed"] = ifInstalled
+  ["dev-profile-gosec-packages"] = gosecPackages
   ["dev-profile-no-commit-to-default-branch"] = noCommitToDefaultBranch
 }

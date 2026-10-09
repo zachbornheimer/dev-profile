@@ -262,7 +262,7 @@ checks: Mapping<String, hk.Step> = new {
     check = "dev-profile-if-installed brakeman brakeman -q -w2 {{files}}"
   }
   ["go-sec"] = (Builtins.go_sec) {
-    check = "dev-profile-if-installed gosec gosec ./..."
+    check = "dev-profile-gosec-packages {{files}}"
   }
   ["kube-linter"] = (Builtins.kube_linter) {
     check =
