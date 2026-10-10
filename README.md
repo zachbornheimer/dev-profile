@@ -37,7 +37,8 @@ mise run rollback    # restore the backed-up originals
 | `lib/script.pkl`         | bash fragments the tool scripts share                       |
 | `lib/render.pkl`         | one renderer per generated file                             |
 | `lib/contract.pkl`       | the repo task contract (`mise run lint`, `test`, `scan`...) |
-| `lib/pr.pkl`             | the `wt pr` family: publish, watch to merge, prune          |
+| `lib/pr.pkl`             | the `wt pr` family: publish, watch to merge                 |
+| `lib/sync.pkl`           | `wt sync`, `reconcile`, `prune`, `tidy`: back up and clean  |
 | `tests/profile.test.pkl` | invariants and a snapshot of what each hook runs            |
 | `tests/*-fixture.sh`     | the generated scripts against real git and go               |
 | `mise-tasks/bump`        | bump every outdated pin to its latest release               |
@@ -67,7 +68,7 @@ category: the step name per hook, its command, files and ordering.
 
 ## Pull requests from wt
 
-`lib/pr.pkl` renders three scripts and the aliases that call them. None of
+`lib/pr.pkl` renders two scripts and the aliases that call them. None of
 them prompt, so loops and scripts can drive them.
 
 | Alias         | Does                                                                |
@@ -77,7 +78,6 @@ them prompt, so loops and scripts can drive them.
 | `wt pr-auto`  | same, then watch CI, merge when green, notify, remove the worktree  |
 | `wt ship`     | `pr-draft` for the current worktree; skips what has nothing to send |
 | `wt ship-all` | `ship` in every worktree                                            |
-| `wt prune`    | `wt step prune`, plus branches whose tip is a PR GitHub merged      |
 
 `B` switches to that branch first; without it, the current branch is published.
 `--create=<branch> -- <cmd>` makes a fresh branch, runs `<cmd>` in it, and
@@ -102,8 +102,52 @@ out, so that checkout's `post-merge` hooks run. Here, `mise run install-git-hook
 adds one: a pull or merge that moves `main` runs `mise run generate`, so the
 live profile follows `main`.
 
-Preview a prune with `wt prune -- --dry-run`; wt reserves a bare `--dry-run`
-on aliases.
+## Backing up and tidying clones
+
+`lib/sync.pkl` keeps every clone of a repo backed up to GitHub, so several
+copies on one machine (or several machines) can converge and be cleaned up.
+
+| Alias               | Does                                                                |
+| ------------------- | ------------------------------------------------------------------- |
+| `wt sync`           | push everything unique in this clone; touches no files              |
+| `wt reconcile B`    | rebase `B` onto GitHub's copy; stops on a conflict for you          |
+| `wt prune`          | remove worktrees and branches merged into `main`                    |
+| `wt prune --pushed` | also clean worktrees and branches identical to GitHub's             |
+| `wt prune --remote` | also delete GitHub branches already absorbed into `main`            |
+| `wt tidy`           | `sync`, then `prune --remote --pushed`; stops if anything conflicts |
+
+What `wt sync` sends, all under this clone's own `backup/<clone>/` namespace
+unless it is a plain branch:
+
+- **Branches:** pushed, never forced. If another clone moved the same branch
+  on GitHub, this clone's commits are rebased onto it when that applies
+  cleanly. On a conflict, the branch is kept as `backup/<clone>/<branch>`;
+  resolve with `wt reconcile <branch>`, then run `wt sync` again.
+- **Uncommitted and untracked changes:** `backup/<clone>/wip/<branch>`, built
+  in a scratch index. Your worktree, index and stashes stay as they were.
+- **Commits on `main` that GitHub lacks:** `backup/<clone>/main`.
+- **Stashes:** `backup/<clone>/stash-<sha>`. Restore anywhere with
+  `git fetch && git stash apply origin/backup/<clone>/stash-<sha>`.
+- **Detached commits:** `backup/<clone>/detached-<sha>`.
+
+Several clones of one repo, start to finish:
+
+```bash
+for clone in ~/Developer/Personal/app ~/Dropbox/Zysys/Software/app; do wt -C "$clone" sync; done
+wt -C ~/Developer/Personal/app tidy   # the clone you keep
+repo-retire check ~/Dropbox/Zysys/Software/app
+```
+
+`wt sync` exits 1 while a branch conflicts, a push fails, or a file over
+`DEV_PROFILE_SYNC_MAX_FILE_MB` (default 50) had to be left out, so loops and
+`wt tidy` stop there. A nested repository is reported; run `wt sync` inside it.
+Each clone keeps its id in `git config dev-profile.sync-clone`.
+
+Cleanup never deletes `backup/` refs: restore what you need, then delete them
+yourself. `--pushed` keeps a worktree that holds ignored files (`.env`, local
+config) the main checkout lacks, and says which.
+
+Preview with `wt sync -- --dry-run` or `wt tidy -- --dry-run`.
 
 ## Adding a tool
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# The PR scripts behind `wt pr`, `wt pr-draft`, `wt pr-auto`, `wt ship` and
-# `wt prune`: what they publish, skip, merge, notify and remove. Real git;
+# The PR scripts behind `wt pr`, `wt pr-draft`, `wt pr-auto` and `wt ship`:
+# what they publish, skip, merge, notify and remove. Real git;
 # gh, wt, kitten and the notifiers are stubs that log their arguments.
 # Usage: pr-fixture.sh <generated-dir>
 set -euo pipefail
@@ -92,7 +92,6 @@ export PATH="${stubs}:${PATH}"
 unset KITTY_LISTEN_ON KITTY_WINDOW_ID
 publish="${out}/bin/dev-profile-pr"
 watch="${out}/bin/dev-profile-pr-watch"
-prune="${out}/bin/dev-profile-prune"
 
 reset() { : >"$PR_LOG" && rm -f "$state"/*; }
 logged() { grep -qF -- "$1" "$PR_LOG"; }
@@ -209,17 +208,6 @@ echo MERGED >"${state}/pr_state"
 "$watch" 7 >/dev/null 2>&1 </dev/null || fail "an already merged PR must clean up"
 logged "pr merge" && fail "an already merged PR must not be merged again"
 logged "wt remove --foreground feature" || fail "an already merged PR must remove its branch"
-
-reset
-printf 'feature %s\nother %s\n' "$(git rev-parse feature)" "$(git rev-parse main)" >"${state}/merged"
-"$prune" >/dev/null 2>&1 || fail "prune must succeed"
-logged "wt step prune --foreground" || fail "prune must run wt step prune first"
-logged "wt remove --foreground --force-delete feature" || fail "prune must remove a branch whose tip GitHub merged"
-
-reset
-printf 'feature 0000000000000000000000000000000000000000\n' >"${state}/merged"
-"$prune" --dry-run >/dev/null 2>&1 || fail "prune --dry-run must succeed"
-logged "wt remove" && fail "prune must not remove a branch whose tip differs from the merged PR"
 # Not interactive (a loop, a script): --auto detaches the watcher, no tab.
 git switch -q chore/edit
 reset

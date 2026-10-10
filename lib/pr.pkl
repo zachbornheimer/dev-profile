@@ -1,6 +1,6 @@
 /// GitHub pull-request scripts behind the worktrunk aliases: publish a branch
-/// (pr, pr-draft, pr-auto, ship), watch it through CI to merge and clean up
-/// (pr-auto), and remove branches GitHub already merged (prune).
+/// (pr, pr-draft, pr-auto, ship) and watch it through CI to merge and clean up
+/// (pr-auto). lib/sync.pkl reuses the GitHub fragments.
 module pr
 
 import "../profile.pkl"
@@ -10,7 +10,7 @@ import "script.pkl"
 function bin(name: String): String = "\(profile.installPath)/bin/\(name)"
 
 /// Script fragment: `owner`, `default_branch` and `branch_prs <branch> <state>`.
-local github =
+github: String =
   #"""
   command -v gh >/dev/null || {
     echo "GitHub CLI (gh) is required" >&2
@@ -29,7 +29,7 @@ local github =
   """#
 
 /// Script fragment: `remove_merged <branch> <merged-oid>`.
-local removeMerged =
+removeMerged: String =
   #"""
   # Remove branch $1 and its worktree, given $2: the head commit GitHub merged.
   # Force-deletes only when the local tip is exactly that commit, so work made
@@ -344,48 +344,10 @@ local watch =
   status "merged and cleaned up"
   """#
 
-local prune =
-  #"""
-  \#(script.bash)
-  # Remove worktrees and branches already merged: wt step prune's own checks,
-  # then branches whose tip is exactly a PR GitHub merged (squash merges wt
-  # cannot prove integrated). Takes wt step prune's flags; --dry-run previews.
-  dry_run=false
-  args=()
-  for arg in "$@"; do
-    case "${arg}" in
-    --dry-run) dry_run=true ;;
-    --foreground) continue ;; # always foreground, so the sweep below sees the result
-    esac
-    args+=("${arg}")
-  done
-
-  git fetch --all --prune --quiet
-  wt step prune --foreground ${args[@]+"${args[@]}"}
-
-  \#(github)
-  \#(removeMerged)
-  merged="$(gh pr list --state merged --limit "${DEV_PROFILE_PRUNE_PR_LIMIT:-200}" \
-    --json headRefName,headRefOid,headRepositoryOwner \
-    --jq ".[] | select(.headRepositoryOwner.login == \"${owner}\") | \"\(.headRefName) \(.headRefOid)\"")"
-
-  # fd 3 keeps wt's stdin free for approval prompts.
-  while read -r name oid <&3; do
-    [[ -n "${name}" && "${name}" != "${default_branch}" ]] || continue
-    [[ "$(git rev-parse --verify --quiet "refs/heads/${name}")" == "${oid}" ]] || continue
-    if [[ "${dry_run}" == true ]]; then
-      echo "Would remove ${name}: its PR merged on GitHub"
-    else
-      remove_merged "${name}" "${oid}" || echo "Kept ${name}" >&2
-    fi
-  done 3<<<"${merged}"
-  """#
-
 /// Generated bin/ scripts the worktrunk aliases run.
 wrappers: Mapping<String, String> = new {
   ["dev-profile-pr"] = publish
   ["dev-profile-pr-watch"] = watch
-  ["dev-profile-prune"] = prune
 }
 
 /// Publish one branch; nothing here prompts, so loops can call it.
@@ -406,5 +368,4 @@ aliases: Mapping<String, String> = new {
   // Current worktree only, as a draft; skips cleanly, for ship-all.
   ["ship"] = bin("dev-profile-pr") + " --draft"
   ["ship-all"] = "git fetch origin --prune && wt step for-each -- wt ship"
-  ["prune"] = bin("dev-profile-prune") + " {{ args }}"
 }

@@ -1,0 +1,415 @@
+/// Keep every clone of a repo backed up to GitHub, reconcile what diverged
+/// between clones, then clean up what GitHub already holds: the scripts behind
+/// `wt sync`, `wt reconcile`, `wt prune` and `wt tidy`.
+module sync
+
+import "pr.pkl"
+import "script.pkl"
+
+/// Script fragment: fetch origin, then `default_branch`, `on_github`,
+/// `adds_nothing`, `worktrees` and `worktree_of`.
+local repoFacts =
+  #"""
+  # Only origin: another remote that fails must not stop this. PR heads land in
+  # refs/sync/pull, out of `git branch -r`, so work GitHub holds only as a PR counts.
+  git fetch --prune --quiet origin '+refs/heads/*:refs/remotes/origin/*' '+refs/pull/*/head:refs/sync/pull/*'
+  git symbolic-ref --quiet refs/remotes/origin/HEAD >/dev/null ||
+    git remote set-head origin --auto >/dev/null 2>&1 || true
+  default_branch="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || :)"
+  default_branch="${default_branch#origin/}"
+  default_branch="${default_branch:-main}"
+  base="refs/remotes/origin/${default_branch}"
+
+  # True when a branch or PR head on origin already contains commit $1.
+  on_github() {
+    [[ -n "$(git for-each-ref --contains "$1" --count=1 refs/remotes/origin refs/sync/pull)" ]]
+  }
+
+  # True when merging $1 into $2 would change nothing: an ancestor, or content
+  # already there (a squash merge, or a rebase that $2 went through).
+  adds_nothing() {
+    git merge-base --is-ancestor "$1" "$2" && return 0
+    local tree
+    tree="$(git merge-tree --write-tree "$2" "$1" 2>/dev/null | head -n 1)" || return 1
+    [[ "${tree}" == "$(git rev-parse "$2^{tree}")" ]]
+  }
+
+  # Worktrees, the primary first, one per line as fields split by ${sep} (empty
+  # fields survive, unlike tabs): path, branch (empty when detached), HEAD, and
+  # "locked" or empty.
+  sep=$'\037'
+  worktrees() {
+    git worktree list --porcelain | awk -v OFS="${sep}" '
+      function emit() { if (path != "") print path, branch, head, locked }
+      /^worktree / { emit(); path = substr($0, 10); branch = ""; head = ""; locked = "" }
+      /^HEAD / { head = substr($0, 6) }
+      /^branch refs\/heads\// { branch = substr($0, 19) }
+      /^locked/ { locked = "locked" }
+      END { emit() }'
+  }
+
+  # The worktree line for branch $1, if it has one.
+  worktree_of() { worktrees | awk -F "${sep}" -v b="$1" '$2 == b { print; exit }'; }
+  """#
+
+local syncScript =
+  #"""
+  \#(script.bash)
+  # Back up everything unique in this clone to GitHub, so another clone or
+  # machine can carry on and this one can be cleaned up or retired. Nothing in
+  # your worktrees changes, and nothing on GitHub is rewritten except this
+  # clone's own backup/<clone>/ refs.
+  #   branches   pushed. One that another clone moved on GitHub is rebased onto
+  #              it when that applies cleanly; a conflict is kept as
+  #              backup/<clone>/<branch> (resolve with: wt reconcile <branch>)
+  #   changes    uncommitted and untracked files: backup/<clone>/wip/<branch>
+  #   main       commits GitHub lacks: backup/<clone>/main
+  #   stashes    backup/<clone>/stash-<sha>; restore with: git stash apply <sha>
+  #   detached   commits GitHub lacks: backup/<clone>/detached-<sha>
+  # A branch whose commits or content GitHub already holds (a PR head, a squash
+  # merge, an older copy of a rebased branch) is not unique and stays local.
+  # Files over DEV_PROFILE_SYNC_MAX_FILE_MB (default 50) are left out and
+  # reported. Exits 1 while a conflict, a failed push or a left-out file remains.
+  # --dry-run reports without pushing.
+  max_file_mb="${DEV_PROFILE_SYNC_MAX_FILE_MB:-50}"
+  dry_run=false
+  case "${1:-}" in
+  --dry-run) dry_run=true ;;
+  "") ;;
+  *)
+    echo "usage: dev-profile-sync [--dry-run]" >&2
+    exit 2
+    ;;
+  esac
+
+  \#(repoFacts)
+  # This clone's id, kept in its git config from the first sync on, so two
+  # clones never share one even with the same hostname and path.
+  clone="$(git config --get dev-profile.sync-clone || :)"
+  if [[ -z "${clone}" ]]; then
+    root="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")"
+    clone="$(hostname -s)-$(basename "${root}")-$(od -An -N3 -tx1 /dev/urandom | tr -d ' \n')"
+    clone="$(tr '[:upper:]' '[:lower:]' <<<"${clone}" | tr -c 'a-z0-9.\n-' '-')"
+    [[ "${dry_run}" == true ]] || git config --local dev-profile.sync-clone "${clone}"
+  fi
+  echo "clone ${clone}"
+  conflicts=0 failures=0
+  # Files a snapshot had to leave out, one per line (snapshots run in subshells).
+  left_out="$(mktemp)"
+  trap 'rm -f "${left_out}"' EXIT
+  # Report verbs: what happened, or under --dry-run what would.
+  pushed=pushed backed_up=backed-up
+  if [[ "${dry_run}" == true ]]; then pushed="would push" backed_up="would back up"; fi
+
+  report() { printf '  %-13s %s\n' "$1" "$2"; }
+
+  # push <commit> <branch> [git push flags...]: no-op under --dry-run.
+  push() {
+    local commit="$1" branch="$2"
+    shift 2
+    [[ "${dry_run}" == false ]] || return 0
+    git push --quiet "$@" origin "${commit}:refs/heads/${branch}"
+  }
+
+  # send <commit> <branch> <verb>: push, never forced. A failure (a rejected
+  # push, a file GitHub refuses) is reported and counted, not fatal.
+  send() {
+    if push "$1" "$2"; then
+      report "$3" "$2"
+    else
+      report failed "$2"
+      failures=$((failures + 1))
+    fi
+  }
+
+  # Ensure backup/<clone>/$2 on origin holds commit $1. The namespace is this
+  # clone's own and holds only copies, so replacing a ref there loses nothing.
+  backup() {
+    local ref="backup/${clone}/$2"
+    [[ "$(git rev-parse --verify --quiet "refs/remotes/origin/${ref}")" != "$(git rev-parse "$1")" ]] || return 0
+    if push "$1" "${ref}" --force-with-lease="refs/heads/${ref}"; then
+      report "${backed_up}" "${ref}"
+    else
+      report failed "${ref}"
+      failures=$((failures + 1))
+    fi
+  }
+
+  # A commit of HEAD plus every staged, unstaged and untracked change in
+  # worktree $1, built in a scratch index: the worktree itself is untouched.
+  # A file over the size limit keeps its committed version (or stays out, if
+  # new) and is recorded in ${left_out}. A nested repository is recorded as a
+  # pointer only and reported: back it up by running wt sync inside it.
+  snapshot() {
+    local index tree path size
+    index="$(mktemp)"
+    cp "$(git -C "$1" rev-parse --path-format=absolute --git-path index)" "${index}"
+    GIT_INDEX_FILE="${index}" git -C "$1" add -A 2>/dev/null # quiet about nested repositories; a failure still stops here
+    while IFS= read -r -d '' path; do
+      size="$(GIT_INDEX_FILE="${index}" git -C "$1" cat-file -s ":${path}" 2>/dev/null)" || continue
+      if ((size > max_file_mb * 1024 * 1024)); then
+        GIT_INDEX_FILE="${index}" git -C "$1" reset --quiet HEAD -- "${path}"
+        echo "$1/${path}" >>"${left_out}"
+        report skipped "$1/${path}: over ${max_file_mb} MB" >&2
+      fi
+    done < <(GIT_INDEX_FILE="${index}" git -C "$1" diff --cached --name-only -z --diff-filter=AM HEAD)
+    GIT_INDEX_FILE="${index}" git -C "$1" diff --cached --raw --diff-filter=A HEAD |
+      awk -F '\t' '$1 ~ / 160000 / { print $2 }' | while IFS= read -r path; do
+      report nested "$1/${path}: a repository of its own; run wt sync inside it" >&2
+    done
+    tree="$(GIT_INDEX_FILE="${index}" git -C "$1" write-tree)"
+    rm -f "${index}"
+    git -C "$1" commit-tree "${tree}" -p HEAD -m "wip: uncommitted changes in $1"
+  }
+
+  # Rebase branch $1 onto origin/$1. Returns 1, with nothing changed, when the
+  # rebase conflicts or the branch's worktree has uncommitted changes.
+  # Runs as a condition, where set -e is off, so every step checks itself.
+  reconcile() {
+    local dir scratch="" code=0 old
+    old="$(git rev-parse "refs/heads/$1")"
+    dir="$(worktree_of "$1" | cut -d "${sep}" -f1)"
+    if [[ -n "${dir}" ]]; then
+      [[ -z "$(git -C "${dir}" status --porcelain)" ]] || return 1
+    else
+      scratch="$(mktemp -d)"
+      git worktree add --quiet --detach "${scratch}" "${old}" || return 1
+      dir="${scratch}"
+    fi
+    # updateRefs off: a user setting must not move other branches along.
+    if git -C "${dir}" -c rebase.updateRefs=false rebase --quiet "origin/$1" >/dev/null 2>&1; then
+      # Move the branch only if it still points where it did before the rebase.
+      if [[ -n "${scratch}" ]]; then
+        git update-ref "refs/heads/$1" "$(git -C "${dir}" rev-parse HEAD)" "${old}" || code=1
+      fi
+    else
+      git -C "${dir}" rebase --abort >/dev/null 2>&1 || true
+      code=1
+    fi
+    if [[ -n "${scratch}" ]]; then git worktree remove --force "${scratch}" || true; fi
+    return "${code}"
+  }
+
+  # Branches. fd 3 keeps git's stdin free.
+  while read -r branch tip <&3; do
+    [[ "${branch}" != "${default_branch}" ]] || continue
+    remote="$(git rev-parse --verify --quiet "refs/remotes/origin/${branch}" || :)"
+    [[ "${remote}" != "${tip}" ]] || continue
+    if [[ -z "${remote}" ]]; then
+      on_github "${tip}" || adds_nothing "${tip}" "${base}" || send "${tip}" "${branch}" "${pushed}"
+    elif git merge-base --is-ancestor "${remote}" "${tip}"; then
+      send "${tip}" "${branch}" "${pushed}"
+    elif adds_nothing "${tip}" "${remote}" || adds_nothing "${tip}" "${base}"; then
+      continue # GitHub's copy, or the default branch, already holds this content
+    elif [[ "${dry_run}" == true ]]; then
+      report diverged "${branch}: would rebase onto GitHub's, or back it up"
+    elif reconcile "${branch}"; then
+      send "$(git rev-parse "refs/heads/${branch}")" "${branch}" reconciled
+    else
+      backup "${tip}" "${branch}"
+      report conflict "${branch}: resolve with: wt reconcile ${branch}"
+      conflicts=$((conflicts + 1))
+    fi
+  done 3< <(git for-each-ref --format='%(refname:short) %(objectname)' refs/heads)
+
+  # Commits on the default branch that GitHub lacks.
+  main_tip="$(git rev-parse --verify --quiet "refs/heads/${default_branch}" || :)"
+  if [[ -n "${main_tip}" ]] && ! on_github "${main_tip}" && ! adds_nothing "${main_tip}" "${base}"; then backup "${main_tip}" "${default_branch}"; fi
+
+  # Uncommitted changes and detached commits, per worktree.
+  while IFS="${sep}" read -r dir branch head _ <&3; do
+    [[ -d "${dir}" && -n "${head}" ]] || continue # a bare primary has no HEAD of its own
+    name="${branch:-detached-${head:0:12}}"
+    if [[ -n "$(git -C "${dir}" status --porcelain)" ]]; then
+      commit="$(snapshot "${dir}")"
+      ref="refs/remotes/origin/backup/${clone}/wip/${name}"
+      # Same changes as the last backup: commit-tree stamps a new time, so compare trees.
+      if [[ "$(git rev-parse --verify --quiet "${ref}^{tree}")" != "$(git rev-parse "${commit}^{tree}")" ||
+        "$(git rev-parse --verify --quiet "${ref}^")" != "${head}" ]]; then
+        backup "${commit}" "wip/${name}"
+      fi
+    fi
+    if [[ -z "${branch}" ]] && ! on_github "${head}"; then backup "${head}" "${name}"; fi
+  done 3< <(worktrees)
+
+  # Stashes: a stash is a commit, so it travels as a branch and applies anywhere.
+  while read -r stash <&3; do
+    [[ -n "${stash}" ]] || continue
+    on_github "${stash}" || backup "${stash}" "stash-${stash:0:12}"
+  done 3< <(git stash list --format=%H)
+
+  if [[ "${failures}" -gt 0 ]]; then
+    echo "${failures} push(es) failed; see above. Everything else was sent." >&2
+  fi
+  if [[ "${conflicts}" -gt 0 ]]; then
+    echo "${conflicts} branch(es) conflict with GitHub; each is backed up. Resolve with: wt reconcile <branch>" >&2
+  fi
+  if [[ -s "${left_out}" ]]; then
+    echo "$(wc -l <"${left_out}" | tr -d ' ') file(s) over ${max_file_mb} MB were left out; GitHub does not have them (see skipped above)." >&2
+  fi
+  [[ "${conflicts}" -eq 0 && "${failures}" -eq 0 && ! -s "${left_out}" ]] || exit 1
+  if [[ "${dry_run}" == true ]]; then
+    echo "Dry run: nothing pushed"
+  else
+    echo "Everything unique in this clone is on GitHub"
+  fi
+  """#
+
+local reconcileScript =
+  #"""
+  \#(script.bash)
+  # Rebase the current branch onto GitHub's copy and push the result. On a
+  # conflict, stop mid-rebase in this worktree for a person to resolve.
+  branch="$(git symbolic-ref --quiet --short HEAD)" || {
+    echo "Detached HEAD; check out the branch to reconcile" >&2
+    exit 1
+  }
+  git fetch --quiet origin
+  if ! git rev-parse --verify --quiet "refs/remotes/origin/${branch}" >/dev/null; then
+    echo "origin/${branch} does not exist; nothing to reconcile. Publish it with: wt sync"
+    exit 0
+  fi
+  if ! git rebase "origin/${branch}"; then
+    echo "Resolve the conflicts in $(pwd), then: git rebase --continue && wt sync" >&2
+    exit 1
+  fi
+  git push origin "HEAD:refs/heads/${branch}"
+  echo "Reconciled ${branch} with GitHub"
+  """#
+
+local pruneScript =
+  #"""
+  \#(script.bash)
+  # Remove what is already safe on GitHub. Always: worktrees and branches
+  # merged into the default branch (wt step prune), and branches whose tip is
+  # exactly a PR GitHub merged (squash merges wt cannot prove integrated).
+  #   --pushed  also clean worktrees and branches whose tip equals GitHub's
+  #   --remote  also branches on GitHub already absorbed into the default branch
+  #             (never one with an open PR)
+  # Other flags go to wt step prune; --dry-run previews everything.
+  dry_run=false pushed=false remote=false
+  args=()
+  for arg in "$@"; do
+    case "${arg}" in
+    --pushed)
+      pushed=true
+      continue
+      ;;
+    --remote)
+      remote=true
+      continue
+      ;;
+    --foreground) continue ;; # always foreground, so the sweeps below see the result
+    --dry-run) dry_run=true ;;
+    esac
+    args+=("${arg}")
+  done
+
+  \#(repoFacts)
+  wt step prune --foreground ${args[@]+"${args[@]}"}
+
+  \#(pr.github)
+  \#(pr.removeMerged)
+
+  # remove <branch> <reason> [wt remove flags...]: honours --dry-run.
+  remove() {
+    local branch="$1" reason="$2"
+    shift 2
+    if [[ "${dry_run}" == true ]]; then
+      echo "Would remove ${branch}: ${reason}"
+    else
+      wt remove --foreground "$@" "${branch}" || echo "Kept ${branch}" >&2
+    fi
+  }
+
+  merged="$(gh pr list --state merged --limit "${DEV_PROFILE_PRUNE_PR_LIMIT:-200}" \
+    --json headRefName,headRefOid,headRepositoryOwner \
+    --jq ".[] | select(.headRepositoryOwner.login == \"${owner}\") | \"\(.headRefName) \(.headRefOid)\"")"
+
+  # fd 3 keeps wt's stdin free for approval prompts.
+  while read -r name oid <&3; do
+    [[ -n "${name}" && "${name}" != "${default_branch}" ]] || continue
+    [[ "$(git rev-parse --verify --quiet "refs/heads/${name}")" == "${oid}" ]] || continue
+    if [[ "${dry_run}" == true ]]; then
+      echo "Would remove ${name}: its PR merged on GitHub"
+    else
+      remove_merged "${name}" "${oid}" || echo "Kept ${name}" >&2
+    fi
+  done 3<<<"${merged}"
+
+  if [[ "${pushed}" == true ]]; then
+    primary="$(worktrees | head -n 1 | cut -d "${sep}" -f1)"
+
+    # Ignored files in worktree $1 (.env, local config) that the primary worktree
+    # lacks or holds differently: removing the worktree would destroy them.
+    unique_ignored() {
+      local path
+      while IFS= read -r -d '' path; do
+        [[ "${path}" == '!! '* ]] || continue
+        path="${path#!! }"
+        path="${path%/}"
+        if [[ -d "$1/${path}" ]]; then
+          [[ -e "${primary}/${path}" ]] || echo "${path}"
+        else
+          cmp -s "$1/${path}" "${primary}/${path}" || echo "${path}"
+        fi
+      done < <(git -C "$1" status --porcelain=v1 -z --ignored)
+    }
+
+    while read -r branch tip <&3; do
+      [[ "${branch}" != "${default_branch}" ]] || continue
+      [[ "$(git rev-parse --verify --quiet "refs/remotes/origin/${branch}")" == "${tip}" ]] || continue
+      dir="" locked=""
+      IFS="${sep}" read -r dir _ _ locked < <(worktree_of "${branch}") || true
+      [[ "${dir}" != "${primary}" && -z "${locked}" ]] || continue
+      if [[ -n "${dir}" ]]; then
+        [[ -z "$(git -C "${dir}" status --porcelain)" ]] || continue
+        only_here="$(unique_ignored "${dir}" | head -n 3 | paste -sd, -)"
+        if [[ -n "${only_here}" ]]; then
+          echo "Kept ${branch}: ignored files exist only in ${dir} (${only_here}); remove it yourself once they are safe" >&2
+          continue
+        fi
+      fi
+      remove "${branch}" "identical to GitHub's copy" --force-delete
+    done 3< <(git for-each-ref --format='%(refname:short) %(objectname)' refs/heads)
+  fi
+
+  if [[ "${remote}" == true ]]; then
+    open="$(gh pr list --state open --limit 1000 --json headRefName,headRepositoryOwner \
+      --jq ".[] | select(.headRepositoryOwner.login == \"${owner}\") | .headRefName")"
+    while read -r branch tip <&3; do
+      [[ "${branch}" != "${default_branch}" && "${branch}" != HEAD ]] || continue
+      # Never sync's backups: a stash keeps untracked files in a parent that
+      # "absorbed into main" cannot see. Delete those by hand once restored.
+      [[ "${branch}" != backup/* ]] || continue
+      grep -qxF -- "${branch}" <<<"${open}" && continue
+      adds_nothing "${tip}" "${base}" || continue # squash merges count too
+      if [[ "${dry_run}" == true ]]; then
+        echo "Would delete origin/${branch}: absorbed into ${default_branch}"
+      else
+        git push --quiet --force-with-lease="refs/heads/${branch}:${tip}" --delete origin "${branch}" &&
+          echo "Deleted origin/${branch}: absorbed into ${default_branch}"
+      fi
+    done 3< <(git for-each-ref --format='%(refname:lstrip=3) %(objectname)' refs/remotes/origin)
+  fi
+  """#
+
+/// Generated bin/ scripts the worktrunk aliases run.
+wrappers: Mapping<String, String> = new {
+  ["dev-profile-sync"] = syncScript
+  ["dev-profile-reconcile"] = reconcileScript
+  ["dev-profile-prune"] = pruneScript
+}
+
+/// Worktrunk aliases over the scripts above.
+aliases: Mapping<String, String> = new {
+  ["sync"] = pr.bin("dev-profile-sync") + " {{ args }}"
+  ["reconcile"] = "wt switch {{ args }} -x \(pr.bin("dev-profile-reconcile"))"
+  ["prune"] = pr.bin("dev-profile-prune") + " {{ args }}"
+  // Back up first; clean up only once nothing conflicts.
+  ["tidy"] =
+    pr.bin("dev-profile-sync")
+      + " {{ args }} && "
+      + pr.bin("dev-profile-prune")
+      + " --remote --pushed {{ args }}"
+}
