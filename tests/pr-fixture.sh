@@ -209,7 +209,7 @@ reset
 KITTY_LISTEN_ON=unix:/tmp/fixture "$publish" --auto >/dev/null 2>&1 </dev/null || fail "non-interactive pr --auto must publish"
 logged "kitten @" && fail "non-interactive pr --auto must not open a kitty tab"
 log="$(git rev-parse --path-format=absolute --git-common-dir)/wt/logs/pr-watch-chore-edit.log"
-for _ in "$(seq 50)"; do
+for ((attempt = 0; attempt < 50; attempt++)); do
 	grep -q "merged and cleaned up" "$log" 2>/dev/null && break
 	sleep 0.2
 done
