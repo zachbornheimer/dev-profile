@@ -232,16 +232,21 @@ local watch =
     fi || true
   }
 
-  tab_color() {
+  # mark_tab <color> <outcome>: colour the tab and pin its title, so the outcome
+  # stays visible after a shell takes the window over.
+  mark_tab() {
     [[ -n "${KITTY_LISTEN_ON:-}" && -n "${KITTY_WINDOW_ID:-}" ]] || return 0
-    kitten @ --to "${KITTY_LISTEN_ON}" set-tab-color --match "window_id:${KITTY_WINDOW_ID}" \
+    local tab=(--to "${KITTY_LISTEN_ON}")
+    kitten @ "${tab[@]}" set-tab-color --match "window_id:${KITTY_WINDOW_ID}" \
       "active_bg=$1" "inactive_bg=$1" >/dev/null 2>&1 || true
+    kitten @ "${tab[@]}" set-tab-title --match "window_id:${KITTY_WINDOW_ID}" \
+      "PR #${number}: $2" >/dev/null 2>&1 || true
   }
 
   # Report a failure; in a terminal, stay open in a shell to fix it.
   fail() {
     status "$1"
-    tab_color "#b03030"
+    mark_tab "#b03030" "$1"
     notify critical "PR #${number}: $1" "${title}"
     echo "${url}"
     if [[ -t 0 && -t 1 ]]; then
@@ -308,7 +313,7 @@ local watch =
   fi
   [[ "${state}" == MERGED ]] || fail "closed without merging"
 
-  tab_color "#2f8f46"
+  mark_tab "#2f8f46" merged
   notify normal "PR #${number} merged" "${title}"
   if [[ "${from_fork}" == true ]]; then
     status "merged; its branch lives in a fork, so nothing here to clean up"

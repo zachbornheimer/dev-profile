@@ -190,7 +190,7 @@ logged "wt remove" && fail "a merged fork PR must not remove a local branch"
 
 # After the merge, the checked-out default branch catches up and its
 # post-merge hooks run (dev-profile re-renders the live profile from one).
-git clone -q "${work}/origin.git" "${work}/other" 2>/dev/null
+git clone -q -b main "${work}/origin.git" "${work}/other" 2>/dev/null
 git -C "${work}/other" -c user.email=t@example.com -c user.name=t commit -q --allow-empty -m "merged on GitHub"
 git -C "${work}/other" push -q origin HEAD:main
 git switch -q main
