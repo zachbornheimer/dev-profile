@@ -200,6 +200,10 @@ local watch =
   #   DEV_PROFILE_PR_MERGE_WAIT    seconds to wait for GitHub to merge (default 14400)
   #   DEV_PROFILE_PR_MERGE_METHOD  merge|squash|rebase (default: your repo default)
   pr="${1:?usage: dev-profile-pr-watch <pr-url-or-number>}"
+  # An unexpected error must never vanish with its tab. Until the PR is known,
+  # say where it stopped (and stay open in a terminal); fail() takes over below.
+  set -E
+  trap 'echo "dev-profile-pr-watch stopped at line ${LINENO}: ${BASH_COMMAND}" >&2; if [[ -t 0 && -t 1 ]]; then exec "${SHELL:-/bin/zsh}" -i; fi' ERR
   poll="${DEV_PROFILE_PR_POLL:-15}"
   checks_wait="${DEV_PROFILE_PR_CHECKS_WAIT:-120}"
   merge_wait="${DEV_PROFILE_PR_MERGE_WAIT:-14400}"
@@ -255,6 +259,7 @@ local watch =
     fi
     exit 1
   }
+  trap 'trap - ERR; fail "stopped unexpectedly at line ${LINENO}: ${BASH_COMMAND}"' ERR
 
   check_count() {
     local n
