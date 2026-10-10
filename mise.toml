@@ -169,6 +169,7 @@ for gem_tool in bundle-audit brakeman; do command -v "$gem_tool" >/dev/null || e
 bash tests/pr-fixture.sh "$out" || fail "pr fixture"
 bash tests/shellcheck-fix-fixture.sh "$out" || fail "shellcheck-fix fixture"
 bash tests/identity-guard-fixture.sh "$out" || fail "identity-guard fixture"
+bash tests/owned-files-fixture.sh "$out" || fail "owned-files fixture"
 echo "doctor ok"
 """
 

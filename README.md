@@ -149,6 +149,21 @@ Put only `excludes` in it. `excludes` here adds to the profile's list, so the
 profile's own entries (`node_modules`, `testdata`, `generated` and the rest)
 stay excluded and you list only the extra paths.
 
+`mise run doctor` in a repo warns about each item above that it finds, plus a
+`go`, `node`, `python` or `php` pin that repeats the profile's. The warning
+becomes an error after the sweep of existing repos.
+
+## Versions
+
+- Runtimes pin to the minor (`go = "1.27"`) or, for Node, the major
+  (`node = "24"`), so patch releases arrive with no edit.
+- Linters and one-off tools pin exactly, so each weekly `bump` PR shows one
+  reviewable change per tool.
+- `latest` is never allowed. The test rejects it.
+- No `mise.lock` anywhere. The profile is the lock.
+- The bot bumps within a pin's depth. A person bumps major-only pins. The `bump`
+  PR merges itself when CI passes.
+
 ## Adding a tool
 
 A tool is one file, `tools/<category>/<name>.pkl`, amending `lib/Tool.pkl`.
