@@ -8,6 +8,7 @@ import "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pk
 import "../lib/contract.pkl" as contract
 import "../lib/hk.pkl" as config
 import "../lib/render.pkl"
+import "../lib/types.pkl"
 import "../profile.pkl"
 
 local pushSteps: Mapping<String, hk.Step> = config.hooks["pre-push"].steps
@@ -73,9 +74,8 @@ facts {
   ["tool pins do not repeat a kernel or runtime pin"] {
     for (pin in profile.toolPins) { !profile.tools.toList().any((p) -> p.id == pin.id) }
   }
-  ["no mise pin is `latest`"] {
-    for (pin in profile.toolPins) { pin.version != "latest" }
-    for (pin in profile.tools) { pin.version != "latest" }
+  ["a `latest` pin cannot be built: the Pin type rejects it"] {
+    module.catch(() -> new types.Pin { id = "x"; version = "latest" }.version).contains("latest")
   }
   ["push checks run only on request from the top-level steps"] {
     for (id, step in config.steps) {
