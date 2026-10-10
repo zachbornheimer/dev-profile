@@ -111,23 +111,27 @@ local syncScript =
     git push --quiet "$@" origin "${commit}:refs/heads/${branch}"
   }
 
-  # send <commit> <branch> <verb>: push, never forced. A failure (a rejected
-  # push, a file GitHub refuses) is reported and counted, not fatal.
+  # send <commit> <branch> <verb>: push under the branch's own name, never
+  # forced, through every pre-push check: that is publishing. When the checks
+  # (or GitHub) refuse it, the work is still preserved as a backup and the
+  # local branch stays, so cleanup leaves it alone.
   send() {
     if push "$1" "$2"; then
       report "$3" "$2"
     else
-      report failed "$2"
-      failures=$((failures + 1))
+      report gated "$2: refused under its own name; preserving it as a backup"
+      backup "$1" "$2"
     fi
   }
 
   # Ensure backup/<clone>/$2 on origin holds commit $1. The namespace is this
   # clone's own and holds only copies, so replacing a ref there loses nothing.
+  # Pre-push checks guard publishing; a backup is a preservation copy of work
+  # as it stands (often unfinished), so they are skipped here and only here.
   backup() {
     local ref="backup/${clone}/$2"
     [[ "$(git rev-parse --verify --quiet "refs/remotes/origin/${ref}")" != "$(git rev-parse "$1")" ]] || return 0
-    if push "$1" "${ref}" --force-with-lease="refs/heads/${ref}"; then
+    if push "$1" "${ref}" --no-verify --force-with-lease="refs/heads/${ref}"; then
       report "${backed_up}" "${ref}"
     else
       report failed "${ref}"
@@ -375,6 +379,7 @@ local pruneScript =
   fi
 
   if [[ "${remote}" == true ]]; then
+    doomed=() leases=()
     open="$(gh pr list --state open --limit 1000 --json headRefName,headRepositoryOwner \
       --jq ".[] | select(.headRepositoryOwner.login == \"${owner}\") | .headRefName")"
     while read -r branch tip <&3; do
@@ -387,10 +392,28 @@ local pruneScript =
       if [[ "${dry_run}" == true ]]; then
         echo "Would delete origin/${branch}: absorbed into ${default_branch}"
       else
-        git push --quiet --force-with-lease="refs/heads/${branch}:${tip}" --delete origin "${branch}" &&
-          echo "Deleted origin/${branch}: absorbed into ${default_branch}"
+        doomed+=("${branch}")
+        leases+=("--force-with-lease=refs/heads/${branch}:${tip}")
       fi
     done 3< <(git for-each-ref --format='%(refname:lstrip=3) %(objectname)' refs/remotes/origin)
+
+    # Delete in batches: pre-push hooks run once per push, not once per branch.
+    # Each lease names the tip judged absorbed, so a branch moved since is kept.
+    batch="${DEV_PROFILE_PRUNE_DELETE_BATCH:-100}"
+    for ((i = 0; i < ${#doomed[@]}; i += batch)); do
+      git push --quiet "${leases[@]:i:batch}" --delete origin "${doomed[@]:i:batch}" ||
+        echo "A batch of deletions was refused; see above" >&2
+    done
+    if [[ "${#doomed[@]}" -gt 0 ]]; then
+      git fetch --prune --quiet origin
+      for branch in "${doomed[@]}"; do
+        if git rev-parse --verify --quiet "refs/remotes/origin/${branch}" >/dev/null; then
+          echo "Kept origin/${branch}: GitHub refused the deletion" >&2
+        else
+          echo "Deleted origin/${branch}: absorbed into ${default_branch}"
+        fi
+      done
+    fi
   fi
   """#
 
