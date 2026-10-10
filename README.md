@@ -37,6 +37,7 @@ mise run rollback    # restore the backed-up originals
 | `lib/script.pkl`         | bash fragments the tool scripts share                       |
 | `lib/render.pkl`         | one renderer per generated file                             |
 | `lib/contract.pkl`       | the repo task contract (`mise run lint`, `test`, `scan`...) |
+| `lib/pr.pkl`             | the `wt pr` family: publish, watch to merge, prune          |
 | `tests/profile.test.pkl` | invariants and a snapshot of what each hook runs            |
 | `tests/*-fixture.sh`     | the generated scripts against real git and go               |
 | `mise-tasks/bump`        | bump every outdated pin to its latest release               |
@@ -63,6 +64,42 @@ explicit, never in hooks. CI judges the full tree.
 
 `mise run explain go` prints the resolved plan for one tool or one `tools/`
 category: the step name per hook, its command, files and ordering.
+
+## Pull requests from wt
+
+`lib/pr.pkl` renders three scripts and the aliases that call them. None of
+them prompt, so loops and scripts can drive them.
+
+| Alias         | Does                                                                |
+| ------------- | ------------------------------------------------------------------- |
+| `wt pr [B]`   | commit pending work, push (never force), reuse or open a PR         |
+| `wt pr-draft` | same, as a draft                                                    |
+| `wt pr-auto`  | same, then watch CI, merge when green, notify, remove the worktree  |
+| `wt ship`     | `pr-draft` for the current worktree; skips what has nothing to send |
+| `wt ship-all` | `ship` in every worktree                                            |
+| `wt prune`    | `wt step prune`, plus branches whose tip is a PR GitHub merged      |
+
+`B` switches to that branch first; without it, the current branch is published.
+`--create=<branch> -- <cmd>` makes a fresh branch, runs `<cmd>` in it, and
+publishes what changed. A command that changes nothing removes its worktree:
+
+```bash
+# One auto-merging PR per repo that still has a Prettier config.
+fd -H -E .worktrees -t f '^\.prettierrc' ~/Developer/Personal -x git -C {//} rev-parse --show-toplevel |
+  sort -u |
+  xargs -I{} wt -C {} pr-auto --create=chore/remove-prettier -- fd -H '^\.prettierrc' -X rm
+```
+
+`wt pr-auto` watches in a background kitty tab when run interactively in kitty
+(the tab title shows progress and turns red or green; the notification focuses
+it). From a loop or script it watches detached and logs to
+`.git/wt/logs/pr-watch-<branch>.log`. `DEV_PROFILE_PR_WATCH=tab|background`
+overrides the choice. The watcher merges only after every check passes, even
+where the branch has no protection, using the repo's default merge method
+(`DEV_PROFILE_PR_MERGE_METHOD` overrides).
+
+Preview a prune with `wt prune -- --dry-run`; wt reserves a bare `--dry-run`
+on aliases.
 
 ## Adding a tool
 

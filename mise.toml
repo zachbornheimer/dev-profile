@@ -126,7 +126,7 @@ fail() { echo "FAIL: $*" >&2; exit 1; }
 HK_FILE="$out/hk-config.pkl" hk validate >/dev/null || fail hk-config.pkl
 dprint output-resolved-config --config "$out/dprint.jsonc" >/dev/null || fail dprint.jsonc
 wt --config "$out/worktrunk.toml" config show >/dev/null || fail worktrunk.toml
-for alias in up pr ship ship-all; do
+for alias in up pr pr-draft pr-auto ship ship-all prune; do
   wt --config "$out/worktrunk.toml" config alias show "$alias" >/dev/null || fail "worktrunk alias $alias"
 done
 wt --config "$out/worktrunk.toml" config alias dry-run pr -- @ >/dev/null || fail worktrunk alias dry-run pr
@@ -150,7 +150,7 @@ bash tests/modernizer-fixture.sh "$out" || fail "modernizer fixture"
 bash tests/guards-fixture.sh "$out" || fail "guards fixture"
 bash tests/deny-fixture.sh "$out" || fail "deny fixture"
 for gem_tool in bundle-audit brakeman; do command -v "$gem_tool" >/dev/null || echo "note: $gem_tool is not installed; run mise install (pinned in profile.pkl tools). Its push check is skipped until then."; done
-bash tests/ship-fixture.sh "$out" || fail "ship fixture"
+bash tests/pr-fixture.sh "$out" || fail "pr fixture"
 echo "doctor ok"
 """
 
