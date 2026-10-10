@@ -127,6 +127,6 @@ commit "${work}/l/vendor" only-here.txt x
 code=0
 (cd "${work}/l" && "${retire}") >"${work}/l.out" 2>&1 || code=$?
 [[ "${code}" -ne 0 && -d "${work}/l" ]] || fail "a nested repository with unpushed work must stop retire"
-grep -q "commits its GitHub lacks" "${work}/l.out" || fail "retire must say why a nested repository stopped it"
+grep -q "work its own GitHub lacks" "${work}/l.out" || fail "retire must say why a nested repository stopped it"
 [[ "$(grep -c "separate repository" "${work}/l.out")" -eq 1 ]] || fail "a nested repository must be listed once"
 echo "retire fixture ok"
