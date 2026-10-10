@@ -474,6 +474,7 @@ local repo =
     fi
     step dev-profile-suppressions --tree
     step dev-profile-owned-files
+    step dev-profile-retire-legacy-hooks --check
   }
 
   case "${verb}" in

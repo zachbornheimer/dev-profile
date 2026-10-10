@@ -217,6 +217,8 @@ worktrunk: Dynamic = new {
   // --no-install: dependency installs belong to mise (deps auto), not workz.
   ["pre-start"] { workz = "workz sync --isolated --quiet --no-install" }
   ["post-start"] { copy = "wt step copy-ignored" }
+  // Retire hook files that retired managers left in .git/hooks, wherever you land.
+  ["post-switch"] { `retire-legacy-hooks` = pr.bin("dev-profile-retire-legacy-hooks") }
   // Release the removed worktree's workz port/DB allocation.
   ["post-remove"] { workz = "workz doctor --fix >/dev/null" }
   step { ["copy-ignored"] { exclude = List(".venv/", "**/.venv/") } }
