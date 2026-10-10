@@ -63,7 +63,7 @@ fixture_other_files_still_flag_exec() {
 	grep -q 'G204' "${work}/stderr" || fail "runner.go: expected a G204 finding, got: $(cat "${work}/stderr")"
 }
 
-# A facade is exempt from the subprocess rules only; a different finding in it still fails.
+# A facade is exempt from the boundary rules only; any other finding in it still fails.
 fixture_facade_keeps_every_other_rule() {
 	local repo
 	repo="$(new_module facade-other)"
@@ -73,15 +73,38 @@ package process
 
 import "os"
 
-func Read(path string) ([]byte, error) {
-	return os.ReadFile(path) // G304: file path from a variable
+func Write(path string, data []byte) error {
+	return os.WriteFile(path, data, 0o644) // G306: permissions wider than 0600
 }
 GO
-	if run_gosec "$repo" process/facade.go 2>"${work}/stderr"; then fail "facade.go: a non-subprocess finding was swallowed"; fi
-	grep -q 'G304' "${work}/stderr" || fail "facade.go: expected G304, got: $(cat "${work}/stderr")"
+	if run_gosec "$repo" process/facade.go 2>"${work}/stderr"; then fail "facade.go: a non-boundary finding was swallowed"; fi
+	grep -q 'G306' "${work}/stderr" || fail "facade.go: expected G306, got: $(cat "${work}/stderr")"
+}
+
+# A package directory named process is the subprocess boundary; one named fs
+# is the filesystem boundary. Each is exempt from its own rule only.
+fixture_boundary_packages_are_exempt_from_their_own_rule() {
+	local repo
+	repo="$(new_module boundary)"
+	mkdir -p "${repo}/internal/process" "${repo}/internal/fs"
+	write_exec "${repo}/internal/process/runner.go" process
+	cat >"${repo}/internal/fs/disk.go" <<'GO'
+package fs
+
+import "os"
+
+func ReadFile(path string) ([]byte, error) { return os.ReadFile(path) }
+GO
+	run_gosec "$repo" internal/process/runner.go 2>"${work}/stderr" || fail "process package: G204 blocked the boundary: $(cat "${work}/stderr")"
+	run_gosec "$repo" internal/fs/disk.go 2>"${work}/stderr" || fail "fs package: G304 blocked the boundary: $(cat "${work}/stderr")"
+	# The fs package is not exempt from the subprocess rule.
+	write_exec "${repo}/internal/fs/spawn.go" fs
+	if run_gosec "$repo" internal/fs/spawn.go 2>"${work}/stderr"; then fail "fs package: G204 was swallowed"; fi
+	grep -q 'G204' "${work}/stderr" || fail "fs package: expected G204, got: $(cat "${work}/stderr")"
 }
 
 fixture_facade_may_exec_a_caller_command
 fixture_other_files_still_flag_exec
 fixture_facade_keeps_every_other_rule
+fixture_boundary_packages_are_exempt_from_their_own_rule
 echo "gosec fixture ok"
