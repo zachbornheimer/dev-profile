@@ -90,17 +90,10 @@ local retireScript =
     fi
   done 3< <(worktrees)
 
-  # A nested repository that is not one of this clone's own worktrees would be
-  # trashed with its parent; it has its own history to back up.
-  while IFS= read -r path; do
-    [[ -n "${path}" ]] || continue
-    worktrees | cut -d "${sep}" -f1 | grep -qxF -- "${path%/}" && continue
-    blocker "a separate repository at ${path} (run wt sync there, or move it out)"
-  done < <(sort -u "${nested}")
   while IFS= read -r path; do blocker "a file too big to back up: ${path}"; done <"${left_out}"
 
-  # Ignored paths, one "<worktree><sep><path>" per line: an ignored directory
-  # holding its own repository counts as a gap; the rest is only listed.
+  # Ignored paths, one "<worktree><sep><path>" per line; they are listed below.
+  # An ignored directory holding its own repository joins ${nested}.
   ignored_list="$(mktemp)"
   trap 'rm -f "${left_out}" "${nested}" "${ignored_list}"' EXIT
   for dir in "${primary}" ${doomed[@]+"${doomed[@]}"}; do
@@ -108,10 +101,31 @@ local retireScript =
       awk -v d="${dir}" -v s="${sep}" '{ print d s $0 }'
   done >"${ignored_list}"
   while IFS="${sep}" read -r dir path; do
-    [[ -e "${dir}/${path}/.git" ]] || continue
-    worktrees | cut -d "${sep}" -f1 | grep -qxF -- "${dir}/${path}" && continue
-    blocker "a separate repository at ${dir}/${path} (ignored; run wt sync there, or move it out)"
+    if [[ -e "${dir}/${path}/.git" ]]; then echo "${dir}/${path}" >>"${nested}"; fi
   done <"${ignored_list}"
+
+  # Why repository $1 holds work its own GitHub lacks, or nothing when it holds none.
+  nested_unique() {
+    git -C "$1" remote get-url origin >/dev/null 2>&1 || { echo "it has no origin" && return; }
+    git -C "$1" fetch --quiet origin 2>/dev/null || { echo "its origin is unreachable" && return; }
+    [[ -z "$(git -C "$1" status --porcelain 2>/dev/null)" ]] || { echo "uncommitted changes" && return; }
+    [[ -z "$(git -C "$1" stash list 2>/dev/null)" ]] || { echo "stashes" && return; }
+    [[ -z "$(git -C "$1" rev-list --branches --not --remotes=origin 2>/dev/null)" ]] || echo "commits its GitHub lacks"
+  }
+
+  # A repository nested in a worktree goes to the Trash with it: fine when its
+  # own GitHub holds everything in it, a blocker otherwise.
+  while IFS= read -r path; do
+    path="${path%/}"
+    [[ -n "${path}" ]] || continue
+    worktrees | cut -d "${sep}" -f1 | grep -qxF -- "${path}" && continue # one of this clone's worktrees
+    why="$(nested_unique "${path}")"
+    if [[ -n "${why}" ]]; then
+      blocker "a separate repository at ${path}: ${why} (run wt sync there, or move it out)"
+    else
+      report nested "${path}: its own GitHub holds everything"
+    fi
+  done < <(sed 's:/$::' "${nested}" | sort -u)
 
   if [[ "${blockers}" -gt 0 ]]; then
     echo "Not retiring: ${blockers} item(s) above cannot be backed up. Nothing was deleted." >&2
