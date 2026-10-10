@@ -141,7 +141,7 @@ fail() { echo "FAIL: $*" >&2; exit 1; }
 HK_FILE="$out/hk-config.pkl" hk validate >/dev/null || fail hk-config.pkl
 dprint output-resolved-config --config "$out/dprint.jsonc" >/dev/null || fail dprint.jsonc
 wt --config "$out/worktrunk.toml" config show >/dev/null || fail worktrunk.toml
-for alias in up pr pr-draft pr-auto ship ship-all prune sync reconcile tidy; do
+for alias in up pr pr-draft pr-auto ship ship-all prune sync reconcile tidy retire; do
   wt --config "$out/worktrunk.toml" config alias show "$alias" >/dev/null || fail "worktrunk alias $alias"
 done
 wt --config "$out/worktrunk.toml" config alias dry-run pr -- @ >/dev/null || fail worktrunk alias dry-run pr
@@ -171,6 +171,7 @@ bash tests/deny-fixture.sh "$out" || fail "deny fixture"
 for gem_tool in bundle-audit brakeman; do command -v "$gem_tool" >/dev/null || echo "note: $gem_tool is not installed; run mise install (pinned in profile.pkl tools). Its push check is skipped until then."; done
 bash tests/pr-fixture.sh "$out" || fail "pr fixture"
 bash tests/sync-fixture.sh "$out" || fail "sync fixture"
+bash tests/retire-fixture.sh "$out" || fail "retire fixture"
 bash tests/shellcheck-fix-fixture.sh "$out" || fail "shellcheck-fix fixture"
 bash tests/identity-guard-fixture.sh "$out" || fail "identity-guard fixture"
 bash tests/owned-files-fixture.sh "$out" || fail "owned-files fixture"

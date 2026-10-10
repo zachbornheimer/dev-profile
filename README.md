@@ -39,6 +39,7 @@ mise run rollback    # restore the backed-up originals
 | `lib/contract.pkl`       | the repo task contract (`mise run lint`, `test`, `scan`...) |
 | `lib/pr.pkl`             | the `wt pr` family: publish, watch to merge                 |
 | `lib/sync.pkl`           | `wt sync`, `reconcile`, `prune`, `tidy`: back up and clean  |
+| `lib/retire.pkl`         | `wt retire`: back up, prove it, then Trash the clone        |
 | `tests/profile.test.pkl` | invariants and a snapshot of what each hook runs            |
 | `tests/*-fixture.sh`     | the generated scripts against real git and go               |
 | `mise-tasks/bump`        | bump every outdated pin to its latest release               |
@@ -116,6 +117,7 @@ copies on one machine (or several machines) can converge and be cleaned up.
 | `wt prune --pushed` | also clean worktrees and branches identical to GitHub's             |
 | `wt prune --remote` | also delete GitHub branches already absorbed into `main`            |
 | `wt tidy`           | `sync`, then `prune --remote --pushed`; stops if anything conflicts |
+| `wt retire`         | `sync`, prove GitHub has everything, then Trash the clone           |
 
 What `wt sync` sends, all under this clone's own `backup/<clone>/` namespace
 unless it is a plain branch:
@@ -136,7 +138,7 @@ Several clones of one repo, start to finish:
 ```bash
 for clone in ~/Developer/Personal/app ~/Dropbox/Zysys/Software/app; do wt -C "$clone" sync; done
 wt -C ~/Developer/Personal/app tidy   # the clone you keep
-repo-retire check ~/Dropbox/Zysys/Software/app
+wt -C ~/Dropbox/Zysys/Software/app retire   # the clone you drop
 ```
 
 `wt sync` exits 1 while a branch conflicts, a push fails, or a file over
@@ -150,6 +152,14 @@ config) the main checkout lacks, and says which. Tool state that regenerates
 itself does not count: `DEV_PROFILE_PRUNE_DISPOSABLE` lists it (default `.trunk`).
 
 Preview with `wt sync -- --dry-run` or `wt tidy -- --dry-run`.
+
+To delete a clone, run `wt retire` inside it. It syncs, then checks with plain
+git that every branch, stash, uncommitted change and detached commit is on
+GitHub (a conflict counts once its backup is there), and only then moves the
+clone and all its worktrees to the Trash. A file too big to back up or a
+separate repository inside a worktree stops it; nothing is deleted. Ignored
+files are listed, not backed up. `wt sync` exits 3 when only backed-up
+conflicts remain, so `wt tidy` still stops there while `wt retire` proceeds.
 
 ## Repo contract
 
