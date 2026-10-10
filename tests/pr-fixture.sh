@@ -56,7 +56,10 @@ case "$*" in
 	echo MERGED >"${PR_STATE}/pr_state"
 	if [[ -e "${PR_STATE}/blip_after_merge" ]]; then touch "${PR_STATE}/blip"; fi
 	;;
-"pr view "*"--json headRefOid"*) read_state oid '' ;;
+"pr view "*"--json headRefOid"*)
+	if [[ -e "${PR_STATE}/oid_breaks" ]]; then exit 1; fi # an unexpected gh failure
+	read_state oid ''
+	;;
 "pr checks "*"--json name"*)
 	# checks_seq: one count per call, the last repeating, as CI registers.
 	if [[ -s "${PR_STATE}/checks_seq" ]]; then
@@ -233,6 +236,13 @@ echo MERGED >"${state}/pr_state"
 "$watch" 7 >/dev/null 2>&1 </dev/null || fail "an already merged PR must clean up"
 logged "pr merge" && fail "an already merged PR must not be merged again"
 logged "wt remove --foreground feature" || fail "an already merged PR must remove its branch"
+
+# An unexpected failure is reported, never silent (a kitty tab would just close).
+reset
+echo MERGED >"${state}/pr_state"
+touch "${state}/oid_breaks"
+"${watch}" 7 >/dev/null 2>&1 </dev/null && fail "an unexpected failure must exit nonzero"
+logged "terminal-notifier -title PR #7: stopped unexpectedly" || fail "an unexpected failure must notify"
 # Not interactive (a loop, a script): --auto detaches the watcher, no tab.
 git switch -q chore/edit
 reset
