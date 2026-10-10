@@ -146,7 +146,8 @@ Each clone keeps its id in `git config dev-profile.sync-clone`.
 
 Cleanup never deletes `backup/` refs: restore what you need, then delete them
 yourself. `--pushed` keeps a worktree that holds ignored files (`.env`, local
-config) the main checkout lacks, and says which.
+config) the main checkout lacks, and says which. Tool state that regenerates
+itself does not count: `DEV_PROFILE_PRUNE_DISPOSABLE` lists it (default `.trunk`).
 
 Preview with `wt sync -- --dry-run` or `wt tidy -- --dry-run`.
 

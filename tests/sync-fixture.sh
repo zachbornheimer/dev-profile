@@ -226,6 +226,9 @@ for ((n = 0; n < 50; n++)); do echo "${n}" >"${work}/a-feat/local-${n}.log"; don
 (cd "${work}/a" && "${prune}" --pushed) >"${work}/prune-many.out" 2>&1 || fail "prune must survive many local-only ignored files: $(tail -1 "${work}/prune-many.out")"
 grep -q 'Kept feat/a: ignored files exist only in' "${work}/prune-many.out" || fail "many local-only ignored files must keep the worktree"
 rm "${work}"/a-feat/local-*.log
+# Tool state that regenerates itself (.trunk) never keeps a worktree.
+echo .trunk >>"${work}/a/.git/info/exclude"
+mkdir -p "${work}/a-feat/.trunk/logs" && echo log >"${work}/a-feat/.trunk/logs/cli.log"
 : >"${PRUNE_LOG}"
 (cd "${work}/a" && "${prune}" --pushed) >/dev/null 2>&1 || fail "prune --pushed must succeed"
 logged "wt step prune --foreground" || fail "prune must run wt step prune first"
