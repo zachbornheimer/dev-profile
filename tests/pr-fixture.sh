@@ -24,11 +24,17 @@ export PR_STATE="$state" PR_LOG="${work}/log"
 cat >"${stubs}/gh" <<'STUB'
 #!/usr/bin/env bash
 echo "gh $*" >>"${PR_LOG}"
+# Every call that works on a repo must name it; gh alone prefers a fork's parent.
+if [[ "$1" == pr && "$*" != *" --repo me/repo" ]]; then
+	echo "FAIL gh stub: no --repo: $*" >&2
+	echo "gh-missing-repo $*" >>"${PR_LOG}"
+	exit 1
+fi
 read_state() { cat "${PR_STATE}/$1" 2>/dev/null || echo "$2"; }
 case "$*" in
-"repo view --json owner,defaultBranchRef") echo '{"owner":{"login":"me"},"defaultBranchRef":{"name":"main"}}' ;;
-"repo view --json viewerDefaultMergeMethod"*) echo squash ;;
-"repo view --json defaultBranchRef"*) echo main ;;
+"repo view me/repo --json owner,defaultBranchRef") echo '{"owner":{"login":"me"},"defaultBranchRef":{"name":"main"}}' ;;
+"repo view me/repo --json viewerDefaultMergeMethod"*) echo squash ;;
+"repo view me/repo --json defaultBranchRef"*) echo main ;;
 "pr list --head "*"--state open"*) read_state open '[]' ;;
 "pr list --head "*"--state all"*) read_state all '[]' ;;
 "pr list --state merged"*) read_state merged '' ;;
@@ -93,6 +99,10 @@ chmod +x "$stubs"/*
 git init -q --bare "${work}/origin.git"
 git clone -q "${work}/origin.git" "${work}/repo" 2>/dev/null
 cd "${work}/repo"
+# origin is a GitHub URL (git reads it from insteadOf-mapped local storage), so
+# the scripts can name the repo; a fork clone's gh would otherwise pick the parent.
+git config "url.${work}/origin.git.insteadOf" https://github.com/me/repo.git
+git config remote.origin.url https://github.com/me/repo.git
 git config user.email t@example.com
 git config user.name t
 git config commit.gpgsign false # the fixture has no signing key
@@ -116,12 +126,12 @@ logged "pr create" && fail "branch equal to base must not create a PR"
 git commit -q --allow-empty -m change
 reset
 "$publish" >/dev/null 2>&1 || fail "branch ahead of base must publish"
-logged "gh pr create --fill --head feature --base main" || fail "must create a PR against main"
+logged "gh pr create --fill --head feature --base main --repo me/repo" || fail "must create a PR against main"
 logged "--draft" && fail "plain pr must not be a draft"
 
 reset
 "$publish" --draft >/dev/null 2>&1 || fail "pr --draft must publish"
-logged "--base main --draft" || fail "pr --draft must create a draft"
+logged "--base main --draft --repo me/repo" || fail "pr --draft must create a draft"
 
 reset
 code=0
@@ -167,7 +177,7 @@ logged "pr merge" && fail "failed CI must not merge"
 reset
 git rev-parse feature >"${state}/oid"
 "$watch" 7 >/dev/null 2>&1 </dev/null || fail "green CI must merge and clean up"
-logged "gh pr merge 7 --auto --squash" || fail "green CI must arm the merge with the repo's method"
+logged "gh pr merge 7 --auto --squash --repo me/repo" || fail "green CI must arm the merge with the repo's method"
 logged "terminal-notifier -title PR #7 merged" || fail "a merge must notify"
 logged "wt remove --foreground --force-delete feature" || fail "a merged tip must be force-removed"
 gone() { ! git ls-remote --exit-code --heads origin "$1" >/dev/null 2>&1; }
@@ -177,8 +187,8 @@ gone feature || fail "a merge must delete the remote branch that holds the merge
 reset
 touch "${state}/auto_merge_error"
 "$watch" 7 >/dev/null 2>&1 </dev/null || fail "a repo refusing auto-merge must still merge"
-logged "gh pr merge 7 --auto --squash" || fail "auto-merge must be tried first"
-logged "gh pr merge 7 --squash --delete-branch=false" || fail "a refused auto-merge must fall back to a direct merge"
+logged "gh pr merge 7 --auto --squash --repo me/repo" || fail "auto-merge must be tried first"
+logged "gh pr merge 7 --squash --delete-branch=false --repo me/repo" || fail "a refused auto-merge must fall back to a direct merge"
 logged "closed without merging" && fail "the direct merge must settle the PR"
 
 # Any other merge error still fails, with no direct-merge fallback.
@@ -255,4 +265,5 @@ for ((attempt = 0; attempt < 50; attempt++)); do
 done
 grep -q "merged and cleaned up" "$log" || fail "the detached watcher must run to completion"
 
+! logged "gh-missing-repo" || fail "every gh pr call must pass --repo: $(grep gh-missing-repo "$PR_LOG")"
 echo "pr fixture ok"

@@ -9,20 +9,33 @@ import "script.pkl"
 /// Absolute path of a generated script, so aliases and kitty work without PATH.
 function bin(name: String): String = "\(profile.installPath)/bin/\(name)"
 
-/// Script fragment: `owner`, `default_branch` and `branch_prs <branch> <state>`.
+/// Script fragment: `slug` (origin's owner/name) and `ghr <gh args>`, gh scoped
+/// to it. In a fork clone gh alone resolves to the parent repo, but origin is
+/// where this clone publishes. A non-GitHub origin leaves gh to its own lookup.
+scope: String =
+  #"""
+  origin_url="$(git config --get remote.origin.url || :)"
+  origin_url="${origin_url%/}"
+  slug="$(sed -En 's#^(https?://([^/@]+@)?|ssh://([^/@]+@)?|[^/@]+@)[^/:]+[:/]([^/]+/[^/]+)$#\4#p' <<<"${origin_url%.git}")"
+  ghr() { gh "$@" ${slug:+--repo "${slug}"}; }
+  """#
+
+/// Script fragment: `ghr` (see `scope`), `owner`, `default_branch` and
+/// `branch_prs <branch> <state>`.
 github: String =
   #"""
   command -v gh >/dev/null || {
     echo "GitHub CLI (gh) is required" >&2
     exit 1
   }
-  repo_json="$(gh repo view --json owner,defaultBranchRef)"
+  \#(scope)
+  repo_json="$(gh repo view ${slug:+"${slug}"} --json owner,defaultBranchRef)"
   owner="$(jq -r .owner.login <<<"${repo_json}")"
   default_branch="$(jq -r .defaultBranchRef.name <<<"${repo_json}")"
 
   # This repo's own PRs (not forks') for branch $1 in state $2, newest first.
   branch_prs() {
-    gh pr list --head "$1" --state "$2" \
+    ghr pr list --head "$1" --state "$2" \
       --json number,url,state,isDraft,headRefOid,headRepositoryOwner \
       --jq "[.[] | select(.headRepositoryOwner.login == \"${owner}\")]"
   }
@@ -156,7 +169,7 @@ local publish =
   if [[ -n "${url}" ]]; then
     echo "PR: ${url}"
   else
-    create=(gh pr create --fill --head "${branch}" --base "${base}")
+    create=(ghr pr create --fill --head "${branch}" --base "${base}")
     [[ "${draft}" == false ]] || create+=(--draft)
     url="$("${create[@]}" | tail -n 1)"
     echo "PR: ${url}"
@@ -164,8 +177,8 @@ local publish =
 
   [[ "${auto}" == true ]] || exit 0
 
-  if [[ "$(gh pr view "${url}" --json isDraft --jq .isDraft)" == true ]]; then
-    gh pr ready "${url}"
+  if [[ "$(ghr pr view "${url}" --json isDraft --jq .isDraft)" == true ]]; then
+    ghr pr ready "${url}"
   fi
 
   # Interactive in kitty: watch in a background tab. Loops and scripts: detach,
@@ -208,7 +221,9 @@ local watch =
   checks_wait="${DEV_PROFILE_PR_CHECKS_WAIT:-120}"
   merge_wait="${DEV_PROFILE_PR_MERGE_WAIT:-14400}"
 
-  info="$(gh pr view "${pr}" --json number,title,url,headRefName,isCrossRepository)"
+  \#(scope)
+
+  info="$(ghr pr view "${pr}" --json number,title,url,headRefName,isCrossRepository)"
   number="$(jq -r .number <<<"${info}")"
   title="$(jq -r .title <<<"${info}")"
   url="$(jq -r .url <<<"${info}")"
@@ -263,13 +278,13 @@ local watch =
 
   check_count() {
     local n
-    n="$(gh pr checks "${pr}" --json name --jq length 2>/dev/null)" || true
+    n="$(ghr pr checks "${pr}" --json name --jq length 2>/dev/null)" || true
     echo "${n:-0}"
   }
 
   # OPEN, MERGED or CLOSED; UNKNOWN when GitHub cannot be reached, so a network
   # blip keeps polling instead of reading as closed.
-  pr_state() { gh pr view "${pr}" --json state --jq .state 2>/dev/null || echo UNKNOWN; }
+  pr_state() { ghr pr view "${pr}" --json state --jq .state 2>/dev/null || echo UNKNOWN; }
   settled() { [[ "$1" == MERGED || "$1" == CLOSED ]]; }
 
   # Wait for CI to report checks, then for them to pass.
@@ -289,22 +304,22 @@ local watch =
       sleep "${poll}"
     done
     status "CI running"
-    gh pr checks "${pr}" --watch --fail-fast --interval "$((poll > 0 ? poll : 1))" || fail "CI failed"
+    ghr pr checks "${pr}" --watch --fail-fast --interval "$((poll > 0 ? poll : 1))" || fail "CI failed"
   }
 
   # gh merges at once when GitHub allows it; otherwise auto-merge waits for
   # reviews or required checks, so poll until GitHub reports the outcome.
   merge() {
-    local method="${DEV_PROFILE_PR_MERGE_METHOD:-$(gh repo view --json viewerDefaultMergeMethod \
+    local method="${DEV_PROFILE_PR_MERGE_METHOD:-$(gh repo view ${slug:+"${slug}"} --json viewerDefaultMergeMethod \
       --jq '.viewerDefaultMergeMethod | ascii_downcase')}"
     status "merging (${method})"
     local refusal
-    if ! refusal="$(gh pr merge "${pr}" --auto "--${method}" 2>&1)"; then
+    if ! refusal="$(ghr pr merge "${pr}" --auto "--${method}" 2>&1)"; then
       # Private repos on the Free plan refuse auto-merge outright. Checks are
       # already green (or absent) here, the condition auto-merge would wait for.
       if [[ "${refusal}" == *"Auto merge is not allowed"* ]]; then
         status "auto-merge not allowed here; merging directly"
-        gh pr merge "${pr}" "--${method}" --delete-branch=false || fail "merge refused"
+        ghr pr merge "${pr}" "--${method}" --delete-branch=false || fail "merge refused"
       else
         echo "${refusal}" >&2
         fail "merge refused"
@@ -343,11 +358,11 @@ local watch =
   # Fast-forward the default branch where it is checked out: the merge lands
   # locally, and that checkout's post-merge hooks run (dev-profile re-renders
   # the live profile). Git itself refuses when local changes are in the way.
-  default_branch="$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name)"
+  default_branch="$(gh repo view ${slug:+"${slug}"} --json defaultBranchRef --jq .defaultBranchRef.name)"
   if [[ "$(git branch --show-current)" == "${default_branch}" ]]; then
     git merge --ff-only --quiet "origin/${default_branch}" || status "could not fast-forward ${default_branch}"
   fi
-  merged="$(gh pr view "${pr}" --json headRefOid --jq .headRefOid)"
+  merged="$(ghr pr view "${pr}" --json headRefOid --jq .headRefOid)"
   # Delete the remote branch only while it still holds exactly what merged;
   # commits pushed after the merge keep it alive.
   if [[ "$(git ls-remote --heads origin "refs/heads/${branch}" | cut -f1)" == "${merged}" ]]; then

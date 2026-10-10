@@ -326,7 +326,7 @@ local pruneScript =
     fi
   }
 
-  merged="$(gh pr list --state merged --limit "${DEV_PROFILE_PRUNE_PR_LIMIT:-200}" \
+  merged="$(ghr pr list --state merged --limit "${DEV_PROFILE_PRUNE_PR_LIMIT:-200}" \
     --json headRefName,headRefOid,headRepositoryOwner \
     --jq ".[] | select(.headRepositoryOwner.login == \"${owner}\") | \"\(.headRefName) \(.headRefOid)\"")"
 
@@ -387,7 +387,7 @@ local pruneScript =
 
   if [[ "${remote}" == true ]]; then
     doomed=() leases=()
-    open="$(gh pr list --state open --limit 1000 --json headRefName,headRepositoryOwner \
+    open="$(ghr pr list --state open --limit 1000 --json headRefName,headRepositoryOwner \
       --jq ".[] | select(.headRepositoryOwner.login == \"${owner}\") | .headRefName")"
     while read -r branch tip <&3; do
       [[ "${branch}" != "${default_branch}" && "${branch}" != HEAD ]] || continue
