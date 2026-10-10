@@ -1,0 +1,52 @@
+amends "../../lib/Tool.pkl"
+
+doc =
+  "Doctor warning, no hook: names files and runtime pins in a repo that the profile already owns (README \"Repo contract\"). Run by the contract doctor; warns and exits 0."
+
+local profileOwnedFiles =
+  #"""
+  \#(bash)
+  # Warn only: this becomes an error after the sweep of existing repos.
+  # Run from the repo root. Profile pins come from the rendered global config.
+  profile_toml="${DEV_PROFILE_OUT:-${HOME}/.local/share/dev-profile}/mise-profile.toml"
+
+  warn() { # <item>
+    echo "doctor: $1 is profile-owned; delete it (README \"Repo contract\")" >&2
+  }
+
+  # The version in `<tool> = "<version>"` under [tools] of a mise TOML file.
+  tool_pin() { # <toml> <tool>
+    awk -v tool="$2" '
+      /^\[/ { in_tools = ($0 == "[tools]"); next }
+      in_tools && match($0, "^" tool "[ \t]*=[ \t]*\"[^\"]*\"") {
+        pin = substr($0, RSTART, RLENGTH)
+        sub(/^[^"]*"/, "", pin)
+        sub(/"$/, "", pin)
+        print pin
+        exit
+      }
+    ' "$1"
+  }
+
+  for item in .prettierrc* .prettierignore prettier.config.* lefthook.yml .lefthook .trunk \
+    renovate.json mise.lock .golangci.yml .golangci.yaml .editorconfig .markdownlintrc .yamllint; do
+    if [[ -e "${item}" || -L "${item}" ]]; then warn "${item}"; fi
+  done
+
+  if [[ -f mise.toml && -f "${profile_toml}" ]]; then
+    for runtime in go node python php; do
+      profile_pin="$(tool_pin "${profile_toml}" "${runtime}")"
+      repo_pin="$(tool_pin mise.toml "${runtime}")"
+      [[ -n "${profile_pin}" && -n "${repo_pin}" ]] || continue
+      depth="$(tr -dc . <<<"${profile_pin}" | wc -c)"
+      if [[ "$(cut -d. -f1-$((depth + 1)) <<<"${repo_pin}")" == "${profile_pin}" ]]; then
+        warn "mise.toml ${runtime} = \"${repo_pin}\""
+      fi
+    done
+  fi
+  exit 0
+  """#
+
+scripts {
+  ["dev-profile-owned-files"] = profileOwnedFiles
+}

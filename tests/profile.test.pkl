@@ -65,6 +65,10 @@ facts {
   ["tool pins do not repeat a kernel or runtime pin"] {
     for (pin in profile.toolPins) { !profile.tools.toList().any((p) -> p.id == pin.id) }
   }
+  ["no mise pin is `latest`"] {
+    for (pin in profile.toolPins) { pin.version != "latest" }
+    for (pin in profile.tools) { pin.version != "latest" }
+  }
   ["push checks run only on request from the top-level steps"] {
     for (id, step in config.steps) {
       profile.fixers.containsKey(id)
