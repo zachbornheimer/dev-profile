@@ -379,11 +379,6 @@ personalOverlay: Dynamic = new {
   tools { dprint = pins(profile.tools)["dprint"] }
   deps = depsFor(new Listing { "aube"; "uv"; "composer"; "go" })
   tasks {
-    fmt {
-      description = "Format with dprint using the Personal ancestor config"
-      dir = "{{cwd}}"
-      run = "dprint fmt"
-    }
     ...contract.tasks
   }
 }

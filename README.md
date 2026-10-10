@@ -179,6 +179,32 @@ lacks. Put a one-line reason beside any pin that differs from the profile. A
 repo may also keep the language's own files: `go.mod`, `package.json`,
 `composer.json`, `pyproject.toml`, `svelte.config.js`, `vite.config.ts`.
 
+### Task contract
+
+Verbs: `setup`, `build`, `fmt`, `lint`, `test`, `scan`, `doctor`, `ci`. Each has a
+`profile:<verb>` task (the work) and a plain `<verb>` twin that depends on it.
+
+- A repo overrides a verb only to add work: `depends = ["profile:<verb>"]` plus its own `run`.
+- Never redefine `ci`. `profile:ci` runs `lint`, `test` and `scan` through the repo's verb overrides.
+- Repo-specific tasks that are not verbs (`review-mail`, `install`, `deploy`, `package`, `migrate`) are file tasks under `mise-tasks/` (`mise-tasks/<name>` or `mise-tasks/<group>/<name>`), not entries in `mise.toml`. They keep their task names, have no profile dependency, and `ci` does not run them.
+- Deploy-class tasks are kept, never dropped, and never run by the profile.
+
+`mise.toml` holds only verb extensions:
+
+```toml
+[tasks.test]
+depends = ["profile:test"]
+run = "./scripts/integration.sh"
+```
+
+A non-verb task is an executable file, for example `mise-tasks/deploy`:
+
+```bash
+#!/usr/bin/env bash
+#MISE description="Deploy to production"
+./scripts/deploy.sh
+```
+
 ### Fixtures and generated files are not source
 
 Formatters and linters format source. Goldens, fixtures and generated output are

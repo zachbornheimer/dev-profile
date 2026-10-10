@@ -219,6 +219,7 @@ conventionalCommitTypes: Listing<String> = new {
 contractVerbs: Mapping<String, String> = new {
   ["setup"] = "Install tools and deps (mise deps providers)"
   ["build"] = "Produce the deployable artifact"
+  ["fmt"] = "Format with dprint using the Personal ancestor config"
   ["lint"] = "Format check + static analysis via the native tools"
   ["test"] = "Run all tests"
   ["scan"] = "Secrets on the tree + dependency vulnerability scanning"
