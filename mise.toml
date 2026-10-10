@@ -179,6 +179,7 @@ bash tests/identity-guard-fixture.sh "$out" || fail "identity-guard fixture"
 bash tests/owned-files-fixture.sh "$out" || fail "owned-files fixture"
 bash tests/kernel-pins-fixture.sh "$out" || fail "kernel-pins fixture"
 bash tests/retire-legacy-hooks-fixture.sh "$out" || fail "retire-legacy-hooks fixture"
+bash tests/ci-action-fixture.sh "$out" || fail "ci-action fixture"
 echo "doctor ok"
 """
 
