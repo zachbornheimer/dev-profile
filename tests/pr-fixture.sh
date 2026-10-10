@@ -83,6 +83,7 @@ git clone -q "${work}/origin.git" "${work}/repo" 2>/dev/null
 cd "${work}/repo"
 git config user.email t@example.com
 git config user.name t
+git config commit.gpgsign false
 git switch -q -c main
 git commit -q --allow-empty -m base
 git push -q origin main
@@ -191,7 +192,7 @@ logged "wt remove" && fail "a merged fork PR must not remove a local branch"
 # After the merge, the checked-out default branch catches up and its
 # post-merge hooks run (dev-profile re-renders the live profile from one).
 git clone -q -b main "${work}/origin.git" "${work}/other" 2>/dev/null
-git -C "${work}/other" -c user.email=t@example.com -c user.name=t commit -q --allow-empty -m "merged on GitHub"
+git -C "${work}/other" -c user.email=t@example.com -c user.name=t -c commit.gpgsign=false commit -q --allow-empty -m "merged on GitHub"
 git -C "${work}/other" push -q origin HEAD:main
 git switch -q main
 git config hook.fixture.event post-merge

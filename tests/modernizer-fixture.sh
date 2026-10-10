@@ -66,7 +66,7 @@ fixture_clippy() {
 	echo 'fn main() {}' >"${repo}/crate/src/main.rs"
 	echo 'fn main() {}' >"${repo}/other/src/main.rs"
 	git -C "$repo" add .
-	git -C "$repo" -c user.email=t@example.com -c user.name=t commit -q -m "chore: seed"
+	git -C "$repo" -c user.email=t@example.com -c user.name=t -c commit.gpgsign=false commit -q -m "chore: seed"
 	echo '// staged' >>"${repo}/crate/src/main.rs"
 	git -C "$repo" add crate/src/main.rs
 	run_wrapper "$repo" dev-profile-clippy-fix crate/src/main.rs || fail "clippy: failed"
