@@ -486,6 +486,8 @@ local repo =
       step hk check --all --slow --profile \(profile.lintProfile)
       step dev-profile-suppressions --tree
       ;;
+    # dprint finds the Personal ancestor config from the invoking directory.
+    fmt) step dprint fmt ;;
     scan) scan_tree ;;
     doctor) doctor ;;
     *) nothing_to_do ;;
