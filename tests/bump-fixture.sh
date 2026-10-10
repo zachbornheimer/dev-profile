@@ -15,11 +15,11 @@ fail() {
 
 # A repo-shaped copy: the task finds its root with git.
 cp -R "${src}/profile.pkl" "${src}/lib" "${src}/tools" "${src}/tests" "${src}/mise-tasks" "${src}/mise.toml" "${work}/"
-git -C "${work}" init -q
+git -C "$work" init -q
 
 # The stub: a few releases ahead of the pins, everything else as pinned.
 stub="${work}/latest"
-cat >"${stub}" <<'STUB'
+cat >"$stub" <<'RELEASES'
 #!/usr/bin/env bash
 case "$1" in
 	hk) echo "${STUB_HK:-2.5.0}" ;;         # the package URIs follow this pin
@@ -30,11 +30,11 @@ case "$1" in
 	node) echo 26.11.1 ;;                   # major-only pin: held, never moved
 	*) exit 1 ;;                            # unknown: skipped, never rewritten
 esac
-STUB
-chmod +x "${stub}"
+RELEASES
+chmod +x "$stub"
 
 summary="${work}/summary.md"
-(cd "${work}" && BUMP_LATEST="${stub}" BUMP_SUMMARY="${summary}" bash mise-tasks/bump >/dev/null 2>"${work}/stderr") ||
+(cd "$work" && BUMP_LATEST="$stub" BUMP_SUMMARY="$summary" bash mise-tasks/bump >/dev/null 2>"${work}/stderr") ||
 	fail "task failed: $(cat "${work}/stderr")"
 
 expect() { # <file> <needle>
@@ -50,11 +50,11 @@ expect tools/python/ruff.pkl 'version = "0.17.0"'
 expect tests/profile.test.pkl-expected.pcf '["ruff"] = "0.17.0"'
 expect summary.md '| ruff | 0.16.10 | 0.17.0 |'
 expect summary.md '| go | 1.27 | 1.28 |'
-grep -qF '| node |' "${summary}" && fail "node must not be bumped: a major-only pin is held"
+grep -qF '| node |' "$summary" && fail "node must not be bumped: a major-only pin is held"
 expect profile.pkl 'id = "node"; version = "24"'
-grep -qF 'Held, a major-only pin moves by hand: node 24 -> 26' "${summary}" || fail "the held pin must be reported"
-grep -qF 'Lookups that failed' "${summary}" || fail "the summary must list the lookups the stub refused"
-grep -qE 'Lookups that failed.* dprint( |$)' "${summary}" || fail "dprint's failed lookup must be listed"
+grep -qF 'Held, a major-only pin moves by hand: node 24 -> 26' "$summary" || fail "the held pin must be reported"
+grep -qF 'Lookups that failed' "$summary" || fail "the summary must list the lookups the stub refused"
+grep -qE 'Lookups that failed.* dprint( |$)' "$summary" || fail "dprint's failed lookup must be listed"
 
 # Nothing newer and some lookups failed: the task must say so and fail rather
 # than claim every pin is current.
@@ -74,7 +74,7 @@ done
 rm -rf "${work}/again" && mkdir "${work}/again"
 cp -R "${src}/profile.pkl" "${src}/lib" "${src}/tools" "${src}/tests" "${src}/mise-tasks" "${src}/mise.toml" "${work}/again/"
 git -C "${work}/again" init -q
-if (cd "${work}/again" && STUB_HK=2.6.1 BUMP_LATEST="${stub}" bash mise-tasks/bump >/dev/null 2>&1); then
+if (cd "${work}/again" && STUB_HK=2.6.1 BUMP_LATEST="$stub" bash mise-tasks/bump >/dev/null 2>&1); then
 	fail "hk 2.6.1: a package that does not resolve must fail the task"
 fi
 expect again/profile.pkl 'id = "hk"; version = "2.6.1"'
@@ -82,4 +82,19 @@ expect again/lib/hk.pkl 'download/v2.6.1/hk@2.6.1#/Config.pkl'
 expect again/lib/Tool.pkl 'download/v2.6.1/hk@2.6.1#/Builtins.pkl'
 expect again/tests/profile.test.pkl 'download/v2.6.1/hk@2.6.1#/Config.pkl'
 grep -rqF 'hk@2.5.0' "${work}/again/lib" "${work}/again/profile.pkl" && fail "an old hk package URI remains"
+
+# Without BUMP_LATEST the task asks `mise latest` itself, as the weekly job does.
+rm -rf "${work}/default" && mkdir -p "${work}/default" "${work}/bin"
+cp -R "${src}/profile.pkl" "${src}/lib" "${src}/tools" "${src}/tests" "${src}/mise-tasks" "${src}/mise.toml" "${work}/default/"
+git -C "${work}/default" init -q
+cat >"${work}/bin/mise" <<SHIM
+#!/usr/bin/env bash
+[[ "\$1" == latest ]] || exit 1
+shift
+exec "${stub}" "\$@"
+SHIM
+chmod +x "${work}/bin/mise"
+(cd "${work}/default" && PATH="${work}/bin:${PATH}" bash mise-tasks/bump >/dev/null 2>"${work}/default.err") ||
+	fail "the default lookup must reach mise latest: $(cat "${work}/default.err")"
+expect default/tools/python/ruff.pkl 'version = "0.17.0"'
 echo "bump fixture ok"

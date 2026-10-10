@@ -11,11 +11,21 @@
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
+# The release lookup. A function, not ${BUMP_LATEST:-mise latest}: quoting that
+# (as shellharden does) turns the default into one command named "mise latest".
+lookup_latest() {
+	if [[ -n "${BUMP_LATEST:-}" ]]; then
+		"$BUMP_LATEST" "$@"
+	else
+		mise latest "$@"
+	fi
+}
+
 latest_of() { # <mise tool id> -> version, no leading v; empty when unknown
 	local v
-	v="$(${BUMP_LATEST:-mise latest} "$1" 2>/dev/null | tail -1 || true)"
+	v="$(lookup_latest "$1" 2>/dev/null | tail -1 || true)"
 	v="${v#v}"
-	[[ "${v}" =~ ^[0-9]+(\.[0-9]+)*$ ]] && echo "${v}"
+	[[ "$v" =~ ^[0-9]+(\.[0-9]+)*$ ]] && echo "$v"
 	return 0
 }
 
@@ -32,9 +42,13 @@ held=()
 # <label> <current> <release> <file> <sed expression with __WANT__ for the new version>
 bump() {
 	local want
-	[[ -n "$3" ]] || { failed+=("$1"); echo "skip  $1 ${2}: lookup failed" >&2; return 0; }
+	[[ -n "$3" ]] || {
+		failed+=("$1")
+		echo "skip  $1 ${2}: lookup failed" >&2
+		return 0
+	}
 	want="$(same_depth "$2" "$3")"
-	[[ "${want}" != "$2" ]] || return 0
+	[[ "$want" != "$2" ]] || return 0
 	if [[ "$2" != *.* ]]; then
 		held+=("$1 $2 -> ${want}")
 		echo "hold  $1 $2 -> ${want}: a major-only pin moves by hand" >&2
@@ -47,11 +61,11 @@ bump() {
 
 # mise tool pins.
 while IFS=$'\t' read -r file id current; do
-	[[ "${current}" != "latest" ]] || continue
-	release="$(latest_of "${id}")"
-	bump "${id}" "${current}" "${release}" "${file}" \
+	[[ "$current" != "latest" ]] || continue
+	release="$(latest_of "$id")"
+	bump "$id" "$current" "$release" "$file" \
 		"s|id = \"${id}\"; version = \"${current}\"|id = \"${id}\"; version = \"__WANT__\"|"
-	if [[ "${id}" == "hk" && -n "${release}" && "${release}" != "${current}" ]]; then
+	if [[ "$id" == "hk" && -n "$release" && "$release" != "$current" ]]; then
 		# The hk package the Pkl sources import follows the hk pin.
 		grep -rlF "hk@${current}" profile.pkl lib tools tests | while IFS= read -r f; do
 			sed -i.bak -e "s|/v${current}/hk@${current}|/v${release}/hk@${release}|g" "$f" && rm -f "$f.bak"
@@ -63,14 +77,14 @@ done < <(grep -HoE 'id = "[^"]+"; version = "[^"]+"' profile.pkl tools/*/*.pkl |
 # dprint wasm plugins from npm.
 while IFS=$'\t' read -r name current; do
 	release="$(latest_of "npm:${name}")"
-	bump "npm:${name}" "${current}" "${release}" profile.pkl \
+	bump "npm:${name}" "$current" "$release" profile.pkl \
 		"s|\"npm:${name}@${current}\"|\"npm:${name}@__WANT__\"|"
 done < <(grep -oE '"npm:@?[^@"]+@[0-9][^"/]*"' profile.pkl | sed -E 's/^"npm:(@?[^@]+)@([^"]+)"$/\1\t\2/')
 
 # dprint wasm plugins published as GitHub releases on plugins.dprint.dev.
 while IFS=$'\t' read -r owner name current; do
 	release="$(latest_of "github:${owner}/${name}")"
-	bump "${owner}/${name}" "${current}" "${release}" profile.pkl \
+	bump "${owner}/${name}" "$current" "$release" profile.pkl \
 		"s|/${owner}/${name}-v${current}.wasm|/${owner}/${name}-v__WANT__.wasm|"
 done < <(grep -oE 'plugins.dprint.dev/[^/]+/[^"]+-v[0-9.]+\.wasm' profile.pkl |
 	sed -E 's#^plugins.dprint.dev/([^/]+)/(.+)-v([0-9.]+)\.wasm$#\1\t\2\t\3#')
@@ -87,17 +101,20 @@ fi
 # The snapshot records the mise tools table; the pins moved, so regenerate it.
 out="$(cd "$(mktemp -d)" && pwd -P)"
 trap 'rm -rf "${out}"' EXIT
-DEV_PROFILE_OUT="${out}" pkl test --overwrite tests/profile.test.pkl >/dev/null || true
-DEV_PROFILE_OUT="${out}" pkl test tests/profile.test.pkl >/dev/null
+DEV_PROFILE_OUT="$out" pkl test --overwrite tests/profile.test.pkl >/dev/null || true
+DEV_PROFILE_OUT="$out" pkl test tests/profile.test.pkl >/dev/null
 
 summary="$(printf '| Pin | From | To |\n| --- | --- | --- |\n%s\n' "$(printf '%s\n' "${rows[@]}")")"
 if ((${#held[@]})); then
-	summary+="$(printf '\n\nHeld, a major-only pin moves by hand: %s' "$(IFS=,; echo "${held[*]}")")"
+	summary+="$(printf '\n\nHeld, a major-only pin moves by hand: %s' "$(
+		IFS=,
+		echo "${held[*]}"
+	)")"
 fi
 if ((${#failed[@]})); then
 	summary+="$(printf '\n\nLookups that failed, so these pins were not checked: %s' "${failed[*]}")"
 else
 	summary+=$'\n\nEvery other pin is at its latest release.'
 fi
-echo "${summary}"
-[[ -z "${BUMP_SUMMARY:-}" ]] || echo "${summary}" >"${BUMP_SUMMARY}"
+echo "$summary"
+[[ -z "${BUMP_SUMMARY:-}" ]] || echo "$summary" >"$BUMP_SUMMARY"

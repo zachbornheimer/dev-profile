@@ -1,0 +1,410 @@
+/// GitHub pull-request scripts behind the worktrunk aliases: publish a branch
+/// (pr, pr-draft, pr-auto, ship), watch it through CI to merge and clean up
+/// (pr-auto), and remove branches GitHub already merged (prune).
+module pr
+
+import "../profile.pkl"
+import "script.pkl"
+
+/// Absolute path of a generated script, so aliases and kitty work without PATH.
+function bin(name: String): String = "\(profile.installPath)/bin/\(name)"
+
+/// Script fragment: `owner`, `default_branch` and `branch_prs <branch> <state>`.
+local github =
+  #"""
+  command -v gh >/dev/null || {
+    echo "GitHub CLI (gh) is required" >&2
+    exit 1
+  }
+  repo_json="$(gh repo view --json owner,defaultBranchRef)"
+  owner="$(jq -r .owner.login <<<"${repo_json}")"
+  default_branch="$(jq -r .defaultBranchRef.name <<<"${repo_json}")"
+
+  # This repo's own PRs (not forks') for branch $1 in state $2, newest first.
+  branch_prs() {
+    gh pr list --head "$1" --state "$2" \
+      --json number,url,state,isDraft,headRefOid,headRepositoryOwner \
+      --jq "[.[] | select(.headRepositoryOwner.login == \"${owner}\")]"
+  }
+  """#
+
+/// Script fragment: `remove_merged <branch> <merged-oid>`.
+local removeMerged =
+  #"""
+  # Remove branch $1 and its worktree, given $2: the head commit GitHub merged.
+  # Force-deletes only when the local tip is exactly that commit, so work made
+  # after the merge survives. A dirty worktree makes wt refuse; that is kept.
+  remove_merged() {
+    if [[ "$(git rev-parse --verify --quiet "refs/heads/$1")" == "$2" ]]; then
+      wt remove --foreground --force-delete "$1"
+    else
+      wt remove --foreground "$1"
+    fi
+  }
+  """#
+
+local publish =
+  #"""
+  \#(script.bash)
+  # Publish the current branch as a GitHub PR: commit pending work, push without
+  # force, then reuse the open PR or create one. A branch with nothing to publish
+  # is skipped with exit 0, so `wt step for-each` can run this everywhere. Never
+  # prompts, so loops and scripts can drive it.
+  #   --draft     create the PR as a draft
+  #   --auto      mark the PR ready, then watch CI and merge it when green
+  #   -- CMD ...  run CMD in the worktree first; it makes the change to publish
+  #   DEV_PROFILE_PR_WATCH  tab|background: where --auto watches (default: a
+  #                         kitty tab when interactive in kitty, else background)
+  usage="usage: dev-profile-pr [--draft | --auto] [-- CMD ...]"
+  draft=false auto=false
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --draft) draft=true ;;
+    --auto) auto=true ;;
+    --)
+      shift
+      break
+      ;;
+    *)
+      echo "${usage}" >&2
+      exit 2
+      ;;
+    esac
+    shift
+  done
+  if [[ "${draft}" == true && "${auto}" == true ]]; then
+    echo "--draft and --auto conflict: GitHub cannot merge a draft. ${usage}" >&2
+    exit 2
+  fi
+
+  branch="$(git symbolic-ref --quiet --short HEAD)" || {
+    echo "Detached HEAD; check out a branch to publish" >&2
+    exit 1
+  }
+  \#(github)
+
+  skip() {
+    echo "Skipping ${branch}: $*"
+    exit 0
+  }
+  [[ "${branch}" != "${default_branch}" ]] || skip "default branch"
+
+  for operation in MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD rebase-merge rebase-apply; do
+    if [[ -e "$(git rev-parse --git-path "${operation}")" ]]; then
+      echo "Unfinished Git operation in ${branch}: ${operation}" >&2
+      exit 1
+    fi
+  done
+
+  # Never replace a different upstream.
+  upstream="$(git rev-parse --abbrev-ref --symbolic-full-name "@{upstream}" 2>/dev/null || :)"
+  if [[ -n "${upstream}" && "${upstream}" != "origin/${branch}" ]]; then
+    echo "Unexpected upstream for ${branch}: ${upstream}" >&2
+    exit 1
+  fi
+
+  # Stacked PRs target the branch recorded by `gh pr create --base`.
+  base="$(git config --get "branch.${branch}.gh-merge-base" || :)"
+  base="${base:-${default_branch}}"
+  git rev-parse --verify --quiet "origin/${base}" >/dev/null || {
+    echo "origin/${base} not found; run git fetch origin" >&2
+    exit 1
+  }
+
+  if [[ $# -gt 0 ]]; then
+    "$@" || {
+      echo "Command failed in ${branch}; worktree kept at ${PWD}" >&2
+      exit 1
+    }
+    # A change that touched nothing leaves an empty worktree behind; drop it.
+    if [[ -z "$(git status --porcelain)" && "$(git rev-list --count "origin/${base}..HEAD")" -eq 0 ]]; then
+      wt remove --foreground "${branch}"
+      skip "the command changed nothing; removed the worktree"
+    fi
+  fi
+
+  url="$(branch_prs "${branch}" open | jq -r '.[0].url // empty')"
+  dirty="$(git status --porcelain)"
+
+  if [[ -z "${url}" && -z "${dirty}" ]]; then
+    # A closed or merged PR with no commits since: nothing new to propose.
+    last="$(branch_prs "${branch}" all | jq -c '.[0] // empty')"
+    if [[ -n "${last}" && "$(jq -r .headRefOid <<<"${last}")" == "$(git rev-parse HEAD)" ]]; then
+      skip "PR #$(jq -r .number <<<"${last}") is $(jq -r '.state | ascii_downcase' <<<"${last}") with no commits since"
+    fi
+  fi
+
+  if [[ -n "${dirty}" ]]; then
+    wt step commit
+    if [[ -n "$(git status --porcelain)" ]]; then
+      echo "Uncommitted changes remain in ${branch}" >&2
+      exit 1
+    fi
+  fi
+
+  if [[ -z "${url}" ]]; then
+    if wt list --full --format=json | jq -e --arg b "${branch}" '
+      any(.items[]; .branch == $b and .default_branch.integration != null)
+    ' >/dev/null; then
+      skip "already integrated into ${default_branch}"
+    fi
+    [[ "$(git rev-list --count "origin/${base}..HEAD")" -gt 0 ]] || skip "no commits ahead of ${base}"
+  fi
+
+  git push --set-upstream origin "HEAD:refs/heads/${branch}"
+
+  if [[ -n "${url}" ]]; then
+    echo "PR: ${url}"
+  else
+    create=(gh pr create --fill --head "${branch}" --base "${base}")
+    [[ "${draft}" == false ]] || create+=(--draft)
+    url="$("${create[@]}" | tail -n 1)"
+    echo "PR: ${url}"
+  fi
+
+  [[ "${auto}" == true ]] || exit 0
+
+  if [[ "$(gh pr view "${url}" --json isDraft --jq .isDraft)" == true ]]; then
+    gh pr ready "${url}"
+  fi
+
+  # Interactive in kitty: watch in a background tab. Loops and scripts: detach,
+  # so a batch of PRs does not open a tab each; notifications still arrive.
+  watcher="\#(bin("dev-profile-pr-watch"))"
+  where="${DEV_PROFILE_PR_WATCH:-}"
+  if [[ -z "${where}" ]]; then
+    where=background
+    if [[ -t 1 && -n "${KITTY_LISTEN_ON:-}" ]] && command -v kitten >/dev/null; then where=tab; fi
+  fi
+  if [[ "${where}" == tab ]]; then
+    launch=(kitten @ --to "${KITTY_LISTEN_ON}" launch --type=tab --keep-focus
+      --cwd "${PWD}" --env "PATH=${PATH}")
+    [[ -z "${KITTY_WINDOW_ID:-}" ]] || launch+=(--match "id:${KITTY_WINDOW_ID}")
+    "${launch[@]}" "${watcher}" "${url}" >/dev/null
+    echo "Watching in a background kitty tab; it notifies on merge or CI failure"
+  else
+    log="$(git rev-parse --path-format=absolute --git-common-dir)/wt/logs/pr-watch-${branch//\//-}.log"
+    mkdir -p "$(dirname "${log}")"
+    nohup "${watcher}" "${url}" >"${log}" 2>&1 </dev/null &
+    echo "Watching in the background; log: ${log}"
+  fi
+  """#
+
+local watch =
+  #"""
+  \#(script.bash)
+  # Watch a PR through CI, merge it when green, notify, then remove its branch
+  # and worktree. Started by `wt pr-auto`; safe to run by hand.
+  #   DEV_PROFILE_PR_POLL          seconds between GitHub polls (default 15)
+  #   DEV_PROFILE_PR_CHECKS_WAIT   seconds to wait for CI to report checks (default 120)
+  #   DEV_PROFILE_PR_MERGE_WAIT    seconds to wait for GitHub to merge (default 14400)
+  #   DEV_PROFILE_PR_MERGE_METHOD  merge|squash|rebase (default: your repo default)
+  pr="${1:?usage: dev-profile-pr-watch <pr-url-or-number>}"
+  poll="${DEV_PROFILE_PR_POLL:-15}"
+  checks_wait="${DEV_PROFILE_PR_CHECKS_WAIT:-120}"
+  merge_wait="${DEV_PROFILE_PR_MERGE_WAIT:-14400}"
+
+  info="$(gh pr view "${pr}" --json number,title,url,headRefName,isCrossRepository)"
+  number="$(jq -r .number <<<"${info}")"
+  title="$(jq -r .title <<<"${info}")"
+  url="$(jq -r .url <<<"${info}")"
+  branch="$(jq -r .headRefName <<<"${info}")"
+  from_fork="$(jq -r .isCrossRepository <<<"${info}")"
+
+  in_kitty() { [[ -t 1 && "${TERM:-}" == xterm-kitty ]] && command -v kitten >/dev/null; }
+
+  # The tab title tracks progress; the log line keeps a timeline.
+  status() {
+    if in_kitty; then printf '\033]2;PR #%s: %s\007' "${number}" "$1"; fi
+    echo "$(date +%H:%M:%S) PR #${number}: $1"
+  }
+
+  # notify <normal|critical> <title> <body>: desktop notification. In kitty,
+  # clicking it focuses this tab.
+  notify() {
+    if in_kitty; then
+      kitten notify --app-name "wt pr" --identifier "wt-pr-${number}" --urgency "$1" "$2" "$3"
+    elif command -v terminal-notifier >/dev/null; then
+      terminal-notifier -title "$2" -message "$3" -open "${url}" -group "wt-pr-${number}" >/dev/null
+    elif command -v osascript >/dev/null; then
+      osascript -e 'on run argv' -e 'display notification (item 2 of argv) with title (item 1 of argv)' \
+        -e 'end run' "$2" "$3"
+    fi || true
+  }
+
+  # mark_tab <color> <outcome>: colour the tab and pin its title, so the outcome
+  # stays visible after a shell takes the window over.
+  mark_tab() {
+    [[ -n "${KITTY_LISTEN_ON:-}" && -n "${KITTY_WINDOW_ID:-}" ]] || return 0
+    local tab=(--to "${KITTY_LISTEN_ON}")
+    kitten @ "${tab[@]}" set-tab-color --match "window_id:${KITTY_WINDOW_ID}" \
+      "active_bg=$1" "inactive_bg=$1" >/dev/null 2>&1 || true
+    kitten @ "${tab[@]}" set-tab-title --match "window_id:${KITTY_WINDOW_ID}" \
+      "PR #${number}: $2" >/dev/null 2>&1 || true
+  }
+
+  # Report a failure; in a terminal, stay open in a shell to fix it.
+  fail() {
+    status "$1"
+    mark_tab "#b03030" "$1"
+    notify critical "PR #${number}: $1" "${title}"
+    echo "${url}"
+    if [[ -t 0 && -t 1 ]]; then
+      echo "Fix, then rerun: wt pr-auto. Exit this shell to close the tab."
+      exec "${SHELL:-/bin/zsh}" -i
+    fi
+    exit 1
+  }
+
+  check_count() {
+    local n
+    n="$(gh pr checks "${pr}" --json name --jq length 2>/dev/null)" || true
+    echo "${n:-0}"
+  }
+
+  # OPEN, MERGED or CLOSED; UNKNOWN when GitHub cannot be reached, so a network
+  # blip keeps polling instead of reading as closed.
+  pr_state() { gh pr view "${pr}" --json state --jq .state 2>/dev/null || echo UNKNOWN; }
+  settled() { [[ "$1" == MERGED || "$1" == CLOSED ]]; }
+
+  # Wait for CI to report checks, then for them to pass.
+  await_ci() {
+    status "waiting for CI to start"
+    local deadline=$((SECONDS + checks_wait))
+    while [[ "$(check_count)" -eq 0 && "${SECONDS}" -lt "${deadline}" ]]; do sleep "${poll}"; done
+    if [[ "$(check_count)" -eq 0 ]]; then
+      status "no CI checks reported"
+      return 0
+    fi
+    # Workflows register one by one: a fast first check must not let the
+    # watch pass before slower ones appear. Wait for the count to hold.
+    local seen=0 now
+    while now="$(check_count)" && [[ "${now}" -ne "${seen}" ]]; do
+      seen="${now}"
+      sleep "${poll}"
+    done
+    status "CI running"
+    gh pr checks "${pr}" --watch --fail-fast --interval "$((poll > 0 ? poll : 1))" || fail "CI failed"
+  }
+
+  # gh merges at once when GitHub allows it; otherwise auto-merge waits for
+  # reviews or required checks, so poll until GitHub reports the outcome.
+  merge() {
+    local method="${DEV_PROFILE_PR_MERGE_METHOD:-$(gh repo view --json viewerDefaultMergeMethod \
+      --jq '.viewerDefaultMergeMethod | ascii_downcase')}"
+    status "merging (${method})"
+    gh pr merge "${pr}" --auto "--${method}" || fail "merge refused"
+    local deadline=$((SECONDS + merge_wait))
+    while state="$(pr_state)" && ! settled "${state}"; do
+      if [[ "${SECONDS}" -ge "${deadline}" ]]; then
+        status "still open; GitHub auto-merge stays armed"
+        notify normal "PR #${number} still open" "Auto-merge stays armed. ${title}"
+        exit 0
+      fi
+      sleep "${poll}"
+    done
+  }
+
+  # Already merged (a rerun, or merged by hand) skips straight to cleanup.
+  state="$(pr_state)"
+  if ! settled "${state}"; then
+    await_ci
+    merge
+  fi
+  [[ "${state}" == MERGED ]] || fail "closed without merging"
+
+  mark_tab "#2f8f46" merged
+  notify normal "PR #${number} merged" "${title}"
+  if [[ "${from_fork}" == true ]]; then
+    status "merged; its branch lives in a fork, so nothing here to clean up"
+    exit 0
+  fi
+  status "merged; cleaning up ${branch}"
+
+  # Clean up from the primary worktree: the branch's own worktree is going away.
+  cd "$(git rev-parse --path-format=absolute --git-common-dir)/.."
+  git fetch --prune --quiet origin || true
+  # Fast-forward the default branch where it is checked out: the merge lands
+  # locally, and that checkout's post-merge hooks run (dev-profile re-renders
+  # the live profile). Git itself refuses when local changes are in the way.
+  default_branch="$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name)"
+  if [[ "$(git branch --show-current)" == "${default_branch}" ]]; then
+    git merge --ff-only --quiet "origin/${default_branch}" || status "could not fast-forward ${default_branch}"
+  fi
+  merged="$(gh pr view "${pr}" --json headRefOid --jq .headRefOid)"
+  # Delete the remote branch only while it still holds exactly what merged;
+  # commits pushed after the merge keep it alive.
+  if [[ "$(git ls-remote --heads origin "refs/heads/${branch}" | cut -f1)" == "${merged}" ]]; then
+    git push --quiet --force-with-lease="refs/heads/${branch}:${merged}" --delete origin "${branch}" || true
+  fi
+  \#(removeMerged)
+  if git rev-parse --verify --quiet "refs/heads/${branch}" >/dev/null; then
+    remove_merged "${branch}" "${merged}" || fail "merged; kept ${branch} (see above)"
+  fi
+  status "merged and cleaned up"
+  """#
+
+local prune =
+  #"""
+  \#(script.bash)
+  # Remove worktrees and branches already merged: wt step prune's own checks,
+  # then branches whose tip is exactly a PR GitHub merged (squash merges wt
+  # cannot prove integrated). Takes wt step prune's flags; --dry-run previews.
+  dry_run=false
+  args=()
+  for arg in "$@"; do
+    case "${arg}" in
+    --dry-run) dry_run=true ;;
+    --foreground) continue ;; # always foreground, so the sweep below sees the result
+    esac
+    args+=("${arg}")
+  done
+
+  git fetch --all --prune --quiet
+  wt step prune --foreground ${args[@]+"${args[@]}"}
+
+  \#(github)
+  \#(removeMerged)
+  merged="$(gh pr list --state merged --limit "${DEV_PROFILE_PRUNE_PR_LIMIT:-200}" \
+    --json headRefName,headRefOid,headRepositoryOwner \
+    --jq ".[] | select(.headRepositoryOwner.login == \"${owner}\") | \"\(.headRefName) \(.headRefOid)\"")"
+
+  # fd 3 keeps wt's stdin free for approval prompts.
+  while read -r name oid <&3; do
+    [[ -n "${name}" && "${name}" != "${default_branch}" ]] || continue
+    [[ "$(git rev-parse --verify --quiet "refs/heads/${name}")" == "${oid}" ]] || continue
+    if [[ "${dry_run}" == true ]]; then
+      echo "Would remove ${name}: its PR merged on GitHub"
+    else
+      remove_merged "${name}" "${oid}" || echo "Kept ${name}" >&2
+    fi
+  done 3<<<"${merged}"
+  """#
+
+/// Generated bin/ scripts the worktrunk aliases run.
+wrappers: Mapping<String, String> = new {
+  ["dev-profile-pr"] = publish
+  ["dev-profile-pr-watch"] = watch
+  ["dev-profile-prune"] = prune
+}
+
+/// Publish one branch; nothing here prompts, so loops can call it.
+///   wt pr                           the current branch
+///   wt pr feature                   switch to feature, then publish it
+///   wt pr --create=chore/x -- CMD   new branch from the default branch, run
+///                                   CMD in it, publish what it changed
+local function switchAndPublish(flags: String): String =
+  let (exec = "-x \(bin("dev-profile-pr")) --\(if (flags.isEmpty) "" else " " + flags)")
+    "{% if create is defined %}wt switch --create {{ create }} --no-cd \(exec) -- {{ args }}"
+      + "{% else %}wt switch {{ args or '@' }} \(exec){% endif %}"
+
+/// Worktrunk aliases over the scripts above.
+aliases: Mapping<String, String> = new {
+  ["pr"] = switchAndPublish("")
+  ["pr-draft"] = switchAndPublish("--draft")
+  ["pr-auto"] = switchAndPublish("--auto")
+  // Current worktree only, as a draft; skips cleanly, for ship-all.
+  ["ship"] = bin("dev-profile-pr") + " --draft"
+  ["ship-all"] = "git fetch origin --prune && wt step for-each -- wt ship"
+  ["prune"] = bin("dev-profile-prune") + " {{ args }}"
+}
