@@ -105,6 +105,50 @@ live profile follows `main`.
 Preview a prune with `wt prune -- --dry-run`; wt reserves a bare `--dry-run`
 on aliases.
 
+## Repo contract
+
+A repo inherits the profile and commits nothing the profile already owns. A repo
+must not contain:
+
+- `.prettierrc*`, `.prettierignore`
+- `lefthook.yml`, `.trunk/`
+- a copied `.golangci.yml`
+- `.editorconfig`, `.markdownlintrc`, `.yamllint`
+- `renovate.json`, `mise.lock`
+- a `go =`, `node =` or `python =` pin in `mise.toml` that only repeats the profile
+
+A repo may contain a `mise.toml` with repo-specific tasks and tools the profile
+lacks. Put a one-line reason beside any pin that differs from the profile. A
+repo may also keep the language's own files: `go.mod`, `package.json`,
+`composer.json`, `pyproject.toml`, `svelte.config.js`, `vite.config.ts`.
+
+### Fixtures and generated files are not source
+
+Formatters and linters format source. Goldens, fixtures and generated output are
+compared or consumed verbatim, so touching them breaks tests. The profile skips
+`testdata/` and `fixtures/` at any depth, and `generated/`. Put such files there
+and no ignore file is needed.
+
+Do not "format the goldens too". A golden's format is then defined by a
+third-party formatter's version. A formatter bump would change the goldens with
+no code change.
+
+### Escape hatch
+
+A path that cannot move, such as a published schema directory or a generated
+file at a fixed path, keeps a `dprint.jsonc` of exactly this shape:
+
+```jsonc
+{
+  "extends": "/Users/you/.local/share/dev-profile/dprint.jsonc",
+  "excludes": ["schemas/"]
+}
+```
+
+Put only `excludes` in it. `excludes` here adds to the profile's list, so the
+profile's own entries (`node_modules`, `testdata`, `generated` and the rest)
+stay excluded and you list only the extra paths.
+
 ## Adding a tool
 
 A tool is one file, `tools/<category>/<name>.pkl`, amending `lib/Tool.pkl`.
