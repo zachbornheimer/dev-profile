@@ -17,8 +17,8 @@ fail() {
 
 # A runner's home: only the link the action makes, nothing of this machine's.
 home="${work}/home"
-mkdir -p "${home}/.config/mise/conf.d"
-ln -s "${out}/mise-profile.toml" "${home}/.config/mise/conf.d/dev-profile.toml"
+mkdir -p "${home}"
+HOME="${home}" "${out}/bin/dev-profile-env" --config-dir "${home}/.config/mise" --link-only
 export HOME="${home}" XDG_CONFIG_HOME="${home}/.config" MISE_TRUSTED_CONFIG_PATHS="${work}"
 unset MISE_GLOBAL_CONFIG_FILE
 
@@ -50,4 +50,20 @@ active="$(cd "${work}" && mise ls --current --json | jq -r 'keys[]')"
 for tool in ${pinned} npm:markdownlint-cli betterleaks; do
 	grep -Fxq -- "${tool}" <<<"${active}" || fail "${tool} has no version outside a code root"
 done
+
+# The local entry gives a clone outside every code root the same context, from an
+# isolated config dir under the cache, and leaves the live ~/.config alone.
+env_bin="${out}/bin/dev-profile-env"
+unset XDG_CONFIG_HOME
+export DEV_PROFILE_CACHE="${work}/cache"
+(cd "${work}/bare" && "${env_bin}" -- mise tasks --json | jq -e 'any(.[]; .name == "profile:ci")' >/dev/null) ||
+	fail "dev-profile-env: profile:ci must resolve"
+active="$(cd "${work}/bare" && "${env_bin}" -- mise ls --current --json | jq -r 'keys[]')"
+for tool in npm:markdownlint-cli betterleaks; do
+	grep -Fxq -- "${tool}" <<<"${active}" || fail "dev-profile-env: ${tool} has no version"
+done
+root_env="$(cd "${work}/bare" && "${env_bin}" --root personal -- mise env --json | jq -r '.DEV_PROFILE // empty')"
+[[ "${root_env}" == personal ]] || fail "dev-profile-env --root personal must load the personal overlay, got '${root_env}'"
+[[ -L "${work}/cache/env-personal/conf.d/dev-profile-root.toml" ]] || fail "dev-profile-env must write only under the cache dir"
+if "${env_bin}" --root nowhere -- true 2>/dev/null; then fail "dev-profile-env: an unknown root must fail"; fi
 echo "ci-action fixture ok"

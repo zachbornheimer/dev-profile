@@ -86,3 +86,8 @@ jobs:
           printf '{\n  "extends": "~/.local/share/dev-profile/dprint.jsonc",\n  "excludes": ["schemas/"]\n}\n' >dprint.jsonc
           printf '{\n  "a": 1\n}\n' >data.json
           dprint check
+      - name: The local entry point resolves the same tools
+        run: |
+          mkdir "${RUNNER_TEMP}/entry"
+          cd "${RUNNER_TEMP}/entry"
+          "${HOME}/.local/share/dev-profile/bin/dev-profile-env" -- mise which betterleaks

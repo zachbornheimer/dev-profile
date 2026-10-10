@@ -246,6 +246,29 @@ stay excluded and you list only the extra paths.
 `go`, `node`, `python` or `php` pin that repeats the profile's. The warning
 becomes an error after the sweep of existing repos.
 
+### Outside a code root
+
+A clone under `/tmp/repos/<org>/<repo>` has no code-root `mise.toml`, so
+`profile:ci` and the tool pins are not in scope. Run any command through the
+profile's entry point instead:
+
+```sh
+~/.local/share/dev-profile/bin/dev-profile-env -- mise run profile:ci
+~/.local/share/dev-profile/bin/dev-profile-env --root personal -- mise run ci
+~/.local/share/dev-profile/bin/dev-profile-env --root sah -- mise run ci
+```
+
+It builds an isolated `MISE_CONFIG_DIR` under `~/.cache/dev-profile/env-<root>`
+(override with `DEV_PROFILE_CACHE`): the pins and contract tasks from
+`mise-profile.toml`, plus the root overlay `--root` names (`personal`, or `sah`,
+the SAH root `mise.toml`, or `SAH_ROOT_OVERLAY`). It never touches the live
+`~/.config` and never writes into the repo. `--print` shows the `export` line for
+`eval`. Do not point `MISE_GLOBAL_CONFIG_FILE` at an overlay: that drops the pins,
+so hk's markdownlint and betterleaks have no version.
+
+The CI action below runs the same script, with `--link-only`, against
+`~/.config/mise`.
+
 ## Versions
 
 - Runtimes pin to the minor (`go = "1.27"`) or, for Node, the major

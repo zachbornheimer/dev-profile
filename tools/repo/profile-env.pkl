@@ -1,0 +1,74 @@
+amends "../../lib/Tool.pkl"
+
+doc =
+  "No hook: builds an isolated mise config dir from the rendered profile and runs a command in it, so any directory (a /tmp clone, a CI runner) gets the full profile context. The CI action uses the same script."
+
+local profileEnv =
+  #"""
+  \#(bash)
+  # Usage: dev-profile-env [--root none|personal|sah] [--config-dir DIR] [--link-only | --print] [-- CMD...]
+  #   Builds MISE_CONFIG_DIR/conf.d from the rendered profile, never from the live
+  #   ~/.config: the pins and contract tasks (mise-profile.toml), plus the root
+  #   overlay named by --root (personal: personal-overlay.toml; sah: the SAH root
+  #   mise.toml, or $SAH_ROOT_OVERLAY). Writes only DIR, default the cache dir.
+  #   CMD runs with MISE_CONFIG_DIR set; --print shows the exports instead;
+  #   --link-only builds DIR and stops (the CI action links ~/.config/mise this way).
+  profile_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+  root=none
+  config_dir=""
+  mode="run"
+
+  usage() {
+    echo "usage: dev-profile-env [--root none|personal|sah] [--config-dir DIR] [--link-only | --print] [-- CMD...]" >&2
+    exit 2
+  }
+
+  while (($#)); do
+    case "$1" in
+      --root) root="${2:?--root needs none, personal or sah}"; shift 2 ;;
+      --config-dir) config_dir="${2:?--config-dir needs a directory}"; shift 2 ;;
+      --link-only) mode="link"; shift ;;
+      --print) mode="print"; shift ;;
+      --) shift; break ;;
+      *) usage ;;
+    esac
+  done
+  [[ "${mode}" != run || $# -gt 0 ]] || usage
+
+  overlay=""
+  case "${root}" in
+    none) ;;
+    personal) overlay="${profile_dir}/personal-overlay.toml" ;;
+    sah) overlay="${SAH_ROOT_OVERLAY:-${HOME}/Developer/Software-Automation-Holdings/mise.toml}" ;;
+    *) echo "dev-profile-env: unknown root '${root}' (none, personal, sah)" >&2; exit 2 ;;
+  esac
+  [[ -z "${overlay}" || -f "${overlay}" ]] || {
+    echo "dev-profile-env: root overlay not found: ${overlay}" >&2
+    exit 1
+  }
+
+  config_dir="${config_dir:-${DEV_PROFILE_CACHE:-${XDG_CACHE_HOME:-${HOME}/.cache}/dev-profile}/env-${root}}"
+  mkdir -p "${config_dir}/conf.d"
+  ln -sfn "${profile_dir}/mise-profile.toml" "${config_dir}/conf.d/dev-profile.toml"
+  if [[ -n "${overlay}" ]]; then
+    ln -sfn "${overlay}" "${config_dir}/conf.d/dev-profile-root.toml"
+  else
+    rm -f "${config_dir}/conf.d/dev-profile-root.toml"
+  fi
+
+  case "${mode}" in
+    link) ;;
+    print) echo "export MISE_CONFIG_DIR='${config_dir}'" ;;
+    run)
+      export MISE_CONFIG_DIR="${config_dir}"
+      if top="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+        export MISE_TRUSTED_CONFIG_PATHS="${top}${MISE_TRUSTED_CONFIG_PATHS:+:${MISE_TRUSTED_CONFIG_PATHS}}"
+      fi
+      exec "$@"
+      ;;
+  esac
+  """#
+
+scripts {
+  ["dev-profile-env"] = profileEnv
+}
