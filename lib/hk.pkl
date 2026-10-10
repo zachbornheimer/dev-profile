@@ -20,6 +20,7 @@ steps {
   // Format last, after fixers have removed or rewritten code.
   ["dprint"] = (Builtins.dprint) {
     depends = profile.fixers.keys.toList()
+    exclude = profile.lockfiles
   }
   ...profile.fixers
   // Commit guards judge the commit being made, not the code: the lint verb
