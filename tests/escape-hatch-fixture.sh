@@ -18,10 +18,10 @@ fail() {
 extends="$(awk '/^```jsonc/{in_block=1; next} /^```/{in_block=0} in_block' "${readme}" |
 	sed -En 's/^[[:space:]]*"extends": "([^"]+)".*/\1/p' | head -n 1)"
 [[ -n "${extends}" ]] || fail "no \"extends\" in a jsonc block of ${readme}"
-[[ "${extends}" == "~/"* ]] || fail "extends must start with ~/, not a machine path: ${extends}"
+[[ "${extends}" =~ ^[~]/ ]] || fail "extends must start with ~/, not a machine path: ${extends}"
 
 dprint_bin="$(mise which dprint)"
-profile_config="${work}/home/${extends#\~/}"
+profile_config="${work}/home/${extends#??}"
 mkdir -p "${work}/repo" "$(dirname "${profile_config}")"
 echo '{}' >"${profile_config}"
 printf '{\n  "extends": "%s",\n  "excludes": ["schemas/"]\n}\n' "${extends}" >"${work}/repo/dprint.jsonc"
