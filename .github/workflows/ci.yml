@@ -38,3 +38,36 @@ jobs:
           MISE_GLOBAL_CONFIG_FILE: ${{ runner.temp }}/profile/mise-profile.toml
           GITHUB_TOKEN: ${{ github.token }}
         run: mise run test
+
+  # The published action, run from this checkout against a repo with no go pin
+  # and one with its own: the first gets the profile's go, the second keeps its pin.
+  action:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./
+      - name: Sample repo without a go pin gets the profile's go
+        run: |
+          want="$(sed -n 's/^go = "\(.*\)"$/\1/p' "${MISE_GLOBAL_CONFIG_FILE}")"
+          mkdir "${RUNNER_TEMP}/bare"
+          cd "${RUNNER_TEMP}/bare"
+          printf '[tasks.ci]\nrun = "true"\n' >mise.toml
+          mise trust
+          mise install --yes
+          got="$(mise exec -- go version)"
+          grep -Fq "go${want}." <<<"${got}" || { echo "want go ${want}, got: ${got}" >&2; exit 1; }
+      - name: Sample repo with its own go pin keeps it
+        run: |
+          mkdir "${RUNNER_TEMP}/pinned"
+          cd "${RUNNER_TEMP}/pinned"
+          printf '[tools]\ngo = "1.25"\n' >mise.toml
+          mise trust
+          mise install --yes
+          got="$(mise exec -- go version)"
+          grep -Fq 'go1.25.' <<<"${got}" || { echo "want go 1.25, got: ${got}" >&2; exit 1; }
+      - name: Tools are on PATH for plain steps
+        run: go version

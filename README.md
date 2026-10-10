@@ -209,6 +209,25 @@ becomes an error after the sweep of existing repos.
 - The bot bumps within a pin's depth. A person bumps major-only pins. The `bump`
   PR merges itself when CI passes.
 
+## CI runners
+
+A runner has no `~/.config/mise/conf.d/dev-profile.toml`, so a repo with no tool
+pins of its own gets no tools. This repo is also a composite action that renders
+the same `mise-profile.toml` (`mise run generate`) into `$RUNNER_TEMP`, sets it as
+`MISE_GLOBAL_CONFIG_FILE`, caches the installs and runs `mise install`. A repo's
+own `mise.toml` still overrides it. Runners get tools only, no hooks or dotfiles.
+
+To adopt it, replace the `jdx/mise-action` step:
+
+```yaml
+- uses: zachbornheimer/dev-profile@main
+- run: mise run ci
+```
+
+The ref is `@main`, not a tag: the Mac tracks main too, and the weekly `bump` PR
+would otherwise need a moved `v1` tag to reach CI. For a reproducible run, pin a
+commit SHA instead. The `action` job in `ci.yml` tests it end to end.
+
 ## Adding a tool
 
 A tool is one file, `tools/<category>/<name>.pkl`, amending `lib/Tool.pkl`.

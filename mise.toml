@@ -174,6 +174,7 @@ bash tests/sync-fixture.sh "$out" || fail "sync fixture"
 bash tests/shellcheck-fix-fixture.sh "$out" || fail "shellcheck-fix fixture"
 bash tests/identity-guard-fixture.sh "$out" || fail "identity-guard fixture"
 bash tests/owned-files-fixture.sh "$out" || fail "owned-files fixture"
+bash tests/ci-action-fixture.sh "$out" || fail "ci-action fixture"
 echo "doctor ok"
 """
 
