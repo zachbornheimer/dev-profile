@@ -12,7 +12,7 @@ set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
 # The release lookup. A function, not ${BUMP_LATEST:-mise latest}: quoting that
-# (as shellharden does) turns the default into one command named "mise latest".
+# (as a quoting fixer might) turns the default into one command named "mise latest".
 lookup_latest() {
 	if [[ -n "${BUMP_LATEST:-}" ]]; then
 		"$BUMP_LATEST" "$@"

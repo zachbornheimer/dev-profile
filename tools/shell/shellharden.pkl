@@ -1,7 +1,0 @@
-amends "../../lib/Tool.pkl"
-
-doc = "Shell quoting fixes at commit."
-pin { id = "shellharden"; version = "4.3.2" }
-on {
-  ["pre-commit"] = module.builtins.shellharden
-}
