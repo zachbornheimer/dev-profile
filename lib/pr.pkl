@@ -293,7 +293,18 @@ local watch =
     local method="${DEV_PROFILE_PR_MERGE_METHOD:-$(gh repo view --json viewerDefaultMergeMethod \
       --jq '.viewerDefaultMergeMethod | ascii_downcase')}"
     status "merging (${method})"
-    gh pr merge "${pr}" --auto "--${method}" || fail "merge refused"
+    local refusal
+    if ! refusal="$(gh pr merge "${pr}" --auto "--${method}" 2>&1)"; then
+      # Private repos on the Free plan refuse auto-merge outright. Checks are
+      # already green (or absent) here, the condition auto-merge would wait for.
+      if [[ "${refusal}" == *"Auto merge is not allowed"* ]]; then
+        status "auto-merge not allowed here; merging directly"
+        gh pr merge "${pr}" "--${method}" --delete-branch=false || fail "merge refused"
+      else
+        echo "${refusal}" >&2
+        fail "merge refused"
+      fi
+    fi
     local deadline=$((SECONDS + merge_wait))
     while state="$(pr_state)" && ! settled "${state}"; do
       if [[ "${SECONDS}" -ge "${deadline}" ]]; then
