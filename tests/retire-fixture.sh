@@ -111,4 +111,22 @@ code=0
 [[ "${code}" -ne 0 ]] || fail "a nested repository must stop retire"
 [[ -d "${work}/i" ]] || fail "a clone holding a nested repository must be kept"
 grep -q 'separate repository' "${work}/i.out" || fail "retire must say a nested repository stopped it"
+
+# A nested clone whose own GitHub holds everything does not stop retire.
+clone k
+echo vendor/ >"${work}/k/.git/info/exclude"
+git clone -q "${work}/origin.git" "${work}/k/vendor" 2>/dev/null
+(cd "${work}/k" && "${retire}") >"${work}/k.out" 2>&1 || fail "a nested clone with nothing unique must not stop retire: $(cat "${work}/k.out")"
+[[ ! -e "${work}/k" ]] || fail "a clone whose nested repository is all on GitHub must be retired"
+
+# A nested clone with a commit its GitHub lacks does stop it.
+clone l
+echo vendor/ >"${work}/l/.git/info/exclude"
+git clone -q "${work}/origin.git" "${work}/l/vendor" 2>/dev/null
+commit "${work}/l/vendor" only-here.txt x
+code=0
+(cd "${work}/l" && "${retire}") >"${work}/l.out" 2>&1 || code=$?
+[[ "${code}" -ne 0 && -d "${work}/l" ]] || fail "a nested repository with unpushed work must stop retire"
+grep -q "commits its GitHub lacks" "${work}/l.out" || fail "retire must say why a nested repository stopped it"
+[[ "$(grep -c "separate repository" "${work}/l.out")" -eq 1 ]] || fail "a nested repository must be listed once"
 echo "retire fixture ok"
