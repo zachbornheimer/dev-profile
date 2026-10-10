@@ -304,8 +304,8 @@ tools: Listing<types.Pin> = new {
   // Contract adapters: OpenTofu lint and protobuf lint/breaking/generate.
   new { id = "tflint"; version = "0.64.0" }
   new { id = "buf"; version = "1.73.0" }
-  new { id = "npm:@agentclientprotocol/codex-acp"; version = "latest" }
-  new { id = "npm:@agentclientprotocol/claude-agent-acp"; version = "latest" }
+  new { id = "npm:@agentclientprotocol/codex-acp"; version = "2.1.1" }
+  new { id = "npm:@agentclientprotocol/claude-agent-acp"; version = "0.88.0" }
 }
 
 brewPackages: Mapping<String, String> = new {
