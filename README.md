@@ -95,7 +95,8 @@ fd -H -E .worktrees -t f '^\.prettierrc' ~/Developer/Personal -x git -C {//} rev
 (the tab title shows progress and turns red or green; the notification focuses
 it). From a loop or script it watches detached and logs to
 `.git/wt/logs/pr-watch-<branch>.log`. `DEV_PROFILE_PR_WATCH=tab|background`
-overrides the choice. The watcher merges only after every check passes, even
+overrides the choice. `DEV_PROFILE_PR_MESSAGE="fix: thing"` commits pending
+work with that message instead of one the LLM writes. The watcher merges only after every check passes, even
 where the branch has no protection, using the repo's default merge method
 (`DEV_PROFILE_PR_MERGE_METHOD` overrides). Where GitHub refuses auto-merge
 (a private repo on the Free plan), `pr-auto` merges directly once checks pass.

@@ -85,7 +85,16 @@ cat >"${stubs}/wt" <<'STUB'
 #!/usr/bin/env bash
 echo "wt $*" >>"${PR_LOG}"
 [[ "$1 $2" == "list --full" ]] && echo '{"items":[]}'
-[[ "$1 $2" == "step commit" ]] && git add -A && git commit -qm stub
+if [[ "$1 $2" == "step commit" ]]; then
+	# --config-set commit.generation.command="CMD": run CMD as wt would, for the message.
+	msg=stub
+	if [[ "${3:-}" == --config-set ]]; then
+		cmd="${4#commit.generation.command=}"
+		cmd="${cmd#\"}"
+		msg="$(echo prompt | sh -c "${cmd%\"}")"
+	fi
+	git add -A && git commit -qm "$msg"
+fi
 exit 0
 STUB
 for tool in kitten terminal-notifier osascript; do
@@ -154,6 +163,18 @@ reset
 "$publish" -- sh -c 'echo x >f' >/dev/null 2>&1 || fail "pr -- CMD must publish the command's change"
 logged "wt step commit" || fail "pr -- CMD must commit the change"
 logged "gh pr create --fill --head chore/edit" || fail "pr -- CMD must create a PR"
+
+# DEV_PROFILE_PR_MESSAGE commits with that message instead of a generated one.
+git switch -q -c chore/message main
+reset
+DEV_PROFILE_PR_MESSAGE='chore: fixed message' "$publish" -- sh -c 'echo y >g' >/dev/null 2>&1 ||
+	fail "pr with DEV_PROFILE_PR_MESSAGE must publish"
+[[ "$(git log -1 --format=%s)" == "chore: fixed message" ]] || fail "DEV_PROFILE_PR_MESSAGE must be the commit message"
+git switch -q -c chore/generated main
+reset
+"$publish" -- sh -c 'echo z >h' >/dev/null 2>&1 || fail "pr without DEV_PROFILE_PR_MESSAGE must publish"
+[[ "$(git log -1 --format=%s)" == stub ]] || fail "without DEV_PROFILE_PR_MESSAGE wt generates the message"
+logged "--config-set" && fail "without DEV_PROFILE_PR_MESSAGE wt must run unmodified"
 
 git switch -q -c chore/noop main
 reset
