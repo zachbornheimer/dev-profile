@@ -8,7 +8,7 @@ import "script.pkl"
 
 /// Script fragment: fetch origin, then `default_branch`, `on_github`,
 /// `adds_nothing`, `worktrees` and `worktree_of`.
-local repoFacts =
+repoFacts: String =
   #"""
   # Only origin: another remote that fails must not stop this. PR heads land in
   # refs/sync/pull, out of `git branch -r`, so work GitHub holds only as a PR counts.
@@ -52,6 +52,44 @@ local repoFacts =
   worktree_of() { worktrees | awk -F "${sep}" -v b="$1" '$2 == b && !found { print; found = 1 }'; }
   """#
 
+/// Script fragment: `clone_id` (this clone's backup namespace, or empty before
+/// its first sync), `report`, and `snapshot`. The caller sets `max_file_mb`,
+/// `left_out` (a file) and, optionally, `nested` (a file).
+snapshotTools: String =
+  #"""
+  clone_id() { git config --get dev-profile.sync-clone || :; }
+
+  report() { printf '  %-13s %s\n' "$1" "$2"; }
+
+  # A commit of HEAD plus every staged, unstaged and untracked change in
+  # worktree $1, built in a scratch index: the worktree itself is untouched.
+  # A file over the size limit keeps its committed version (or stays out, if
+  # new) and is recorded in ${left_out}. A nested repository is recorded as a
+  # pointer only, listed in ${nested} and reported: run wt sync inside it.
+  snapshot() {
+    local index tree path size
+    index="$(mktemp)"
+    cp "$(git -C "$1" rev-parse --path-format=absolute --git-path index)" "${index}"
+    GIT_INDEX_FILE="${index}" git -C "$1" add -A 2>/dev/null # quiet about nested repositories; a failure still stops here
+    while IFS= read -r -d '' path; do
+      size="$(GIT_INDEX_FILE="${index}" git -C "$1" cat-file -s ":${path}" 2>/dev/null)" || continue
+      if ((size > max_file_mb * 1024 * 1024)); then
+        GIT_INDEX_FILE="${index}" git -C "$1" reset --quiet HEAD -- "${path}"
+        echo "$1/${path}" >>"${left_out}"
+        report skipped "$1/${path}: over ${max_file_mb} MB" >&2
+      fi
+    done < <(GIT_INDEX_FILE="${index}" git -C "$1" diff --cached --name-only -z --diff-filter=AM HEAD)
+    GIT_INDEX_FILE="${index}" git -C "$1" diff --cached --raw --diff-filter=A HEAD |
+      awk -F '\t' '$1 ~ / 160000 / { print $2 }' | while IFS= read -r path; do
+      echo "$1/${path}" >>"${nested:-/dev/null}"
+      report nested "$1/${path}: a repository of its own; run wt sync inside it" >&2
+    done
+    tree="$(GIT_INDEX_FILE="${index}" git -C "$1" write-tree)"
+    rm -f "${index}"
+    git -C "$1" commit-tree "${tree}" -p HEAD -m "wip: uncommitted changes in $1"
+  }
+  """#
+
 local syncScript =
   #"""
   \#(script.bash)
@@ -69,7 +107,8 @@ local syncScript =
   # A branch whose commits or content GitHub already holds (a PR head, a squash
   # merge, an older copy of a rebased branch) is not unique and stays local.
   # Files over DEV_PROFILE_SYNC_MAX_FILE_MB (default 50) are left out and
-  # reported. Exits 1 while a conflict, a failed push or a left-out file remains.
+  # reported. Exits 1 while a failed push or a left-out file remains, and 3
+  # while only conflicts remain (each one backed up).
   # --dry-run reports without pushing.
   max_file_mb="${DEV_PROFILE_SYNC_MAX_FILE_MB:-50}"
   dry_run=false
@@ -83,9 +122,10 @@ local syncScript =
   esac
 
   \#(repoFacts)
+  \#(snapshotTools)
   # This clone's id, kept in its git config from the first sync on, so two
   # clones never share one even with the same hostname and path.
-  clone="$(git config --get dev-profile.sync-clone || :)"
+  clone="$(clone_id)"
   if [[ -z "${clone}" ]]; then
     root="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")"
     clone="$(hostname -s)-$(basename "${root}")-$(od -An -N3 -tx1 /dev/urandom | tr -d ' \n')"
@@ -100,8 +140,6 @@ local syncScript =
   # Report verbs: what happened, or under --dry-run what would.
   pushed=pushed backed_up=backed-up
   if [[ "${dry_run}" == true ]]; then pushed="would push" backed_up="would back up"; fi
-
-  report() { printf '  %-13s %s\n' "$1" "$2"; }
 
   # push <commit> <branch> [git push flags...]: no-op under --dry-run.
   push() {
@@ -139,32 +177,6 @@ local syncScript =
     fi
   }
 
-  # A commit of HEAD plus every staged, unstaged and untracked change in
-  # worktree $1, built in a scratch index: the worktree itself is untouched.
-  # A file over the size limit keeps its committed version (or stays out, if
-  # new) and is recorded in ${left_out}. A nested repository is recorded as a
-  # pointer only and reported: back it up by running wt sync inside it.
-  snapshot() {
-    local index tree path size
-    index="$(mktemp)"
-    cp "$(git -C "$1" rev-parse --path-format=absolute --git-path index)" "${index}"
-    GIT_INDEX_FILE="${index}" git -C "$1" add -A 2>/dev/null # quiet about nested repositories; a failure still stops here
-    while IFS= read -r -d '' path; do
-      size="$(GIT_INDEX_FILE="${index}" git -C "$1" cat-file -s ":${path}" 2>/dev/null)" || continue
-      if ((size > max_file_mb * 1024 * 1024)); then
-        GIT_INDEX_FILE="${index}" git -C "$1" reset --quiet HEAD -- "${path}"
-        echo "$1/${path}" >>"${left_out}"
-        report skipped "$1/${path}: over ${max_file_mb} MB" >&2
-      fi
-    done < <(GIT_INDEX_FILE="${index}" git -C "$1" diff --cached --name-only -z --diff-filter=AM HEAD)
-    GIT_INDEX_FILE="${index}" git -C "$1" diff --cached --raw --diff-filter=A HEAD |
-      awk -F '\t' '$1 ~ / 160000 / { print $2 }' | while IFS= read -r path; do
-      report nested "$1/${path}: a repository of its own; run wt sync inside it" >&2
-    done
-    tree="$(GIT_INDEX_FILE="${index}" git -C "$1" write-tree)"
-    rm -f "${index}"
-    git -C "$1" commit-tree "${tree}" -p HEAD -m "wip: uncommitted changes in $1"
-  }
 
   # Rebase branch $1 onto origin/$1. Returns 1, with nothing changed, when the
   # rebase conflicts or the branch's worktree has uncommitted changes.
@@ -251,7 +263,9 @@ local syncScript =
   if [[ -s "${left_out}" ]]; then
     echo "$(wc -l <"${left_out}" | tr -d ' ') file(s) over ${max_file_mb} MB were left out; GitHub does not have them (see skipped above)." >&2
   fi
-  [[ "${conflicts}" -eq 0 && "${failures}" -eq 0 && ! -s "${left_out}" ]] || exit 1
+  # 1: something is not on GitHub. 3: only conflicts, each one backed up.
+  if [[ "${failures}" -gt 0 || -s "${left_out}" ]]; then exit 1; fi
+  if [[ "${conflicts}" -gt 0 ]]; then exit 3; fi
   if [[ "${dry_run}" == true ]]; then
     echo "Dry run: nothing pushed"
   else

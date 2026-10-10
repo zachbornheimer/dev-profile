@@ -98,7 +98,7 @@ clash_before="$(git -C "${work}/b" rev-parse clash)"
 
 code=0
 (cd "${work}/b" && DEV_PROFILE_SYNC_MAX_FILE_MB=1 "${sync}") >"${work}/b.out" 2>&1 || code=$?
-[[ "${code}" -eq 1 ]] || fail "an unresolved conflict must exit 1, got ${code}: $(cat "${work}/b.out")"
+[[ "${code}" -eq 1 ]] || fail "a left-out file (with conflicts) must exit 1, got ${code}: $(cat "${work}/b.out")"
 
 git -C "${work}/origin.git" cat-file -e "$(on_origin shared):from-a.txt" || fail "reconcile must keep the other clone's commits"
 git -C "${work}/origin.git" cat-file -e "$(on_origin shared):from-b.txt" || fail "reconcile must add this clone's commits"

@@ -8,6 +8,7 @@ import "../profile.pkl"
 import "contract.pkl"
 import "githooks.pkl"
 import "pr.pkl"
+import "retire.pkl"
 import "script.pkl"
 import "sync.pkl"
 import "Tool.pkl"
@@ -241,6 +242,7 @@ worktrunk: Dynamic = new {
       """
     ...pr.aliases
     ...sync.aliases
+    ...retire.aliases
   }
 }
 
@@ -363,6 +365,7 @@ wrappers: Mapping<String, String> = new {
   ...githooks.wrappers
   ...pr.wrappers
   ...sync.wrappers
+  ...retire.wrappers
 }
 
 // ---- Personal directory overlay: linked as ~/Developer/Personal/mise.toml.

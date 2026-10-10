@@ -1,0 +1,151 @@
+/// Retire a clone: back it up, prove GitHub holds everything unique in it, then
+/// move it and its worktrees to the Trash. The script behind `wt retire`.
+module retire
+
+import "pr.pkl"
+import "script.pkl"
+import "sync.pkl"
+
+local retireScript =
+  #"""
+  \#(script.bash)
+  # Retire this clone. First `wt sync` backs it up; then an independent check
+  # proves GitHub holds every branch, stash, uncommitted change and detached
+  # commit; only then do the clone and its worktrees go to the Trash.
+  # Refuses, and deletes nothing, when anything is not on GitHub, a file was
+  # too big to back up, or a separate repository sits inside a worktree.
+  # Ignored files (.env, build output) are not backed up: they are listed, and
+  # stay recoverable from the Trash. --dry-run checks without deleting.
+  dry_run=false
+  case "${1:-}" in
+  --dry-run) dry_run=true ;;
+  "") ;;
+  *)
+    echo "usage: dev-profile-retire [--dry-run]" >&2
+    exit 2
+    ;;
+  esac
+
+  # 0: all on GitHub. 3: only conflicts remain, each already backed up.
+  # DEV_PROFILE_RETIRE_SYNC swaps the backup step; the fixture uses it to prove
+  # the check below stands on its own.
+  sync_cmd="${DEV_PROFILE_RETIRE_SYNC:-\#(pr.bin("dev-profile-sync"))}"
+  code=0
+  if [[ "${dry_run}" == true ]]; then
+    "${sync_cmd}" --dry-run || code=$?
+  else
+    "${sync_cmd}" || code=$?
+  fi
+  if [[ "${code}" -ne 0 && "${code}" -ne 3 ]]; then
+    echo "Not retiring: wt sync could not back everything up (exit ${code}); see above" >&2
+    exit 1
+  fi
+
+  \#(sync.repoFacts)
+  max_file_mb="${DEV_PROFILE_SYNC_MAX_FILE_MB:-50}"
+  left_out="$(mktemp)" nested="$(mktemp)"
+  trap 'rm -f "${left_out}" "${nested}"' EXIT
+  \#(sync.snapshotTools)
+  clone="$(clone_id)"
+  # gap: not on GitHub (a real run's sync backs it up first). blocker: sync
+  # cannot back it up, so the clone stays.
+  missing=0 blockers=0
+  gap() {
+    report missing "$1"
+    missing=$((missing + 1))
+  }
+  blocker() {
+    report blocked "$1"
+    blockers=$((blockers + 1))
+  }
+
+  echo "checking GitHub holds everything in this clone"
+  while read -r branch tip <&3; do
+    on_github "${tip}" && continue # its own name, a PR head, or a backup
+    adds_nothing "${tip}" "${base}" && continue
+    remote="refs/remotes/origin/${branch}"
+    if git rev-parse --verify --quiet "${remote}" >/dev/null && adds_nothing "${tip}" "${remote}"; then continue; fi
+    gap "branch ${branch}"
+  done 3< <(git for-each-ref --format='%(refname:short) %(objectname)' refs/heads)
+
+  while read -r stash <&3; do
+    [[ -z "${stash}" ]] || on_github "${stash}" || gap "stash ${stash:0:12}"
+  done 3< <(git stash list --format=%H)
+
+  primary="$(worktrees | sed -n 1p | cut -d "${sep}" -f1)"
+  doomed=()
+  while IFS="${sep}" read -r dir branch head _ <&3; do
+    [[ -d "${dir}" ]] || continue
+    [[ "${dir}" == "${primary}" ]] || doomed+=("${dir}")
+    [[ -n "${head}" ]] || continue # a bare primary has no HEAD of its own
+    name="${branch:-detached-${head:0:12}}"
+    [[ -n "${branch}" ]] || on_github "${head}" || gap "detached commit ${head:0:12} in ${dir}"
+    [[ -n "$(git -C "${dir}" status --porcelain)" ]] || continue
+    # The uncommitted work as it stands now must equal its backup.
+    commit="$(snapshot "${dir}" 2>/dev/null)"
+    ref="refs/remotes/origin/backup/${clone}/wip/${name}"
+    if [[ -z "${clone}" || "$(git rev-parse --verify --quiet "${ref}^{tree}")" != "$(git rev-parse "${commit}^{tree}")" ||
+      "$(git rev-parse --verify --quiet "${ref}^")" != "${head}" ]]; then
+      gap "uncommitted changes in ${dir}"
+    fi
+  done 3< <(worktrees)
+
+  # A nested repository that is not one of this clone's own worktrees would be
+  # trashed with its parent; it has its own history to back up.
+  while IFS= read -r path; do
+    [[ -n "${path}" ]] || continue
+    worktrees | cut -d "${sep}" -f1 | grep -qxF -- "${path%/}" && continue
+    blocker "a separate repository at ${path} (run wt sync there, or move it out)"
+  done < <(sort -u "${nested}")
+  while IFS= read -r path; do blocker "a file too big to back up: ${path}"; done <"${left_out}"
+
+  # Ignored paths, one "<worktree><sep><path>" per line: an ignored directory
+  # holding its own repository counts as a gap; the rest is only listed.
+  ignored_list="$(mktemp)"
+  trap 'rm -f "${left_out}" "${nested}" "${ignored_list}"' EXIT
+  for dir in "${primary}" ${doomed[@]+"${doomed[@]}"}; do
+    git -C "${dir}" status --porcelain=v1 --ignored 2>/dev/null | sed -n 's/^!! //p' | sed 's:/$::' |
+      awk -v d="${dir}" -v s="${sep}" '{ print d s $0 }'
+  done >"${ignored_list}"
+  while IFS="${sep}" read -r dir path; do
+    [[ -e "${dir}/${path}/.git" ]] || continue
+    worktrees | cut -d "${sep}" -f1 | grep -qxF -- "${dir}/${path}" && continue
+    blocker "a separate repository at ${dir}/${path} (ignored; run wt sync there, or move it out)"
+  done <"${ignored_list}"
+
+  if [[ "${blockers}" -gt 0 ]]; then
+    echo "Not retiring: ${blockers} item(s) above cannot be backed up. Nothing was deleted." >&2
+    exit 1
+  fi
+  if [[ "${dry_run}" == true && "${missing}" -gt 0 ]]; then
+    echo "Dry run: ${missing} item(s) above are not on GitHub yet; a real run backs them up, checks again, then retires"
+    exit 0
+  fi
+  if [[ "${missing}" -gt 0 ]]; then
+    echo "Not retiring: ${missing} item(s) above are not on GitHub. Nothing was deleted." >&2
+    exit 1
+  fi
+
+  # Ignored files are not backed up anywhere; say which, so nothing surprises.
+  ignored="$(cut -d "${sep}" -f2 "${ignored_list}" | sort | uniq -c | sort -rn | awk 'NR <= 8 { print $2 }' | paste -sd, -)"
+  [[ -z "${ignored}" ]] || report ignored "not backed up, recoverable from the Trash: ${ignored}"
+
+  if [[ "${dry_run}" == true ]]; then
+    echo "Dry run: GitHub holds everything; would move ${primary} and ${#doomed[@]} worktree(s) to the Trash"
+    exit 0
+  fi
+  cd "$(dirname "${primary}")"
+  for dir in ${doomed[@]+"${doomed[@]}"} "${primary}"; do
+    trash "${dir}" && report trashed "${dir}"
+  done
+  echo "Retired ${primary}; its work lives on GitHub (backup/${clone}/ for what had no branch)"
+  """#
+
+/// Generated bin/ script the worktrunk alias runs.
+wrappers: Mapping<String, String> = new {
+  ["dev-profile-retire"] = retireScript
+}
+
+aliases: Mapping<String, String> = new {
+  ["retire"] = pr.bin("dev-profile-retire") + " {{ args }}"
+}
