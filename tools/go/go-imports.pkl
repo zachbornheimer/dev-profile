@@ -2,7 +2,7 @@ amends "../../lib/Tool.pkl"
 
 doc =
   "Add and sort Go imports. First of the Go fixers: go fix and go mod tidy need the imports in place."
-pin { id = "go:golang.org/x/tools/cmd/goimports"; version = "latest" }
+pin { id = "go:golang.org/x/tools/cmd/goimports"; version = "0.51.0" }
 on {
   ["pre-commit"] = module.builtins.go_imports
 }

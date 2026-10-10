@@ -473,6 +473,7 @@ local repo =
       failed=1
     fi
     step dev-profile-suppressions --tree
+    step dev-profile-owned-files
   }
 
   case "${verb}" in

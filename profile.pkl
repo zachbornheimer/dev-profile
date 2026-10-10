@@ -10,7 +10,12 @@ import "lib/shared.pkl"
 import "lib/Tool.pkl"
 import "lib/types.pkl"
 
+/// Formatters and linters touch source only. Golden, fixture and generated
+/// files are compared or consumed verbatim, so `testdata/` and `fixtures/`
+/// at any depth (and `generated/`) are skipped by hk and dprint alike.
 exclude: Listing<String> = new {
+  "**/testdata"
+  "**/fixtures"
   "node_modules"
   ".venv"
   "vendor"
@@ -33,7 +38,7 @@ dprintExcludes: Listing<String> = new {
   "**/dist"
   "**/.runners"
   "**/testdata"
-  "**/*malformed*"
+  "**/fixtures"
   "**/generated"
   "generated"
   "mise/conf.d/**"
@@ -299,8 +304,8 @@ tools: Listing<types.Pin> = new {
   // Contract adapters: OpenTofu lint and protobuf lint/breaking/generate.
   new { id = "tflint"; version = "0.64.0" }
   new { id = "buf"; version = "1.73.0" }
-  new { id = "npm:@agentclientprotocol/codex-acp"; version = "latest" }
-  new { id = "npm:@agentclientprotocol/claude-agent-acp"; version = "latest" }
+  new { id = "npm:@agentclientprotocol/codex-acp"; version = "2.1.1" }
+  new { id = "npm:@agentclientprotocol/claude-agent-acp"; version = "0.88.0" }
 }
 
 brewPackages: Mapping<String, String> = new {

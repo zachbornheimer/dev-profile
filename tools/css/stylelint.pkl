@@ -1,7 +1,7 @@
 amends "../../lib/Tool.pkl"
 
 doc = "stylelint --fix at commit; exit 2 leaves problems for push, 78 means no config here."
-pin { id = "npm:stylelint"; version = "latest" }
+pin { id = "npm:stylelint"; version = "17.16.0" }
 on {
   ["pre-commit"] {
     glob = List("**/*.css", "**/*.scss", "**/*.sass")

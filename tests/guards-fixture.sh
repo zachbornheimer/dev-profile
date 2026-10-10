@@ -22,8 +22,6 @@ new_repo() {
 	local dir="${work}/$1"
 	mkdir -p "$dir"
 	git -C "$dir" init -q -b feature
-	git -C "$dir" config user.email t@example.com
-	git -C "$dir" config user.name t
 	# The generated dprint config, so the dprint step never depends on a global
 	# config this machine may or may not have. Untracked: hk sees staged files only.
 	cp "${out}/dprint.jsonc" "${dir}/dprint.jsonc"
@@ -46,6 +44,15 @@ fixture_clean_change_passes() {
 	echo "hello" >"${repo}/notes"
 	git -C "$repo" add notes
 	commit_hook "$repo" || fail "clean change: must pass"
+}
+
+fixture_local_identity_blocks() {
+	local repo
+	repo="$(new_repo local-identity)"
+	echo "hello" >"${repo}/notes"
+	git -C "$repo" add notes
+	git -C "$repo" config user.email t@example.com
+	expect_blocked "$repo" "local git identity"
 }
 
 fixture_broken_symlink_blocks() {
@@ -138,6 +145,7 @@ fixture_gosec_changed_files_only() {
 fixture_if_installed
 fixture_gosec_changed_files_only
 fixture_clean_change_passes
+fixture_local_identity_blocks
 fixture_broken_symlink_blocks
 fixture_non_executable_script_blocks
 fixture_executable_without_shebang_blocks

@@ -150,6 +150,65 @@ config) the main checkout lacks, and says which.
 
 Preview with `wt sync -- --dry-run` or `wt tidy -- --dry-run`.
 
+## Repo contract
+
+A repo inherits the profile and commits nothing the profile already owns. A repo
+must not contain:
+
+- `.prettierrc*`, `.prettierignore`
+- `lefthook.yml`, `.trunk/`
+- a copied `.golangci.yml`
+- `.editorconfig`, `.markdownlintrc`, `.yamllint`
+- `renovate.json`, `mise.lock`
+- a `go =`, `node =` or `python =` pin in `mise.toml` that only repeats the profile
+
+A repo may contain a `mise.toml` with repo-specific tasks and tools the profile
+lacks. Put a one-line reason beside any pin that differs from the profile. A
+repo may also keep the language's own files: `go.mod`, `package.json`,
+`composer.json`, `pyproject.toml`, `svelte.config.js`, `vite.config.ts`.
+
+### Fixtures and generated files are not source
+
+Formatters and linters format source. Goldens, fixtures and generated output are
+compared or consumed verbatim, so touching them breaks tests. The profile skips
+`testdata/` and `fixtures/` at any depth, and `generated/`. Put such files there
+and no ignore file is needed.
+
+Do not "format the goldens too". A golden's format is then defined by a
+third-party formatter's version. A formatter bump would change the goldens with
+no code change.
+
+### Escape hatch
+
+A path that cannot move, such as a published schema directory or a generated
+file at a fixed path, keeps a `dprint.jsonc` of exactly this shape:
+
+```jsonc
+{
+  "extends": "/Users/you/.local/share/dev-profile/dprint.jsonc",
+  "excludes": ["schemas/"]
+}
+```
+
+Put only `excludes` in it. `excludes` here adds to the profile's list, so the
+profile's own entries (`node_modules`, `testdata`, `generated` and the rest)
+stay excluded and you list only the extra paths.
+
+`mise run doctor` in a repo warns about each item above that it finds, plus a
+`go`, `node`, `python` or `php` pin that repeats the profile's. The warning
+becomes an error after the sweep of existing repos.
+
+## Versions
+
+- Runtimes pin to the minor (`go = "1.27"`) or, for Node, the major
+  (`node = "24"`), so patch releases arrive with no edit.
+- Linters and one-off tools pin exactly, so each weekly `bump` PR shows one
+  reviewable change per tool.
+- `latest` is never allowed. The test rejects it.
+- No `mise.lock` anywhere. The profile is the lock.
+- The bot bumps within a pin's depth. A person bumps major-only pins. The `bump`
+  PR merges itself when CI passes.
+
 ## Adding a tool
 
 A tool is one file, `tools/<category>/<name>.pkl`, amending `lib/Tool.pkl`.
@@ -247,7 +306,11 @@ dprint plugins, the hk package the Pkl sources import), rewrites the ones that
 are behind, and regenerates the snapshot. A pin shorter than the release keeps
 its depth: `go = "1.27"` moves to `1.28` only when a 1.28 release exists. A
 major-only pin such as `node = "24"` is never moved across majors: the PR
-lists it as held, for a person to bump. `latest` pins are left alone. The `bump` workflow runs it every Monday and
+lists it as held, for a person to bump. The `bump` workflow runs it every Monday and
 opens a PR with the table of changes, dispatches `ci` on it, and arms
 auto-merge: the PR merges itself once the `test` check passes, and stays open
 and red when it does not.
+
+`latest` is not allowed for a mise pin: the bot skips it, the snapshot becomes
+machine-dependent, and SAH's profile already forbids it. `mise run doctor` fails
+on one, through the "no mise pin is `latest`" fact in `tests/profile.test.pkl`.
