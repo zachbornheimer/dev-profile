@@ -108,6 +108,9 @@ mise: Dynamic = new {
     trusted_config_paths = profile.settings.trustedConfigPaths.toList()
   }
   env { ["_"] { path = List("\(profile.installDir)/bin") } }
+  // The contract tasks (`profile:ci`, `lint`, ...) next to the pins they need, so
+  // one global config runs them in any repo, inside a code root or not.
+  tasks { ...contract.tasks }
   dotfiles {
     for (target, file in profile.liveTargets) {
       [target] { source = "\(profile.installDir)/\(file)"; mode = "symlink" }

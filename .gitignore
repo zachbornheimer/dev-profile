@@ -3,6 +3,7 @@
 !/.gitignore
 !/README.md
 !/mise.toml
+!/action.yml
 !/mise-tasks/
 !/mise-tasks/*
 !/.github/
