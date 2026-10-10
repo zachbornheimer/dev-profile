@@ -64,6 +64,6 @@ for tool in npm:markdownlint-cli betterleaks; do
 done
 root_env="$(cd "${work}/bare" && "${env_bin}" --root personal -- mise env --json | jq -r '.DEV_PROFILE // empty')"
 [[ "${root_env}" == personal ]] || fail "dev-profile-env --root personal must load the personal overlay, got '${root_env}'"
-[[ -L "${work}/cache/env-personal/conf.d/dev-profile-root.toml" ]] || fail "dev-profile-env must write only under the cache dir"
+[[ -L "${work}/cache/env-personal/conf.d/root-overlay.toml" ]] || fail "dev-profile-env must write only under the cache dir"
 if "${env_bin}" --root nowhere -- true 2>/dev/null; then fail "dev-profile-env: an unknown root must fail"; fi
 echo "ci-action fixture ok"

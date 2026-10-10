@@ -51,9 +51,9 @@ local profileEnv =
   mkdir -p "${config_dir}/conf.d"
   ln -sfn "${profile_dir}/mise-profile.toml" "${config_dir}/conf.d/dev-profile.toml"
   if [[ -n "${overlay}" ]]; then
-    ln -sfn "${overlay}" "${config_dir}/conf.d/dev-profile-root.toml"
+    ln -sfn "${overlay}" "${config_dir}/conf.d/root-overlay.toml"
   else
-    rm -f "${config_dir}/conf.d/dev-profile-root.toml"
+    rm -f "${config_dir}/conf.d/root-overlay.toml"
   fi
 
   case "${mode}" in
