@@ -89,6 +89,22 @@ fixture_large_file_blocks() {
 	expect_blocked "$repo" "large file"
 }
 
+fixture_large_lockfile_passes() {
+	local repo
+	repo="$(new_repo large-lockfile)"
+	head -c 2000000 /dev/zero | tr '\0' 'a' >"${repo}/package-lock.json"
+	git -C "$repo" add package-lock.json
+	commit_hook "$repo" || fail "large lockfile: must pass"
+}
+
+fixture_large_binary_still_blocks() {
+	local repo
+	repo="$(new_repo large-binary)"
+	head -c 2000000 /dev/zero >"${repo}/blob.bin"
+	git -C "$repo" add blob.bin
+	expect_blocked "$repo" "large binary"
+}
+
 fixture_gitmodules_blocks() {
 	local repo
 	repo="$(new_repo gitmodules)"
@@ -150,6 +166,8 @@ fixture_broken_symlink_blocks
 fixture_non_executable_script_blocks
 fixture_executable_without_shebang_blocks
 fixture_large_file_blocks
+fixture_large_lockfile_passes
+fixture_large_binary_still_blocks
 fixture_gitmodules_blocks
 fixture_default_branch_commit
 echo "guards fixture ok"
