@@ -344,14 +344,21 @@ local pruneScript =
   if [[ "${pushed}" == true ]]; then
     primary="$(worktrees | sed -n 1p | cut -d "${sep}" -f1)"
 
+    # Ignored paths tools regenerate on their own (space-separated), which never
+    # make a worktree worth keeping.
+    disposable="${DEV_PROFILE_PRUNE_DISPOSABLE-.trunk}"
+
     # Ignored files in worktree $1 (.env, local config) that the primary worktree
     # lacks or holds differently: removing the worktree would destroy them.
     unique_ignored() {
-      local path
+      local path tool_state
       while IFS= read -r -d '' path; do
         [[ "${path}" == '!! '* ]] || continue
         path="${path#!! }"
         path="${path%/}"
+        for tool_state in ${disposable}; do
+          [[ "${path}" != "${tool_state}" && "${path}" != "${tool_state}/"* ]] || continue 2
+        done
         if [[ -d "$1/${path}" ]]; then
           [[ -e "${primary}/${path}" ]] || echo "${path}"
         else
