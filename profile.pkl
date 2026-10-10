@@ -10,7 +10,12 @@ import "lib/shared.pkl"
 import "lib/Tool.pkl"
 import "lib/types.pkl"
 
+/// Formatters and linters touch source only. Golden, fixture and generated
+/// files are compared or consumed verbatim, so `testdata/` and `fixtures/`
+/// at any depth (and `generated/`) are skipped by hk and dprint alike.
 exclude: Listing<String> = new {
+  "**/testdata"
+  "**/fixtures"
   "node_modules"
   ".venv"
   "vendor"
@@ -33,7 +38,7 @@ dprintExcludes: Listing<String> = new {
   "**/dist"
   "**/.runners"
   "**/testdata"
-  "**/*malformed*"
+  "**/fixtures"
   "**/generated"
   "generated"
   "mise/conf.d/**"
