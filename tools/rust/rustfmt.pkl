@@ -28,7 +28,7 @@ local rustfmt =
     while [[ "${dir}" != "/" ]]; do
       manifest="${dir}/Cargo.toml"
       if [[ -f "${manifest}" ]]; then
-        edition="$(sed -nE 's/^edition[[:space:]]*=[[:space:]]*"([0-9]+)".*/\1/p' "${manifest}" | head -n1)"
+        edition="$(sed -nE 's/^edition[[:space:]]*=[[:space:]]*"([0-9]+)".*/\1/p' "${manifest}" | sed -n 1p)"
         if [[ -n "${edition}" ]]; then
           echo "${edition}"
           return 0

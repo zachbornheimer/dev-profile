@@ -220,6 +220,12 @@ echo SECRET=1 >"${work}/a-feat/.env"
 logged "force-delete feat/a" && fail "a worktree holding the only copy of an ignored file must be kept"
 grep -q 'Kept feat/a: ignored files exist only in .*(.env)' "${work}/prune.out" || fail "a kept worktree must say which ignored files"
 rm "${work}/a-feat/.env"
+# Many such files: listing only the first few must not kill prune (SIGPIPE).
+echo '*.log' >>"${work}/a/.git/info/exclude"
+for ((n = 0; n < 50; n++)); do echo "${n}" >"${work}/a-feat/local-${n}.log"; done
+(cd "${work}/a" && "${prune}" --pushed) >"${work}/prune-many.out" 2>&1 || fail "prune must survive many local-only ignored files: $(tail -1 "${work}/prune-many.out")"
+grep -q 'Kept feat/a: ignored files exist only in' "${work}/prune-many.out" || fail "many local-only ignored files must keep the worktree"
+rm "${work}"/a-feat/local-*.log
 : >"${PRUNE_LOG}"
 (cd "${work}/a" && "${prune}" --pushed) >/dev/null 2>&1 || fail "prune --pushed must succeed"
 logged "wt step prune --foreground" || fail "prune must run wt step prune first"
