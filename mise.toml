@@ -144,6 +144,7 @@ for cmd in $(grep -ohE "dev-profile-[a-z0-9-]+" "$out/src/profile.pkl" "$out"/sr
 pkl test tests/profile.test.pkl || fail "pkl test (regenerate the snapshot with: pkl test --overwrite tests/profile.test.pkl)"
 bash tests/contract-fixtures.sh "$out" || fail "contract fixtures"
 bash tests/go-fix-fixture.sh "$out" || fail "go-fix fixture"
+bash tests/gosec-fixture.sh "$out" || fail "gosec fixture"
 bash tests/go-mod-tidy-fixture.sh "$out" || fail "go-mod-tidy fixture"
 bash tests/bump-fixture.sh "$out" || fail "bump fixture"
 bash tests/modernizer-fixture.sh "$out" || fail "modernizer fixture"

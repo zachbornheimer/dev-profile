@@ -89,7 +89,22 @@ fixture_modernizes_module_outside_go_work() {
 	! grep -q 'interface{}' "${repo}/tools/x/x.go" || fail "workspace: module outside go.work was not modernized"
 }
 
+# Fixtures under testdata/ are data, not packages: the go tool ignores those
+# directories, and so must both wrappers, or a staged unbuildable fixture
+# blocks the commit.
+fixture_skips_testdata_directories() {
+	local repo
+	repo="$(new_module testdata-skip)"
+	mkdir -p "${repo}/rules/testdata/bad"
+	printf 'package ok\n' >"${repo}/rules/ok.go"
+	printf 'package bad\n\nvar _ = undefinedOnPurpose\n' >"${repo}/rules/testdata/bad/bad.go"
+	run_go_fix "$repo" rules/testdata/bad/bad.go || fail "testdata: go-fix did not skip a testdata fixture"
+	(cd "$repo" && "${out}/bin/dev-profile-go-vet" rules/testdata/bad/bad.go) || fail "testdata: go-vet did not skip a testdata fixture"
+	if (cd "$repo" && "${out}/bin/dev-profile-go-vet" rules/testdata/bad/bad.go rules/ok.go 2>/dev/null); then :; else fail "testdata: a buildable sibling package was blocked"; fi
+}
+
 fixture_rewrites_staged_file_only
 fixture_blocks_rewrite_that_breaks_vet
 fixture_modernizes_module_outside_go_work
+fixture_skips_testdata_directories
 echo "go-fix fixture ok"
