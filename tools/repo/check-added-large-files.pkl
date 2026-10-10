@@ -1,25 +1,7 @@
 amends "../../lib/Tool.pkl"
 
-doc = "No large files staged by accident; package-manager lockfiles are machine-written and exempt."
-
-local lockfiles =
-  List(
-    "**/package-lock.json",
-    "**/npm-shrinkwrap.json",
-    "**/pnpm-lock.yaml",
-    "**/yarn.lock",
-    "**/bun.lock",
-    "**/bun.lockb",
-    "**/uv.lock",
-    "**/poetry.lock",
-    "**/Cargo.lock",
-    "**/composer.lock",
-    "**/Gemfile.lock",
-    "**/go.sum",
-  )
-
+doc = "No large files staged by accident; machine-written lockfiles are exempt."
+skipsLockfiles = true
 on {
-  ["pre-commit"] = (module.builtins.check_added_large_files) {
-    exclude = lockfiles
-  }
+  ["pre-commit"] = module.builtins.check_added_large_files
 }

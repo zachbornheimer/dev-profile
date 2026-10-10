@@ -28,8 +28,17 @@ exclude: Listing<String> = new {
   ".beads"
 }
 
+/// Package-manager lockfiles are machine-written, so formatters and content
+/// linters (dprint, yamllint) and the large-file guard skip them. Secret
+/// scanners still read them. `*.lock` covers yarn, composer, Cargo, uv, poetry,
+/// Gemfile and mise.
+local lockfileGlobs: List<String> =
+  List("**/pnpm-lock.yaml", "**/package-lock.json", "**/go.sum", "**/bun.lock*", "**/*.lock")
+
+lockfiles: List<String> = lockfileGlobs
+
 dprintExcludes: Listing<String> = new {
-  "**/*-lock.json"
+  ...lockfileGlobs
   "**/node_modules"
   "**/.venv"
   "**/vendor"
@@ -135,6 +144,7 @@ local function entry(tool: Tool, hook: Tool.Hook): hk.Step = (tool.on[hook]) {
     when (tool.glob != null) { glob = tool.glob }
     when (tool.types != null) { types = tool.types }
   }
+  when (tool.skipsLockfiles) { exclude = lockfileGlobs }
 }
 
 /// Commit: the pre-commit `fix` entries. Each rewrites what it safely can and

@@ -1,6 +1,7 @@
 amends "../../lib/Tool.pkl"
 
 doc = "YAML lint at push. Layout rules are off (~/.config/yamllint/config): dprint owns layout."
+skipsLockfiles = true
 pin { id = "pypi:yamllint"; version = "1.38.0" }
 on {
   ["pre-push"] = module.builtins.yamllint

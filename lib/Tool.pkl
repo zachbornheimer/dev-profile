@@ -40,6 +40,10 @@ types: List<String>?
 /// after other steps in the same hook, by their hk step names.
 on: Mapping<Hook, hk.Step>(entriesRun(this)) = new {}
 
+/// The tool judges or rewrites file content, so machine-written lockfiles
+/// (`profile.lockfiles`) are not its input. Secret scanners leave this off.
+skipsLockfiles: Boolean = false
+
 /// A pre-commit guard that must see the result of every fixer (go vet after go fix).
 afterFixers: Boolean = false
 
