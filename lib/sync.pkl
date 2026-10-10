@@ -30,7 +30,7 @@ local repoFacts =
   adds_nothing() {
     git merge-base --is-ancestor "$1" "$2" && return 0
     local tree
-    tree="$(git merge-tree --write-tree "$2" "$1" 2>/dev/null | head -n 1)" || return 1
+    tree="$(git merge-tree --write-tree "$2" "$1" 2>/dev/null | sed -n 1p)" || return 1
     [[ "${tree}" == "$(git rev-parse "$2^{tree}")" ]]
   }
 
@@ -49,7 +49,7 @@ local repoFacts =
   }
 
   # The worktree line for branch $1, if it has one.
-  worktree_of() { worktrees | awk -F "${sep}" -v b="$1" '$2 == b { print; exit }'; }
+  worktree_of() { worktrees | awk -F "${sep}" -v b="$1" '$2 == b && !found { print; found = 1 }'; }
   """#
 
 local syncScript =
@@ -342,7 +342,7 @@ local pruneScript =
   done 3<<<"${merged}"
 
   if [[ "${pushed}" == true ]]; then
-    primary="$(worktrees | head -n 1 | cut -d "${sep}" -f1)"
+    primary="$(worktrees | sed -n 1p | cut -d "${sep}" -f1)"
 
     # Ignored files in worktree $1 (.env, local config) that the primary worktree
     # lacks or holds differently: removing the worktree would destroy them.
@@ -368,7 +368,7 @@ local pruneScript =
       [[ "${dir}" != "${primary}" && -z "${locked}" ]] || continue
       if [[ -n "${dir}" ]]; then
         [[ -z "$(git -C "${dir}" status --porcelain)" ]] || continue
-        only_here="$(unique_ignored "${dir}" | head -n 3 | paste -sd, -)"
+        only_here="$(unique_ignored "${dir}" | awk 'NR <= 3' | paste -sd, -)"
         if [[ -n "${only_here}" ]]; then
           echo "Kept ${branch}: ignored files exist only in ${dir} (${only_here}); remove it yourself once they are safe" >&2
           continue
