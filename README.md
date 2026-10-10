@@ -196,10 +196,15 @@ file at a fixed path, keeps a `dprint.jsonc` of exactly this shape:
 
 ```jsonc
 {
-  "extends": "/Users/you/.local/share/dev-profile/dprint.jsonc",
+  "extends": "~/.local/share/dev-profile/dprint.jsonc",
   "excludes": ["schemas/"]
 }
 ```
+
+dprint expands the leading `~`, so the same file works on every machine where
+the profile is rendered to its default path (`mise bootstrap` does this, and
+so must a CI runner using the profile). Never write a `/Users/...` path
+there: it breaks on other machines and in CI.
 
 Put only `excludes` in it. `excludes` here adds to the profile's list, so the
 profile's own entries (`node_modules`, `testdata`, `generated` and the rest)
