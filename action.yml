@@ -35,8 +35,8 @@ runs:
         mise install --yes
         DEV_PROFILE_OUT="${out}" mise run generate
         # Where bootstrap links it: mise's global conf.d, which every mise call reads.
-        mkdir -p "${HOME}/.config/mise/conf.d"
-        ln -sf "${out}/mise-profile.toml" "${HOME}/.config/mise/conf.d/dev-profile.toml"
+        # The same script a developer runs locally (README "Outside a code root").
+        "${out}/bin/dev-profile-env" --config-dir "${HOME}/.config/mise" --link-only
         echo "key=dev-profile-${RUNNER_OS}-${RUNNER_ARCH}-$(shasum -a 256 "${out}/mise-profile.toml" | cut -c1-16)" >>"${GITHUB_OUTPUT}"
 
     - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
