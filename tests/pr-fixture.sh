@@ -44,6 +44,15 @@ case "$*" in
 	read_state pr_state OPEN
 	;;
 "pr merge"*)
+	# auto_merge_error: the repo refuses --auto; merge_error: any merge fails.
+	if [[ "$*" == *" --auto "* && -e "${PR_STATE}/auto_merge_error" ]]; then
+		echo "GraphQL: Auto merge is not allowed for this repository (enablePullRequestAutoMerge)" >&2
+		exit 1
+	fi
+	if [[ -e "${PR_STATE}/merge_error" ]]; then
+		echo "GraphQL: Pull request is not mergeable" >&2
+		exit 1
+	fi
 	echo MERGED >"${PR_STATE}/pr_state"
 	if [[ -e "${PR_STATE}/blip_after_merge" ]]; then touch "${PR_STATE}/blip"; fi
 	;;
@@ -83,6 +92,7 @@ git clone -q "${work}/origin.git" "${work}/repo" 2>/dev/null
 cd "${work}/repo"
 git config user.email t@example.com
 git config user.name t
+git config commit.gpgsign false # the fixture has no signing key
 git switch -q -c main
 git commit -q --allow-empty -m base
 git push -q origin main
@@ -160,6 +170,21 @@ logged "wt remove --foreground --force-delete feature" || fail "a merged tip mus
 gone() { ! git ls-remote --exit-code --heads origin "$1" >/dev/null 2>&1; }
 gone feature || fail "a merge must delete the remote branch that holds the merged tip"
 
+# A repo that refuses auto-merge (private, Free plan) gets a direct merge.
+reset
+touch "${state}/auto_merge_error"
+"$watch" 7 >/dev/null 2>&1 </dev/null || fail "a repo refusing auto-merge must still merge"
+logged "gh pr merge 7 --auto --squash" || fail "auto-merge must be tried first"
+logged "gh pr merge 7 --squash --delete-branch=false" || fail "a refused auto-merge must fall back to a direct merge"
+logged "closed without merging" && fail "the direct merge must settle the PR"
+
+# Any other merge error still fails, with no direct-merge fallback.
+reset
+touch "${state}/merge_error"
+"$watch" 7 >/dev/null 2>&1 </dev/null && fail "an unrelated merge error must exit nonzero"
+logged "terminal-notifier -title PR #7: merge refused" || fail "an unrelated merge error must notify"
+logged "gh pr merge 7 --squash" && fail "an unrelated merge error must not fall back to a direct merge"
+
 # Commits pushed after the merge keep the remote branch.
 git push -q origin feature
 reset
@@ -190,7 +215,7 @@ logged "wt remove" && fail "a merged fork PR must not remove a local branch"
 # After the merge, the checked-out default branch catches up and its
 # post-merge hooks run (dev-profile re-renders the live profile from one).
 git clone -q -b main "${work}/origin.git" "${work}/other" 2>/dev/null
-git -C "${work}/other" -c user.email=t@example.com -c user.name=t commit -q --allow-empty -m "merged on GitHub"
+git -C "${work}/other" -c user.email=t@example.com -c user.name=t -c commit.gpgsign=false commit -q --allow-empty -m "merged on GitHub"
 git -C "${work}/other" push -q origin HEAD:main
 git switch -q main
 git config hook.fixture.event post-merge

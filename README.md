@@ -96,7 +96,8 @@ it). From a loop or script it watches detached and logs to
 `.git/wt/logs/pr-watch-<branch>.log`. `DEV_PROFILE_PR_WATCH=tab|background`
 overrides the choice. The watcher merges only after every check passes, even
 where the branch has no protection, using the repo's default merge method
-(`DEV_PROFILE_PR_MERGE_METHOD` overrides).
+(`DEV_PROFILE_PR_MERGE_METHOD` overrides). Where GitHub refuses auto-merge
+(a private repo on the Free plan), `pr-auto` merges directly once checks pass.
 After the merge it fast-forwards your local default branch where it is checked
 out, so that checkout's `post-merge` hooks run. Here, `mise run install-git-hooks`
 adds one: a pull or merge that moves `main` runs `mise run generate`, so the
