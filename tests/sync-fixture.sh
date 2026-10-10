@@ -173,6 +173,20 @@ code=0
 grep -q 'Everything unique' "${work}/c2.out" && fail "sync must not claim completeness while a file is left out"
 rm "${work}/c-main/huge.bin"
 
+# A clone whose pre-push checks refuse everything: publishing under a branch's
+# own name is refused, but the work still reaches GitHub as a backup.
+git clone -q "${work}/origin.git" "${work}/d" 2>/dev/null
+git -C "${work}/d" remote set-head origin main
+git -C "${work}/d" config hook.gate.event pre-push
+git -C "${work}/d" config hook.gate.command 'echo "checks failed" >&2; exit 1'
+git -C "${work}/d" switch -q -c feat/gated main
+commit "${work}/d" gated.txt g
+(cd "${work}/d" && "${sync}") >"${work}/d.out" 2>&1 || fail "work preserved as a backup must not fail sync: $(cat "${work}/d.out")"
+on_origin feat/gated >/dev/null && fail "a branch the pre-push checks refuse must not be published under its own name"
+[[ "$(git -C "${work}/origin.git" rev-parse "$(backup_ref feat/gated)")" == "$(git -C "${work}/d" rev-parse feat/gated)" ]] ||
+	fail "a branch the pre-push checks refuse must be preserved as a backup"
+grep -q 'gated  *feat/gated' "${work}/d.out" || fail "a refused branch must be reported"
+
 # --- prune: gh and wt are stubs; deletions on origin are real.
 stubs="${work}/stubs"
 mkdir -p "${stubs}"
@@ -215,7 +229,7 @@ logged "remove --foreground --force-delete main" && fail "the default branch mus
 
 # --remote: absorbed branches go, unmerged ones and open PRs stay.
 git -C "${work}/seed" fetch -q origin
-git -C "${work}/seed" push -q origin origin/main:refs/heads/absorbed origin/main:refs/heads/open-pr
+git -C "${work}/seed" push -q origin origin/main:refs/heads/absorbed origin/main:refs/heads/absorbed-too origin/main:refs/heads/open-pr
 echo open-pr >"${PRUNE_OPEN}"
 (cd "${work}/a" && "${prune}" --remote --dry-run) >/dev/null 2>&1 || fail "prune --remote --dry-run must succeed"
 on_origin absorbed >/dev/null || fail "prune --dry-run must not delete"
@@ -228,8 +242,9 @@ git -C "${work}/seed" push -q origin "$(git -C "${work}/seed" rev-parse 'stash@{
 git -C "${work}/seed" stash drop -q
 git -C "${work}/a" fetch -q origin
 backups_before="$(git -C "${work}/origin.git" for-each-ref refs/heads/backup | wc -l)"
-(cd "${work}/a" && "${prune}" --remote) >/dev/null 2>&1 || fail "prune --remote must succeed"
+(cd "${work}/a" && DEV_PROFILE_PRUNE_DELETE_BATCH=1 "${prune}" --remote) >/dev/null 2>&1 || fail "prune --remote must succeed"
 on_origin absorbed >/dev/null && fail "a branch absorbed into main must be deleted from GitHub"
+on_origin absorbed-too >/dev/null && fail "every batch of deletions must run"
 [[ "$(git -C "${work}/origin.git" for-each-ref refs/heads/backup | wc -l)" -eq "${backups_before}" ]] ||
 	fail "prune --remote must never delete sync's backups"
 on_origin open-pr >/dev/null || fail "a branch with an open PR must be kept"
