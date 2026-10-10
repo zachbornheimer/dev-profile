@@ -104,13 +104,16 @@ local retireScript =
     if [[ -e "${dir}/${path}/.git" ]]; then echo "${dir}/${path}" >>"${nested}"; fi
   done <"${ignored_list}"
 
-  # Why repository $1 holds work its own GitHub lacks, or nothing when it holds none.
+  # Why repository $1 holds work its own GitHub lacks, or nothing when it holds
+  # none. "Unique" means what wt sync means by it (a PR head or a squash merge
+  # already counts as on GitHub), so ask sync itself, without pushing.
   nested_unique() {
+    local plan
     git -C "$1" remote get-url origin >/dev/null 2>&1 || { echo "it has no origin" && return; }
-    git -C "$1" fetch --quiet origin 2>/dev/null || { echo "its origin is unreachable" && return; }
-    [[ -z "$(git -C "$1" status --porcelain 2>/dev/null)" ]] || { echo "uncommitted changes" && return; }
-    [[ -z "$(git -C "$1" stash list 2>/dev/null)" ]] || { echo "stashes" && return; }
-    [[ -z "$(git -C "$1" rev-list --branches --not --remotes=origin 2>/dev/null)" ]] || echo "commits its GitHub lacks"
+    plan="$(cd "$1" && "\#(pr.bin("dev-profile-sync"))" --dry-run 2>&1)" || { echo "wt sync cannot check it" && return; }
+    if grep -qE '^  (would push|would back up|diverged|skipped|nested) ' <<<"${plan}"; then
+      echo "work its own GitHub lacks"
+    fi
   }
 
   # A repository nested in a worktree goes to the Trash with it: fine when its
