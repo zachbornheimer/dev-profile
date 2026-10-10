@@ -174,6 +174,11 @@ must not contain:
 - `renovate.json`, `mise.lock`
 - a `go =`, `node =` or `python =` pin in `mise.toml` that only repeats the profile
 
+A repo's `.git/hooks/` must not hold files from retired hook managers (lefthook,
+zq, trunk, husky, yorkie, pre-commit.com); only the global hk hooks run.
+`wt switch` renames them to `<name>.retired-by-dev-profile`
+(`dev-profile-retire-legacy-hooks [repo]`, reversible), and `mise run doctor` warns about any left.
+
 A repo may contain a `mise.toml` with repo-specific tasks and tools the profile
 lacks. Put a one-line reason beside any pin that differs from the profile. A
 repo may also keep the language's own files: `go.mod`, `package.json`,
