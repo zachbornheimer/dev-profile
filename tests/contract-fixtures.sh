@@ -12,7 +12,7 @@ root="${work}/root"
 stubs="${work}/stubs"
 log="${work}/calls.log"
 output="${work}/output.txt"
-stubbed_tools=(go goimports golangci-lint govulncheck pnpm npm composer aube uv oxlint gitleaks dotnet dprint shellcheck shellharden markdownlint betterleaks)
+stubbed_tools=(go goimports golangci-lint govulncheck pnpm npm composer aube uv oxlint gitleaks dotnet dprint shellcheck markdownlint betterleaks)
 
 mkdir -p "$root" "$stubs" "${work}/mise-config" "${work}/hk-config"
 cp "${out}/personal-overlay.toml" "${root}/mise.toml"

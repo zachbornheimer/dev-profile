@@ -1,7 +1,31 @@
 amends "../../lib/Tool.pkl"
 
-doc = "Shell static analysis at push."
+doc =
+  "Shell static analysis: at commit, applies only the fixes shellcheck is sure of (quoting a lone variable); at push, reports everything."
 pin { id = "shellcheck"; version = "0.11.0" }
 on {
+  ["pre-commit"] {
+    types = List("bash", "sh")
+    fix = "dev-profile-shellcheck-fix {{files}}"
+  }
   ["pre-push"] = module.builtins.shellcheck
 }
+
+local shellcheckFix =
+  """
+  \(bash)
+  # Apply the fixes shellcheck is sure of to the staged shell files. Its parser
+  # understands heredocs, and it leaves expansions that may split on purpose
+  # ($(seq 3), ${CMD:-mise latest}) as warnings for a person, so a fix never
+  # changes what the script does. The pre-push shellcheck reports the rest.
+  if [[ $# -eq 0 ]]; then
+    exit 0
+  fi
+  patch="$(shellcheck --format=diff "$@" 2>/dev/null || true)"
+  if [[ -z "${patch}" ]]; then
+    exit 0
+  fi
+  git apply --whitespace=nowarn <<<"${patch}"
+  """
+
+scripts { ["dev-profile-shellcheck-fix"] = shellcheckFix }

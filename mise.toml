@@ -167,6 +167,7 @@ bash tests/guards-fixture.sh "$out" || fail "guards fixture"
 bash tests/deny-fixture.sh "$out" || fail "deny fixture"
 for gem_tool in bundle-audit brakeman; do command -v "$gem_tool" >/dev/null || echo "note: $gem_tool is not installed; run mise install (pinned in profile.pkl tools). Its push check is skipped until then."; done
 bash tests/pr-fixture.sh "$out" || fail "pr fixture"
+bash tests/shellcheck-fix-fixture.sh "$out" || fail "shellcheck-fix fixture"
 echo "doctor ok"
 """
 
