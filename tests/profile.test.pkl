@@ -5,6 +5,7 @@ amends "pkl:test"
 
 import "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pkl" as hk
 
+import "../lib/contract.pkl" as contract
 import "../lib/hk.pkl" as config
 import "../lib/render.pkl"
 import "../profile.pkl"
@@ -42,6 +43,13 @@ local function plan(steps: Mapping<String, hk.Step>): Mapping<String, Dynamic> =
 }
 
 facts {
+  ["every contract verb has a profile:<verb> task and a plain twin that depends on it"] {
+    for (verb, _ in profile.contractVerbs) {
+      contract.tasks.toMap().containsKey("\(contract.namespace):\(verb)")
+        && contract.tasks.toMap().containsKey(verb)
+        && contract.tasks.toMap()[verb].depends == List("\(contract.namespace):\(verb)")
+    }
+  }
   ["every pre-push step judges: a check, never only a fix"] {
     for (_, step in pushSteps) { hasCheck(step) }
   }
