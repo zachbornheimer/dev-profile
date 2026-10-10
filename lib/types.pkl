@@ -54,7 +54,10 @@ class Policy {
 
 class Pin {
   id: String
-  version: String
+  /// Never "latest": resolving it needs a live version-list lookup, which
+  /// times out in CI and makes installs unreproducible. The kernel's
+  /// `[bootstrap.packages]` (mise.toml) is outside Pin and may use it.
+  version: String(this != "latest")
   /// When false, the tool is documented but not globally installed.
   install: Boolean = true
 }
