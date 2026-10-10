@@ -97,6 +97,10 @@ it). From a loop or script it watches detached and logs to
 overrides the choice. The watcher merges only after every check passes, even
 where the branch has no protection, using the repo's default merge method
 (`DEV_PROFILE_PR_MERGE_METHOD` overrides).
+After the merge it fast-forwards your local default branch where it is checked
+out, so that checkout's `post-merge` hooks run. Here, `mise run install-git-hooks`
+adds one: a pull or merge that moves `main` runs `mise run generate`, so the
+live profile follows `main`.
 
 Preview a prune with `wt prune -- --dry-run`; wt reserves a bare `--dry-run`
 on aliases.

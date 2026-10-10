@@ -63,6 +63,21 @@ pkl eval -x 'gitHooks.toMap().fold(List(), (acc, event, cmd) -> acc.add("\(event
     git config --global "hook.hk-$event.command" "test \"\${HK:-1}\" = \"0\" || $mise_bin x hk -- $cmd"
     echo "git hook $event -> $cmd"
   done
+# This repo only: a pull or merge that moves main re-renders the live profile.
+git config --local hook.dev-profile-post-merge.event post-merge
+git config --local hook.dev-profile-post-merge.command "$mise_bin run post-merge"
+echo "git hook post-merge (this repo) -> mise run post-merge"
+'''
+
+[tasks.post-merge]
+description = "Re-render the live profile when main moves (this repo's git post-merge hook)"
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+# Only the default branch is the live profile: a pull in a feature worktree must not deploy it.
+default="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || echo origin/main)"
+[[ "$(git branch --show-current)" == "${default#origin/}" ]] || exit 0
+mise run generate
 '''
 
 [tasks.backup-live]

@@ -319,6 +319,13 @@ local watch =
   # Clean up from the primary worktree: the branch's own worktree is going away.
   cd "$(git rev-parse --path-format=absolute --git-common-dir)/.."
   git fetch --prune --quiet origin || true
+  # Fast-forward the default branch where it is checked out: the merge lands
+  # locally, and that checkout's post-merge hooks run (dev-profile re-renders
+  # the live profile). Git itself refuses when local changes are in the way.
+  default_branch="$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name)"
+  if [[ "$(git branch --show-current)" == "${default_branch}" ]]; then
+    git merge --ff-only --quiet "origin/${default_branch}" || status "could not fast-forward ${default_branch}"
+  fi
   merged="$(gh pr view "${pr}" --json headRefOid --jq .headRefOid)"
   # Delete the remote branch only while it still holds exactly what merged;
   # commits pushed after the merge keep it alive.

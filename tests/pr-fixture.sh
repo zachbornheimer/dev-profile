@@ -28,6 +28,7 @@ read_state() { cat "${PR_STATE}/$1" 2>/dev/null || echo "$2"; }
 case "$*" in
 "repo view --json owner,defaultBranchRef") echo '{"owner":{"login":"me"},"defaultBranchRef":{"name":"main"}}' ;;
 "repo view --json viewerDefaultMergeMethod"*) echo squash ;;
+"repo view --json defaultBranchRef"*) echo main ;;
 "pr list --head "*"--state open"*) read_state open '[]' ;;
 "pr list --head "*"--state all"*) read_state all '[]' ;;
 "pr list --state merged"*) read_state merged '' ;;
@@ -186,6 +187,22 @@ echo true >"${state}/fork"
 echo MERGED >"${state}/pr_state"
 "$watch" 7 >/dev/null 2>&1 </dev/null || fail "a merged fork PR must exit 0"
 logged "wt remove" && fail "a merged fork PR must not remove a local branch"
+
+# After the merge, the checked-out default branch catches up and its
+# post-merge hooks run (dev-profile re-renders the live profile from one).
+git clone -q "${work}/origin.git" "${work}/other" 2>/dev/null
+git -C "${work}/other" -c user.email=t@example.com -c user.name=t commit -q --allow-empty -m "merged on GitHub"
+git -C "${work}/other" push -q origin HEAD:main
+git switch -q main
+git config hook.fixture.event post-merge
+git config hook.fixture.command "touch '${work}/post-merge-ran'"
+reset
+echo MERGED >"${state}/pr_state"
+"$watch" 7 >/dev/null 2>&1 </dev/null || fail "a merged PR must clean up"
+[[ "$(git rev-parse main)" == "$(git rev-parse origin/main)" ]] || fail "the default branch must fast-forward to the merge"
+[[ -e "${work}/post-merge-ran" ]] || fail "the fast-forward must run the checkout's post-merge hooks"
+git config --unset hook.fixture.event
+git switch -q feature
 
 reset
 echo MERGED >"${state}/pr_state"
