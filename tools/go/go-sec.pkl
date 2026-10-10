@@ -14,6 +14,9 @@ local gosecPackages =
   # dev-profile-gosec-packages <files…>: gosec the Go packages that contain the
   # given files, but fail only on findings located in those files, so findings
   # already sitting in untouched files never block a push.
+  # A file named facade.go or facades.go is a system boundary whose job is to
+  # run a caller-given command, so the subprocess rules (G204 variable argv,
+  # G702 syscall exec) do not apply there; every other rule still does.
   # Skips when gosec is not installed or no Go file is given.
   command -v gosec >/dev/null 2>&1 || exit 0
   root="$(pwd -P)"
@@ -35,6 +38,7 @@ local gosecPackages =
   findings="$(jq -r --arg root "${root}/" '
     .Issues[]
     | select(.file as $path | $ARGS.positional | index($path))
+    | select(((.file | test("/facades?\\.go$")) and (.rule_id | IN("G204", "G702"))) | not)
     | "\(.file | ltrimstr($root)):\(.line) \(.rule_id) \(.details)"
   ' --args "${changed[@]}" <<<"${report}")"
   [[ -z "${findings}" ]] || { echo "${findings}" >&2; exit 1; }
