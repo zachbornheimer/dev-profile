@@ -47,6 +47,12 @@ skipsLockfiles: Boolean = false
 /// A pre-commit guard that must see the result of every fixer (go vet after go fix).
 afterFixers: Boolean = false
 
+/// Command the lint verb runs in place of the pre-push check, for a tool whose
+/// push check judges only what is new since the upstream default branch (a
+/// ratchet). It covers the whole tree and never fixes. Null: the push check
+/// already covers every file it is given.
+fullTreeCheck: String?
+
 /// Generated `bin/` scripts: full name (`dev-profile-<x>`) to bash body. Step
 /// commands call them by name; a tool may ship a script and no hook entry.
 scripts: Mapping<String, String> = new {}

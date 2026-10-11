@@ -168,6 +168,7 @@ bash tests/bump-fixture.sh "$out" || fail "bump fixture"
 bash tests/modernizer-fixture.sh "$out" || fail "modernizer fixture"
 bash tests/guards-fixture.sh "$out" || fail "guards fixture"
 bash tests/deny-fixture.sh "$out" || fail "deny fixture"
+bash tests/lint-full-tree-fixture.sh "$out" || fail "lint-full-tree fixture"
 for gem_tool in bundle-audit brakeman; do command -v "$gem_tool" >/dev/null || echo "note: $gem_tool is not installed; run mise install (pinned in profile.pkl tools). Its push check is skipped until then."; done
 bash tests/pr-fixture.sh "$out" || fail "pr fixture"
 bash tests/escape-hatch-fixture.sh README.md || fail "escape-hatch fixture"

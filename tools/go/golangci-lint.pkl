@@ -3,6 +3,7 @@ amends "../../lib/Tool.pkl"
 doc =
   "Go meta-linter. Commit applies its fixers to what this commit changes; push fails only on issues new since the upstream default branch."
 pin { id = "golangci-lint"; version = "2.14.0" }
+fullTreeCheck = "golangci-lint run --fix=false --allow-parallel-runners ./..."
 on {
   ["pre-commit"] {
     glob = List("**/*.go")
@@ -18,7 +19,7 @@ local golangciRatchet =
   \(bash)
   # Push gate: fail only on issues the branch adds relative to the upstream default
   # branch, so old debt in untouched files never blocks a push. Without a base ref
-  # (no remote, fresh clone) fall back to the full tree. `mise run lint` stays full-tree.
+  # (no remote, fresh clone) fall back to the full tree. `mise run lint` runs the full-tree twin (fullTreeCheck) instead.
   base=""
   for ref in "$(git symbolic-ref -q --short refs/remotes/origin/HEAD || true)" origin/main origin/master; do
     if [[ -n "${ref}" ]] && git rev-parse -q --verify "${ref}^{commit}" >/dev/null; then

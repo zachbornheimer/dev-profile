@@ -35,8 +35,16 @@ steps {
   // at commit and push (hygiene) is already above under that name.
   for (id, step in profile.checks) {
     when (!profile.fixers.containsKey(id) && !profile.commitGuards.containsKey(id)) {
-      [id] = (step) { profiles = List("slow") }
+      [id] =
+        if (profile.fullTreeChecks.containsKey("\(id)-full-tree"))
+          (step) { profiles = List("slow", "!" + profile.lintProfile) }
+        else
+          (step) { profiles = List("slow") }
     }
+  }
+  // The lint verb judges the whole tree: a ratcheting push check is swapped for its full-tree twin.
+  for (id, step in profile.fullTreeChecks) {
+    [id] = (step) { profiles = List(profile.lintProfile) }
   }
 }
 
