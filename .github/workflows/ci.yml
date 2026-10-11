@@ -38,3 +38,86 @@ jobs:
           MISE_GLOBAL_CONFIG_FILE: ${{ runner.temp }}/profile/mise-profile.toml
           GITHUB_TOKEN: ${{ github.token }}
         run: mise run test
+
+  # The published action, run from this checkout, the way a consumer repo uses it
+  # (`uses:` then `mise run ci`). The sample repos sit outside every code root.
+  action:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./
+      - name: Repo without a go pin gets the profile's go
+        run: |
+          want="$(sed -n 's/^go = "\(.*\)"$/\1/p' "${HOME}/.local/share/dev-profile/mise-profile.toml")"
+          mkdir "${RUNNER_TEMP}/bare"
+          cd "${RUNNER_TEMP}/bare"
+          printf '[tasks.noop]\nrun = "true"\n' >mise.toml
+          mise trust
+          got="$(mise exec -- go version)"
+          grep -Fq "go${want}." <<<"${got}" || { echo "want go ${want}, got: ${got}" >&2; exit 1; }
+      - name: Repo with its own go pin keeps it
+        run: |
+          mkdir "${RUNNER_TEMP}/pinned"
+          cd "${RUNNER_TEMP}/pinned"
+          printf '[tools]\ngo = "1.25"\n' >mise.toml
+          mise trust
+          mise install --yes
+          got="$(mise exec -- go version)"
+          grep -Fq 'go1.25.' <<<"${got}" || { echo "want go 1.25, got: ${got}" >&2; exit 1; }
+      - name: Plain steps find the tools
+        run: go version
+      - name: Every tool hk invokes resolves, and profile:ci is a task, outside a code root
+        run: |
+          mkdir "${RUNNER_TEMP}/outside"
+          cd "${RUNNER_TEMP}/outside"
+          mise tasks --json | jq -e 'any(.[]; .name == "profile:ci")'
+          mise which markdownlint
+          mise which betterleaks
+      - name: The dprint escape hatch resolves and checks cleanly
+        run: |
+          mkdir "${RUNNER_TEMP}/hatch"
+          cd "${RUNNER_TEMP}/hatch"
+          printf '{\n  "extends": "~/.local/share/dev-profile/dprint.jsonc",\n  "excludes": ["schemas/"]\n}\n' >dprint.jsonc
+          printf '{\n  "a": 1\n}\n' >data.json
+          dprint check
+      - name: The local entry point resolves the same tools
+        run: |
+          mkdir "${RUNNER_TEMP}/entry"
+          cd "${RUNNER_TEMP}/entry"
+          "${HOME}/.local/share/dev-profile/bin/dev-profile-env" -- mise which betterleaks
+      - name: profile:lint uses the rendered hk and dprint config and fails on bad files
+        run: |
+          set -euo pipefail
+          make_repo() {
+            mkdir "${RUNNER_TEMP}/$1"
+            cd "${RUNNER_TEMP}/$1"
+            git init -q -b feature
+            printf '[tasks.noop]\nrun = "true"\n' >mise.toml
+            mise trust
+          }
+          (make_repo clean && printf '{\n  "a": 1\n}\n' >data.json && mise run profile:lint)
+          (make_repo bad-json && printf '{"a": }\n' >data.json
+           if mise run profile:lint >"${RUNNER_TEMP}/bad-json.log" 2>&1; then echo "invalid JSON passed profile:lint" >&2; exit 1; fi
+           grep -q 'data.json' "${RUNNER_TEMP}/bad-json.log")
+          (make_repo bad-go && printf 'module example.com/fixture\n\ngo 1.22\n' >go.mod
+           printf 'package main\n\nimport "fmt"\n\nfunc main() { fmt.Printf("%%d\\n", "text") }\n' >main.go
+           if mise run profile:lint >"${RUNNER_TEMP}/bad-go.log" 2>&1; then echo "Go printf mismatch passed profile:lint" >&2; exit 1; fi)
+      - name: The local entry lints the same way from a clone outside a code root
+        run: |
+          set -euo pipefail
+          mkdir "${RUNNER_TEMP}/entry-bad"
+          cd "${RUNNER_TEMP}/entry-bad"
+          git init -q -b feature
+          printf '[tasks.noop]\nrun = "true"\n' >mise.toml
+          printf '{"a": }\n' >data.json
+          if "${HOME}/.local/share/dev-profile/bin/dev-profile-env" -- mise run profile:lint >"${RUNNER_TEMP}/entry.log" 2>&1; then
+            echo "invalid JSON passed profile:lint" >&2
+            exit 1
+          fi
+          grep -q 'data.json' "${RUNNER_TEMP}/entry.log"

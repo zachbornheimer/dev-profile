@@ -652,6 +652,7 @@ output {
     // Linked as ~/.config/hk/config.pkl. Absolute, because Pkl resolves relative
     // imports from the symlink's directory, not its target's.
     ["hk-config.pkl"] { text = "amends \"\(installPath)/src/lib/hk.pkl\"\n" }
+    ["hk/config.pkl"] { text = "amends \"\(installPath)/src/lib/hk.pkl\"\n" }
     ["dprint.jsonc"] { text = render.jsoncFile(render.dprint) }
     // Not named mise.toml: tools run from this dir must not auto-load it as a project config.
     ["mise-profile.toml"] { text = render.tomlFile(render.mise) }

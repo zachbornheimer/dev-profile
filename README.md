@@ -246,6 +246,29 @@ stay excluded and you list only the extra paths.
 `go`, `node`, `python` or `php` pin that repeats the profile's. The warning
 becomes an error after the sweep of existing repos.
 
+### Outside a code root
+
+A clone under `/tmp/repos/<org>/<repo>` has no code-root `mise.toml`, so
+`profile:ci` and the tool pins are not in scope. Run any command through the
+profile's entry point instead:
+
+```sh
+~/.local/share/dev-profile/bin/dev-profile-env -- mise run profile:ci
+~/.local/share/dev-profile/bin/dev-profile-env --root personal -- mise run ci
+~/.local/share/dev-profile/bin/dev-profile-env --root sah -- mise run ci
+```
+
+It builds an isolated `MISE_CONFIG_DIR` under `~/.cache/dev-profile/env-<root>`
+(override with `DEV_PROFILE_CACHE`): the pins and contract tasks from
+`mise-profile.toml`, plus the root overlay `--root` names (`personal`, or `sah`,
+the SAH root `mise.toml`, or `SAH_ROOT_OVERLAY`). It never touches the live
+`~/.config` and never writes into the repo. `--print` shows the `export` line for
+`eval`. Do not point `MISE_GLOBAL_CONFIG_FILE` at an overlay: that drops the pins,
+so hk's markdownlint and betterleaks have no version.
+
+The CI action below runs the same script, with `--link-only`, against
+`~/.config/mise`.
+
 ## Versions
 
 - Runtimes pin to the minor (`go = "1.27"`) or, for Node, the major
@@ -256,6 +279,25 @@ becomes an error after the sweep of existing repos.
 - No `mise.lock` anywhere. The profile is the lock.
 - The bot bumps within a pin's depth. A person bumps major-only pins. The `bump`
   PR merges itself when CI passes.
+
+## CI runners
+
+A runner has no `~/.config/mise/conf.d/dev-profile.toml`, so a repo with no tool
+pins of its own gets no tools. This repo is also a composite action that does what
+`mise bootstrap` does for tools: it renders the profile (`mise run generate`) to
+`~/.local/share/dev-profile`, links `mise-profile.toml` into mise's global
+`conf.d`, caches the installs and runs `mise install`. The global config holds
+the pins and the contract tasks, so `mise run ci` works in any repo, in a code
+root or not. A repo's own `mise.toml` still overrides it, and the dprint escape
+hatch above resolves. Runners get tools only, no hooks or worktrunk.
+
+```yaml
+- uses: zachbornheimer/dev-profile@main
+- run: mise run ci
+```
+
+The ref is `@main`, not a tag: the Mac tracks main too. For a reproducible run,
+pin a commit SHA. The `action` job in `ci.yml` tests it end to end.
 
 ## Adding a tool
 
