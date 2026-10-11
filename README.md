@@ -25,15 +25,15 @@ mise run diff-live   # what linking would change
 mise run rollback    # restore the backed-up originals
 ```
 
-| Path                   | Role                                                   |
-| ---------------------- | ------------------------------------------------------ |
-| `mise.toml`            | kernel: Pkl pin and tasks                              |
-| `profile.pkl`          | languages, runtime pins, live paths; derives the hooks |
-| `tools/<category>/`    | one file per tool: pin, scripts, step per hook         |
-| `lib/Tool.pkl`         | the template every tool file amends                    |
-| `lib/hk.pkl`           | the hk config, assembled from the tools                |
-| `lib/render.pkl`       | one renderer per generated file                        |
-| `tests/profile.test.pkl` | invariants and a snapshot of what each hook runs     |
+| Path                     | Role                                                   |
+| ------------------------ | ------------------------------------------------------ |
+| `mise.toml`              | kernel: Pkl pin and tasks                              |
+| `profile.pkl`            | languages, runtime pins, live paths; derives the hooks |
+| `tools/<category>/`      | one file per tool: pin, scripts, step per hook         |
+| `lib/Tool.pkl`           | the template every tool file amends                    |
+| `lib/hk.pkl`             | the hk config, assembled from the tools                |
+| `lib/render.pkl`         | one renderer per generated file                        |
+| `tests/profile.test.pkl` | invariants and a snapshot of what each hook runs       |
 
 Phases: save formats; commit converges (format, autofix, modernize, restage) on
 the staged files and never blocks on what it can fix; push only checks (no
