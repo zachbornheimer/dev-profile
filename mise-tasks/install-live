@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+#MISE description="Re-link generated configs into live paths (bootstrap already does this)"
+#MISE depends=["doctor", "backup-live"]
+set -euo pipefail
+MISE_GLOBAL_CONFIG_FILE="$DEV_PROFILE_OUT/mise-profile.toml" mise bootstrap dotfiles apply --yes --force

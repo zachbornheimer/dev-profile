@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+#MISE description="Restore live configs from the newest install-live backup"
+set -euo pipefail
+latest="$(ls -1 "$DEV_PROFILE_BACKUPS" 2>/dev/null | grep -v '\.restored$' | tail -1 || true)"
+[[ -n "$latest" ]] || {
+	echo "no install-live backup to restore" >&2
+	exit 1
+}
+backup="$DEV_PROFILE_BACKUPS/$latest"
+while IFS= read -r target || [[ -n "$target" ]]; do
+	live="${target/#\~/$HOME}"
+	rm -f "$live"
+	if [[ -e "$backup$live" || -L "$backup$live" ]]; then
+		cp -pP "$backup$live" "$live"
+	fi
+done <"$backup/targets"
+mv "$backup" "$backup.restored"
+echo "restored live configs from $backup"

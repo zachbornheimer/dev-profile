@@ -27,23 +27,23 @@ mise run rollback    # restore the backed-up originals
 
 ## Layout
 
-| Path                     | Role                                                        |
-| ------------------------ | ----------------------------------------------------------- |
-| `mise.toml`              | kernel: Pkl pin and tasks                                   |
-| `profile.pkl`            | languages, runtime pins, live paths; derives the hooks      |
-| `tools/<category>/`      | one file per tool: doc, pin, scripts, its step per hook     |
-| `lib/Tool.pkl`           | the template every tool file amends                         |
-| `lib/hk.pkl`             | the hk config, assembled from the tools                     |
-| `lib/script.pkl`         | bash fragments the tool scripts share                       |
-| `lib/render.pkl`         | one renderer per generated file                             |
-| `lib/contract.pkl`       | the repo task contract (`mise run lint`, `test`, `scan`...) |
-| `lib/pr.pkl`             | the `wt pr` family: publish, watch to merge                 |
-| `lib/sync.pkl`           | `wt sync`, `reconcile`, `prune`, `tidy`: back up and clean  |
-| `lib/retire.pkl`         | `wt retire`: back up, prove it, then Trash the clone        |
-| `tests/profile.test.pkl` | invariants and a snapshot of what each hook runs            |
-| `tests/*-fixture.sh`     | the generated scripts against real git and go               |
-| `mise-tasks/bump`        | bump every outdated pin to its latest release               |
-| `.github/workflows/`     | `ci` runs doctor on every push and PR; `bump` runs weekly   |
+| Path                     | Role                                                          |
+| ------------------------ | ------------------------------------------------------------- |
+| `mise.toml`              | kernel: Pkl pin and verb tasks; the rest are in `mise-tasks/` |
+| `profile.pkl`            | languages, runtime pins, live paths; derives the hooks        |
+| `tools/<category>/`      | one file per tool: doc, pin, scripts, its step per hook       |
+| `lib/Tool.pkl`           | the template every tool file amends                           |
+| `lib/hk.pkl`             | the hk config, assembled from the tools                       |
+| `lib/script.pkl`         | bash fragments the tool scripts share                         |
+| `lib/render.pkl`         | one renderer per generated file                               |
+| `lib/contract.pkl`       | the repo task contract (`mise run lint`, `test`, `scan`...)   |
+| `lib/pr.pkl`             | the `wt pr` family: publish, watch to merge                   |
+| `lib/sync.pkl`           | `wt sync`, `reconcile`, `prune`, `tidy`: back up and clean    |
+| `lib/retire.pkl`         | `wt retire`: back up, prove it, then Trash the clone          |
+| `tests/profile.test.pkl` | invariants and a snapshot of what each hook runs              |
+| `tests/*-fixture.sh`     | the generated scripts against real git and go                 |
+| `mise-tasks/bump`        | bump every outdated pin to its latest release                 |
+| `.github/workflows/`     | `ci` runs doctor on every push and PR; `bump` runs weekly     |
 
 ## What runs when
 

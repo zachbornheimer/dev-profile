@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+#MISE description="Point global git hooks at hk (profile.pkl gitHooks)"
+set -euo pipefail
+mise_bin="$(command -v mise)"
+pkl eval -x 'gitHooks.toMap().fold(List(), (acc, event, cmd) -> acc.add("\(event)\t\(cmd)")).join("\n")' profile.pkl |
+	while IFS=$'\t' read -r event cmd || [[ -n "$event" ]]; do
+		git config --global "hook.hk-$event.event" "$event"
+		git config --global "hook.hk-$event.command" "test \"\${HK:-1}\" = \"0\" || $mise_bin x hk -- $cmd"
+		echo "git hook $event -> $cmd"
+	done
+# This repo only: a pull or merge that moves main re-renders the live profile.
+git config --local hook.dev-profile-post-merge.event post-merge
+git config --local hook.dev-profile-post-merge.command "$mise_bin run post-merge"
+echo "git hook post-merge (this repo) -> mise run post-merge"
