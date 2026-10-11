@@ -148,7 +148,10 @@ local function entry(tool: Tool, hook: Tool.Hook): hk.Step = (tool.on[hook]) {
     when (tool.glob != null) { glob = tool.glob }
     when (tool.types != null) { types = tool.types }
   }
-  when (tool.skipsLockfiles) { exclude = lockfileGlobs }
+  when (tool.skipsLockfiles) {
+    exclude =
+      lockfileGlobs + (if (tool.on[hook].exclude is List) tool.on[hook].exclude as List else List())
+  }
 }
 
 /// Commit: the pre-commit `fix` entries. Each rewrites what it safely can and
