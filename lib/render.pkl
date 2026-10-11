@@ -108,9 +108,9 @@ mise: Dynamic = new {
   }
   env {
     ["_"] { path = List("\(profile.installDir)/bin") }
-    // hk and dprint read their global config from here, not from ~/.config, so a
-    // runner or an isolated context lints with this render and never a stale link.
-    HK_CONFIG_DIR = "\(profile.installPath)/hk"
+    // dprint reads its global config from here, not from ~/.config, so a runner or
+    // an isolated context lints with this render and never a stale link. hk has no
+    // such variable; `dev-profile-hk` binds it.
     DPRINT_CONFIG_DIR = profile.installPath
   }
   // The contract tasks (`profile:ci`, `lint`, ...) next to the pins they need, so

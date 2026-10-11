@@ -484,7 +484,7 @@ local repo =
       ;;
     # hk owns format checks and static analysis for every language.
     lint)
-      step hk check --all --slow --profile \(profile.lintProfile)
+      step dev-profile-hk check --all --slow --profile \(profile.lintProfile)
       step dev-profile-suppressions --tree
       ;;
     # dprint finds the Personal ancestor config from the invoking directory.
@@ -678,6 +678,19 @@ local contractPush =
   fi
   """
 
+/// hk 2.5.0 reads its user config only from $XDG_CONFIG_HOME/hk (HK_CONFIG_DIR is
+/// ignored), so this points that at the render for hk alone. Everything else keeps
+/// its own config home, mise's included.
+local hkScript =
+  """
+  \(bash)
+  # Run hk with the rendered profile's config, never the machine's ~/.config/hk.
+  render_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+  export MISE_CONFIG_DIR="${MISE_CONFIG_DIR:-${XDG_CONFIG_HOME:-${HOME}/.config}/mise}"
+  export XDG_CONFIG_HOME="${render_dir}/xdg"
+  exec hk "$@"
+  """
+
 /// Contract verbs every push runs (lint is the hk checks that run beside them).
 pushVerbs: Listing<String> = new { "test"; "scan" }
 
@@ -685,6 +698,7 @@ pushVerbs: Listing<String> = new { "test"; "scan" }
 wrappers: Mapping<String, String> = new {
   ["dev-profile-kernel-pins"] = kernelPins
   ["dev-profile-contract"] = dispatcher
+  ["dev-profile-hk"] = hkScript
   ["dev-profile-ci"] = ciScript
   ["dev-profile-contract-push"] = contractPush
   for (adapter in profile.contractAdapters) {

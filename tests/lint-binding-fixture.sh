@@ -30,6 +30,18 @@ mkdir -p "${home}"
 export HOME="${home}" XDG_CONFIG_HOME="${home}/.config" XDG_STATE_HOME="${home}/.local/state"
 export MISE_TRUSTED_CONFIG_PATHS="${work}" DEV_PROFILE_CACHE="${work}/cache"
 unset MISE_GLOBAL_CONFIG_FILE MISE_CONFIG_DIR HK_CONFIG_DIR DPRINT_CONFIG_DIR
+# State of the `mise run` that launched this: a runner's mise starts without it.
+while IFS= read -r name; do unset "${name}"; done < <(compgen -e | grep -E '^(__MISE_|MISE_(TASK_|PROJECT_ROOT|CONFIG_ROOT|ORIGINAL_CWD))')
+
+# A runner starts without the profile's bin dir on PATH, however this machine's
+# mise activation or the launching `mise run` spelled it.
+clean_path=""
+while IFS= read -r -d: entry || [[ -n "${entry}" ]]; do
+	entry="${entry%$'\n'}"
+	[[ ! -e "${entry}/dev-profile-contract" ]] || continue
+	clean_path="${clean_path:+${clean_path}:}${entry}"
+done <<<"${PATH}"
+export PATH="${clean_path}"
 
 new_repo() { # <name>
 	local dir="${work}/$1"
@@ -49,15 +61,49 @@ lint() { # <context> <repo>
 
 "${out}/bin/dev-profile-env" --config-dir "${home}/.config/mise" --link-only
 
+# The rendered config puts the render's bin dir on PATH (`[env] _.path`), as "~/..."
+# when the render sits under HOME. The action renders under the runner's HOME, so
+# give this empty home the same render instead of leaning on this machine's PATH.
+render_link="${home}/.local/share/dev-profile"
+if grep -q '^path = \[ "~/.local/share/dev-profile/bin" \]' "${out}/mise-profile.toml"; then
+	mkdir -p "$(dirname "${render_link}")"
+	ln -sfn "${out}" "${render_link}"
+fi
+
+# A machine with its own hk config (a Mac) must not leak it into the lint: this
+# decoy fails every repo, so a clean repo passes only if the render's config wins.
+mkdir -p "${home}/.config/hk"
+cat >"${home}/.config/hk/config.pkl" <<'PKL'
+amends "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pkl"
+hooks { ["check"] { steps { ["decoy-live-config"] { check = "false" } } } }
+PKL
+
 clean="$(new_repo clean)"
 printf '{\n  "a": 1\n}\n' >"${clean}/data.json"
 bad_json="$(new_repo bad-json)"
 printf '{"a": }\n' >"${bad_json}/data.json"
 
+# Red control: with the PATH binding stripped from the rendered config the contract
+# scripts are not found, so a clean repo must fail; the runs below pass only through it.
+mkdir -p "${work}/stripped/conf.d"
+grep -v '^path = ' "${out}/mise-profile.toml" >"${work}/stripped/conf.d/dev-profile.toml"
+if (cd "${clean}" && MISE_CONFIG_DIR="${work}/stripped" mise run profile:lint) >"${work}/output.txt" 2>&1; then
+	fail "runner: a clean repo passed profile:lint with the PATH binding stripped"
+fi
+
 for context in runner entry; do
 	lint "${context}" "${clean}" || fail "${context}: a clean repo must pass profile:lint"
 	if lint "${context}" "${bad_json}"; then fail "${context}: invalid JSON must fail profile:lint"; fi
 	grep -q 'data.json' "${work}/output.txt" || fail "${context}: the failure must name data.json"
+done
+
+# dprint's JSON plugin accepts a trailing comma; only the strict-json step rejects it,
+# so this fails only if that step is reachable under the lint profile.
+lenient_json="$(new_repo lenient-json)"
+printf '{"a": 1,}\n' >"${lenient_json}/data.json"
+for context in runner entry; do
+	if lint "${context}" "${lenient_json}"; then fail "${context}: a trailing comma in .json must fail profile:lint"; fi
+	grep -q 'not strict JSON' "${work}/output.txt" || fail "${context}: the strict-json step must report data.json"
 done
 
 if command -v golangci-lint >/dev/null 2>&1 && command -v go >/dev/null 2>&1; then
