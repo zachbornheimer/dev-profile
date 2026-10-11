@@ -187,6 +187,19 @@ checks: Mapping<String, hk.Step> = new {
   }
 }
 
+/// Lint: the full-tree twin of a push check that only judges what is new. The
+/// lint verb runs it in the push check's place (see lib/hk.pkl).
+fullTreeChecks: Mapping<String, hk.Step> = new {
+  for (name, tool in catalog) {
+    when (tool.fullTreeCheck != null) {
+      ["\(name)-full-tree"] = (entry(tool, "pre-push")) {
+        fix = null
+        check = tool.fullTreeCheck
+      }
+    }
+  }
+}
+
 /// The pins tools declare; mise installs them after `tools`.
 toolPins: Listing<types.Pin> = new {
   for (_, tool in catalog) { when (tool.pin != null) { tool.pin } }

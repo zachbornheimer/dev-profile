@@ -334,7 +334,7 @@ examples {
         check = "dev-profile-golangci-ratchet"
         files = "**/*.go"
         after = List()
-        profiles = List("slow")
+        profiles = List("slow", "!lint")
       }
       ["govulncheck"] {
         fix = null
@@ -489,6 +489,13 @@ examples {
         files = "**/*.yml **/*.yaml"
         after = List()
         profiles = List("slow")
+      }
+      ["golangci-lint-full-tree"] {
+        fix = null
+        check = "golangci-lint run --fix=false --allow-parallel-runners ./..."
+        files = "**/*.go"
+        after = List()
+        profiles = List("lint")
       }
     }
   }

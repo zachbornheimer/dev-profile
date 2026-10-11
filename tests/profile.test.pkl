@@ -83,6 +83,8 @@ facts {
         || profile.commitGuards.containsKey(id)
         || id == "dprint"
         || step.profiles == List("slow")
+        || step.profiles == List("slow", "!" + profile.lintProfile)
+        || profile.fullTreeChecks.containsKey(id)
     }
   }
 }
