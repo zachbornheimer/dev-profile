@@ -112,6 +112,9 @@ mise: Dynamic = new {
     // an isolated context lints with this render and never a stale link. hk has no
     // such variable; `dev-profile-hk` binds it.
     DPRINT_CONFIG_DIR = profile.installPath
+    // hk runs under an isolated XDG_CONFIG_HOME, so yamllint must read this
+    // render explicitly instead of falling back to its own default policy.
+    YAMLLINT_CONFIG_FILE = "\(profile.installPath)/yamllint.yaml"
   }
   // The contract tasks (`profile:ci`, `lint`, ...) next to the pins they need, so
   // one global config runs them in any repo, inside a code root or not.

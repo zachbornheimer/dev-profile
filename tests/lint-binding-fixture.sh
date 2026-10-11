@@ -29,7 +29,7 @@ home="${work}/home"
 mkdir -p "${home}"
 export HOME="${home}" XDG_CONFIG_HOME="${home}/.config" XDG_STATE_HOME="${home}/.local/state"
 export MISE_TRUSTED_CONFIG_PATHS="${work}" DEV_PROFILE_CACHE="${work}/cache"
-unset MISE_GLOBAL_CONFIG_FILE MISE_CONFIG_DIR HK_CONFIG_DIR DPRINT_CONFIG_DIR
+unset MISE_GLOBAL_CONFIG_FILE MISE_CONFIG_DIR HK_CONFIG_DIR DPRINT_CONFIG_DIR YAMLLINT_CONFIG_FILE
 # State of the `mise run` that launched this: a runner's mise starts without it.
 while IFS= read -r name; do unset "${name}"; done < <(compgen -e | grep -E '^(__MISE_|MISE_(TASK_|PROJECT_ROOT|CONFIG_ROOT|ORIGINAL_CWD))')
 
@@ -95,6 +95,31 @@ for context in runner entry; do
 	lint "${context}" "${clean}" || fail "${context}: a clean repo must pass profile:lint"
 	if lint "${context}" "${bad_json}"; then fail "${context}: invalid JSON must fail profile:lint"; fi
 	grep -q 'data.json' "${work}/output.txt" || fail "${context}: the failure must name data.json"
+done
+
+# A SHA-pinned action exceeds yamllint's default 80-column limit. The profile's
+# generated policy permits it and does not require a YAML document marker.
+clean_yaml="$(new_repo clean-yaml)"
+printf '%s\n' 'action: zachbornheimer/dev-profile@6376251df9c4df0b7063464303b5de1b833fabad # immutable action revision' >"${clean_yaml}/data.yaml"
+for context in runner entry; do
+	lint "${context}" "${clean_yaml}" || fail "${context}: valid YAML must use the generated yamllint policy"
+done
+
+# Red control: without the binding, hk sees yamllint's defaults instead of the
+# rendered policy.
+mkdir -p "${work}/yaml-unbound/conf.d"
+grep -v '^YAMLLINT_CONFIG_FILE = ' "${out}/mise-profile.toml" >"${work}/yaml-unbound/conf.d/dev-profile.toml"
+if (cd "${clean_yaml}" && MISE_CONFIG_DIR="${work}/yaml-unbound" mise run profile:lint) >"${work}/output.txt" 2>&1; then
+	fail "runner: valid YAML passed with the yamllint binding stripped"
+fi
+grep -q 'line-length' "${work}/output.txt" || fail "runner: the unbound control must fail yamllint's default line-length rule"
+
+# Binding the shared policy still rejects YAML defects.
+bad_yaml="$(new_repo bad-yaml)"
+printf 'key: one\nkey: two\n' >"${bad_yaml}/data.yaml"
+for context in runner entry; do
+	if lint "${context}" "${bad_yaml}"; then fail "${context}: duplicate YAML keys must fail profile:lint"; fi
+	grep -q 'key-duplicates' "${work}/output.txt" || fail "${context}: yamllint must report duplicate keys"
 done
 
 # dprint's JSON plugin accepts a trailing comma; only the strict-json step rejects it,
