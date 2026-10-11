@@ -2,7 +2,9 @@
 # The README's dprint escape hatch must resolve on any machine: its `extends`
 # is home-relative and names the profile's default render path, with no
 # user-specific absolute path. dprint is run with a scratch HOME.
-# Usage: escape-hatch-fixture.sh <readme>
+# The profile file it extends is the real rendered one when <generated-dir> is
+# given: dprint rejects an extended file that sets root-only properties.
+# Usage: escape-hatch-fixture.sh <readme> [<generated-dir>]
 set -euo pipefail
 
 readme="${1:?usage: escape-hatch-fixture.sh <readme>}"
@@ -23,7 +25,7 @@ extends="$(awk '/^```jsonc/{in_block=1; next} /^```/{in_block=0} in_block' "${re
 dprint_bin="$(mise which dprint)"
 profile_config="${work}/home/${extends#??}"
 mkdir -p "${work}/repo" "$(dirname "${profile_config}")"
-echo '{}' >"${profile_config}"
+if [[ -n "${2:-}" ]]; then cp "${2}/dprint.jsonc" "${profile_config}"; else echo '{}' >"${profile_config}"; fi
 printf '{\n  "extends": "%s",\n  "excludes": ["schemas/"]\n}\n' "${extends}" >"${work}/repo/dprint.jsonc"
 
 (cd "${work}/repo" && HOME="${work}/home" "${dprint_bin}" output-resolved-config >/dev/null 2>&1) ||

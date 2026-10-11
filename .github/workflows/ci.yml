@@ -91,3 +91,33 @@ jobs:
           mkdir "${RUNNER_TEMP}/entry"
           cd "${RUNNER_TEMP}/entry"
           "${HOME}/.local/share/dev-profile/bin/dev-profile-env" -- mise which betterleaks
+      - name: profile:lint uses the rendered hk and dprint config and fails on bad files
+        run: |
+          set -euo pipefail
+          make_repo() {
+            mkdir "${RUNNER_TEMP}/$1"
+            cd "${RUNNER_TEMP}/$1"
+            git init -q -b feature
+            printf '[tasks.noop]\nrun = "true"\n' >mise.toml
+            mise trust
+          }
+          (make_repo clean && printf '{\n  "a": 1\n}\n' >data.json && mise run profile:lint)
+          (make_repo bad-json && printf '{"a": }\n' >data.json
+           if mise run profile:lint >"${RUNNER_TEMP}/bad-json.log" 2>&1; then echo "invalid JSON passed profile:lint" >&2; exit 1; fi
+           grep -q 'data.json' "${RUNNER_TEMP}/bad-json.log")
+          (make_repo bad-go && printf 'module example.com/fixture\n\ngo 1.22\n' >go.mod
+           printf 'package main\n\nimport "fmt"\n\nfunc main() { fmt.Printf("%%d\\n", "text") }\n' >main.go
+           if mise run profile:lint >"${RUNNER_TEMP}/bad-go.log" 2>&1; then echo "Go printf mismatch passed profile:lint" >&2; exit 1; fi)
+      - name: The local entry lints the same way from a clone outside a code root
+        run: |
+          set -euo pipefail
+          mkdir "${RUNNER_TEMP}/entry-bad"
+          cd "${RUNNER_TEMP}/entry-bad"
+          git init -q -b feature
+          printf '[tasks.noop]\nrun = "true"\n' >mise.toml
+          printf '{"a": }\n' >data.json
+          if "${HOME}/.local/share/dev-profile/bin/dev-profile-env" -- mise run profile:lint >"${RUNNER_TEMP}/entry.log" 2>&1; then
+            echo "invalid JSON passed profile:lint" >&2
+            exit 1
+          fi
+          grep -q 'data.json' "${RUNNER_TEMP}/entry.log"
