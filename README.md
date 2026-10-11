@@ -37,9 +37,10 @@ mise run rollback    # restore the backed-up originals
 | `lib/script.pkl`         | bash fragments the tool scripts share                         |
 | `lib/render.pkl`         | one renderer per generated file                               |
 | `lib/contract.pkl`       | the repo task contract (`mise run lint`, `test`, `scan`...)   |
-| `lib/pr.pkl`             | the `wt pr` family: publish, watch to merge                   |
-| `lib/sync.pkl`           | `wt sync`, `reconcile`, `prune`, `tidy`: back up and clean    |
-| `lib/retire.pkl`         | `wt retire`: back up, prove it, then Trash the clone          |
+| `lib/pr.pkl`             | `wt pr`, `wt pr-draft`, `wt pr-auto`                          |
+| `lib/done.pkl`           | `wt done`: restack, push, pull requests, prune, drop          |
+| `lib/sync.pkl`           | backup scripts the fixtures call; no worktrunk alias          |
+| `lib/retire.pkl`         | retire script the fixture calls; no worktrunk alias           |
 | `tests/profile.test.pkl` | invariants and a snapshot of what each hook runs              |
 | `tests/*-fixture.sh`     | the generated scripts against real git and go                 |
 | `mise-tasks/bump`        | bump every outdated pin to its latest release                 |
@@ -77,13 +78,11 @@ category: the step name per hook, its command, files and ordering.
 `lib/pr.pkl` renders two scripts and the aliases that call them. None of
 them prompt, so loops and scripts can drive them.
 
-| Alias         | Does                                                                |
-| ------------- | ------------------------------------------------------------------- |
-| `wt pr [B]`   | commit pending work, push (never force), reuse or open a PR         |
-| `wt pr-draft` | same, as a draft                                                    |
-| `wt pr-auto`  | same, then watch CI, merge when green, notify, remove the worktree  |
-| `wt ship`     | `pr-draft` for the current worktree; skips what has nothing to send |
-| `wt ship-all` | `ship` in every worktree                                            |
+| Alias         | Does                                                               |
+| ------------- | ------------------------------------------------------------------ |
+| `wt pr [B]`   | commit pending work, push (never force), reuse or open a PR        |
+| `wt pr-draft` | same, as a draft                                                   |
+| `wt pr-auto`  | same, then watch CI, merge when green, notify, remove the worktree |
 
 `B` switches to that branch first; without it, the current branch is published.
 `--create=<branch> -- <cmd>` makes a fresh branch, runs `<cmd>` in it, and
@@ -110,62 +109,38 @@ out, so that checkout's `post-merge` hooks run. Here, `mise run install-git-hook
 adds one: a pull or merge that moves `main` runs `mise run generate`, so the
 live profile follows `main`.
 
-## Backing up and tidying clones
+## End of day: `wt done`
 
-`lib/sync.pkl` keeps every clone of a repo backed up to GitHub, so several
-copies on one machine (or several machines) can converge and be cleaned up.
+`lib/done.pkl` renders `dev-profile-done` and the `wt done` alias. Flags do not
+imply each other. Worktrunk may swallow flags, so from the alias pass them
+after `--`.
 
-| Alias               | Does                                                                |
-| ------------------- | ------------------------------------------------------------------- |
-| `wt sync`           | push everything unique in this clone; touches no files              |
-| `wt reconcile B`    | rebase `B` onto GitHub's copy; stops on a conflict for you          |
-| `wt prune`          | remove worktrees and branches merged into `main`                    |
-| `wt prune --pushed` | also clean worktrees and branches identical to GitHub's             |
-| `wt prune --remote` | also delete GitHub branches already absorbed into `main`            |
-| `wt tidy`           | `sync`, then `prune --remote --pushed`; stops if anything conflicts |
-| `wt retire`         | `sync`, prove GitHub has everything, then Trash the clone           |
+| Command     | Does                                                                                                                                                               |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `wt done`   | fetch origin, fast-forward the default branch when it is strictly behind, restack with `wt-sync --all`                                                             |
+| `--commit`  | commit uncommitted work, stashes, and detached HEAD first. Without it, those branches are skipped                                                                  |
+| `--push`    | push what restacked. A rewritten branch uses `--force-with-lease`. A conflict goes to `backup/conflicts/<clone>/<branch>` under that clone's id, not the real name |
+| `--pr`      | open pull requests for branches this run pushed. Needs `--push`. Conflict pull requests are drafts into the branch they diverged from                              |
+| `--prune`   | remove local worktrees and branches whose tips match origin, and delete origin branches already in the default branch                                              |
+| `--drop`    | Trash the clone when nothing was skipped, every tip is on origin, and no linked worktree remains                                                                   |
+| `--dry-run` | print the plan. `git fetch` is the only change                                                                                                                     |
 
-What `wt sync` sends, all under this clone's own `backup/<clone>/` namespace
-unless it is a plain branch:
+A default branch that is strictly ahead of origin is pushed as
+`backup/main/<clone>` and, with `--pr`, opened as an auto-merge pull request.
+A diverged default branch uses the conflict draft instead. Stashes, `wip`
+snapshots, and detached commits are pushed and do not become pull requests.
+`--prune` never deletes `backup/*`, the default branch, open pull requests, or
+anything this run skipped. Ignored files such as `.env` are not pushed; `--drop`
+leaves them in the Trash. A file over `DEV_PROFILE_SYNC_MAX_FILE_MB` (default
+50) or a nested repository refuses `--drop`.
 
-- **Branches:** pushed, never forced. If another clone moved the same branch
-  on GitHub, this clone's commits are rebased onto it when that applies
-  cleanly. On a conflict, the branch is kept as `backup/<clone>/<branch>`;
-  resolve with `wt reconcile <branch>`, then run `wt sync` again.
-- **Uncommitted and untracked changes:** `backup/<clone>/wip/<branch>`, built
-  in a scratch index. Your worktree, index and stashes stay as they were.
-- **Commits on `main` that GitHub lacks:** `backup/<clone>/main`.
-- **Stashes:** `backup/<clone>/stash-<sha>`. Restore anywhere with
-  `git fetch && git stash apply origin/backup/<clone>/stash-<sha>`.
-- **Detached commits:** `backup/<clone>/detached-<sha>`.
-
-Several clones of one repo, start to finish:
+`wt sync` is the stacked restack command (`wt-sync`). `dev-profile-sync` and
+`dev-profile-retire` stay on disk for their fixtures and have no alias.
 
 ```bash
-for clone in ~/Developer/Personal/app ~/Dropbox/Zysys/Software/app; do wt -C "$clone" sync; done
-wt -C ~/Developer/Personal/app tidy   # the clone you keep
-wt -C ~/Dropbox/Zysys/Software/app retire   # the clone you drop
+wt done -- --dry-run
+wt done -- --dry-run --commit --push --pr --prune --drop
 ```
-
-`wt sync` exits 1 while a branch conflicts, a push fails, or a file over
-`DEV_PROFILE_SYNC_MAX_FILE_MB` (default 50) had to be left out, so loops and
-`wt tidy` stop there. A nested repository is reported; run `wt sync` inside it.
-Each clone keeps its id in `git config dev-profile.sync-clone`.
-
-Cleanup never deletes `backup/` refs: restore what you need, then delete them
-yourself. `--pushed` keeps a worktree that holds ignored files (`.env`, local
-config) the main checkout lacks, and says which. Tool state that regenerates
-itself does not count: `DEV_PROFILE_PRUNE_DISPOSABLE` lists it (default `.trunk`).
-
-Preview with `wt sync -- --dry-run` or `wt tidy -- --dry-run`.
-
-To delete a clone, run `wt retire` inside it. It syncs, then checks with plain
-git that every branch, stash, uncommitted change and detached commit is on
-GitHub (a conflict counts once its backup is there), and only then moves the
-clone and all its worktrees to the Trash. A file too big to back up or a
-separate repository inside a worktree stops it; nothing is deleted. Ignored
-files are listed, not backed up. `wt sync` exits 3 when only backed-up
-conflicts remain, so `wt tidy` still stops there while `wt retire` proceeds.
 
 ## Repo contract
 

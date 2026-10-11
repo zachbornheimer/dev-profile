@@ -1,5 +1,5 @@
 /// GitHub pull-request scripts behind the worktrunk aliases: publish a branch
-/// (pr, pr-draft, pr-auto, ship) and watch it through CI to merge and clean up
+/// (pr, pr-draft, pr-auto) and watch it through CI to merge and clean up
 /// (pr-auto). lib/sync.pkl reuses the GitHub fragments.
 module pr
 
@@ -407,7 +407,4 @@ aliases: Mapping<String, String> = new {
   ["pr"] = switchAndPublish("")
   ["pr-draft"] = switchAndPublish("--draft")
   ["pr-auto"] = switchAndPublish("--auto")
-  // Current worktree only, as a draft; skips cleanly, for ship-all.
-  ["ship"] = bin("dev-profile-pr") + " --draft"
-  ["ship-all"] = "git fetch origin --prune && wt step for-each -- wt ship"
 }

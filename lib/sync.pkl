@@ -1,6 +1,7 @@
 /// Keep every clone of a repo backed up to GitHub, reconcile what diverged
-/// between clones, then clean up what GitHub already holds: the scripts behind
-/// `wt sync`, `wt reconcile`, `wt prune` and `wt tidy`.
+/// between clones, then clean up what GitHub already holds. The scripts stay
+/// callable for the fixtures. No worktrunk alias: `wt sync` is worktrunk-sync,
+/// and `wt done` is the clone command.
 module sync
 
 import "pr.pkl"
@@ -445,15 +446,6 @@ wrappers: Mapping<String, String> = new {
   ["dev-profile-prune"] = pruneScript
 }
 
-/// Worktrunk aliases over the scripts above.
-aliases: Mapping<String, String> = new {
-  ["sync"] = pr.bin("dev-profile-sync") + " {{ args }}"
-  ["reconcile"] = "wt switch {{ args }} -x \(pr.bin("dev-profile-reconcile"))"
-  ["prune"] = pr.bin("dev-profile-prune") + " {{ args }}"
-  // Back up first; clean up only once nothing conflicts.
-  ["tidy"] =
-    pr.bin("dev-profile-sync")
-      + " {{ args }} && "
-      + pr.bin("dev-profile-prune")
-      + " --remote --pushed {{ args }}"
-}
+/// No worktrunk aliases. `wt sync` belongs to worktrunk-sync. `wt done` is the
+/// clone command. These scripts stay so the fixtures can still call them.
+aliases: Mapping<String, String> = new {}
