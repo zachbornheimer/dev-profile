@@ -284,7 +284,8 @@ local no = "no"
 local disable = "dis" + "able"
 local ignore = "ig" + "nore"
 
-/// Inline suppression directives, id → POSIX ERE.
+/// Inline suppression directives, id → POSIX ERE. Each id is matched only in
+/// the files listed for it in suppressionFiles.
 suppressionDirectives: Mapping<String, String> = new {
   ["golangci"] = "//[[:space:]]*\(no)lint"
   ["gosec"] = "#\(no)sec"
@@ -297,6 +298,22 @@ suppressionDirectives: Mapping<String, String> = new {
   ["rubocop"] = "rubocop:(\(disable)|todo)"
   ["shellcheck"] = "shellcheck[[:space:]]+\(disable)="
   ["swiftlint"] = "swiftlint:\(disable)"
+}
+
+/// Directive id → space-separated extensions of the files that language's
+/// comments can suppress. Prose elsewhere (.md, .templ, prompts) is data.
+suppressionFiles: Mapping<String, String> = new {
+  ["golangci"] = "go"
+  ["gosec"] = "go"
+  ["ruff"] = "py pyi"
+  ["mypy"] = "py pyi"
+  ["eslint"] = "ts tsx js jsx mjs cjs vue svelte"
+  ["typescript"] = "ts tsx js jsx mjs cjs vue svelte"
+  ["phpcs"] = "php"
+  ["phpstan"] = "php"
+  ["rubocop"] = "rb rake gemspec"
+  ["shellcheck"] = "sh bash zsh bats"
+  ["swiftlint"] = "swift"
 }
 
 settings: types.Settings = new {}
