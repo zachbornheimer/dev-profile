@@ -67,7 +67,6 @@ local function depsFor(ids: Listing<String>?): Mapping<String, Dynamic> = new {
 }
 
 dprint: Dynamic = new {
-  incremental = true
   shebangs {
     for (lang in profile.languages) { for (shebang, ext in lang.shebangs) { [shebang] = ext } }
   }
@@ -107,7 +106,16 @@ mise: Dynamic = new {
     idiomatic_version_file_enable_tools = profile.settings.idiomaticVersionFileEnableTools.toList()
     trusted_config_paths = profile.settings.trustedConfigPaths.toList()
   }
-  env { ["_"] { path = List("\(profile.installDir)/bin") } }
+  env {
+    ["_"] { path = List("\(profile.installDir)/bin") }
+    // hk and dprint read their global config from here, not from ~/.config, so a
+    // runner or an isolated context lints with this render and never a stale link.
+    HK_CONFIG_DIR = "\(profile.installPath)/hk"
+    DPRINT_CONFIG_DIR = profile.installPath
+  }
+  // The contract tasks (`profile:ci`, `lint`, ...) next to the pins they need, so
+  // one global config runs them in any repo, inside a code root or not.
+  tasks { ...contract.tasks }
   dotfiles {
     for (target, file in profile.liveTargets) {
       [target] { source = "\(profile.installDir)/\(file)"; mode = "symlink" }

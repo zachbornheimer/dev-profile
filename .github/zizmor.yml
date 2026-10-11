@@ -1,0 +1,6 @@
+# actionlint, which also gates every push, rejects the `$/` self-repository
+# syntax this audit asks for ("ref is missing"). `./` is the form both accept
+# everywhere else, so this one help-level audit is off until actionlint knows `$/`.
+rules:
+  self-repository:
+    disable: true

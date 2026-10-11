@@ -1,0 +1,63 @@
+name: dev-profile
+description: >-
+  Give a CI runner the mise global config a developer Mac gets from
+  `mise bootstrap --from` this profile: the same pins and the same contract tasks
+  (`mise run ci`). A repo's own mise.toml still overrides. Tools only: no hooks.
+author: zachbornheimer
+
+inputs:
+  github-token:
+    description: Token mise uses to read release metadata (avoids the unauthenticated rate limit).
+    default: ${{ github.token }}
+
+runs:
+  using: composite
+  steps:
+    - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+      with:
+        install: false
+        cache: false
+
+    # Same code path as bootstrap: `mise run generate` renders profile.pkl. It
+    # lands at the profile's default path, so `extends: ~/.local/share/dev-profile/...`
+    # in a repo's dprint.jsonc resolves here as on a Mac.
+    - name: Render the profile
+      id: render
+      shell: bash
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+      run: |
+        set -euo pipefail
+        out="${HOME}/.local/share/dev-profile"
+        cd "${ACTION_PATH}"
+        mise trust
+        mise install --yes
+        DEV_PROFILE_OUT="${out}" mise run generate
+        # Where bootstrap links it: mise's global conf.d, which every mise call reads.
+        # The same script a developer runs locally (README "Outside a code root").
+        "${out}/bin/dev-profile-env" --config-dir "${HOME}/.config/mise" --link-only
+        echo "key=dev-profile-${RUNNER_OS}-${RUNNER_ARCH}-$(shasum -a 256 "${out}/mise-profile.toml" | cut -c1-16)" >>"${GITHUB_OUTPUT}"
+
+    - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/.local/share/mise/installs
+        key: ${{ steps.render.outputs.key }}
+
+    # A repo's own mise.toml layers over the global config, so its pins win.
+    - name: Install the profile's tools
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        GITHUB_WORKSPACE_PATH: ${{ github.workspace }}
+      run: |
+        set -euo pipefail
+        # Trust the checkout's own config; mise keeps this in its state dir, not the env.
+        for cfg in mise.toml .mise.toml; do
+          if [[ -f "${GITHUB_WORKSPACE_PATH}/${cfg}" ]]; then mise trust "${GITHUB_WORKSPACE_PATH}/${cfg}"; fi
+        done
+        mise install --yes
+        # Plain `run:` steps find the tools too, not only `mise run` / `mise x`.
+        while IFS= read -r tool_bin; do
+          if [[ -d "${tool_bin}" ]]; then echo "${tool_bin}"; fi
+        done < <(mise bin-paths) >>"${GITHUB_PATH}"
