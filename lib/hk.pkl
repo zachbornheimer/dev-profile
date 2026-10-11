@@ -12,8 +12,7 @@ import "../profile.pkl"
 
 fail_fast = false
 stash_backup_count = 20
-// A fresh Listing: hk rejects a typed Listing<String> passed through as-is.
-exclude = new Listing { ...profile.exclude }
+exclude = profile.exclude.toList()
 
 // Top-level steps feed the implicit pre-commit, fix and check hooks.
 steps {

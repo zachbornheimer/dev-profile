@@ -135,6 +135,25 @@ fixture_gosec_changed_files_only() {
 	grep -q 'pkg/dirty.go:5 G404' "${work}/output.txt" || fail "gosec: the finding must be printed"
 }
 
+# Vendored trees are never ours to judge: staged `go mod vendor` output must not
+# trip a step. The same content outside a vendored directory still must.
+fixture_vendored_paths_are_skipped() {
+	local repo dir
+	for dir in vendor node_modules third_party .venv sub/vendor; do
+		repo="$(new_repo "vendored-${dir//\//-}")"
+		mkdir -p "${repo}/${dir}/x"
+		printf '# Log\n\n## v1\n\n## v1\n' >"${repo}/${dir}/x/CHANGELOG.md"
+		head -c 2000000 /dev/zero | tr '\0' 'a' >"${repo}/${dir}/x/big.bin"
+		git -C "$repo" add "$dir"
+		commit_hook "$repo" || fail "vendored ${dir}: staged files must be skipped"
+	done
+	repo="$(new_repo vendored-lookalike)"
+	mkdir -p "${repo}/lib/x"
+	head -c 2000000 /dev/zero | tr '\0' 'a' >"${repo}/lib/x/big.bin"
+	git -C "$repo" add lib
+	expect_blocked "$repo" "large file outside a vendored directory"
+}
+
 fixture_if_installed
 fixture_gosec_changed_files_only
 fixture_clean_change_passes
@@ -144,4 +163,5 @@ fixture_executable_without_shebang_blocks
 fixture_large_file_blocks
 fixture_gitmodules_blocks
 fixture_default_branch_commit
+fixture_vendored_paths_are_skipped
 echo "guards fixture ok"

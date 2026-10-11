@@ -10,10 +10,13 @@ import "lib/shared.pkl"
 import "lib/Tool.pkl"
 import "lib/types.pkl"
 
-exclude: Listing<String> = new {
+/// Vendored and generated trees no hook judges. Deliberately unannotated: hk reads
+/// this list through its own Pkl evaluator, which drops a type-annotated Listing.
+exclude = new Listing {
   "node_modules"
   ".venv"
   "vendor"
+  "third_party"
   "dist"
   "build"
   "coverage"
