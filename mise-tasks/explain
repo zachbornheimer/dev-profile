@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+#MISE description="What runs at each hook: mise run explain [tool-or-category]"
+#MISE depends=["generate"]
+set -euo pipefail
+# Reads the rendered profile.json; a tool name or a tools/ category narrows it.
+jq -r --arg q "${1:-}" '
+  .tools | to_entries
+  | map(select($q == "" or .key == $q or .value.category == $q))
+  | if length == 0 then "no tool or category named \($q)" | halt_error(1) else . end
+  | .[] | .key as $tool | .value
+  | "\(.category)/\($tool): \(.doc)",
+    (.hooks | to_entries[] | "  \(.key): \(.value.step)" +
+      (if .value.fix then "  fix: \(.value.fix)" else "" end) +
+      (if .value.check then "  check: \(.value.check)" else "" end) +
+      (if .value.files then "  files: \(.value.files)" else "" end) +
+      (if (.value.after | length) > 0 then "  after: \(.value.after | join(" "))" else "" end)),
+    (if (.scripts | length) > 0 then "  scripts: \(.scripts | join(" "))" else empty end)
+' "$DEV_PROFILE_OUT/profile.json"

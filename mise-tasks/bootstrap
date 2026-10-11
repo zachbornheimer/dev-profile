@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+#MISE description="Generate, back up live configs, then re-bootstrap on the generated config"
+set -euo pipefail
+mise run doctor # generates, then syntax-checks before anything is linked
+mise run backup-live
+mise run install-git-hooks
+MISE_GLOBAL_CONFIG_FILE="$DEV_PROFILE_OUT/mise-profile.toml" \
+	mise bootstrap --yes --skip task,final-hook --force-dotfiles

@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+#MISE description="Re-render the live profile when main moves (this repo's git post-merge hook)"
+set -euo pipefail
+# Only the default branch is the live profile: a pull in a feature worktree must not deploy it.
+default="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || echo origin/main)"
+[[ "$(git branch --show-current)" == "${default#origin/}" ]] || exit 0
+mise run generate

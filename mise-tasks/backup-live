@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+#MISE description="Copy live configs that install would replace (skips ones already linked)"
+set -euo pipefail
+backup="$DEV_PROFILE_BACKUPS/$(date -u +%Y%m%dT%H%M%SZ)"
+mkdir -p "$backup"
+pkl eval -x 'liveTargets.keys.join("\n")' profile.pkl >"$backup/targets"
+saved=0
+while IFS= read -r target || [[ -n "$target" ]]; do
+	live="${target/#\~/$HOME}"
+	[[ "$(readlink "$live" 2>/dev/null)" == "$DEV_PROFILE_OUT"/* ]] && continue
+	if [[ -e "$live" || -L "$live" ]]; then
+		mkdir -p "$backup$(dirname "$live")"
+		cp -pP "$live" "$backup$live"
+		saved=$((saved + 1))
+	fi
+done <"$backup/targets"
+earlier=""
+for dir in "$DEV_PROFILE_BACKUPS"/*; do
+	[[ -e "$dir" && "$dir" != *.restored && "$dir" != "$backup" ]] && earlier="$dir"
+done
+if [[ "$saved" -eq 0 && -n "$earlier" ]]; then
+	rm -rf "$backup" # already installed; keep the earlier backup as the rollback point
+	echo "live configs already linked; no new backup"
+else
+	echo "backed up $saved live config(s) to $backup"
+fi

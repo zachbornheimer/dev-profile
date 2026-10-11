@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+#MISE description="Render profile.pkl into DEV_PROFILE_OUT"
+set -euo pipefail
+# Render fresh, then swap, so files dropped from profile.pkl do not linger.
+next="$DEV_PROFILE_OUT.next"
+rm -rf "$next"
+pkl eval -m "$next" profile.pkl >/dev/null
+chmod +x "$next"/bin/*
+rm -rf "$DEV_PROFILE_OUT"
+mv "$next" "$DEV_PROFILE_OUT"
+echo "generated $DEV_PROFILE_OUT"
