@@ -26,6 +26,12 @@ name="${0##*/}"
 echo "${name}|${PWD}|$*" >>"${STUB_LOG}"
 if [[ "${name} $*" == "go work edit -json" && -n "${GO_WORK_JSON:-}" ]]; then cat "${GO_WORK_JSON}"; fi
 if [[ "${name} $*" == "go fix -diff "* && -n "${GO_FIX_DIFF:-}" ]]; then cat "${GO_FIX_DIFF}"; fi
+# GO_FIX_DIFF wins when both are set, so the staged-only fixture still applies.
+if [[ "${name} $*" == "go fix -diff "* && -z "${GO_FIX_DIFF:-}" && -n "${GO_FIX_NO_DIFF:-}" ]]; then
+	echo "flag provided but not defined: -diff" >&2
+	echo "usage: go fix [-fix list] [packages]" >&2
+	exit 2
+fi
 # go vet rejects a package whose files contain GO_VET_REJECTS (a fix that broke it).
 if [[ "${name} ${1:-}" == "go vet" && -n "${GO_VET_REJECTS:-}" ]] && grep -rqF -- "${GO_VET_REJECTS}" .; then
 	echo "vet: ${GO_VET_REJECTS} does not compile" >&2
@@ -144,6 +150,25 @@ fixture_go_modernize_staged_only() {
 	grep -qxF "var A any" "${repo}/pkg/a.go" || fail "go modernize: staged a.go was not modernized"
 	grep -qxF "var B interface{}" "${repo}/pkg/b.go" || fail "go modernize: unstaged b.go was rewritten"
 	git -C "$repo" diff --cached | grep -qxF "+var A any" || fail "go modernize: fix was not staged"
+}
+
+# Go before 1.27 has no `go fix -diff`. The fixer must stay silent and apply nothing.
+fixture_go_modernize_old_go_without_diff() {
+	local repo
+	repo="$(new_go_repo go-modernize-no-diff)"
+	GO_FIX_NO_DIFF=1 run_hook "$repo" pre-commit --staged || fail "go modernize old go: pre-commit failed"
+	grep -qxF "var A interface{}" "${repo}/pkg/a.go" || fail "go modernize old go: a.go was rewritten"
+	if grep -qF "flag provided but not defined" "$output"; then
+		fail "go modernize old go: unknown -diff leaked to output"
+	fi
+	repo="$(new_go_repo go-modernize-diff-wins)"
+	{
+		go_fix_block "${repo}/pkg/a.go" "var A interface{}" "var A any"
+		go_fix_block "${repo}/pkg/b.go" "var B interface{}" "var B any"
+	} >"${work}/go-fix-wins.diff"
+	GO_FIX_NO_DIFF=1 GO_FIX_DIFF="${work}/go-fix-wins.diff" run_hook "$repo" pre-commit --staged ||
+		fail "go modernize: GO_FIX_DIFF must win over GO_FIX_NO_DIFF"
+	grep -qxF "var A any" "${repo}/pkg/a.go" || fail "go modernize: GO_FIX_DIFF did not apply"
 }
 
 fixture_go_fix_that_breaks_compilation_blocks() {
@@ -446,6 +471,7 @@ fixture_nested_node_setup() {
 }
 
 fixture_go_modernize_staged_only
+fixture_go_modernize_old_go_without_diff
 fixture_go_fix_that_breaks_compilation_blocks
 fixture_go_guard_package_patterns
 fixture_git_hook_skips_undefined_hook
@@ -476,6 +502,25 @@ fixture_commit_guard_still_blocks_commit_on_default_branch() {
 	git -C "$repo" add -A
 	if run_hook "$repo" pre-commit --staged; then fail "commit guard: a commit on the default branch was allowed"; fi
 	expect_output "protected branch" "commit guard"
+}
+
+fixture_hk_fix_on_default_branch() {
+	local repo
+	repo="$(new_published_default_branch_repo hk-fix-on-main)"
+	(cd "$repo" && HK_CONFIG_DIR="${work}/hk-config" hk fix --all) >"$output" 2>&1 ||
+		fail "hk fix on default branch: must pass"
+	if grep -qF "protected branch" "$output"; then
+		fail "hk fix on default branch: printed protected branch"
+	fi
+}
+
+fixture_hk_check_on_default_branch() {
+	local repo
+	repo="$(new_published_default_branch_repo hk-check-on-main)"
+	(cd "$repo" && HK_CONFIG_DIR="${work}/hk-config" hk check --all) >"$output" 2>&1 || true
+	if grep -qF "protected branch" "$output"; then
+		fail "hk check on default branch: failed because of no-commit-to-branch"
+	fi
 }
 
 fixture_every_task_renders() {
@@ -525,4 +570,6 @@ fixture_suppressions_language_scope
 fixture_suppressions_semgrep
 fixture_lint_ignores_commit_guards_on_default_branch
 fixture_commit_guard_still_blocks_commit_on_default_branch
+fixture_hk_fix_on_default_branch
+fixture_hk_check_on_default_branch
 echo "contract fixtures ok"

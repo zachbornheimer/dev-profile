@@ -87,6 +87,10 @@ facts {
         || profile.fullTreeChecks.containsKey(id)
     }
   }
+  ["hk fix and check skip the default-branch commit guard"] {
+    config.hooks["fix"].steps["no-commit-to-branch"].step_condition == "false"
+    config.hooks["check"].steps["no-commit-to-branch"].step_condition == "false"
+  }
 }
 
 examples {

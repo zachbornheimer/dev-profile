@@ -52,7 +52,7 @@ mise run rollback    # restore the backed-up originals
 | save (Neovim)           | the buffer       | format                      | dprint, from the language's `dprint` binding                                            |
 | `git commit`            | staged           | fix, restaged; checks block | every tool's `pre-commit` entry, dprint last                                            |
 | `git push`              | the pushed range | check only                  | every tool's `pre-push` entry                                                           |
-| `hk fix` / `hk check`   | modified         | fix / check                 | the `pre-commit` entries                                                                |
+| `hk fix` / `hk check`   | modified         | fix / check                 | the `pre-commit` entries, without the default-branch commit guard                       |
 | `hk check --slow --all` | whole tree       | check                       | the `pre-commit` and `pre-push` entries                                                 |
 | `mise run lint`         | whole tree       | check                       | `hk check --all --slow --profile lint` (commit guards off) plus the suppressions report |
 | `mise run test`, `scan` | whole tree       | native tools                | the contract adapters in `lib/contract.pkl`, not hk                                     |
