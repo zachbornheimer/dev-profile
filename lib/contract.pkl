@@ -495,6 +495,32 @@ local repo =
   esac
   """
 
+/// Doctor warning: the machine's active kernel and runtime tools against the
+/// profile's pins. A pin matches an installed version that starts with it
+/// (`go = "1.27"` accepts 1.27.3). Warns and exits 0; mise ls is the machine truth.
+local kernelPins =
+  """
+  \(bash)
+  # mise ls --global lists what the rendered profile config requests, installed or not.
+  active="$(mise ls --global --json 2>/dev/null || echo '{}')"
+  while read -r id pin; do
+    if ! jq -e --arg id "${id}" --arg pin "${pin}" \
+      '(.[$id] // []) | any(.installed and .active and (.version == $pin or (.version | startswith($pin + "."))))' \
+      <<<"${active}" >/dev/null; then
+      echo "doctor: ${id} ${pin} is pinned by the profile but is not the active installed version; run mise install" >&2
+    fi
+  done <<'PINS'
+  \(kernelPinLines)
+  PINS
+  exit 0
+  """
+
+local kernelPinLines: String =
+  List(profile.kernelTools.toList(), profile.tools.toList())
+    .flatten()
+    .map((pin) -> "\(pin.id) \(pin.version)")
+    .join("\n")
+
 local adapterBodies: Mapping<String, String> = new {
   ["go"] = go
   ["node"] = node
@@ -640,6 +666,7 @@ pushVerbs: Listing<String> = new { "test"; "scan" }
 
 /// Generated bin/ scripts for the contract.
 wrappers: Mapping<String, String> = new {
+  ["dev-profile-kernel-pins"] = kernelPins
   ["dev-profile-contract"] = dispatcher
   ["dev-profile-ci"] = ciScript
   ["dev-profile-contract-push"] = contractPush
