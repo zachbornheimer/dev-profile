@@ -330,6 +330,31 @@ fixture_suppressions_language_scope() {
 	expect_output "a.go:3:" "suppressions scope"
 }
 
+fixture_suppressions_semgrep() {
+	local repo enforce="${work}/enforce-suppressions-semgrep"
+	repo="$(new_repo suppressions-semgrep)"
+	# Directives are assembled at runtime so this file never contains them.
+	local slash="// no""semgrep" hash="# no""semgrep"
+	DEV_PROFILE_OUT="$out" pkl eval -p suppressionMode=enforce \
+		-x 'output.files["bin/dev-profile-suppressions"].text' "$profile" >"$enforce"
+
+	printf 'Never write %s or %s.\n' "$slash" "$hash" >"${repo}/guide.md"
+	printf 'Never write %s or %s.\n' "$slash" "$hash" >"${repo}/prompt.templ"
+	commit_all "$repo"
+	(cd "$repo" && bash "$enforce" --tree) >"$output" 2>&1 ||
+		fail "semgrep suppression: prose in .md/.templ must not be flagged"
+
+	printf 'package s\n\nvar x = 1 %s\n' "$slash" >"${repo}/a.go"
+	printf 'x = 1  %s\n' "$hash" >"${repo}/a.py"
+	commit_all "$repo"
+	if (cd "$repo" && bash "$enforce" --tree) >"$output" 2>&1; then
+		fail "semgrep suppression: real directives must block"
+	fi
+	expect_output "2 inline suppression(s)" "semgrep suppression"
+	expect_output "a.go:3:" "semgrep suppression"
+	expect_output "a.py:1:" "semgrep suppression"
+}
+
 fixture_repo_task_runners() {
 	local clean dirty
 	clean="$(new_repo runners-clean)"
@@ -497,6 +522,7 @@ fixture_override_and_extend
 fixture_failure_runs_every_adapter
 fixture_suppressions
 fixture_suppressions_language_scope
+fixture_suppressions_semgrep
 fixture_lint_ignores_commit_guards_on_default_branch
 fixture_commit_guard_still_blocks_commit_on_default_branch
 echo "contract fixtures ok"
