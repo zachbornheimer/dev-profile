@@ -9,6 +9,7 @@
 !/.github/
 !/.github/workflows/
 !/.github/workflows/*.yml
+!/.github/zizmor.yml
 !/profile.pkl
 !/conform.lua
 !/lib/
