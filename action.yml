@@ -52,8 +52,10 @@ runs:
         GITHUB_WORKSPACE_PATH: ${{ github.workspace }}
       run: |
         set -euo pipefail
-        echo "MISE_TRUSTED_CONFIG_PATHS=${GITHUB_WORKSPACE_PATH}" >>"${GITHUB_ENV}"
-        export MISE_TRUSTED_CONFIG_PATHS="${GITHUB_WORKSPACE_PATH}"
+        # Trust the checkout's own config; mise keeps this in its state dir, not the env.
+        for cfg in mise.toml .mise.toml; do
+          if [[ -f "${GITHUB_WORKSPACE_PATH}/${cfg}" ]]; then mise trust "${GITHUB_WORKSPACE_PATH}/${cfg}"; fi
+        done
         mise install --yes
         # Plain `run:` steps find the tools too, not only `mise run` / `mise x`.
         while IFS= read -r tool_bin; do
