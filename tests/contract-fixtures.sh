@@ -301,6 +301,35 @@ fixture_suppressions() {
 	done
 }
 
+fixture_suppressions_language_scope() {
+	local repo enforce="${work}/enforce-suppressions-scope"
+	repo="$(new_repo suppressions-scope)"
+	# Directives are assembled at runtime so this file never contains them.
+	local noqa="# no""qa" tsi="// @ts-""ignore" nol="//no""lint"
+	DEV_PROFILE_OUT="$out" pkl eval -p suppressionMode=enforce \
+		-x 'output.files["bin/dev-profile-suppressions"].text' "$profile" >"$enforce"
+
+	# Prose that forbids suppressions, in files of no suppressing language.
+	printf 'Never write %s or %s or %s.\n' "$noqa" "$tsi" "$nol" >"${repo}/prompt.templ"
+	printf 'Never write %s or %s or %s.\n' "$noqa" "$tsi" "$nol" >"${repo}/guide.md"
+	commit_all "$repo"
+	(cd "$repo" && bash "$enforce" --tree) >"$output" 2>&1 ||
+		fail "suppressions scope: prose in .templ/.md must not be flagged"
+
+	# Real suppressions in their own language still block.
+	printf 'x = 1  %s\n' "$noqa" >"${repo}/a.py"
+	printf '%s\nconst x = 1\n' "$tsi" >"${repo}/a.ts"
+	printf 'package s\n\n%s\nvar x = 1\n' "$nol" >"${repo}/a.go"
+	commit_all "$repo"
+	if (cd "$repo" && bash "$enforce" --tree) >"$output" 2>&1; then
+		fail "suppressions scope: real suppressions must block"
+	fi
+	expect_output "3 inline suppression(s)" "suppressions scope"
+	expect_output "a.py:1:" "suppressions scope"
+	expect_output "a.ts:1:" "suppressions scope"
+	expect_output "a.go:3:" "suppressions scope"
+}
+
 fixture_repo_task_runners() {
 	local clean dirty
 	clean="$(new_repo runners-clean)"
@@ -467,6 +496,7 @@ fixture_no_ecosystem
 fixture_override_and_extend
 fixture_failure_runs_every_adapter
 fixture_suppressions
+fixture_suppressions_language_scope
 fixture_lint_ignores_commit_guards_on_default_branch
 fixture_commit_guard_still_blocks_commit_on_default_branch
 echo "contract fixtures ok"
