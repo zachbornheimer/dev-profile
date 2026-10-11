@@ -213,7 +213,7 @@ toolPins: Listing<types.Pin> = new {
 gitHooks: Mapping<String, String> = new {
   ["pre-commit"] = "hk run pre-commit --staged"
   ["pre-push"] = "hk run pre-push"
-  // Profile-agnostic: the active hk config (HK_CONFIG_DIR) owns the rules, so
+  // Profile-agnostic: the active hk config owns the rules, so
   // the SAH and personal profiles can share this one global hook.
   ["commit-msg"] = "hk run commit-msg"
 }
@@ -677,6 +677,7 @@ output {
     // Linked as ~/.config/hk/config.pkl. Absolute, because Pkl resolves relative
     // imports from the symlink's directory, not its target's.
     ["hk-config.pkl"] { text = "amends \"\(installPath)/src/lib/hk.pkl\"\n" }
+    ["xdg/hk/config.pkl"] { text = "amends \"\(installPath)/src/lib/hk.pkl\"\n" }
     ["hk/config.pkl"] { text = "amends \"\(installPath)/src/lib/hk.pkl\"\n" }
     ["dprint.jsonc"] { text = render.jsoncFile(render.dprint) }
     // Not named mise.toml: tools run from this dir must not auto-load it as a project config.

@@ -31,6 +31,17 @@ export HOME="${home}" XDG_CONFIG_HOME="${home}/.config" XDG_STATE_HOME="${home}/
 export MISE_TRUSTED_CONFIG_PATHS="${work}" DEV_PROFILE_CACHE="${work}/cache"
 unset MISE_GLOBAL_CONFIG_FILE MISE_CONFIG_DIR HK_CONFIG_DIR DPRINT_CONFIG_DIR
 
+# A runner starts without this machine's profile bin dir on PATH (a Mac's mise
+# activation, or the `mise run` that launched this, may already have it there).
+clean_path=""
+while IFS= read -r -d: entry || [[ -n "${entry}" ]]; do
+	case "${entry}" in
+	"${out}/bin" | "${real_home}/.local/share/dev-profile/bin") ;;
+	*) clean_path="${clean_path:+${clean_path}:}${entry}" ;;
+	esac
+done <<<"${PATH}"
+export PATH="${clean_path}"
+
 new_repo() { # <name>
 	local dir="${work}/$1"
 	mkdir -p "${dir}"
@@ -49,10 +60,31 @@ lint() { # <context> <repo>
 
 "${out}/bin/dev-profile-env" --config-dir "${home}/.config/mise" --link-only
 
+# The rendered config puts "~/.local/share/dev-profile/bin" on PATH (`[env] _.path`).
+# The action renders under the runner's HOME, so "~" resolves to the render there;
+# give this empty home the same, instead of leaning on this machine's PATH.
+render_link="${home}/.local/share/dev-profile"
+mkdir -p "$(dirname "${render_link}")"
+ln -sfn "${out}" "${render_link}"
+
+# A machine with its own hk config (a Mac) must not leak it into the lint: this
+# decoy fails every repo, so a clean repo passes only if the render's config wins.
+mkdir -p "${home}/.config/hk"
+cat >"${home}/.config/hk/config.pkl" <<'PKL'
+amends "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pkl"
+hooks { ["check"] { steps { ["decoy-live-config"] { check = "false" } } } }
+PKL
+
 clean="$(new_repo clean)"
 printf '{\n  "a": 1\n}\n' >"${clean}/data.json"
 bad_json="$(new_repo bad-json)"
 printf '{"a": }\n' >"${bad_json}/data.json"
+
+# Red control: without the render under HOME the contract scripts are off PATH, so
+# a clean repo must fail, proving the runner passes below only through the mechanism.
+rm "${render_link}"
+if lint runner "${clean}"; then fail "runner: a clean repo passed with the render's bin dir off PATH"; fi
+ln -sfn "${out}" "${render_link}"
 
 for context in runner entry; do
 	lint "${context}" "${clean}" || fail "${context}: a clean repo must pass profile:lint"
