@@ -14,7 +14,11 @@ while IFS= read -r target || [[ -n "$target" ]]; do
 		saved=$((saved + 1))
 	fi
 done <"$backup/targets"
-if [[ "$saved" -eq 0 && -n "$(ls -1 "$DEV_PROFILE_BACKUPS" | grep -v '\.restored$' | grep -v "^${backup##*/}$" || true)" ]]; then
+earlier=""
+for dir in "$DEV_PROFILE_BACKUPS"/*; do
+	[[ -e "$dir" && "$dir" != *.restored && "$dir" != "$backup" ]] && earlier="$dir"
+done
+if [[ "$saved" -eq 0 && -n "$earlier" ]]; then
 	rm -rf "$backup" # already installed; keep the earlier backup as the rollback point
 	echo "live configs already linked; no new backup"
 else

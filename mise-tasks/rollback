@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 #MISE description="Restore live configs from the newest install-live backup"
 set -euo pipefail
-latest="$(ls -1 "$DEV_PROFILE_BACKUPS" 2>/dev/null | grep -v '\.restored$' | tail -1 || true)"
+latest=""
+for dir in "$DEV_PROFILE_BACKUPS"/*; do
+	[[ -e "$dir" && "$dir" != *.restored ]] && latest="${dir##*/}"
+done
 [[ -n "$latest" ]] || {
 	echo "no install-live backup to restore" >&2
 	exit 1
