@@ -33,14 +33,13 @@ unset MISE_GLOBAL_CONFIG_FILE MISE_CONFIG_DIR HK_CONFIG_DIR DPRINT_CONFIG_DIR
 # State of the `mise run` that launched this: a runner's mise starts without it.
 while IFS= read -r name; do unset "${name}"; done < <(compgen -e | grep -E '^(__MISE_|MISE_(TASK_|PROJECT_ROOT|CONFIG_ROOT|ORIGINAL_CWD))')
 
-# A runner starts without this machine's profile bin dir on PATH (a Mac's mise
-# activation, or the `mise run` that launched this, may already have it there).
+# A runner starts without the profile's bin dir on PATH, however this machine's
+# mise activation or the launching `mise run` spelled it.
 clean_path=""
 while IFS= read -r -d: entry || [[ -n "${entry}" ]]; do
-	case "${entry}" in
-	"${out}/bin" | "${real_home}/.local/share/dev-profile/bin") ;;
-	*) clean_path="${clean_path:+${clean_path}:}${entry}" ;;
-	esac
+	entry="${entry%$'\n'}"
+	[[ ! -e "${entry}/dev-profile-contract" ]] || continue
+	clean_path="${clean_path:+${clean_path}:}${entry}"
 done <<<"${PATH}"
 export PATH="${clean_path}"
 
