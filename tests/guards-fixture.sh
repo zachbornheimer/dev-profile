@@ -158,8 +158,43 @@ fixture_gosec_changed_files_only() {
 	grep -q 'pkg/dirty.go:5 G404' "${work}/output.txt" || fail "gosec: the finding must be printed"
 }
 
+# ---- Lockfiles: machine-written, so formatters and content linters skip them.
+
+# Valid YAML that dprint reformats and a strict yamllint rejects.
+lockfile_yaml='lockfileVersion: 9
+importers:   {a:   1}
+'
+
+fixture_dprint_leaves_lockfile_unchanged() {
+	local repo
+	repo="$(new_repo lockfile-dprint)"
+	printf '%s' "$lockfile_yaml" >"${repo}/pnpm-lock.yaml"
+	git -C "$repo" add pnpm-lock.yaml
+	commit_hook "$repo" || fail "lockfile dprint: must pass"
+	[[ "$(git -C "$repo" show :pnpm-lock.yaml)" == "${lockfile_yaml%$'\n'}" ]] ||
+		fail "lockfile dprint: the staged lockfile must not be reformatted"
+}
+
+fixture_yamllint_skips_lockfile() {
+	command -v yamllint >/dev/null 2>&1 || return 0
+	local repo
+	repo="$(new_repo lockfile-yamllint)"
+	# A project config wins over any user-level one, so the rule is not machine-dependent.
+	printf 'rules:\n  braces: {max-spaces-inside: 0}\n' >"${repo}/.yamllint"
+	printf '%s' "$lockfile_yaml" >"${repo}/pnpm-lock.yaml"
+	printf '%s' "$lockfile_yaml" >"${repo}/ordinary.yaml"
+	git -C "$repo" add pnpm-lock.yaml ordinary.yaml
+	if (cd "$repo" && HK_CONFIG_DIR="${work}/hk-config" hk run pre-push --staged --no-stage -p slow) >"${work}/output.txt" 2>&1; then
+		fail "lockfile yamllint: the control yaml file must fail yamllint"
+	fi
+	if grep -q 'pnpm-lock.yaml' "${work}/output.txt"; then fail "lockfile yamllint: the lockfile must be skipped"; fi
+	grep -q 'ordinary.yaml' "${work}/output.txt" || fail "lockfile yamllint: the control file must be judged"
+}
+
 fixture_if_installed
 fixture_gosec_changed_files_only
+fixture_dprint_leaves_lockfile_unchanged
+fixture_yamllint_skips_lockfile
 fixture_clean_change_passes
 fixture_local_identity_blocks
 fixture_broken_symlink_blocks
