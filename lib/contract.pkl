@@ -537,7 +537,9 @@ local adapterBodies: Mapping<String, String> = new {
 
 // ---- Suppression ban
 local function directiveLines(): String =
-  profile.suppressionDirectives.toMap().entries.map((e) -> "\(e.key)|\(e.value)").join("\n")
+  profile.suppressionDirectives.toMap().entries
+    .map((e) -> "\(e.key)|\(profile.suppressionFiles[e.key])|\(e.value)")
+    .join("\n")
 
 local function exceptionLines(): String =
   profile.suppressionExceptions.toList().map((x) -> "\(x.path)|\(x.rule)").join("\n")
@@ -554,7 +556,7 @@ local suppressions =
   policy="\(profile.suppressionMode)"
   cd "$(git rev-parse --show-toplevel)"
 
-  # id|ERE, one per line.
+  # id|file extensions|ERE, one per line.
   directives() {
     cat <<'EOF'
   \(directiveLines())
@@ -566,6 +568,15 @@ local suppressions =
     cat <<'EOF'
   \(exceptionLines())
   EOF
+  }
+
+  # True when path $1 has one of the extensions listed in $2.
+  in_scope() {
+    local ext
+    for ext in $2; do
+      [[ "$1" == *".${ext}" ]] && return 0
+    done
+    return 1
   }
 
   excepted() {
@@ -601,11 +612,15 @@ local suppressions =
   while IFS= read -r directive; do
     [[ -n "${directive}" ]] || continue
     id="${directive%%|*}"
+    rest="${directive#*|}"
+    exts="${rest%%|*}"
+    re="${rest#*|}"
     while IFS= read -r hit; do
+      in_scope "${hit%%:*}" "${exts}" || continue
       if excepted "${hit%%:*}" "${id}"; then continue; fi
       echo "${hit}  [${id}]"
       found=$((found + 1))
-    done < <(matches "${directive#*|}")
+    done < <(matches "${re}")
   done < <(directives)
 
   if [[ "${found}" -eq 0 ]]; then
