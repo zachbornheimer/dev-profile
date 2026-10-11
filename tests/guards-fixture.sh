@@ -216,6 +216,28 @@ fixture_vendored_paths_are_skipped() {
 	expect_blocked "$repo" "large file outside a vendored directory"
 }
 
+fixture_strict_json() {
+	local repo name
+	repo="$(new_repo strict-json)"
+	printf '{"a":1,}\n' >"${repo}/trailing.json"
+	git -C "$repo" add trailing.json
+	expect_blocked "$repo" "trailing comma in .json"
+
+	repo="$(new_repo strict-json-comment)"
+	printf '{"a":1 // c\n}\n' >"${repo}/comment.json"
+	git -C "$repo" add comment.json
+	expect_blocked "$repo" "comment in .json"
+
+	repo="$(new_repo strict-json-lenient)"
+	mkdir -p "${repo}/.vscode" "${repo}/.devcontainer/x"
+	for name in x.jsonc tsconfig.json tsconfig.app.json jsconfig.json .vscode/settings.json .devcontainer/x/devcontainer.json; do
+		printf '{"a":1 // c\n,}\n' >"${repo}/${name}"
+	done
+	printf '{"a": 1}\n' >"${repo}/ok.json"
+	git -C "$repo" add .
+	commit_hook "$repo" || fail "lenient JSON files and valid .json: must pass"
+}
+fixture_strict_json
 fixture_if_installed
 fixture_gosec_changed_files_only
 fixture_clean_change_passes

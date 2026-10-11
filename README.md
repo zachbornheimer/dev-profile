@@ -64,6 +64,11 @@ default branch; whole-program linters (golangci-lint, go vet, clippy) fail only
 on issues new in that range, so old debt never blocks a push. Full-tree runs are
 explicit, never in hooks. CI judges the full tree.
 
+`strict-json` replaces the retired pre-commit `check-json`: dprint's JSON plugin
+accepts comments and trailing commas, so `jq empty` parses every `*.json` strictly
+at commit, push and lint. `*.jsonc`, `tsconfig*.json`, `jsconfig*.json`,
+`.devcontainer/` and `.vscode/` stay lenient.
+
 `mise run explain go` prints the resolved plan for one tool or one `tools/`
 category: the step name per hook, its command, files and ordering.
 

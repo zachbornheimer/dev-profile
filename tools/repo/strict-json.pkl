@@ -1,0 +1,38 @@
+amends "../../lib/Tool.pkl"
+
+doc =
+  "Every *.json file parses as strict JSON (no comments, no trailing commas), which dprint's lenient JSON plugin accepts. Tools that read JSON with comments keep theirs."
+pin { id = "jq"; version = "1.8.2" }
+skipsLockfiles = true
+
+// Files whose consumers define them as JSON with comments (or are not parsed as strict JSON).
+local lenientJson: List<String> =
+  List(
+    "**/tsconfig*.json",
+    "**/jsconfig*.json",
+    "**/.devcontainer/**",
+    "**/.vscode/**",
+  )
+
+local checkAll =
+  #"""
+  status=0
+  for file in {{files}}; do
+    jq empty "$file" || { echo "not strict JSON: $file" >&2; status=1; }
+  done
+  exit $status
+  """#
+
+// The same step at commit and push, so the lint verb keeps it on and runs it over the whole tree.
+on {
+  ["pre-commit"] {
+    glob = List("**/*.json")
+    exclude = lenientJson
+    check = checkAll
+  }
+  ["pre-push"] {
+    glob = List("**/*.json")
+    exclude = lenientJson
+    check = checkAll
+  }
+}
