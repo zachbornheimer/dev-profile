@@ -41,6 +41,7 @@ for gem_tool in bundle-audit brakeman; do command -v "$gem_tool" >/dev/null || e
 bash tests/pr-fixture.sh "$out" || fail "pr fixture"
 bash tests/escape-hatch-fixture.sh README.md "$out" || fail "escape-hatch fixture"
 bash tests/sync-fixture.sh "$out" || fail "sync fixture"
+bash tests/done-fixture.sh "$out" || fail "done fixture"
 bash tests/retire-fixture.sh "$out" || fail "retire fixture"
 bash tests/shellcheck-fix-fixture.sh "$out" || fail "shellcheck-fix fixture"
 bash tests/identity-guard-fixture.sh "$out" || fail "identity-guard fixture"
