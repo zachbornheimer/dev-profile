@@ -700,13 +700,23 @@ local doneScript =
   }
 
   open_pr() {
-    local kind="$1" head="$2" base="$3" title="$4" body existing
+    local kind="$1" head="$2" base="$3" title="$4" body existing head_oid base_oid
     body="Opened by wt done from ${clone}."
     say pr "${kind} ${head} into ${base}"
     [[ "${dry_run}" == false ]] || return 0
     existing="$(gh pr list --head "${head}" --state open --json number --jq '.[0].number' 2>/dev/null || true)"
     if [[ -n "${existing}" ]]; then
       report current "${head} pull request #${existing}"
+      return 0
+    fi
+    head_oid="$(git rev-parse --verify --quiet "refs/remotes/origin/${head}" || true)"
+    base_oid="$(git rev-parse --verify --quiet "refs/remotes/origin/${base}" || true)"
+    if [[ -n "${head_oid}" && -n "${base_oid}" && "${head_oid}" == "${base_oid}" ]]; then
+      report skip "${head}: no commits into ${base}"
+      return 0
+    fi
+    if [[ -z "${base_oid}" ]]; then
+      report skip "${head}: ${base} is not on origin"
       return 0
     fi
     if [[ "${kind}" == draft ]]; then

@@ -41,6 +41,11 @@ STUB
 cat >"${stubs}/gh" <<'STUB'
 #!/usr/bin/env bash
 echo "gh $*" >>"${WT_LOG}"
+if [[ "$1" == pr && "$2" == list ]]; then
+	# Real gh --jq '.[0].number' on [] prints nothing.
+	[[ "$*" == *--jq* ]] || echo '[]'
+	exit 0
+fi
 exit 1
 STUB
 chmod +x "${stubs}"/*
@@ -157,6 +162,18 @@ run_done "$repo" --no-pr --no-prune >"${work}/stay.out" 2>&1 || fail "done must 
 [[ "$(git -C "$repo" symbolic-ref --short HEAD)" == main ]] ||
 	fail "done must leave the primary clone on main, not $(git -C "$repo" symbolic-ref --short HEAD 2>/dev/null || git -C "$repo" rev-parse --short HEAD)"
 [[ "$(git -C "$origin" rev-parse feat/loose)" == "${loose_tip}" ]] || fail "a branch with no worktree must still be pushed as-is"
+
+# --- Conflict backup matching the branch tip must not fail done.
+setup_clone same
+git -C "$repo" switch -q -c feat/same
+commit "$repo" extra.txt from-feat
+git -C "$repo" push --no-verify -q origin feat/same
+git -C "$repo" switch -q main
+git -C "$repo" worktree add -q "${work}/same-feat" feat/same
+commit "$repo" extra.txt from-main
+git -C "$repo" push --no-verify -q origin main
+run_done "$repo" --no-prune >"${work}/same.out" 2>&1 || fail "a same-commit conflict PR must not fail done: $(cat "${work}/same.out")"
+grep -q 'pr create' "$WT_LOG" && fail "open_pr must not create a PR with no commits: $(cat "$WT_LOG")"
 
 # --- --dry-run still only fetches.
 setup_clone dry
