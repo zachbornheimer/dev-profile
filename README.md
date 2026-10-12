@@ -132,7 +132,9 @@ diverged from. A default branch that is strictly ahead of origin is pushed as
 A diverged default branch uses the conflict draft instead. Stashes, `wip`
 snapshots, and detached commits are pushed and do not become pull requests.
 Prune never deletes `backup/*`, the default branch, open pull requests, or
-anything this run skipped. Ignored files such as `.env` are not pushed; `--drop`
+anything this run skipped. A submodule that is still recorded but missing on
+disk is checked out again, not committed as a deletion. Ignored files such as
+`.env` are not pushed; `--drop`
 leaves them in the Trash. A file over `DEV_PROFILE_SYNC_MAX_FILE_MB` (default
 50) or a nested repository refuses `--drop`.
 

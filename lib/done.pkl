@@ -221,6 +221,15 @@ local doneScript =
     done < <(git -C "${dir}" ls-files -z --others --directory --exclude-standard)
     while IFS= read -r rel; do
       [[ -z "${rel}" ]] && continue
+      # A gitlink's commit is not in this repo, so cat-file -e fails. rev-parse
+      # still sees the tree entry.
+      if git -C "${dir}" rev-parse -q --verify "HEAD:${rel}" >/dev/null; then
+        if [[ ! -e "${dir}/${rel}" ]]; then
+          report skip "${dir}/${rel}: submodule checkout missing"
+          blocked=true
+        fi
+        continue
+      fi
       report nested "${dir}/${rel}"
       blocked=true
     done < <(git -C "${dir}" ls-files -s | awk -F '\t' '$1 ~ /^160000 / { print $2 }')
@@ -363,11 +372,28 @@ local doneScript =
     fi
   }
 
+  # Porcelain with missing submodule checkouts removed. Those are restored,
+  # not committed.
+  commit_status() {
+    local path="$1" line rel
+    while IFS= read -r line; do
+      [[ -z "${line}" ]] && continue
+      rel="${line# D }"
+      if [[ "${line}" == " D ${rel}" && -f "${path}/.gitmodules" ]] &&
+        git -C "${path}" rev-parse -q --verify "HEAD:${rel}" >/dev/null &&
+        git -C "${path}" config -f .gitmodules --get-regexp '^submodule\..*\.path$' 2>/dev/null |
+        awk -v p="${rel}" '$2 == p { found = 1 } END { exit !found }'; then
+        continue
+      fi
+      printf '%s\n' "${line}"
+    done < <(git -C "${path}" status --porcelain)
+  }
+
   commit_worktrees() {
     local path branch locked dirty
     while IFS=$'\t' read -r path branch locked; do
       dirty=false
-      if [[ -n "$(git -C "${path}" status --porcelain)" ]]; then dirty=true; fi
+      if [[ -n "$(commit_status "${path}")" ]]; then dirty=true; fi
       if [[ -z "${branch}" ]]; then
         commit_detached "${path}"
       elif [[ "${dirty}" == true && "${branch}" == "${default_branch}" ]]; then
@@ -386,7 +412,8 @@ local doneScript =
       mark_once "${state}/skipped" "stash"
       return 0
     fi
-    current="$(git symbolic-ref --quiet --short HEAD || true)"
+    current="$(git symbolic-ref --quiet HEAD || true)"
+    current="${current#refs/heads/}"
     if [[ -z "${current}" || "${current}" == "${default_branch}" ]]; then
       target="$(free_name wip)"
     else
@@ -462,8 +489,13 @@ local doneScript =
     report conflict "$1"
   }
 
+  # `%(refname:short)` prints `heads/main` when a tag is also named main.
+  # Callers then look up `refs/heads/heads/main` and the script dies.
   each_branch() {
-    git for-each-ref --format='%(refname:short)' refs/heads
+    local ref
+    while IFS= read -r ref; do
+      printf '%s\n' "${ref#refs/heads/}"
+    done < <(git for-each-ref --format='%(refname)' refs/heads)
   }
 
   stop_restack() {
@@ -771,16 +803,16 @@ local doneScript =
   prune_remote() {
     local ref branch tip listing
     while IFS= read -r ref; do
-      # `origin` is the short name of origin/HEAD, not a branch.
-      [[ "${ref}" == origin || "${ref}" == origin/HEAD ]] && continue
-      branch="${ref#origin/}"
+      # origin/HEAD is a symref, not a branch.
+      [[ "${ref}" == refs/remotes/origin || "${ref}" == refs/remotes/origin/HEAD ]] && continue
+      branch="${ref#refs/remotes/origin/}"
       [[ "${branch}" == HEAD || "${branch}" == "${default_branch}" ]] && continue
       case "${branch}" in
         backup/*) continue ;;
       esac
       if marked "${branch}" "${state}/skipped"; then continue; fi
       if marked "${branch}" "${state}/unpushed"; then continue; fi
-      tip="$(git rev-parse --verify --quiet "refs/remotes/${ref}" || true)"
+      tip="$(git rev-parse --verify --quiet "${ref}" || true)"
       [[ -n "${tip}" ]] || continue
       git merge-base --is-ancestor "${tip}" "refs/remotes/origin/${default_branch}" || continue
       say prune "origin/${branch}"
@@ -800,7 +832,7 @@ local doneScript =
       if ! git push --quiet --force-with-lease="refs/heads/${branch}:${tip}" --delete origin "${branch}"; then
         report skip "origin/${branch}: remote moved; kept"
       fi
-    done < <(git for-each-ref --format='%(refname:short)' refs/remotes/origin)
+    done < <(git for-each-ref --format='%(refname)' refs/remotes/origin)
   }
 
   scan_danger() {
@@ -889,6 +921,33 @@ local doneScript =
     trash "${primary}"
   }
 
+  # A submodule that is still in HEAD but missing on disk is an uninitialized
+  # checkout. Restoring it is not a commit, and committing it would record a deletion.
+  missing_submodules() {
+    local rel listed
+    [[ -f .gitmodules ]] || return 0
+    listed="$(git config -f .gitmodules --get-regexp '^submodule\..*\.path$' 2>/dev/null || true)"
+    while IFS= read -r rel; do
+      [[ -z "${rel}" ]] && continue
+      [[ -e "${rel}" ]] && continue
+      git rev-parse -q --verify "HEAD:${rel}" >/dev/null || continue
+      awk -v p="${rel}" '$2 == p { found = 1 } END { exit !found }' <<<"${listed}" || continue
+      printf '%s\n' "${rel}"
+    done < <(git ls-files -s | awk -F '\t' '$1 ~ /^160000 / { print $2 }')
+  }
+
+  restore_submodules() {
+    local rel
+    while IFS= read -r rel; do
+      [[ -z "${rel}" ]] && continue
+      say restore "${rel}"
+      [[ "${dry_run}" == false ]] || continue
+      if ! git submodule update --init -- "${rel}"; then
+        report skip "${rel}: submodule checkout missing"
+      fi
+    done < <(missing_submodules)
+  }
+
   git fetch --prune --quiet origin '+refs/heads/*:refs/remotes/origin/*' || {
     echo "fetch of origin failed" >&2
     exit 1
@@ -898,8 +957,8 @@ local doneScript =
       git remote set-head origin --auto >/dev/null 2>&1 || true
     fi
   fi
-  default_branch="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)"
-  default_branch="${default_branch#origin/}"
+  default_branch="$(git symbolic-ref --quiet refs/remotes/origin/HEAD 2>/dev/null || true)"
+  default_branch="${default_branch#refs/remotes/origin/}"
   default_branch="${default_branch:-main}"
 
   clone="$(clone_id)"
@@ -912,6 +971,7 @@ local doneScript =
   fi
   report clone "${clone}"
 
+  restore_submodules
   write_worktrees
   commit_worktrees
   commit_stash
