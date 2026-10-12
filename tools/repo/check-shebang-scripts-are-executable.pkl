@@ -1,6 +1,31 @@
 amends "../../lib/Tool.pkl"
 
-doc = "Files with a shebang are executable. An hk builtin; no external tool."
+doc =
+  "Files whose first line is a shebang become executable in the worktree and the git index at commit. An hk fixer; chmod +x is a mode change, not a content rewrite."
 on {
-  ["pre-commit"] = module.builtins.check_shebang_scripts_are_executable
+  ["pre-commit"] {
+    types = List("text")
+    fix = "dev-profile-shebang-scripts-executable {{files}}"
+  }
+}
+
+local shebangScriptsExecutable =
+  #"""
+  \#(bash)
+  # Shebang files get the executable bit. hk's builtin only judged; this fixer
+  # chmod +x's the worktree file and records 100755 in the index so the commit
+  # is executable. Mode-only; never rewrite bytes. Never fail.
+  (($#)) || exit 0
+  for f in "$@"; do
+    [[ -f "${f}" && ! -L "${f}" ]] || continue
+    IFS= read -r first <"${f}" || true
+    [[ "${first}" == "#!"* ]] || continue
+    chmod +x "${f}" || true
+    git update-index --chmod=+x -- "${f}" || true
+  done
+  exit 0
+  """#
+
+scripts {
+  ["dev-profile-shebang-scripts-executable"] = shebangScriptsExecutable
 }

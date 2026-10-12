@@ -63,13 +63,16 @@ fixture_broken_symlink_blocks() {
 	expect_blocked "$repo" "broken symlink"
 }
 
-fixture_non_executable_script_blocks() {
-	local repo
+fixture_non_executable_script_is_fixed() {
+	local repo mode
 	repo="$(new_repo shebang-not-executable)"
 	printf '#!/usr/bin/env bash\necho hi\n' >"${repo}/tool"
 	chmod -x "${repo}/tool"
 	git -C "$repo" add tool
-	expect_blocked "$repo" "shebang script that is not executable"
+	commit_hook "$repo" || fail "shebang script that is not executable: the fixer must pass"
+	[[ -x "${repo}/tool" ]] || fail "shebang script that is not executable: worktree must be executable"
+	mode="$(git -C "$repo" ls-files -s -- tool | awk '{print $1}')"
+	[[ "${mode}" == "100755" ]] || fail "shebang script that is not executable: index mode ${mode}, want 100755"
 }
 
 fixture_executable_without_shebang_blocks() {
@@ -243,7 +246,7 @@ fixture_gosec_changed_files_only
 fixture_clean_change_passes
 fixture_local_identity_blocks
 fixture_broken_symlink_blocks
-fixture_non_executable_script_blocks
+fixture_non_executable_script_is_fixed
 fixture_executable_without_shebang_blocks
 fixture_large_file_blocks
 fixture_large_lockfile_passes

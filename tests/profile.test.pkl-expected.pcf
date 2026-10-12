@@ -5,7 +5,7 @@ examples {
         fix = "dprint fmt --allow-no-files {{files}}"
         check = "dprint check --allow-no-files {{files}}"
         files = "text"
-        after = List("clang-tidy", "stylelint", "dotnet-format", "go-fix", "go-imports", "go-mod-tidy-fix", "go-modernize", "golangci-lint-fix", "oxlint-fix", "markdownlint-fix", "perltidy", "php-fmt", "rector", "ruff-fix", "newlines", "trailing-whitespace", "uv-instead-of-python-in-tasks", "rubocop-fix", "clippy-fix", "rustfmt", "shellcheck-fix", "swift-format", "swiftlint-fix", "tofu-fix")
+        after = List("clang-tidy", "stylelint", "dotnet-format", "go-fix", "go-imports", "go-mod-tidy-fix", "go-modernize", "golangci-lint-fix", "oxlint-fix", "markdownlint-fix", "perltidy", "php-fmt", "rector", "ruff-fix", "check-shebang-scripts-are-executable", "newlines", "trailing-whitespace", "uv-instead-of-python-in-tasks", "rubocop-fix", "clippy-fix", "rustfmt", "shellcheck-fix", "swift-format", "swiftlint-fix", "tofu-fix")
         profiles = null
       }
       ["clang-tidy"] {
@@ -112,6 +112,13 @@ examples {
         after = List()
         profiles = null
       }
+      ["check-shebang-scripts-are-executable"] {
+        fix = "dev-profile-shebang-scripts-executable {{files}}"
+        check = null
+        files = "text"
+        after = List()
+        profiles = null
+      }
       ["newlines"] {
         fix = "hk util end-of-file-fixer --fix {{files}}"
         check = "hk util end-of-file-fixer --diff {{files}}"
@@ -186,7 +193,7 @@ examples {
         fix = null
         check = "dev-profile-go-vet {{files}}"
         files = "**/*.go"
-        after = List("clang-tidy", "stylelint", "dotnet-format", "go-fix", "go-imports", "go-mod-tidy-fix", "go-modernize", "golangci-lint-fix", "oxlint-fix", "markdownlint-fix", "perltidy", "php-fmt", "rector", "ruff-fix", "newlines", "trailing-whitespace", "uv-instead-of-python-in-tasks", "rubocop-fix", "clippy-fix", "rustfmt", "shellcheck-fix", "swift-format", "swiftlint-fix", "tofu-fix")
+        after = List("clang-tidy", "stylelint", "dotnet-format", "go-fix", "go-imports", "go-mod-tidy-fix", "go-modernize", "golangci-lint-fix", "oxlint-fix", "markdownlint-fix", "perltidy", "php-fmt", "rector", "ruff-fix", "check-shebang-scripts-are-executable", "newlines", "trailing-whitespace", "uv-instead-of-python-in-tasks", "rubocop-fix", "clippy-fix", "rustfmt", "shellcheck-fix", "swift-format", "swiftlint-fix", "tofu-fix")
         profiles = List("!lint")
       }
       ["case-conflicts"] {
@@ -206,13 +213,6 @@ examples {
       ["check-executables-have-shebangs"] {
         fix = null
         check = "hk util check-executables-have-shebangs {{files}}"
-        files = "text"
-        after = List()
-        profiles = List("!lint")
-      }
-      ["check-shebang-scripts-are-executable"] {
-        fix = null
-        check = "hk util check-shebang-scripts-are-executable {{files}}"
         files = "text"
         after = List()
         profiles = List("!lint")
@@ -761,7 +761,7 @@ examples {
     }
   }
   ["generated bin scripts"] {
-    List("dev-profile-ban-trunk-prettier", "dev-profile-ci", "dev-profile-clang-format", "dev-profile-clang-tidy-fix", "dev-profile-clippy-fix", "dev-profile-commit-msg", "dev-profile-contract", "dev-profile-contract-buf", "dev-profile-contract-dotnet", "dev-profile-contract-go", "dev-profile-contract-node", "dev-profile-contract-opentofu", "dev-profile-contract-perl", "dev-profile-contract-php", "dev-profile-contract-push", "dev-profile-contract-python", "dev-profile-contract-repo", "dev-profile-contract-ruby", "dev-profile-contract-swift", "dev-profile-done", "dev-profile-dotnet-format-fix", "dev-profile-env", "dev-profile-fix", "dev-profile-git-hook", "dev-profile-go-fix", "dev-profile-go-mod-tidy", "dev-profile-go-modernize", "dev-profile-go-vet", "dev-profile-golangci-ratchet", "dev-profile-gosec-packages", "dev-profile-hk", "dev-profile-identity-guard", "dev-profile-if-installed", "dev-profile-kernel-pins", "dev-profile-no-commit-to-default-branch", "dev-profile-owned-files", "dev-profile-oxlint-fix", "dev-profile-perltidy-fix", "dev-profile-php-context", "dev-profile-php-fmt", "dev-profile-php-lint", "dev-profile-pkl-fmt", "dev-profile-pr", "dev-profile-pr-watch", "dev-profile-prune", "dev-profile-pushed-diagnostics", "dev-profile-reconcile", "dev-profile-rector-fix", "dev-profile-retire", "dev-profile-retire-legacy-hooks", "dev-profile-rubocop-fix", "dev-profile-rustfmt", "dev-profile-shellcheck-fix", "dev-profile-stylelint-fix", "dev-profile-suppressions", "dev-profile-swift-format", "dev-profile-swiftlint-fix", "dev-profile-sync", "dev-profile-ty", "dev-profile-uv-instead-of-python-in-tasks")
+    List("dev-profile-ban-trunk-prettier", "dev-profile-ci", "dev-profile-clang-format", "dev-profile-clang-tidy-fix", "dev-profile-clippy-fix", "dev-profile-commit-msg", "dev-profile-contract", "dev-profile-contract-buf", "dev-profile-contract-dotnet", "dev-profile-contract-go", "dev-profile-contract-node", "dev-profile-contract-opentofu", "dev-profile-contract-perl", "dev-profile-contract-php", "dev-profile-contract-push", "dev-profile-contract-python", "dev-profile-contract-repo", "dev-profile-contract-ruby", "dev-profile-contract-swift", "dev-profile-done", "dev-profile-dotnet-format-fix", "dev-profile-env", "dev-profile-fix", "dev-profile-git-hook", "dev-profile-go-fix", "dev-profile-go-mod-tidy", "dev-profile-go-modernize", "dev-profile-go-vet", "dev-profile-golangci-ratchet", "dev-profile-gosec-packages", "dev-profile-hk", "dev-profile-identity-guard", "dev-profile-if-installed", "dev-profile-kernel-pins", "dev-profile-no-commit-to-default-branch", "dev-profile-owned-files", "dev-profile-oxlint-fix", "dev-profile-perltidy-fix", "dev-profile-php-context", "dev-profile-php-fmt", "dev-profile-php-lint", "dev-profile-pkl-fmt", "dev-profile-pr", "dev-profile-pr-watch", "dev-profile-prune", "dev-profile-pushed-diagnostics", "dev-profile-reconcile", "dev-profile-rector-fix", "dev-profile-retire", "dev-profile-retire-legacy-hooks", "dev-profile-rubocop-fix", "dev-profile-rustfmt", "dev-profile-shebang-scripts-executable", "dev-profile-shellcheck-fix", "dev-profile-stylelint-fix", "dev-profile-suppressions", "dev-profile-swift-format", "dev-profile-swiftlint-fix", "dev-profile-sync", "dev-profile-ty", "dev-profile-uv-instead-of-python-in-tasks")
   }
   ["mise tools"] {
     new {

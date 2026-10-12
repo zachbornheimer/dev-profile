@@ -9,7 +9,7 @@ fail() {
 HK_FILE="$out/hk-config.pkl" hk validate >/dev/null || fail hk-config.pkl
 dprint output-resolved-config --config "$out/dprint.jsonc" >/dev/null || fail dprint.jsonc
 wt --config "$out/worktrunk.toml" config show >/dev/null || fail worktrunk.toml
-for alias in up pr pr-draft pr-auto done; do
+for alias in up pr pr-draft pr-auto "done"; do
 	wt --config "$out/worktrunk.toml" config alias show "$alias" >/dev/null || fail "worktrunk alias $alias"
 done
 wt --config "$out/worktrunk.toml" config alias dry-run pr -- @ >/dev/null || fail worktrunk alias dry-run pr
