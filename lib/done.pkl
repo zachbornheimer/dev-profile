@@ -1,6 +1,7 @@
 /// End-of-day clone command behind `wt done`.
 ///
-/// Flags do not imply each other. `--dry-run` only fetches origin.
+/// Commit, push, draft pull requests, and prune are on by default.
+/// `--drop` is not. `--dry-run` only fetches origin.
 module done
 
 import "pr.pkl"
@@ -9,26 +10,24 @@ import "script.pkl"
 local doneScript =
   #"""
   \#(script.bash)
-  # Restack this clone, then optionally commit, push, open pull requests,
-  # prune, and Trash it. Each flag is independent.
-  #   (none)     fetch, fast-forward a default branch that is strictly behind,
-  #              restack clean branches with wt-sync --all
-  #   --commit   commit uncommitted work, stashes, and detached HEAD first
-  #   --push     push what restacked; conflicts go to backup/conflicts/<clone>/
-  #   --pr       open pull requests for branches this run pushed (needs --push)
-  #   --prune    remove local and origin refs already contained upstream
-  #   --drop     Trash the clone when every tip is on origin
-  #   --dry-run  print the plan; git fetch is the only change
-  # A branch with uncommitted work is skipped entirely unless --commit is set.
+  # Fetch, fast-forward a default branch that is strictly behind, and restack.
+  # Then commit, push, open draft pull requests, and prune.
+  #   --no-commit  skip branches with uncommitted work, stashes, and detached HEAD
+  #   --no-push    do not push
+  #   --no-pr      do not open pull requests
+  #   --no-prune   do not delete local or origin refs
+  #   --drop       Trash the clone when every tip is on origin
+  #   --dry-run    print the plan; git fetch is the only change
+  # --commit, --push, --pr, and --prune are accepted and are already the default.
   usage() {
-    echo "usage: dev-profile-done [--dry-run] [--commit] [--push] [--pr] [--prune] [--drop]" >&2
+    echo "usage: dev-profile-done [--dry-run] [--no-commit] [--no-push] [--no-pr] [--no-prune] [--drop]" >&2
   }
 
   dry_run=false
-  do_commit=false
-  do_push=false
-  do_pr=false
-  do_prune=false
+  do_commit=true
+  do_push=true
+  do_pr=true
+  do_prune=true
   do_drop=false
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -37,6 +36,10 @@ local doneScript =
       --push) do_push=true ;;
       --pr) do_pr=true ;;
       --prune) do_prune=true ;;
+      --no-commit) do_commit=false ;;
+      --no-push) do_push=false ;;
+      --no-pr) do_pr=false ;;
+      --no-prune) do_prune=false ;;
       --drop) do_drop=true ;;
       -h | --help)
         usage

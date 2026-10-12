@@ -111,25 +111,27 @@ live profile follows `main`.
 
 ## End of day: `wt done`
 
-`lib/done.pkl` renders `dev-profile-done` and the `wt done` alias. Flags do not
-imply each other. Worktrunk may swallow flags, so from the alias pass them
-after `--`.
+`lib/done.pkl` renders `dev-profile-done` and the `wt done` alias. Commit,
+push, draft pull requests, and prune are on. `--drop` is not. Worktrunk may
+swallow flags, so from the alias pass them after `--`.
 
-| Command     | Does                                                                                                                                                               |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `wt done`   | fetch origin, fast-forward the default branch when it is strictly behind, restack with `wt-sync --all`                                                             |
-| `--commit`  | commit uncommitted work, stashes, and detached HEAD first. Without it, those branches are skipped                                                                  |
-| `--push`    | push what restacked. A rewritten branch uses `--force-with-lease`. A conflict goes to `backup/conflicts/<clone>/<branch>` under that clone's id, not the real name |
-| `--pr`      | open pull requests for branches this run pushed. Needs `--push`. Conflict pull requests are drafts into the branch they diverged from                              |
-| `--prune`   | remove local worktrees and branches whose tips match origin, and delete origin branches already in the default branch                                              |
-| `--drop`    | Trash the clone when nothing was skipped, every tip is on origin, and no linked worktree remains                                                                   |
-| `--dry-run` | print the plan. `git fetch` is the only change                                                                                                                     |
+| Command       | Does                                                                                                                                  |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `wt done`     | fetch, fast-forward a strictly-behind default branch, restack with `wt-sync --all`, commit, push, open draft pull requests, and prune |
+| `--no-commit` | skip branches with uncommitted work, stashes, and detached HEAD                                                                       |
+| `--no-push`   | do not push. Pull requests are skipped too                                                                                            |
+| `--no-pr`     | do not open pull requests                                                                                                             |
+| `--no-prune`  | do not delete local or origin refs                                                                                                    |
+| `--drop`      | Trash the clone when nothing was skipped, every tip is on origin, and no linked worktree remains                                      |
+| `--dry-run`   | print the plan. `git fetch` is the only change                                                                                        |
 
-A default branch that is strictly ahead of origin is pushed as
-`backup/main/<clone>` and, with `--pr`, opened as an auto-merge pull request.
+A rewritten branch uses `--force-with-lease`. A conflict goes to
+`backup/conflicts/<clone>/<branch>` and opens a draft into the branch it
+diverged from. A default branch that is strictly ahead of origin is pushed as
+`backup/main/<clone>` and opened as an auto-merge pull request, not a draft.
 A diverged default branch uses the conflict draft instead. Stashes, `wip`
 snapshots, and detached commits are pushed and do not become pull requests.
-`--prune` never deletes `backup/*`, the default branch, open pull requests, or
+Prune never deletes `backup/*`, the default branch, open pull requests, or
 anything this run skipped. Ignored files such as `.env` are not pushed; `--drop`
 leaves them in the Trash. A file over `DEV_PROFILE_SYNC_MAX_FILE_MB` (default
 50) or a nested repository refuses `--drop`.
@@ -139,7 +141,7 @@ leaves them in the Trash. A file over `DEV_PROFILE_SYNC_MAX_FILE_MB` (default
 
 ```bash
 wt done -- --dry-run
-wt done -- --dry-run --commit --push --pr --prune --drop
+wt done -- --drop
 ```
 
 ## Repo contract
