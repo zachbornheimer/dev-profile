@@ -68,7 +68,7 @@ explicit, never in hooks. CI judges the full tree.
 `strict-json` replaces the retired pre-commit `check-json`: dprint's JSON plugin
 accepts comments and trailing commas, so `jq empty` parses every `*.json` strictly
 at commit, push and lint. `*.jsonc`, `tsconfig*.json`, `jsconfig*.json`,
-`.devcontainer/` and `.vscode/` stay lenient.
+`.devcontainer/`, `.vscode/`, and Zed settings stay lenient.
 
 `mise run explain go` prints the resolved plan for one tool or one `tools/`
 category: the step name per hook, its command, files and ordering.
