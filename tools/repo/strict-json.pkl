@@ -12,6 +12,7 @@ local lenientJson: List<String> =
     "**/jsconfig*.json",
     "**/.devcontainer/**",
     "**/.vscode/**",
+    "**/zed/**/*.json",
   )
 
 local checkAll =

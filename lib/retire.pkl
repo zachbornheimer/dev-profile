@@ -1,5 +1,6 @@
 /// Retire a clone: back it up, prove GitHub holds everything unique in it, then
-/// move it and its worktrees to the Trash. The script behind `wt retire`.
+/// move it and its worktrees to the Trash. No worktrunk alias: `wt done --drop`
+/// is the clone command. The script stays so the fixture can still call it.
 module retire
 
 import "pr.pkl"
@@ -163,6 +164,6 @@ wrappers: Mapping<String, String> = new {
   ["dev-profile-retire"] = retireScript
 }
 
-aliases: Mapping<String, String> = new {
-  ["retire"] = pr.bin("dev-profile-retire") + " {{ args }}"
-}
+/// No worktrunk alias. `wt done --drop` retires a clone. The script stays so
+/// the fixture can still call it.
+aliases: Mapping<String, String> = new {}
