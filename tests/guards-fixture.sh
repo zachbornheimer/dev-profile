@@ -229,8 +229,8 @@ fixture_strict_json() {
 	expect_blocked "$repo" "comment in .json"
 
 	repo="$(new_repo strict-json-lenient)"
-	mkdir -p "${repo}/.vscode" "${repo}/.devcontainer/x"
-	for name in x.jsonc tsconfig.json tsconfig.app.json jsconfig.json .vscode/settings.json .devcontainer/x/devcontainer.json; do
+	mkdir -p "${repo}/.vscode" "${repo}/.devcontainer/x" "${repo}/zed"
+	for name in x.jsonc tsconfig.json tsconfig.app.json jsconfig.json .vscode/settings.json .devcontainer/x/devcontainer.json zed/private_settings.json; do
 		printf '{"a":1 // c\n,}\n' >"${repo}/${name}"
 	done
 	printf '{"a": 1}\n' >"${repo}/ok.json"
