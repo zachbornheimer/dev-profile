@@ -53,6 +53,8 @@ local doneScript =
     shift
   done
 
+  # This command parks unfinished work; hk would block snapshot commits and stale-branch pushes.
+  export HK=0
   export GIT_TERMINAL_PROMPT=0
   max_file_mb="${DEV_PROFILE_SYNC_MAX_FILE_MB:-50}"
   failures=0
@@ -107,7 +109,7 @@ local doneScript =
     awk -F '\t' -v b="$1" '$1 == b { print $2; exit }' "${state}/pretip"
   }
 
-  # 0 when a skipped checkout would make wt-sync --all stop or rebase it anyway.
+  # 0 when a skipped checkout still has uncommitted work that rebase cannot move.
   restack_blocked() {
     local branch
     while IFS=$'\t' read -r _ branch _; do
@@ -116,19 +118,6 @@ local doneScript =
         continue
       fi
       if marked "${branch}" "${state}/skipped"; then return 0; fi
-    done <"${state}/worktrees"
-    return 1
-  }
-
-  rebase_head_name() {
-    local path git_dir name
-    while IFS=$'\t' read -r path _ _; do
-      git_dir="$(git -C "${path}" rev-parse --git-path rebase-merge)"
-      if [[ -f "${git_dir}/head-name" ]]; then
-        name="$(cat "${git_dir}/head-name")"
-        printf '%s\n' "${name#refs/heads/}"
-        return 0
-      fi
     done <"${state}/worktrees"
     return 1
   }
@@ -258,7 +247,7 @@ local doneScript =
       return 1
     fi
     if [[ -n "$(git -C "${path}" status --porcelain)" ]] &&
-      ! git -C "${path}" commit -q -m "chore: save uncommitted work on ${label}"; then
+      ! git -C "${path}" commit -q --no-verify -m "chore: save uncommitted work on ${label}"; then
       report skip "${label}: commit failed"
       mark_once "${state}/skipped" "${label}"
       return 1
@@ -303,7 +292,7 @@ local doneScript =
     mark_once "${state}/planned" "${branch}"
     [[ "${dry_run}" == false ]] || return 0
     git -C "${path}" add -A
-    git -C "${path}" commit -q -m "chore: save uncommitted work on ${branch}" || {
+    git -C "${path}" commit -q --no-verify -m "chore: save uncommitted work on ${branch}" || {
       report skip "${branch}: commit failed"
       mark_once "${state}/skipped" "${branch}"
     }
@@ -446,7 +435,7 @@ local doneScript =
       return 0
     fi
     if [[ -n "$(git status --porcelain)" ]]; then
-      if ! git add -A || ! git commit -q -m "chore: save uncommitted work on ${target}"; then
+      if ! git add -A || ! git commit -q --no-verify -m "chore: save uncommitted work on ${target}"; then
         report skip "stash: commit failed"
         mark_once "${state}/skipped" "stash"
       fi
@@ -470,14 +459,6 @@ local doneScript =
     else
       git update-ref "refs/heads/${default_branch}" "${remote_tip}" "${local_tip}"
     fi
-  }
-
-  abort_rebases() {
-    local path
-    git rebase --abort >/dev/null 2>&1 || true
-    while IFS=$'\t' read -r path _ _; do
-      git -C "${path}" rebase --abort >/dev/null 2>&1 || true
-    done <"${state}/worktrees"
   }
 
   note_conflict() {
@@ -504,15 +485,15 @@ local doneScript =
   }
 
   restack_branches() {
-    local branch conflicted
+    local branch path
     if restack_blocked; then
-      report skip "restack: uncommitted work blocks wt-sync; pass --commit"
+      report skip "restack: uncommitted work blocks restack; pass --commit"
       if [[ "${dry_run}" == true ]]; then return 0; fi
       stop_restack
       return 0
     fi
     if [[ "${dry_run}" == true ]]; then
-      say restack "wt-sync --all"
+      say restack "origin/${default_branch}"
       while IFS= read -r branch; do
         eligible "${branch}" || continue
         if diverged "${branch}"; then
@@ -533,20 +514,21 @@ local doneScript =
       done < <(each_branch)
       return 0
     fi
-    if ! command -v wt-sync >/dev/null 2>&1; then
-      echo "wt-sync is not on PATH" >&2
-      stop_restack
-      return 0
-    fi
-    if wt-sync --all; then return 0; fi
-    conflicted="$(rebase_head_name || true)"
-    abort_rebases
-    if [[ -n "${conflicted}" ]]; then
-      note_conflict "${conflicted}"
-    else
-      report failed "wt-sync --all"
-    fi
-    stop_restack
+    while IFS= read -r branch; do
+      eligible "${branch}" || continue
+      if diverged "${branch}"; then
+        note_conflict "${branch}"
+        continue
+      fi
+      if git merge-base --is-ancestor "refs/remotes/origin/${default_branch}" "refs/heads/${branch}"; then
+        continue
+      fi
+      path="$(worktree_of "${branch}")"
+      [[ -n "${path}" ]] || continue
+      if ! git -C "${path}" -c rebase.updateRefs=false rebase --no-autostash --quiet "origin/${default_branch}"; then
+        note_conflict "${branch}"
+      fi
+    done < <(each_branch)
   }
 
   push_ok() {
@@ -559,16 +541,16 @@ local doneScript =
     ok=0
     case "${mode}" in
       lease)
-        git push --quiet --force-with-lease="refs/heads/${ref}" origin "${spec}" || ok=1
+        git push --quiet --no-verify --force-with-lease="refs/heads/${ref}" origin "${spec}" || ok=1
         ;;
       backup)
         git push --quiet --no-verify --force-with-lease="refs/heads/${ref}" origin "${spec}" || ok=1
         ;;
       plain)
         if [[ "${ref}" == */* ]]; then
-          git push --quiet origin "${spec}" || ok=1
+          git push --quiet --no-verify origin "${spec}" || ok=1
         else
-          git push --quiet --set-upstream origin "${ref}" || ok=1
+          git push --quiet --no-verify --set-upstream origin "${ref}" || ok=1
         fi
         ;;
       *)
@@ -718,13 +700,23 @@ local doneScript =
   }
 
   open_pr() {
-    local kind="$1" head="$2" base="$3" title="$4" body existing
+    local kind="$1" head="$2" base="$3" title="$4" body existing head_oid base_oid
     body="Opened by wt done from ${clone}."
     say pr "${kind} ${head} into ${base}"
     [[ "${dry_run}" == false ]] || return 0
     existing="$(gh pr list --head "${head}" --state open --json number --jq '.[0].number' 2>/dev/null || true)"
     if [[ -n "${existing}" ]]; then
       report current "${head} pull request #${existing}"
+      return 0
+    fi
+    head_oid="$(git rev-parse --verify --quiet "refs/remotes/origin/${head}" || true)"
+    base_oid="$(git rev-parse --verify --quiet "refs/remotes/origin/${base}" || true)"
+    if [[ -n "${head_oid}" && -n "${base_oid}" && "${head_oid}" == "${base_oid}" ]]; then
+      report skip "${head}: no commits into ${base}"
+      return 0
+    fi
+    if [[ -z "${base_oid}" ]]; then
+      report skip "${head}: ${base} is not on origin"
       return 0
     fi
     if [[ "${kind}" == draft ]]; then
@@ -829,7 +821,7 @@ local doneScript =
         report skip "origin/${branch}: open pull request"
         continue
       fi
-      if ! git push --quiet --force-with-lease="refs/heads/${branch}:${tip}" --delete origin "${branch}"; then
+      if ! git push --quiet --no-verify --force-with-lease="refs/heads/${branch}:${tip}" --delete origin "${branch}"; then
         report skip "origin/${branch}: remote moved; kept"
       fi
     done < <(git for-each-ref --format='%(refname)' refs/remotes/origin)
@@ -976,6 +968,7 @@ local doneScript =
   commit_worktrees
   commit_stash
   ff_default
+  write_worktrees
   restack_branches
   publish_main
   publish_branches

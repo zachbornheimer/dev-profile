@@ -113,17 +113,19 @@ live profile follows `main`.
 
 `lib/done.pkl` renders `dev-profile-done` and the `wt done` alias. Commit,
 push, draft pull requests, and prune are on. `--drop` is not. Worktrunk may
-swallow flags, so from the alias pass them after `--`.
+swallow flags, so from the alias pass them after `--`. Parking unfinished
+work sets `HK=0` and commits/pushes with `--no-verify` so quality hooks
+cannot block a snapshot.
 
-| Command       | Does                                                                                                                                  |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `wt done`     | fetch, fast-forward a strictly-behind default branch, restack with `wt-sync --all`, commit, push, open draft pull requests, and prune |
-| `--no-commit` | skip branches with uncommitted work, stashes, and detached HEAD                                                                       |
-| `--no-push`   | do not push. Pull requests are skipped too                                                                                            |
-| `--no-pr`     | do not open pull requests                                                                                                             |
-| `--no-prune`  | do not delete local or origin refs                                                                                                    |
-| `--drop`      | Trash the clone when nothing was skipped, every tip is on origin, and no linked worktree remains                                      |
-| `--dry-run`   | print the plan. `git fetch` is the only change                                                                                        |
+| Command       | Does                                                                                                                                                      |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `wt done`     | fetch, fast-forward a strictly-behind default branch, restack each eligible branch onto origin/default, commit, push, open draft pull requests, and prune |
+| `--no-commit` | skip branches with uncommitted work, stashes, and detached HEAD                                                                                           |
+| `--no-push`   | do not push. Pull requests are skipped too                                                                                                                |
+| `--no-pr`     | do not open pull requests                                                                                                                                 |
+| `--no-prune`  | do not delete local or origin refs                                                                                                                        |
+| `--drop`      | Trash the clone when nothing was skipped, every tip is on origin, and no linked worktree remains                                                          |
+| `--dry-run`   | print the plan. `git fetch` is the only change                                                                                                            |
 
 A rewritten branch uses `--force-with-lease`. A conflict goes to
 `backup/conflicts/<clone>/<branch>` and opens a draft into the branch it
@@ -138,7 +140,8 @@ disk is checked out again, not committed as a deletion. Ignored files such as
 leaves them in the Trash. A file over `DEV_PROFILE_SYNC_MAX_FILE_MB` (default
 50) or a nested repository refuses `--drop`.
 
-`wt sync` is the stacked restack command (`wt-sync`). `dev-profile-sync` and
+`wt done` restacks onto origin/default rather than `wt-sync --all`. `wt sync`
+is the stacked restack command (`wt-sync`). `dev-profile-sync` and
 `dev-profile-retire` stay on disk for their fixtures and have no alias.
 
 ```bash
