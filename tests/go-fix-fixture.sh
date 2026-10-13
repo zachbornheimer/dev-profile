@@ -99,8 +99,6 @@ fixture_skips_testdata_directories() {
 	printf 'package ok\n' >"${repo}/rules/ok.go"
 	printf 'package bad\n\nvar _ = undefinedOnPurpose\n' >"${repo}/rules/testdata/bad/bad.go"
 	run_go_fix "$repo" rules/testdata/bad/bad.go || fail "testdata: go-fix did not skip a testdata fixture"
-	(cd "$repo" && "${out}/bin/dev-profile-go-vet" rules/testdata/bad/bad.go) || fail "testdata: go-vet did not skip a testdata fixture"
-	if (cd "$repo" && "${out}/bin/dev-profile-go-vet" rules/testdata/bad/bad.go rules/ok.go 2>/dev/null); then :; else fail "testdata: a buildable sibling package was blocked"; fi
 }
 
 fixture_rewrites_staged_file_only

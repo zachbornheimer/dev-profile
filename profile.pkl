@@ -167,8 +167,8 @@ fixers: Mapping<String, hk.Step> = new {
 /// hk profile the lint verb enables; commit guards are tagged to skip it.
 lintProfile: String = "lint"
 
-/// Commit guards: the pre-commit `check` entries. They judge the staged change
-/// and may block the commit; an `afterFixers` guard runs after every fixer.
+/// Commit guards: the pre-commit `check` entries. Only cheap guards belong here
+/// (no-commit-to-branch); anything that judges code is a push check. They may block the commit; an `afterFixers` guard runs after every fixer.
 commitGuards: Mapping<String, hk.Step> = new {
   for (name, tool in catalog) {
     when (tool.on.containsKey("pre-commit") && tool.on["pre-commit"].fix == null) {

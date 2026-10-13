@@ -24,13 +24,7 @@ local checkAll =
   exit $status
   """#
 
-// The same step at commit and push, so the lint verb keeps it on and runs it over the whole tree.
 on {
-  ["pre-commit"] {
-    glob = List("**/*.json")
-    exclude = lenientJson
-    check = checkAll
-  }
   ["pre-push"] {
     glob = List("**/*.json")
     exclude = lenientJson

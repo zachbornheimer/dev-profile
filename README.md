@@ -48,16 +48,16 @@ mise run rollback    # restore the backed-up originals
 
 ## What runs when
 
-| Event                   | Files            | Mode                        | Steps                                                                                   |
-| ----------------------- | ---------------- | --------------------------- | --------------------------------------------------------------------------------------- |
-| save (Neovim)           | the buffer       | format                      | dprint, from the language's `dprint` binding                                            |
-| `git commit`            | staged           | fix, restaged; checks block | every tool's `pre-commit` entry, dprint last                                            |
-| `git push`              | the pushed range | check only                  | every tool's `pre-push` entry                                                           |
-| `hk fix` / `hk check`   | modified         | fix / check                 | the `pre-commit` entries, without the default-branch commit guard                       |
-| `hk check --slow --all` | whole tree       | check                       | the `pre-commit` and `pre-push` entries                                                 |
-| `mise run lint`         | whole tree       | check                       | `hk check --all --slow --profile lint` (commit guards off) plus the suppressions report |
-| `mise run test`, `scan` | whole tree       | native tools                | the contract adapters in `lib/contract.pkl`, not hk                                     |
-| `mise run ci`           | whole tree       | all of the above            | `lint`, then `test`, then `scan`                                                        |
+| Event                   | Files            | Mode                        | Steps                                                                                       |
+| ----------------------- | ---------------- | --------------------------- | ------------------------------------------------------------------------------------------- |
+| save (Neovim)           | the buffer       | format                      | dprint, from the language's `dprint` binding                                                |
+| `git commit`            | staged           | fix, restaged; guards block | every `pre-commit` fixer, dprint last, plus `no-commit-to-branch` and `conventional-commit` |
+| `git push`              | the pushed range | check only                  | every tool's `pre-push` entry                                                               |
+| `hk fix` / `hk check`   | modified         | fix / check                 | the commit fixers, without the default-branch commit guard                                  |
+| `hk check --slow --all` | whole tree       | check                       | the commit fixers and every `pre-push` check                                                |
+| `mise run lint`         | whole tree       | check                       | `hk check --all --slow --profile lint` (commit guards off) plus the suppressions report     |
+| `mise run test`, `scan` | whole tree       | native tools                | the contract adapters in `lib/contract.pkl`, not hk                                         |
+| `mise run ci`           | whole tree       | all of the above            | `lint`, then `test`, then `scan`                                                            |
 
 A `fix` rewrites what it safely can and never blocks: push judges the rest. A
 `check` may block. Per-file push checks run on the files changed since the
@@ -301,7 +301,9 @@ The template's fields:
 - `glob` or `types`: the files, as hk globs or hk file types. A hook entry
   without its own inherits them.
 - `on`: the hk step per hook. `pre-commit` runs on the staged files: a `fix`
-  rewrites and is restaged, a `check` is a guard that blocks the commit.
+  rewrites and is restaged. A `check` there is a guard that blocks the commit and
+  must stay cheap: only `no-commit-to-branch` qualifies. Anything that judges
+  code belongs in `pre-push`.
   `pre-push` runs on the pushed range in check mode and must have a `check`.
   `depends` orders a step after others in the same hook, by hk step name.
 - `afterFixers`: a pre-commit `check` that must see the result of every fixer
