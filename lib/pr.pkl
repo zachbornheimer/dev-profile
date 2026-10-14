@@ -287,11 +287,15 @@ local watch =
   }
   trap 'trap - ERR; fail "stopped unexpectedly at line ${LINENO}: ${BASH_COMMAND}"' ERR
 
+  # gh exits 1 on a PR without checks. `|| true` sits inside the substitution:
+  # set -E fires the ERR trap in the subshell, and fail() would print into n.
   check_count() {
     local n
-    n="$(ghr pr checks "${pr}" --json name --jq length 2>/dev/null)" || true
-    echo "${n:-0}"
+    n="$(ghr pr checks "${pr}" --json name --jq length 2>/dev/null || true)"
+    [[ "${n}" =~ ^[0-9]+$ ]] || n=0
+    echo "${n}"
   }
+  no_checks() { [[ "$(ghr pr checks "${pr}" 2>&1 >/dev/null || true)" == *"no checks reported"* ]]; }
 
   # OPEN, MERGED or CLOSED; UNKNOWN when GitHub cannot be reached, so a network
   # blip keeps polling instead of reading as closed.
@@ -315,7 +319,10 @@ local watch =
       sleep "${poll}"
     done
     status "CI running"
-    ghr pr checks "${pr}" --watch --fail-fast --interval "$((poll > 0 ? poll : 1))" || fail "CI failed"
+    if ! ghr pr checks "${pr}" --watch --fail-fast --interval "$((poll > 0 ? poll : 1))"; then
+      no_checks || fail "CI failed"
+      status "no CI checks reported"
+    fi
   }
 
   # gh merges at once when GitHub allows it; otherwise auto-merge waits for

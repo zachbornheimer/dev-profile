@@ -31,6 +31,13 @@ if [[ "$1" == pr && "$*" != *" --repo me/repo" ]]; then
 	exit 1
 fi
 read_state() { cat "${PR_STATE}/$1" 2>/dev/null || echo "$2"; }
+# no_checks: a repo without CI, where gh exits 1 rather than counting zero.
+# checks_vanish: checks counted, then gone by the time the watch starts.
+if [[ "$1 $2" == "pr checks" ]] && [[ -e "${PR_STATE}/no_checks" ||
+	(-e "${PR_STATE}/checks_vanish" && "$*" != *--json*) ]]; then
+	echo "no checks reported on the 'feature' branch" >&2
+	exit 1
+fi
 case "$*" in
 "repo view me/repo --json owner,defaultBranchRef") echo '{"owner":{"login":"me"},"defaultBranchRef":{"name":"main"}}' ;;
 "repo view me/repo --json viewerDefaultMergeMethod"*) echo squash ;;
@@ -238,6 +245,17 @@ reset
 printf '1\n1\n2\n2\n' >"${state}/checks_seq"
 "$watch" 7 >/dev/null 2>&1 </dev/null || fail "late-registering checks must still merge"
 [[ "$(grep -c -- '--json name' "$PR_LOG")" -ge 4 ]] || fail "the watch must wait for the check count to settle"
+
+# A repo without CI: gh exits 1 on zero checks, which must read as none, not failed.
+reset
+touch "${state}/no_checks"
+"$watch" 7 >/dev/null 2>&1 </dev/null || fail "a repo without checks must merge"
+logged "gh pr merge 7 --auto --squash --repo me/repo" || fail "a repo without checks must merge"
+logged "terminal-notifier -title PR #7:" && fail "a repo without checks must not report a failure"
+reset
+touch "${state}/checks_vanish"
+"$watch" 7 >/dev/null 2>&1 </dev/null || fail "a watch that finds no checks must merge"
+logged "terminal-notifier -title PR #7: CI failed" && fail "a watch that finds no checks must not report CI failed"
 
 # A fork's branch is not ours to delete.
 reset
