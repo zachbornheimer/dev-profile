@@ -53,6 +53,10 @@ afterFixers: Boolean = false
 /// already covers every file it is given.
 fullTreeCheck: String?
 
+/// Generated config files the tool's scripts pass explicitly: name in the output
+/// directory (`perltidyrc`) to file body.
+files: Mapping<String, String> = new {}
+
 /// Generated `bin/` scripts: full name (`dev-profile-<x>`) to bash body. Step
 /// commands call them by name; a tool may ship a script and no hook entry.
 scripts: Mapping<String, String> = new {}
@@ -68,6 +72,10 @@ hidden nearestUp: String = script.nearestUp
 
 /// Script fragment for Go steps that group staged files by package and module.
 hidden goPackages: String = script.goPackages
+
+/// Script fragment for the Perl wrappers: the rc file the tool runs with, and a loud
+/// failure when the tool is missing.
+hidden perlTools: String = script.perlTools
 
 /// The same without `pattern`, for Go steps that work per module.
 hidden goModules: String = script.goModules

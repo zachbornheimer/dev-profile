@@ -105,7 +105,7 @@ fixture_perltidy() {
 	repo="$(new_repo perltidy)"
 	echo 'print 1;' >"${repo}/a.pl"
 	run_wrapper "$repo" dev-profile-perltidy-fix a.pl || fail "perltidy: failed"
-	expect_call "perltidy|${repo}|-b -bext=/ -q a.pl" "perltidy"
+	expect_call "perltidy|${repo}|--profile=${out}/perltidyrc -b -bext=/ -q a.pl" "perltidy"
 }
 
 fixture_clang_tidy() {
@@ -127,7 +127,7 @@ fixture_absent_tools_skip() {
 	repo="$(new_repo absent)"
 	echo 'x' >"${repo}/a.pl"
 	touch "${repo}/Cargo.toml" "${repo}/a.rs" "${repo}/rector.php"
-	for wrapper in dev-profile-perltidy-fix dev-profile-clippy-fix dev-profile-dotnet-format-fix \
+	for wrapper in dev-profile-clippy-fix dev-profile-dotnet-format-fix \
 		dev-profile-clang-tidy dev-profile-rector-fix dev-profile-stylelint-fix; do
 		(cd "$repo" && PATH="$bare" "${out}/bin/${wrapper}" a.pl a.rs) ||
 			fail "${wrapper}: an absent tool must skip cleanly"
