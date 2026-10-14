@@ -2,5 +2,5 @@ amends "../../lib/Tool.pkl"
 
 doc = "No symlinks that point nowhere. An hk builtin; no external tool."
 on {
-  ["pre-commit"] = module.builtins.check_symlinks
+  ["pre-push"] = module.builtins.check_symlinks
 }

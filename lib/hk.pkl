@@ -1,9 +1,10 @@
 /// Global hk config, derived from profile.pkl. hk evaluates and type-checks this
 /// module itself; ~/.config/hk/config.pkl links here.
-///   commit                   → fixers + commit guards, on staged files, fixes restaged
+///   commit                   → fixers (rewrite and restage) plus the two cheap guards,
+///                              conventional-commit and no-commit-to-branch; nothing else judges
 ///   `hk fix` / `hk check`    → the same steps, without the default-branch commit guard;
 ///                              `--slow` adds the push checks
-///   push                     → checks on the pushed range only, no fixing, may block
+///   push                     → every judge-only check on the pushed range, no fixing, may block
 /// Each step comes from one file under tools/; profile.pkl derives the maps.
 amends "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pkl"
 

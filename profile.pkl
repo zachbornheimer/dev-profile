@@ -167,8 +167,8 @@ fixers: Mapping<String, hk.Step> = new {
 /// hk profile the lint verb enables; commit guards are tagged to skip it.
 lintProfile: String = "lint"
 
-/// Commit guards: the pre-commit `check` entries. They judge the staged change
-/// and may block the commit; an `afterFixers` guard runs after every fixer.
+/// Commit guards: the pre-commit `check` entries. Only cheap guards belong here
+/// (no-commit-to-branch); anything that judges code is a push check. They may block the commit; an `afterFixers` guard runs after every fixer.
 commitGuards: Mapping<String, hk.Step> = new {
   for (name, tool in catalog) {
     when (tool.on.containsKey("pre-commit") && tool.on["pre-commit"].fix == null) {
@@ -365,6 +365,13 @@ brewPackages: Mapping<String, String> = new {
   ["brew:git"] = "latest"
 }
 
+/// Bootstrap phase → command, run by every `mise bootstrap`, so it must be safe to repeat.
+/// Perl::Tidy and Perl::Critic have no formula, mise backend or conda package, so they
+/// install from CPAN into ~/perl5 under a mise Perl, after the tools phase.
+bootstrapHooks: Mapping<String, String> = new {
+  ["post-tools"] = "\(installPath)/bin/dev-profile-perl-tools-install"
+}
+
 /// The only absolute path allowed in generated files.
 llmCommand: String = "/Users/zbornheimer/.local/bin/_llm"
 
@@ -516,7 +523,8 @@ languages: Listing<types.Spec> = new {
     shebangs { ["#!/usr/bin/env perl"] = "pl" }
     dprint {
       kind = "exec"
-      command = "perltidy"
+      // dprint pipes stdin; the real path picks the repo's own .perltidyrc.
+      command = "dev-profile-perltidy-format {{file_path}}"
       exts { "pl"; "pm"; "t" }
     }
   }
@@ -698,6 +706,9 @@ output {
     ["profile.json"] {
       value = render.manifest
       renderer = new JsonRenderer { indent = "  " }
+    }
+    for (_, tool in catalog) {
+      for (name, body in tool.files) { [name] { text = body } }
     }
     for (name, body in render.wrappers) {
       ["bin/\(name)"] { text = body }

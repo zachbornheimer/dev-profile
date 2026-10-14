@@ -1,6 +1,41 @@
 amends "../../lib/Tool.pkl"
 
-doc = "Perl static analysis at push."
+doc =
+  "Perl static analysis at push. Applies the profile's perlcriticrc unless the repo root has its own .perlcriticrc (perlcritic never looks above the current directory). Installed by dev-profile-perl-tools-install."
 on {
-  ["pre-push"] { glob = List("**/*.pl", "**/*.pm", "**/*.t"); check = "perlcritic {{files}}" }
+  ["pre-push"] {
+    glob = List("**/*.pl", "**/*.pm", "**/*.t")
+    check = "dev-profile-perlcritic {{files}}"
+  }
+}
+
+local perlcritic =
+  #"""
+  \#(bash)
+  \#(perlTools)
+  # perlcritic with the profile's (or the repo's own) policy set.
+  (($#)) || exit 0
+  require_perl_tool perlcritic
+  exec perlcritic --profile="$(perl_config perlcritic .)" "$@"
+  """#
+
+files {
+  ["perlcriticrc"] =
+    #"""
+    [-BuiltinFunctions::ProhibitStringyEval]
+    [-ControlStructures::ProhibitMutatingListFunctions]
+    [-ControlStructures::ProhibitUnreachableCode]
+    [-Modules::RequireExplicitPackage]
+    [-RegularExpressions::RequireExtendedFormatting]
+    [-Subroutines::RequireArgUnpacking]
+    [-TestingAndDebugging::ProhibitNoStrict]
+    [-TestingAndDebugging::RequireUseStrict]
+    [-TestingAndDebugging::RequireUseWarnings]
+    [-ValuesAndExpressions::ProhibitLeadingZeros]
+
+    """#
+}
+
+scripts {
+  ["dev-profile-perlcritic"] = perlcritic
 }

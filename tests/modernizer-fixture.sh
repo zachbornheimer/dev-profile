@@ -105,7 +105,7 @@ fixture_perltidy() {
 	repo="$(new_repo perltidy)"
 	echo 'print 1;' >"${repo}/a.pl"
 	run_wrapper "$repo" dev-profile-perltidy-fix a.pl || fail "perltidy: failed"
-	expect_call "perltidy|${repo}|-b -bext=/ -q a.pl" "perltidy"
+	expect_call "perltidy|${repo}|--profile=${out}/perltidyrc -b -bext=/ -q a.pl" "perltidy"
 }
 
 fixture_clang_tidy() {
@@ -113,11 +113,11 @@ fixture_clang_tidy() {
 	repo="$(new_repo clang-tidy)"
 	mkdir -p "${repo}/build"
 	echo 'int main(){}' >"${repo}/a.cc"
-	run_wrapper "$repo" dev-profile-clang-tidy-fix a.cc || fail "clang-tidy: no database must pass"
+	run_wrapper "$repo" dev-profile-clang-tidy a.cc || fail "clang-tidy: no database must pass"
 	expect_no_call "clang-tidy without compile_commands.json"
 	echo '[]' >"${repo}/build/compile_commands.json"
-	run_wrapper "$repo" dev-profile-clang-tidy-fix a.cc || fail "clang-tidy: failed"
-	expect_call "clang-tidy|${repo}|-p ${repo}/build --checks=-*,modernize-* --fix --quiet ${repo}/a.cc" "clang-tidy"
+	run_wrapper "$repo" dev-profile-clang-tidy a.cc || fail "clang-tidy: failed"
+	expect_call "clang-tidy|${repo}|-p ${repo}/build --checks=-*,modernize-* --quiet ${repo}/a.cc" "clang-tidy"
 }
 
 fixture_absent_tools_skip() {
@@ -127,8 +127,8 @@ fixture_absent_tools_skip() {
 	repo="$(new_repo absent)"
 	echo 'x' >"${repo}/a.pl"
 	touch "${repo}/Cargo.toml" "${repo}/a.rs" "${repo}/rector.php"
-	for wrapper in dev-profile-perltidy-fix dev-profile-clippy-fix dev-profile-dotnet-format-fix \
-		dev-profile-clang-tidy-fix dev-profile-rector-fix dev-profile-stylelint-fix; do
+	for wrapper in dev-profile-clippy-fix dev-profile-dotnet-format-fix \
+		dev-profile-clang-tidy dev-profile-rector-fix dev-profile-stylelint-fix; do
 		(cd "$repo" && PATH="$bare" "${out}/bin/${wrapper}" a.pl a.rs) ||
 			fail "${wrapper}: an absent tool must skip cleanly"
 	done

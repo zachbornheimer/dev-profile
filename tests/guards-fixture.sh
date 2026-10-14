@@ -33,7 +33,21 @@ commit_hook() {
 	(cd "$1" && HK_CONFIG_DIR="${work}/hk-config" hk run pre-commit --staged) >"${work}/output.txt" 2>&1
 }
 
+# Judge-only guards run at push, not commit. `hk check --slow --staged` runs them
+# over the staged files, one step at a time; plumbing makes the base commit with no hooks involved.
+push_check() {
+	local repo="$1" step="$2"
+	git -C "$repo" rev-parse -q --verify HEAD >/dev/null 2>&1 ||
+		git -C "$repo" update-ref HEAD "$(GIT_AUTHOR_NAME=fixture GIT_AUTHOR_EMAIL=fixture@example.com GIT_COMMITTER_NAME=fixture GIT_COMMITTER_EMAIL=fixture@example.com git -C "$repo" commit-tree -m init "$(git -C "$repo" hash-object -t tree -w /dev/null)")"
+	(cd "$repo" && HK_CONFIG_DIR="${work}/hk-config" hk check --slow --staged -S "$step") >"${work}/output.txt" 2>&1
+}
+
 expect_blocked() {
+	local repo="$1" step="$2" label="$3"
+	if push_check "$repo" "$step"; then fail "${label}: the push check must block"; fi
+}
+
+expect_commit_blocked() {
 	local repo="$1" label="$2"
 	if commit_hook "$repo"; then fail "${label}: the commit must be blocked"; fi
 }
@@ -52,7 +66,7 @@ fixture_local_identity_blocks() {
 	echo "hello" >"${repo}/notes"
 	git -C "$repo" add notes
 	git -C "$repo" config user.email t@example.com
-	expect_blocked "$repo" "local git identity"
+	expect_blocked "$repo" identity-guard "local git identity"
 }
 
 fixture_broken_symlink_blocks() {
@@ -60,7 +74,7 @@ fixture_broken_symlink_blocks() {
 	repo="$(new_repo broken-symlink)"
 	ln -s missing-target "${repo}/link"
 	git -C "$repo" add link
-	expect_blocked "$repo" "broken symlink"
+	expect_blocked "$repo" check-symlinks "broken symlink"
 }
 
 fixture_non_executable_script_is_fixed() {
@@ -81,7 +95,7 @@ fixture_executable_without_shebang_blocks() {
 	echo "plain text" >"${repo}/tool"
 	chmod +x "${repo}/tool"
 	git -C "$repo" add tool
-	expect_blocked "$repo" "executable without a shebang"
+	expect_blocked "$repo" check-executables-have-shebangs "executable without a shebang"
 }
 
 fixture_large_file_blocks() {
@@ -89,7 +103,7 @@ fixture_large_file_blocks() {
 	repo="$(new_repo large-file)"
 	head -c 2000000 /dev/zero | tr '\0' 'a' >"${repo}/big.txt"
 	git -C "$repo" add big.txt
-	expect_blocked "$repo" "large file"
+	expect_blocked "$repo" check-added-large-files "large file"
 }
 
 fixture_large_lockfile_passes() {
@@ -97,7 +111,7 @@ fixture_large_lockfile_passes() {
 	repo="$(new_repo large-lockfile)"
 	head -c 2000000 /dev/zero | tr '\0' 'a' >"${repo}/package-lock.json"
 	git -C "$repo" add package-lock.json
-	commit_hook "$repo" || fail "large lockfile: must pass"
+	push_check "$repo" check-added-large-files || fail "large lockfile: must pass"
 }
 
 fixture_large_binary_still_blocks() {
@@ -105,7 +119,7 @@ fixture_large_binary_still_blocks() {
 	repo="$(new_repo large-binary)"
 	head -c 2000000 /dev/zero >"${repo}/blob.bin"
 	git -C "$repo" add blob.bin
-	expect_blocked "$repo" "large binary"
+	expect_blocked "$repo" check-added-large-files "large binary"
 }
 
 fixture_gitmodules_blocks() {
@@ -114,7 +128,7 @@ fixture_gitmodules_blocks() {
 	printf '[submodule "s"]\n\tpath = s\n\turl = https://example.com/s.git\n' >"${repo}/.gitmodules"
 	git -C "$repo" add .gitmodules
 	git -C "$repo" update-index --add --cacheinfo "160000,$(printf '%040d' 1),s"
-	expect_blocked "$repo" "submodule"
+	expect_blocked "$repo" forbid-submodules "submodule"
 }
 
 fixture_default_branch_commit() {
@@ -126,7 +140,7 @@ fixture_default_branch_commit() {
 	git -C "$repo" switch -q -c main
 	echo "x" >"${repo}/notes"
 	git -C "$repo" add notes
-	expect_blocked "$repo" "commit on main with an origin"
+	expect_commit_blocked "$repo" "commit on main with an origin"
 	DEV_PROFILE_ALLOW_DEFAULT_BRANCH_COMMIT=1 commit_hook "$repo" || fail "default branch: opt-out must pass"
 	touch "$(git -C "$repo" rev-parse --path-format=absolute --git-path MERGE_HEAD)"
 	commit_hook "$repo" || fail "default branch: finishing a merge must pass"
@@ -210,13 +224,13 @@ fixture_vendored_paths_are_skipped() {
 		printf '# Log\n\n## v1\n\n## v1\n' >"${repo}/${dir}/x/CHANGELOG.md"
 		head -c 2000000 /dev/zero | tr '\0' 'a' >"${repo}/${dir}/x/big.bin"
 		git -C "$repo" add "$dir"
-		commit_hook "$repo" || fail "vendored ${dir}: staged files must be skipped"
+		push_check "$repo" check-added-large-files || fail "vendored ${dir}: staged files must be skipped"
 	done
 	repo="$(new_repo vendored-lookalike)"
 	mkdir -p "${repo}/lib/x"
 	head -c 2000000 /dev/zero | tr '\0' 'a' >"${repo}/lib/x/big.bin"
 	git -C "$repo" add lib
-	expect_blocked "$repo" "large file outside a vendored directory"
+	expect_blocked "$repo" check-added-large-files "large file outside a vendored directory"
 }
 
 fixture_strict_json() {
@@ -224,12 +238,12 @@ fixture_strict_json() {
 	repo="$(new_repo strict-json)"
 	printf '{"a":1,}\n' >"${repo}/trailing.json"
 	git -C "$repo" add trailing.json
-	expect_blocked "$repo" "trailing comma in .json"
+	expect_blocked "$repo" strict-json "trailing comma in .json"
 
 	repo="$(new_repo strict-json-comment)"
 	printf '{"a":1 // c\n}\n' >"${repo}/comment.json"
 	git -C "$repo" add comment.json
-	expect_blocked "$repo" "comment in .json"
+	expect_blocked "$repo" strict-json "comment in .json"
 
 	repo="$(new_repo strict-json-lenient)"
 	mkdir -p "${repo}/.vscode" "${repo}/.devcontainer/x" "${repo}/zed"
@@ -238,7 +252,7 @@ fixture_strict_json() {
 	done
 	printf '{"a": 1}\n' >"${repo}/ok.json"
 	git -C "$repo" add .
-	commit_hook "$repo" || fail "lenient JSON files and valid .json: must pass"
+	push_check "$repo" strict-json || fail "lenient JSON files and valid .json: must pass"
 }
 fixture_strict_json
 fixture_if_installed

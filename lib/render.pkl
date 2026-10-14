@@ -126,7 +126,10 @@ mise: Dynamic = new {
     }
   }
   deps = depsFor(null)
-  bootstrap { packages { ...profile.brewPackages } }
+  bootstrap {
+    packages { ...profile.brewPackages }
+    hooks { ...profile.bootstrapHooks }
+  }
 }
 
 // Worktrunk default prompt structure, with Conventional Commits required even

@@ -1,0 +1,20 @@
+amends "../../lib/Tool.pkl"
+
+doc =
+  "Doctor and bootstrap step, no hook: installs Perl::Tidy and Perl::Critic from CPAN into ~/perl5 under a mise Perl when either command is missing. Run by the bootstrap post-tools hook (profile.bootstrapHooks); safe to repeat."
+
+/// The mise Perl that builds the CPAN tools.
+local perlVersion = "5.42.0.0"
+
+local perlToolsInstall =
+  #"""
+  \#(bash)
+  \#(perlTools)
+  # Install what is missing; repeat runs change nothing.
+  if command -v perltidy >/dev/null 2>&1 && command -v perlcritic >/dev/null 2>&1; then exit 0; fi
+  exec mise exec "perl@\#(perlVersion)" -- cpanm --quiet --notest --local-lib "${perl_lib_root}" Perl::Tidy Perl::Critic
+  """#
+
+scripts {
+  ["dev-profile-perl-tools-install"] = perlToolsInstall
+}

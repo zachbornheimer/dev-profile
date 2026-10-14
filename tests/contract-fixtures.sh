@@ -171,40 +171,6 @@ fixture_go_modernize_old_go_without_diff() {
 	grep -qxF "var A any" "${repo}/pkg/a.go" || fail "go modernize: GO_FIX_DIFF did not apply"
 }
 
-fixture_go_fix_that_breaks_compilation_blocks() {
-	local repo diff="${work}/go-fix-broken.diff"
-	repo="$(new_go_repo go-broken-fix)"
-	go_fix_block "${repo}/pkg/a.go" "var A interface{}" "var A = errors.AsType[statusCoder]" >"$diff"
-	if GO_FIX_DIFF="$diff" GO_VET_REJECTS="AsType" run_hook "$repo" pre-commit --staged; then
-		fail "go compile guard: a fix that breaks the build must block the commit"
-	fi
-	expect_output "commit blocked: pkg does not build" "go compile guard"
-	expect_output "staged: pkg/a.go" "go compile guard"
-}
-
-fixture_go_guard_package_patterns() {
-	local repo
-	# Module at the repo root, staged file in a subpackage.
-	repo="$(new_go_repo go-root-module)"
-	run_hook "$repo" pre-commit --staged || fail "go patterns: root module subpackage failed"
-	expect_call "go|${repo}|vet ./pkg" "go patterns root module"
-	# Module in a subdirectory.
-	repo="$(new_repo go-sub-module)"
-	mkdir -p "${repo}/svc/pkg"
-	echo "module s" >"${repo}/svc/go.mod"
-	printf 'package pkg\n\nvar A int\n' >"${repo}/svc/pkg/a.go"
-	git -C "$repo" add svc
-	run_hook "$repo" pre-commit --staged || fail "go patterns: subdirectory module failed"
-	expect_call "go|${repo}/svc|vet ./pkg" "go patterns subdirectory module"
-	# Staged file at the module root.
-	repo="$(new_repo go-module-root-file)"
-	echo "module r" >"${repo}/go.mod"
-	printf 'package r\n\nvar A int\n' >"${repo}/a.go"
-	git -C "$repo" add go.mod a.go
-	run_hook "$repo" pre-commit --staged || fail "go patterns: module root file failed"
-	expect_call "go|${repo}|vet ." "go patterns module root file"
-}
-
 fixture_git_hook_skips_undefined_hook() {
 	local repo stale="${work}/stale-hk-config" msg="${work}/commit-msg.txt"
 	repo="$(new_repo hook-skew)"
@@ -472,8 +438,6 @@ fixture_nested_node_setup() {
 
 fixture_go_modernize_staged_only
 fixture_go_modernize_old_go_without_diff
-fixture_go_fix_that_breaks_compilation_blocks
-fixture_go_guard_package_patterns
 fixture_git_hook_skips_undefined_hook
 # mise renders a task script through Tera only when the task runs, so `mise tasks`
 # passes on a script Tera rejects (a `${#array[@]}` reads as a comment opener).
