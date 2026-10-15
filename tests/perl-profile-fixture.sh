@@ -9,9 +9,11 @@ out="${1:?usage: perl-profile-fixture.sh <generated-dir>}"
 work="$(cd "$(mktemp -d)" && pwd -P)"
 trap 'rm -rf "${work}"' EXIT
 # A home with no ~/.perltidyrc, so only the wrappers decide which config applies.
+perl_tools_home="$HOME"
 home="${work}/home"
 mkdir -p "$home"
 export HOME="$home"
+export PERL5LIB="${perl_tools_home}/perl5/lib/perl5${PERL5LIB:+:${PERL5LIB}}"
 unset PERLTIDY PERLCRITIC
 export PATH="${out}/bin:${PATH}"
 

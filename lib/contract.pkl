@@ -32,6 +32,9 @@ local ciScript =
   #!/usr/bin/env bash
   set -uo pipefail
   \(render.header("#"))
+  DEV_PROFILE_OUT="$(cd "$(mktemp -d)" && pwd -P)"
+  export DEV_PROFILE_OUT
+  trap 'rm -rf "$DEV_PROFILE_OUT"' EXIT
   # Run every ci verb (repo overrides included), then fail if any failed.
   failed=()
   for verb in \(profile.ciVerbs.join(" ")); do

@@ -561,7 +561,7 @@ languages: Listing<types.Spec> = new {
     nvimFiletypes { "lua" }
     dprint {
       kind = "exec"
-      command = "stylua -"
+      command = "stylua --indent-type Spaces --indent-width 2 -"
       exts { "lua" }
     }
   }
