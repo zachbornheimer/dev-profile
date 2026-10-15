@@ -5,6 +5,7 @@ module profile
 import "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pkl" as hk
 
 import "lib/contract.pkl"
+import "lib/dev.pkl"
 import "lib/render.pkl"
 import "lib/shared.pkl"
 import "lib/Tool.pkl"
@@ -238,13 +239,25 @@ conventionalCommitTypes: Listing<String> = new {
 /// so a repo overrides `<verb>` or extends it with `depends = ["profile:<verb>"]`.
 contractVerbs: Mapping<String, String> = new {
   ["setup"] = "Install tools and deps (mise deps providers)"
-  ["build"] = "Produce the deployable artifact"
+  ["build"] = "Produce the deployable artifact (Go binaries land in .bin/)"
+  ["install"] = "Build, then copy the .bin/ binaries into ~/.local/bin"
+  ["dev"] =
+    "Start the local dev environment behind Caddy at https://<name>.localhost (apps listen on $PORT)"
   ["fmt"] = "Format with dprint using the Personal ancestor config"
   ["lint"] = "Format check + static analysis via the native tools"
   ["test"] = "Run all tests"
   ["scan"] = "Secrets on the tree + dependency vulnerability scanning"
   ["doctor"] = "Verify the repo meets the contract"
 }
+
+/// Address of the dev proxy's Caddy admin API. Not Caddy's default (2019), so it cannot
+/// clash with another Caddy on this machine.
+devProxyAdminPort: Int = 19019
+devProxyAdmin: String = "127.0.0.1:\(devProxyAdminPort)"
+
+/// Ports `dev-profile-dev` hands to apps: devPortCount ports from devPortStart.
+devPortStart: Int = 20000
+devPortCount: Int = 10000
 
 /// `ci` runs these contract verbs in order, all of them, then fails if any failed.
 ciVerbs: Listing<String> = new { "lint"; "test"; "scan" }
@@ -271,6 +284,10 @@ contractAdapters: Listing<types.Adapter> = new {
   new { id = "opentofu"; markers { "**/*.tf" } }
   new { id = "buf"; markers { "**/buf.yaml" } }
   new { id = "swift"; markers { "Package.swift" } }
+  new {
+    id = "compose"
+    markers { "docker-compose.yml"; "docker-compose.yaml"; "compose.yml"; "compose.yaml" }
+  }
   // Every repo: deps setup, suppressions, secrets, structure.
   new { id = "repo" }
 }
@@ -352,6 +369,8 @@ tools: Listing<types.Pin> = new {
   new { id = "stylua"; version = "2.5.2" }
   new { id = "aube"; version = "2.7.0" }
   new { id = "uv"; version = "0.12.24" }
+  // Local HTTPS reverse proxy for `mise run dev`.
+  new { id = "aqua:caddyserver/caddy"; version = "2.11.7" }
   // Worktree env isolation (deps symlinks, ports, DB names); run by the wt pre-start hook.
   new { id = "github:rohansx/workz"; version = "0.11.0" }
   // Contract adapters: OpenTofu lint and protobuf lint/breaking/generate.
@@ -697,6 +716,7 @@ output {
     ["deny.toml"] { text = render.tomlFile(shared.denyConfig) }
     // Hand-written adapter; copied so install-live links one directory.
     ["shell.zsh"] { text = render.shellZsh }
+    ["Caddyfile"] { text = dev.caddyfile }
     ["markdownlintrc.json"] {
       value = render.markdownlint
       renderer = new JsonRenderer { indent = "  " }

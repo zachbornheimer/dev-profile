@@ -29,7 +29,10 @@ if pkl eval -x 'checks["oxlint"].check' profile.pkl | grep -F -- "--deny-warning
 while IFS= read -r cmd; do [[ -x "$out/bin/$cmd" ]] || fail "hk step command without a rendered bin script: $cmd"; done < <(grep -ohE "dev-profile-[a-z0-9-]+" "$out/src/profile.pkl" "$out"/src/tools/*/*.pkl | sort -u)
 pkl test tests/profile.test.pkl || fail "pkl test (regenerate the snapshot with: pkl test --overwrite tests/profile.test.pkl)"
 bash tests/contract-fixtures.sh "$out" || fail "contract fixtures"
+if command -v caddy >/dev/null; then caddy adapt --config "$out/Caddyfile" --adapter caddyfile >/dev/null 2>&1 || fail Caddyfile; fi
 bash tests/go-fix-fixture.sh "$out" || fail "go-fix fixture"
+bash tests/go-build-fixture.sh "$out" || fail "go-build fixture"
+bash tests/dev-fixture.sh "$out" || fail "dev fixture"
 bash tests/gosec-fixture.sh "$out" || fail "gosec fixture"
 bash tests/go-mod-tidy-fixture.sh "$out" || fail "go-mod-tidy fixture"
 bash tests/bump-fixture.sh "$out" || fail "bump fixture"

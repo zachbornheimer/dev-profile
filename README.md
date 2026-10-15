@@ -173,12 +173,12 @@ repo may also keep the language's own files: `go.mod`, `package.json`,
 
 ### Task contract
 
-Verbs: `setup`, `build`, `fmt`, `lint`, `test`, `scan`, `doctor`, `ci`. Each has a
+Verbs: `setup`, `build`, `install`, `dev`, `fmt`, `lint`, `test`, `scan`, `doctor`, `ci`. Each has a
 `profile:<verb>` task (the work) and a plain `<verb>` twin that depends on it.
 
 - A repo overrides a verb only to add work: `depends = ["profile:<verb>"]` plus its own `run`.
-- Never redefine `ci`. `profile:ci` runs `lint`, `test` and `scan` through the repo's verb overrides.
-- Repo-specific tasks that are not verbs (`review-mail`, `install`, `deploy`, `package`, `migrate`) are file tasks under `mise-tasks/` (`mise-tasks/<name>` or `mise-tasks/<group>/<name>`), not entries in `mise.toml`. They keep their task names, have no profile dependency, and `ci` does not run them.
+- Never redefine `ci`. `profile:ci` runs `lint`, `test` and `scan` through the repo's verb overrides. `install` and `dev` are not part of `ci`.
+- Repo-specific tasks that are not verbs (`review-mail`, `deploy`, `package`, `migrate`) are file tasks under `mise-tasks/` (`mise-tasks/<name>` or `mise-tasks/<group>/<name>`), not entries in `mise.toml`. They keep their task names, have no profile dependency, and `ci` does not run them.
 - Deploy-class tasks are kept, never dropped, and never run by the profile.
 
 `mise.toml` holds only verb extensions:
@@ -196,6 +196,70 @@ A non-verb task is an executable file, for example `mise-tasks/deploy`:
 #MISE description="Deploy to production"
 ./scripts/deploy.sh
 ```
+
+#### Binaries, `install` and `dev`
+
+- `build` in a Go repo compiles every `package main` of every module into
+  `<repo-root>/.bin/<name>`. The name is the package directory's base name; a
+  main package at the module root takes the module path's last element
+  (`example.com/team/tool/v2` gives `tool`). Two main packages with one name fail
+  the build. A module with no main package is only compile-checked
+  (`go build ./...`).
+- `.bin/` is not ignored for you: the profile owns no repo `.gitignore`, so add
+  `.bin/` to each Go repo's own `.gitignore`.
+- `install` runs the repo's `build`, then copies every file in `.bin/` into
+  `~/.local/bin` (temp file, then rename). It prints the repo path, branch and
+  commit it installs, so a build from a linked worktree is never a surprise.
+  With no `.bin/` files it reports nothing to install.
+- `dev` starts the repo's local dev environment behind Caddy, the same way in
+  every repo. Resolution order:
+  1. A repo-level `dev` task wins (`[tasks.dev]` in the repo's `mise.toml`, like
+     any verb). It starts each process with `dev-profile-dev -- <command>`.
+  2. Otherwise the adapters supply the default: Node runs the `dev` script of
+     each package that has one; Go runs the repo's one main package with
+     `go run`; a `docker-compose.yml`/`compose.yaml` runs `docker compose up`.
+     With none, or with more than one default (two Go mains, or a Go main plus
+     compose), `dev` fails and lists what it found: the repo defines a `dev` task.
+     `mise run dev` also installs dependencies first, through the `[deps.*]`
+     providers with `auto = true`, so a fresh clone needs no setup step.
+- `dev-profile-dev [--name N] [--port P] [--plan] -- <command>` is the wrapper
+  every default uses. It sets `PORT` for the command, writes
+  `~/.local/state/dev-profile/caddy/sites/<name>.caddy` (`tls internal`,
+  `reverse_proxy` to that port), makes sure Caddy runs, prints
+  `dev: https://<name>.localhost (PORT=<port>)` before the command starts, and
+  removes the route again when the command ends (exit, Ctrl-C or SIGTERM). A
+  second start of a name whose first start is still running fails instead of
+  stealing its route.
+  - `<name>` is the repo's directory name. In a linked worktree it is
+    `<slug>.<repo>`: the slug is the worktree directory without its `<repo>-`
+    prefix (`shop-fix-login` of repo `shop` gives `fix-login.shop`).
+  - `PORT` in a linked worktree is workz's allocation (`workz sync --isolated`,
+    which the wrapper runs; it is idempotent and keeps the port in
+    `.env.local` and in workz's registry, so worktrees never collide).
+    **workz refuses the main checkout** ("that's the main worktree"), so there
+    the wrapper picks a free port in 20000-29999 on each run. Only the route
+    needs the port and the route name is stable, so the URL does not change.
+- `dev-profile-caddy ensure|reload|stop` runs one Caddy from the rendered
+  `Caddyfile` (`import sites/*.caddy`), with its admin API on `127.0.0.1:19019`
+  instead of Caddy's default, so it cannot clash with another Caddy. The
+  generated mise profile pins Caddy 2.11.7 and installs it on demand. Caddy's
+  CA and config live under
+  `~/.local/state/dev-profile/caddy/` (not `~/Library/Application Support/Caddy`,
+  which another Caddy may own), and Caddy's own attempt to trust its CA is off
+  (`skip_install_trust`). It never runs `caddy trust` and never uses sudo: when
+  the CA is not trusted it prints `caddy trust --address 127.0.0.1:19019` once
+  and carries on. Until you trust the CA, browsers warn on the `.localhost`
+  sites and `curl` needs `-k`. Ports 80 and 443 must be free for Caddy.
+- `.localhost` names resolve to the loopback address without any DNS setup.
+  Not verified: Safari with these names; check it before relying on it.
+- **App contract: listen on `$PORT`.** The route points at the port the wrapper
+  chose, so an app that hardcodes its own port is unreachable at its URL. A
+  literal fallback next to a `PORT` read is fine (`process.env.PORT || 3000`).
+  The `hardcoded-dev-port` push check fails a hardcoded dev port in a file that
+  does not read `PORT`; it skips tests, docs and lockfiles and has no
+  suppression comment. Note that it also flags a compose file that publishes a
+  fixed host port such as a database's, which `${PORT}` or a `PORT` read there
+  clears.
 
 ### Fixtures and generated files are not source
 

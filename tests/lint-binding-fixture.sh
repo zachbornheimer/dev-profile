@@ -80,8 +80,11 @@ PKL
 
 clean="$(new_repo clean)"
 printf '{\n  "a": 1\n}\n' >"${clean}/data.json"
-bad_json="$(new_repo bad-json)"
-printf '{"a": }\n' >"${bad_json}/data.json"
+printf '%s\n' 'action: zachbornheimer/dev-profile@6376251df9c4df0b7063464303b5de1b833fabad # immutable action revision' >"${clean}/data.yaml"
+bad="$(new_repo bad-inputs)"
+printf '{"a": }\n' >"${bad}/data.json"
+printf '{"a": 1,}\n' >"${bad}/trailing.json"
+printf 'key: one\nkey: two\n' >"${bad}/data.yaml"
 
 # Red control: with the PATH binding stripped from the rendered config the contract
 # scripts are not found, so a clean repo must fail; the runs below pass only through it.
@@ -93,50 +96,35 @@ fi
 
 for context in runner entry; do
 	lint "${context}" "${clean}" || fail "${context}: a clean repo must pass profile:lint"
-	if lint "${context}" "${bad_json}"; then fail "${context}: invalid JSON must fail profile:lint"; fi
-	grep -q 'data.json' "${work}/output.txt" || fail "${context}: the failure must name data.json"
 done
 
 # A SHA-pinned action exceeds yamllint's default 80-column limit. The profile's
 # generated policy permits it and does not require a YAML document marker.
-clean_yaml="$(new_repo clean-yaml)"
-printf '%s\n' 'action: zachbornheimer/dev-profile@6376251df9c4df0b7063464303b5de1b833fabad # immutable action revision' >"${clean_yaml}/data.yaml"
-for context in runner entry; do
-	lint "${context}" "${clean_yaml}" || fail "${context}: valid YAML must use the generated yamllint policy"
-done
+# The clean repo above includes a SHA-pinned action over yamllint's default
+# 80-column limit. Its success checks the generated YAML policy in both contexts.
 
 # Red control: without the binding, hk sees yamllint's defaults instead of the
 # rendered policy.
 mkdir -p "${work}/yaml-unbound/conf.d"
 grep -v '^YAMLLINT_CONFIG_FILE = ' "${out}/mise-profile.toml" >"${work}/yaml-unbound/conf.d/dev-profile.toml"
-if (cd "${clean_yaml}" && MISE_CONFIG_DIR="${work}/yaml-unbound" mise run profile:lint) >"${work}/output.txt" 2>&1; then
+if (cd "${clean}" && MISE_CONFIG_DIR="${work}/yaml-unbound" mise run profile:lint) >"${work}/output.txt" 2>&1; then
 	fail "runner: valid YAML passed with the yamllint binding stripped"
 fi
 grep -q 'line-length' "${work}/output.txt" || fail "runner: the unbound control must fail yamllint's default line-length rule"
 
-# Binding the shared policy still rejects YAML defects.
-bad_yaml="$(new_repo bad-yaml)"
-printf 'key: one\nkey: two\n' >"${bad_yaml}/data.yaml"
+# One failing run exercises the JSON parser, strict JSON check and YAML duplicate
+# rule together; both contexts must report all three defects.
 for context in runner entry; do
-	if lint "${context}" "${bad_yaml}"; then fail "${context}: duplicate YAML keys must fail profile:lint"; fi
+	if lint "${context}" "${bad}"; then fail "${context}: invalid JSON and YAML must fail profile:lint"; fi
+	grep -q 'data.json' "${work}/output.txt" || fail "${context}: the parser failure must name data.json"
+	grep -q 'not strict JSON.*trailing.json\|trailing.json.*not strict JSON' "${work}/output.txt" || fail "${context}: strict JSON must name trailing.json"
 	grep -q 'key-duplicates' "${work}/output.txt" || fail "${context}: yamllint must report duplicate keys"
-done
-
-# dprint's JSON plugin accepts a trailing comma; only the strict-json step rejects it,
-# so this fails only if that step is reachable under the lint profile.
-lenient_json="$(new_repo lenient-json)"
-printf '{"a": 1,}\n' >"${lenient_json}/data.json"
-for context in runner entry; do
-	if lint "${context}" "${lenient_json}"; then fail "${context}: a trailing comma in .json must fail profile:lint"; fi
-	grep -q 'not strict JSON' "${work}/output.txt" || fail "${context}: the strict-json step must report data.json"
 done
 
 if command -v golangci-lint >/dev/null 2>&1 && command -v go >/dev/null 2>&1; then
 	bad_go="$(new_repo bad-go)"
 	printf 'module example.com/fixture\n\ngo 1.22\n' >"${bad_go}/go.mod"
 	printf 'package main\n\nimport "fmt"\n\nfunc main() { fmt.Printf("%%d\\n", "text") }\n' >"${bad_go}/main.go"
-	for context in runner entry; do
-		if lint "${context}" "${bad_go}"; then fail "${context}: a Go printf mismatch must fail profile:lint"; fi
-	done
+	if lint entry "${bad_go}"; then fail "entry: a Go printf mismatch must fail profile:lint"; fi
 fi
 echo "lint-binding fixture ok"

@@ -1,0 +1,101 @@
+amends "../../lib/Tool.pkl"
+
+doc =
+  "A dev server reads its port from $PORT and runs through `mise run dev`, which gives each checkout its own port and https://<name>.localhost URL behind Caddy; a hardcoded dev port literal fails the push unless the same file also reads PORT from the environment."
+skipsLockfiles = true
+
+// Tests, fixtures and docs name ports on purpose.
+local notAppCode: List<String> =
+  List(
+    "**/tests/**",
+    "**/test/**",
+    "**/__tests__/**",
+    "**/testdata/**",
+    "**/fixtures/**",
+    "**/*_test.go",
+    "**/*.test.*",
+    "**/*.spec.*",
+    "**/test_*.py",
+    "**/*_test.py",
+    "**/conftest.py",
+    "**/docs/**",
+    "**/*.md",
+    "**/*.mdx",
+    "**/*.rst",
+    "**/*.txt",
+  )
+
+on {
+  ["pre-push"] {
+    exclude = notAppCode
+    check = "dev-profile-hardcoded-dev-port {{files}}"
+  }
+}
+
+local hardcodedDevPort =
+  #"""
+  \#(bash)
+  # Pre-push judge: no hardcoded dev port in app code. A file that reads PORT from
+  # the environment may keep a literal as its fallback default.
+  (($#)) || exit 0
+
+  # One ERE per line: host:port, a listen address string, .listen(<port>), PORT=<port>.
+  literal_ports() {
+    cat <<'EOF'
+  (127\.0\.0\.1|localhost|0\.0\.0\.0):[0-9]{4,5}([^0-9]|$)
+  ["'`]:[0-9]{4,5}["'`]
+  \.listen\([[:space:]]*[0-9]{4,5}
+  (^|[^[:alnum:]_])PORT=["']?[0-9]{2,5}
+  EOF
+  }
+
+  # A compose file's published port, "<host>:<container>".
+  compose_ports() {
+    cat <<'EOF'
+  ^[[:space:]]*-?[[:space:]]*["']?[0-9]{4,5}:[0-9]{2,5}(/[a-z]+)?["']?[[:space:]]*(#.*)?$
+  EOF
+  }
+
+  # The ways code reads PORT from its environment.
+  reads_port() {
+    cat <<'EOF'
+  process\.env\.PORT
+  env\.PORT
+  [Gg]etenv\(["']PORT["']
+  LookupEnv\(["']PORT["']
+  environ(\.get)?[\[(]["']PORT["']
+  ENV(\.fetch)?[\[(]["']PORT["']
+  env\(["']PORT["']
+  \$\{?PORT([^[:alnum:]_]|$)
+  EOF
+  }
+
+  hits_in() {
+    local file="$1"
+    grep -nIE -e "$(literal_ports)" -- "${file}" || true
+    case "${file##*/}" in
+      *compose*.yml | *compose*.yaml) grep -nIE -e "$(compose_ports)" -- "${file}" || true ;;
+    esac
+  }
+
+  status=0
+  for file in "$@"; do
+    [[ -f "${file}" ]] || continue
+    if grep -qIE -e "$(reads_port)" -- "${file}"; then continue; fi
+    hits="$(hits_in "${file}")"
+    [[ -n "${hits}" ]] || continue
+    while IFS= read -r hit; do
+      echo "${file}:${hit}" >&2
+    done <<<"${hits}"
+    status=1
+  done
+
+  if [[ "${status}" -ne 0 ]]; then
+    echo "hardcoded dev port: read \$PORT from the environment (a literal fallback default is fine) and run the app through 'mise run dev' (dev-profile-dev sets PORT per checkout and routes https://<name>.localhost to it through Caddy)." >&2
+  fi
+  exit "${status}"
+  """#
+
+scripts {
+  ["dev-profile-hardcoded-dev-port"] = hardcodedDevPort
+}

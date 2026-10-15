@@ -16,6 +16,12 @@ local nothingToDo = 3
 /// pytest's "no tests collected" exit code.
 local pytestNoTests = 5
 
+/// Where Go `build` puts each main package's binary, relative to the repo root.
+local binDir = ".bin"
+
+/// Where `install` copies the `binDir` binaries.
+local installDir = "${HOME}/.local/bin"
+
 local bash = "#!/usr/bin/env bash\nset -euo pipefail\n" + render.header("#") + "\n"
 
 // ---- Root overlay tasks
@@ -93,8 +99,19 @@ local dispatcher =
     [[ -n "$(git ls-files --cached --others --exclude-standard -- "$@")" ]]
   }
 
+  # While planning (verb dev), adapters only report their default dev command.
+  planning=0
+
   run_adapter() {
     local id="$1" code=0
+    if [[ "${planning}" -eq 1 ]]; then
+      "dev-profile-contract-${id}" dev-plan || code=$?
+      case "${code}" in
+        0 | \(nothingToDo)) return 0 ;;
+      esac
+      echo "dev: ${id} could not plan its dev command (exit ${code})" >&2
+      exit 1
+    fi
     "dev-profile-contract-${id}" "${verb}" || code=$?
     case "${code}" in
       0)
@@ -112,7 +129,28 @@ local dispatcher =
     esac
   }
 
-  \(profile.contractAdapters.toList().map((a) -> dispatchLine(a)).join("\n"))
+  dispatch() {
+    \(profile.contractAdapters.toList().map((a) -> dispatchLine(a)).join("\n    "))
+  }
+
+  # `dev` starts one thing: with none or several default commands, the repo says which.
+  if [[ "${verb}" == dev ]]; then
+    planning=1
+    plans="$(dispatch)"
+    planning=0
+    count="$(awk 'NF { n++ } END { print n + 0 }' <<<"${plans}")"
+    if [[ "${count}" -eq 0 ]]; then
+      echo "dev: no default dev command (no package.json dev script, Go main package or compose file). Define a repo 'dev' task; it can start each process with: dev-profile-dev -- <command>" >&2
+      exit 1
+    fi
+    if [[ "${count}" -gt 1 ]]; then
+      echo "dev: ${count} default dev commands, none to pick for you:" >&2
+      while IFS= read -r plan; do echo "  ${plan}" >&2; done <<<"${plans}"
+      echo "Define a repo 'dev' task that starts the ones you want, each with: dev-profile-dev -- <command>" >&2
+      exit 1
+    fi
+  fi
+  dispatch
 
   if [[ "${ran}" -eq 0 ]]; then
     echo "nothing to ${verb}"
@@ -165,22 +203,140 @@ local go =
     fi
   }
 
-  # Run one command in every module; the subshell's exit carries its step result.
-  # A module go.work does not list builds on its own go.mod (GOWORK=off); inside
-  # the workspace it would fail with "directory is outside modules listed in go.work".
-  each_module() {
+  # "<module dir>\\t<GOWORK>" per module. A module go.work does not list builds on its
+  # own go.mod (GOWORK=off); inside the workspace it would fail with
+  # "directory is outside modules listed in go.work".
+  module_targets() {
     local dir members gowork
     members="$(workspace_modules)"
     while IFS= read -r dir; do
       gowork=""
       if [[ -f go.work ]] && ! grep -qxF -- "${dir}" <<<"${members}"; then gowork=off; fi
-      echo "+ cd ${dir}${gowork:+ (GOWORK=off)}" >&2
-      (cd "${dir}" && export GOWORK="${gowork}" && step "$@" && exit "${failed}") || failed=1
+      printf '%s\\t%s\\n' "${dir}" "${gowork}"
     done < <(modules)
   }
 
+  # Enter a module with its GOWORK; call it inside a subshell.
+  enter_module() {
+    cd "$1"
+    export GOWORK="$2"
+  }
+
+  # Run one command in every module; the subshell's exit carries its step result.
+  each_module() {
+    local dir gowork
+    while IFS=$'\\t' read -r dir gowork; do
+      echo "+ cd ${dir}${gowork:+ (GOWORK=off)}" >&2
+      (enter_module "${dir}" "${gowork}" && step "$@" && exit "${failed}") || failed=1
+    done < <(module_targets)
+  }
+
+  root="$(git rev-parse --show-toplevel)"
+  bin_dir="${root}/\(binDir)"
+
+  # "<import path> <dir>" for each main package of the module in the current directory.
+  main_packages() {
+    go list -f '{{if eq .Name "main"}}{{.ImportPath}} {{.Dir}}{{end}}' ./... | awk NF
+  }
+
+  # A main package's binary is named for its directory; at the module root, for the
+  # module's last path element (a trailing /vN major-version suffix does not count).
+  binary_name() {
+    local dir="$1" module_path name
+    if [[ "${dir}" -ef . ]]; then
+      module_path="$(go mod edit -json | jq -r .Module.Path)"
+      name="${module_path##*/}"
+      if [[ "${name}" =~ ^v[0-9]+$ && "${module_path}" == */* ]]; then
+        module_path="${module_path%/*}"
+        name="${module_path##*/}"
+      fi
+      echo "${name}"
+    else
+      basename "${dir}"
+    fi
+  }
+
+  # Build each main package of the current module into bin_dir; a module without
+  # one is only compiled. built_names guards two packages claiming one binary name.
+  build_module() {
+    local mains import_path dir name
+    mains="$(main_packages)" || {
+      failed=1
+      return
+    }
+    if [[ -z "${mains}" ]]; then
+      step go build ./...
+      return
+    fi
+    while read -r import_path dir; do
+      name="$(binary_name "${dir}")"
+      if grep -qxF -- "${name}" "${built_names}"; then
+        echo "go build: ${import_path} would overwrite \(binDir)/${name}; rename one main package directory" >&2
+        failed=1
+        continue
+      fi
+      echo "${name}" >>"${built_names}"
+      step go build -o "${bin_dir}/${name}" "${import_path}"
+    done <<<"${mains}"
+  }
+
+  # "<module dir>\\t<import path>\\t<GOWORK>" for each main package of the current module.
+  list_mains() {
+    local import_path dir
+    main_packages | while read -r import_path dir; do
+      printf '%s\\t%s\\t%s\\n' "${PWD}" "${import_path}" "$1"
+    done
+  }
+
+  build_all() {
+    local dir gowork
+    built_names="$(mktemp)"
+    while IFS=$'\\t' read -r dir gowork; do
+      echo "+ cd ${dir}${gowork:+ (GOWORK=off)}" >&2
+      (enter_module "${dir}" "${gowork}" && build_module && exit "${failed}") || failed=1
+    done < <(module_targets)
+    rm -f "${built_names}"
+  }
+
+  # Append list_mains of every module to file $1.
+  collect_mains() {
+    local dir gowork
+    while IFS=$'\\t' read -r dir gowork; do
+      (enter_module "${dir}" "${gowork}" && list_mains "${gowork}") >>"$1" || failed=1
+    done < <(module_targets)
+  }
+
+  # dev-plan: one line per default dev command, so the dispatcher can refuse an ambiguous repo.
+  plan_dev() {
+    local mains
+    mains="$(mktemp)"
+    collect_mains "${mains}"
+    awk -F '\\t' 'NF { print "go run " $2 }' "${mains}"
+    rm -f "${mains}"
+  }
+
+  # Run the repo's one main package behind the dev proxy.
+  run_dev() {
+    local mains count module_dir import_path gowork
+    mains="$(mktemp)"
+    collect_mains "${mains}"
+    count="$(awk 'NF { n++ } END { print n + 0 }' "${mains}")"
+    if [[ "${count}" -eq 0 ]]; then rm -f "${mains}"; nothing_to_do; fi
+    if [[ "${count}" -gt 1 ]]; then
+      echo "dev: ${count} main packages; define a repo 'dev' task that runs the one you want:" >&2
+      awk -F '\\t' 'NF { print "  go run " $2 }' "${mains}" >&2
+      failed=1
+    elif [[ "${failed}" -eq 0 ]]; then
+      IFS=$'\\t' read -r module_dir import_path gowork <"${mains}"
+      (enter_module "${module_dir}" "${gowork}" && step dev-profile-dev -- go run "${import_path}" && exit "${failed}") || failed=1
+    fi
+    rm -f "${mains}"
+  }
+
   case "${verb}" in
-    build) each_module go build ./... ;;
+    build) build_all ;;
+    dev) run_dev ;;
+    dev-plan) plan_dev ;;
     test) each_module go test ./... ;;
     scan) each_module govulncheck ./... ;;
     *) nothing_to_do ;;
@@ -232,9 +388,27 @@ local node =
     [[ "${ran}" -gt 0 ]] || nothing_to_do
   }
 
+  # The dev script of every package that has one: listed for dev-plan, else run behind the dev proxy.
+  each_dev_package() {
+    local dir mode="$1" ran=0
+    while IFS= read -r dir; do
+      (cd "${dir}" && has_script dev) || continue
+      ran=$((ran + 1))
+      if [[ "${mode}" == plan ]]; then
+        echo "$(cd "${dir}" && package_manager) run dev (${dir})"
+        continue
+      fi
+      echo "+ cd ${dir}" >&2
+      (cd "${dir}" && step dev-profile-dev -- "$(package_manager)" run dev && exit "${failed}") || failed=1
+    done < <(packages)
+    [[ "${ran}" -gt 0 ]] || nothing_to_do
+  }
+
   case "${verb}" in
     setup) each_package "" install ;;
     build) each_package build run build ;;
+    dev) each_dev_package run ;;
+    dev-plan) each_dev_package plan ;;
     lint) each_package lint run lint ;;
     test) each_package test run test ;;
     scan) each_package "" audit ;;
@@ -416,6 +590,15 @@ local swift =
   esac
   """
 
+local compose =
+  """
+  case "${verb}" in
+    dev) step dev-profile-dev -- docker compose up ;;
+    dev-plan) echo "docker compose up" ;;
+    *) nothing_to_do ;;
+  esac
+  """
+
 local repo =
   """
   # A contract task that does not resolve here is a doctor failure.
@@ -462,6 +645,27 @@ local repo =
     rm -rf "${tree}"
   }
 
+  # Copy every \(binDir)/ file into \(installDir): write a temp file beside the
+  # target, then rename, so a running binary is never half replaced.
+  install_binaries() {
+    local root bin_dir="" file name temp installed=0
+    root="$(git rev-parse --show-toplevel)"
+    bin_dir="${root}/\(binDir)"
+    for file in "${bin_dir}"/*; do
+      [[ -f "${file}" ]] || continue
+      if [[ "${installed}" -eq 0 ]]; then
+        echo "installing ${root} (branch $(git rev-parse --abbrev-ref HEAD), commit $(git rev-parse --short HEAD)) into \(installDir)" >&2
+        mkdir -p "\(installDir)"
+      fi
+      name="${file##*/}"
+      temp="$(mktemp "\(installDir)/.${name}.XXXXXX")"
+      step install -m 0755 "${file}" "${temp}"
+      step mv -f "${temp}" "\(installDir)/${name}"
+      installed=$((installed + 1))
+    done
+    [[ "${installed}" -gt 0 ]] || nothing_to_do
+  }
+
   doctor() {
     local task
     for task in \(profile.contractVerbs.keys.join(" ")) ci; do
@@ -481,6 +685,10 @@ local repo =
     setup)
       step mise install
       step mise deps install
+      ;;
+    install)
+      step mise run build
+      if [[ "${failed}" -eq 0 ]]; then install_binaries; fi
       ;;
     # hk owns format checks and static analysis for every language.
     lint)
@@ -532,6 +740,7 @@ local adapterBodies: Mapping<String, String> = new {
   ["opentofu"] = opentofu
   ["buf"] = buf
   ["swift"] = swift
+  ["compose"] = compose
   ["repo"] = repo
 }
 

@@ -1,0 +1,239 @@
+/// The local dev environment behind `mise run dev`: one Caddy routes
+/// `https://<name>.localhost` to the PORT the app was started with.
+module dev
+
+import "../profile.pkl"
+import "render.pkl"
+
+local bash = "#!/usr/bin/env bash\nset -euo pipefail\n" + render.header("#") + "\n"
+
+/// The Caddy state directory, as a shell expression.
+local stateDir =
+  "${DEV_PROFILE_CADDY_DIR:-${XDG_STATE_HOME:-${HOME}/.local/state}/dev-profile/caddy}"
+
+/// Main Caddyfile. `dev-profile-caddy` copies it into the state directory, so the
+/// relative import finds the per-app snippets `dev-profile-dev` writes there.
+caddyfile: String =
+  """
+  \(render.header("#"))
+  {
+  \tadmin \(profile.devProxyAdmin)
+  \tskip_install_trust
+  }
+
+  import sites/*.caddy
+
+  """
+
+local caddy =
+  """
+  \(bash)
+  # Usage: dev-profile-caddy ensure|reload|stop
+  #   ensure  copy the rendered Caddyfile into the state dir; start Caddy, or reload it if running
+  #   reload  reload a running Caddy so it re-reads sites/*.caddy; does nothing when stopped
+  #   stop    stop Caddy
+  # Caddy's admin API listens on \(profile.devProxyAdmin), not its default, so it cannot
+  # clash with another Caddy. This never runs `caddy trust` and never uses sudo.
+  caddy_bin="${DEV_PROFILE_CADDY_BIN:-caddy}"
+  admin="${DEV_PROFILE_CADDY_ADMIN:-\(profile.devProxyAdmin)}"
+  state="\(stateDir)"
+  config="${state}/Caddyfile"
+  render_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+  # Caddy keeps its CA and autosaved config under the state dir, not in ~/Library or ~/.config,
+  # so this proxy never reads or overwrites another Caddy's files.
+  export XDG_DATA_HOME="${state}/data" XDG_CONFIG_HOME="${state}/config"
+
+  require_caddy() {
+    command -v "${caddy_bin}" >/dev/null || {
+      echo "dev-profile-caddy: caddy is not installed; run: mise install" >&2
+      exit 1
+    }
+  }
+
+  running() { curl -fsS --max-time 1 "http://${admin}/config/" >/dev/null 2>&1; }
+
+  reload_config() { "${caddy_bin}" reload --config "${config}" --adapter caddyfile --address "${admin}" >/dev/null 2>&1; }
+
+  # Where Caddy keeps its local CA root.
+  ca_root() { echo "${XDG_DATA_HOME}/caddy/pki/authorities/local/root.crt"; }
+
+  # Say once how to trust Caddy's local CA. macOS only: `security` is how trust is read.
+  hint_untrusted_ca() {
+    local root marker="${state}/.trust-hint-shown"
+    command -v security >/dev/null || return 0
+    [[ ! -e "${marker}" ]] || return 0
+    root="$(ca_root)"
+    if [[ -f "${root}" ]] && security verify-cert -c "${root}" -q >/dev/null 2>&1; then return 0; fi
+    echo "dev: Caddy's local CA is not trusted yet, so browsers will warn on https://*.localhost. Trust it once (it asks for your password): caddy trust --address ${admin}" >&2
+    : >"${marker}"
+  }
+
+  case "${1:?usage: dev-profile-caddy ensure|reload|stop}" in
+    ensure)
+      require_caddy
+      mkdir -p "${state}/sites"
+      cmp -s "${render_dir}/Caddyfile" "${config}" || cp "${render_dir}/Caddyfile" "${config}"
+      if running; then
+        reload_config
+      else
+        "${caddy_bin}" start --config "${config}" --adapter caddyfile >/dev/null 2>&1 || {
+          echo "dev-profile-caddy: caddy did not start; check ${config} and ports 80 and 443" >&2
+          exit 1
+        }
+      fi
+      hint_untrusted_ca
+      ;;
+    reload)
+      if running; then reload_config; fi
+      ;;
+    stop)
+      require_caddy
+      "${caddy_bin}" stop --address "${admin}" >/dev/null 2>&1 || true
+      ;;
+    *)
+      echo "usage: dev-profile-caddy ensure|reload|stop" >&2
+      exit 2
+      ;;
+  esac
+  """
+
+local devWrapper =
+  """
+  \(bash)
+  # Usage: dev-profile-dev [--name NAME] [--port PORT] [--plan] -- COMMAND...
+  # Runs COMMAND with PORT set and routes https://NAME.localhost to it through Caddy.
+  #   NAME  the repo's name; in a linked worktree <worktree slug>.<repo>, the slug being
+  #         the worktree directory without its "<repo>-" prefix.
+  #   PORT  a linked worktree's workz allocation (workz sync --isolated, idempotent). The
+  #         main checkout cannot be a workz worktree, so it gets a free port in
+  #         \(profile.devPortStart)-\(profile.devPortStart + profile.devPortCount - 1); only the route needs it, and the route name is stable.
+  #   --plan  print "NAME PORT" and stop.
+  state="\(stateDir)"
+  sites="${state}/sites"
+  caddy_ctl="${DEV_PROFILE_CADDY_CTL:-$(dirname "${BASH_SOURCE[0]}")/dev-profile-caddy}"
+
+  die() {
+    echo "dev-profile-dev: $*" >&2
+    exit 1
+  }
+
+  # A hostname label: lower case, runs of anything else become one dash.
+  label() {
+    printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | sed -e 's/[^a-z0-9-][^a-z0-9-]*/-/g' -e 's/--*/-/g' -e 's/^-//' -e 's/-$//'
+  }
+
+  # Sets root, linked ("yes" in a linked worktree) and name.
+  derive_name() {
+    local git_dir common_dir repo base slug
+    linked=no
+    if ! root="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+      root="${PWD}"
+      name="$(label "${root##*/}")"
+      return
+    fi
+    { read -r git_dir; read -r common_dir; } < <(git rev-parse --path-format=absolute --git-dir --git-common-dir)
+    if [[ "${git_dir}" == "${common_dir}" ]]; then
+      name="$(label "${root##*/}")"
+      return
+    fi
+    linked=yes
+    base="${common_dir##*/}"
+    if [[ "${base}" == .git ]]; then repo="$(basename "$(dirname "${common_dir}")")"; else repo="${base%.git}"; fi
+    slug="${root##*/}"
+    slug="${slug#"${repo}-"}"
+    name="$(label "${slug}").$(label "${repo}")"
+  }
+
+  # True when something accepts connections on port $1.
+  listening() { (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null; }
+
+  # True when another running app's route already points at port $1.
+  claimed() {
+    compgen -G "${sites}/*.caddy" >/dev/null || return 1
+    grep -qF -- "127.0.0.1:$1" "${sites}"/*.caddy
+  }
+
+  free_port() {
+    local tries=0 candidate
+    while ((tries < 200)); do
+      tries=$((tries + 1))
+      candidate=$((\(profile.devPortStart) + RANDOM % \(profile.devPortCount)))
+      if ! listening "${candidate}" && ! claimed "${candidate}"; then
+        echo "${candidate}"
+        return
+      fi
+    done
+    die "no free port in \(profile.devPortStart)-\(profile.devPortStart + profile.devPortCount - 1)"
+  }
+
+  # The linked worktree's own port. workz records it in the worktree's env file and in
+  # its registry, so it never collides with another worktree's.
+  workz_port() {
+    local json port
+    command -v workz >/dev/null || die "workz is not installed; run: mise install"
+    json="$(cd "${root}" && workz sync --isolated --json --no-install)" || die "workz could not allocate a port for ${root}"
+    port="$(jq -r '.isolation.port // empty' <<<"${json}")"
+    [[ -n "${port}" ]] || die "workz reported no port for ${root}"
+    echo "${port}"
+  }
+
+  name=""
+  port=""
+  plan=no
+  while (($#)); do
+    case "$1" in
+      --name) name="${2:?--name needs a value}"; shift 2 ;;
+      --port) port="${2:?--port needs a value}"; shift 2 ;;
+      --plan) plan=yes; shift ;;
+      --) shift; break ;;
+      *) die "usage: dev-profile-dev [--name NAME] [--port PORT] [--plan] -- COMMAND..." ;;
+    esac
+  done
+  explicit_name="${name}"
+  derive_name
+  [[ -z "${explicit_name}" ]] || name="$(label "${explicit_name}")"
+  [[ -n "${name}" ]] || die "could not derive a name for ${PWD}; pass --name"
+  if [[ -z "${port}" ]]; then
+    if [[ "${linked}" == yes ]]; then port="$(workz_port)"; else port="$(free_port)"; fi
+  fi
+  if [[ "${plan}" == yes ]]; then
+    echo "${name} ${port}"
+    exit 0
+  fi
+  (($#)) || die "no command given; usage: dev-profile-dev [--name NAME] -- COMMAND..."
+
+  snippet="${sites}/${name}.caddy"
+  if [[ -f "${snippet}" ]]; then
+    owner="$(sed -n 's/^# pid //p' "${snippet}")"
+    if [[ -n "${owner}" ]] && kill -0 "${owner}" 2>/dev/null; then
+      die "https://${name}.localhost is already served by process ${owner}; stop it first"
+    fi
+  fi
+  # Whatever ends this script, the route goes with it.
+  trap 'rm -f "${snippet}"; "${caddy_ctl}" reload || true' EXIT
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  mkdir -p "${sites}"
+  temp="$(mktemp "${sites}/.${name}.XXXXXX")"
+  printf '# pid %s\\n%s.localhost {\\n\\ttls internal\\n\\treverse_proxy 127.0.0.1:%s\\n}\\n' "$$" "${name}" "${port}" >"${temp}"
+  mv -f "${temp}" "${snippet}"
+
+  "${caddy_ctl}" ensure
+  echo "dev: https://${name}.localhost (PORT=${port})"
+
+  # Not exec: the route must be removed when the command ends. Signals go to the command.
+  status=0
+  child=""
+  trap 'kill -TERM "${child}" 2>/dev/null || true' INT TERM
+  PORT="${port}" "$@" <&0 &
+  child=$!
+  wait "${child}" || status=$?
+  if kill -0 "${child}" 2>/dev/null; then wait "${child}" || status=$?; fi
+  exit "${status}"
+  """
+
+/// Generated bin/ scripts for the dev environment.
+wrappers: Mapping<String, String> = new {
+  ["dev-profile-caddy"] = caddy
+  ["dev-profile-dev"] = devWrapper
+}

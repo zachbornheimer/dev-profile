@@ -6,6 +6,7 @@ import "package://pkg.pkl-lang.org/pkl-pantry/pkl.toml@1.0.3#/toml.pkl"
 
 import "../profile.pkl"
 import "contract.pkl"
+import "dev.pkl"
 import "done.pkl"
 import "githooks.pkl"
 import "pr.pkl"
@@ -380,6 +381,7 @@ manifest: Manifest = new {
 wrappers: Mapping<String, String> = new {
   for (_, tool in profile.catalog) { ...tool.scripts }
   ...contract.wrappers
+  ...dev.wrappers
   ...githooks.wrappers
   ...pr.wrappers
   ...sync.wrappers

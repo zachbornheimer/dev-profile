@@ -12,7 +12,8 @@ root="${work}/root"
 stubs="${work}/stubs"
 log="${work}/calls.log"
 output="${work}/output.txt"
-stubbed_tools=(go goimports golangci-lint govulncheck pnpm npm composer aube uv oxlint gitleaks dotnet dprint shellcheck markdownlint betterleaks)
+stubbed_tools=(mise go goimports golangci-lint govulncheck pnpm npm composer aube uv oxlint gitleaks dotnet dprint shellcheck markdownlint betterleaks)
+real_mise="$(command -v mise)"
 
 mkdir -p "$root" "$stubs" "${work}/mise-config" "${work}/hk-config"
 cp "${out}/personal-overlay.toml" "${root}/mise.toml"
@@ -24,6 +25,12 @@ cat >"${stubs}/stub" <<'EOF'
 #!/usr/bin/env bash
 name="${0##*/}"
 echo "${name}|${PWD}|$*" >>"${STUB_LOG}"
+if [[ "${name}" == mise ]]; then
+	case "$*" in
+		install|deps\ install) exit 0 ;;
+		*) exec "${REAL_MISE}" "$@" ;;
+	esac
+fi
 if [[ "${name} $*" == "go work edit -json" && -n "${GO_WORK_JSON:-}" ]]; then cat "${GO_WORK_JSON}"; fi
 if [[ "${name} $*" == "go fix -diff "* && -n "${GO_FIX_DIFF:-}" ]]; then cat "${GO_FIX_DIFF}"; fi
 # GO_FIX_DIFF wins when both are set, so the staged-only fixture still applies.
@@ -48,8 +55,9 @@ chmod +x "${stubs}/stub"
 for tool in "${stubbed_tools[@]}"; do ln -s stub "${stubs}/${tool}"; done
 
 # Isolated from the user's global mise config; HK=0 skips global git hooks.
-export STUB_LOG="$log" STUB_FAIL="" HK=0
+export STUB_LOG="$log" STUB_FAIL="" REAL_MISE="$real_mise" HK=0
 export MISE_CONFIG_DIR="${work}/mise-config" MISE_TRUSTED_CONFIG_PATHS="$root" MISE_YES=1
+export MISE_AUTO_INSTALL=0
 export PATH="${stubs}:${out}/bin:${PATH}"
 # Hook fixtures pick the hk config per run; never the caller's.
 unset HK_CONFIG_DIR HK_FILE
@@ -77,7 +85,7 @@ commit_all() {
 # Run a mise task in a directory with a fresh call log; returns the task's status.
 run_task() {
 	: >"$log"
-	(cd "$1" && mise run "$2") >"$output" 2>&1
+	(cd "$1" && "$REAL_MISE" run "$2") >"$output" 2>&1
 }
 
 # Run a global git hook the way git does, against the active hk config.
@@ -252,12 +260,46 @@ fixture_override_and_extend() {
 	expect_output "repo-override" "override"
 	expect_no_call "test ./..." "override"
 
+	# A repo-level dev task wins over the adapters' defaults, which never even plan.
+	override="$(new_repo override-dev)"
+	echo "module d" >"${override}/go.mod"
+	printf '[tasks.dev]\nrun = "echo repo-dev"\n' >"${override}/mise.toml"
+	run_task "$override" dev || fail "override dev: failed"
+	expect_output "repo-dev" "override dev"
+	expect_no_call "list" "override dev"
+
 	extend="$(new_repo extend)"
 	echo "module e" >"${extend}/go.mod"
 	printf '[tasks.test]\ndepends = ["profile:test"]\nrun = "echo repo-extend"\n' >"${extend}/mise.toml"
 	run_task "$extend" test || fail "extend: test failed"
 	expect_output "repo-extend" "extend"
 	expect_call "go|${extend}|test ./..." "extend"
+}
+
+fixture_install_copies_bin_files() {
+	local repo home entry
+	repo="$(new_repo install)"
+	home="${work}/install-home"
+	mkdir -p "${repo}/.bin" "$home"
+	printf '#!/bin/sh\necho v1\n' >"${repo}/.bin/tool"
+	chmod +x "${repo}/.bin/tool"
+	printf '[tasks.build]\nrun = "echo repo-build"\n' >"${repo}/mise.toml"
+	HOME="$home" run_task "$repo" install || fail "install: failed"
+	expect_output "repo-build" "install (runs the repo's build first)"
+	expect_output "installing ${repo}" "install (names what it installs)"
+	[[ "$("${home}/.local/bin/tool")" == v1 ]] || fail "install: tool was not copied to ~/.local/bin"
+	shopt -s nullglob
+	for entry in "${home}/.local/bin"/.* "${home}/.local/bin"/*; do
+		case "${entry##*/}" in . | .. | tool) ;; *) fail "install: ${entry##*/} was left behind" ;; esac
+	done
+}
+
+fixture_install_without_binaries_has_nothing_to_do() {
+	local repo
+	repo="$(new_repo install-empty)"
+	printf '[tasks.build]\nrun = "echo repo-build"\n' >"${repo}/mise.toml"
+	HOME="${work}/install-empty-home" run_task "$repo" install || fail "install empty: failed"
+	expect_output "skip  repo install (nothing to install)" "install empty"
 }
 
 fixture_failure_runs_every_adapter() {
@@ -431,6 +473,8 @@ fixture_nested_node_setup() {
 	echo '{}' >"${repo}/packages/ts/package.json"
 	echo '{}' >"${repo}/tests/runner/package.json"
 	run_task "$repo" setup || fail "nested node: setup failed"
+	expect_call "mise|${repo}|install" "nested node"
+	expect_call "mise|${repo}|deps install" "nested node"
 	expect_call "aube|${repo}/packages/ts|install" "nested node"
 	expect_call "aube|${repo}/tests/runner|install" "nested node"
 	expect_no_call "node_modules/dep|install" "nested node"
@@ -528,6 +572,8 @@ fixture_pnpm
 fixture_composer
 fixture_no_ecosystem
 fixture_override_and_extend
+fixture_install_copies_bin_files
+fixture_install_without_binaries_has_nothing_to_do
 fixture_failure_runs_every_adapter
 fixture_suppressions
 fixture_suppressions_language_scope

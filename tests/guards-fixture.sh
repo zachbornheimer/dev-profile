@@ -254,7 +254,54 @@ fixture_strict_json() {
 	git -C "$repo" add .
 	push_check "$repo" strict-json || fail "lenient JSON files and valid .json: must pass"
 }
+
+# Stage <content> as <path> in a fresh repo; the push check judges staged files.
+stage_file() {
+	local repo="$1" path="$2" content="$3"
+	mkdir -p "${repo}/$(dirname "$path")"
+	printf '%s\n' "$content" >"${repo}/${path}"
+	git -C "$repo" add "$path"
+}
+
+fixture_hardcoded_dev_port() {
+	local repo spec path content
+	# Each spec: path|content. A literal dev port with no PORT read blocks the push.
+	for spec in \
+		'server.go|http.ListenAndServe(":8080", nil)' \
+		'client.ts|const api = "http://localhost:3000/v1"' \
+		'bind.py|HOST = "0.0.0.0:5000"' \
+		'app.js|app.listen(3000)' \
+		'run.sh|PORT=4321 node server.js' \
+		'.env|PORT=8000' \
+		'docker-compose.yml|  - "8080:8080"'; do
+		path="${spec%%|*}"
+		content="${spec#*|}"
+		repo="$(new_repo "hardcoded-port-${path//[^a-z]/-}")"
+		stage_file "$repo" "$path" "$content"
+		expect_blocked "$repo" hardcoded-dev-port "hardcoded port in ${path}"
+		grep -qF 'mise run dev' "${work}/output.txt" || fail "hardcoded port in ${path}: the message must point at mise run dev"
+		grep -qF 'PORT' "${work}/output.txt" || fail "hardcoded port in ${path}: the message must say to read PORT"
+	done
+
+	# A file that reads PORT may keep a literal fallback; tests and docs may name ports.
+	for spec in \
+		'server.js|app.listen(process.env.PORT || 3000)' \
+		'main.go|addr := ":" + os.Getenv("PORT") + "x"; fallback := "localhost:8080"' \
+		"serve.sh|PORT=\${PORT:-4000}" \
+		'app.py|port = os.environ.get("PORT") or "0.0.0.0:5000"' \
+		'tests/server.test.ts|fetch("http://localhost:3000")' \
+		'docs/setup.txt|open http://localhost:3000' \
+		'README.md|Visit http://localhost:3000' \
+		'server_test.go|http.ListenAndServe(":8080", nil)'; do
+		path="${spec%%|*}"
+		content="${spec#*|}"
+		repo="$(new_repo "port-ok-${path//[^a-z]/-}")"
+		stage_file "$repo" "$path" "$content"
+		push_check "$repo" hardcoded-dev-port || fail "${path}: must pass"
+	done
+}
 fixture_strict_json
+fixture_hardcoded_dev_port
 fixture_if_installed
 fixture_gosec_changed_files_only
 fixture_clean_change_passes
