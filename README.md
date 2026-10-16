@@ -14,6 +14,13 @@ backs up any live configs it would replace to `~/.local/state/dev-profile/backup
 then re-runs `mise bootstrap` on the generated config. That second pass installs
 the tools and links hk, dprint, Worktrunk, mise, and Conform configs.
 
+Bootstrap also writes global git hooks into `~/.gitconfig` (`hook.hk-*`):
+`hk run pre-commit --staged`, `hk run pre-push`, and `hk run commit-msg`. Git
+2.54 or newer runs them in every repo. An SAH bootstrap appends
+`includeIf worktree:<SAH root>/` after those keys and overrides them only for
+checkouts under that root. Personal bootstrap updates an existing hook key in
+place, so a later `--update` does not move that include.
+
 Add one line to `~/.zshrc` for mise activation and `wt switch` cd support:
 
 ```bash
@@ -162,9 +169,11 @@ must not contain:
 - a `go =`, `node =` or `python =` pin in `mise.toml` that only repeats the profile
 
 A repo's `.git/hooks/` must not hold files from retired hook managers (lefthook,
-zq, trunk, husky, yorkie, pre-commit.com); only the global hk hooks run.
-`wt switch` renames them to `<name>.retired-by-dev-profile`
-(`dev-profile-retire-legacy-hooks [repo]`, reversible), and `mise run doctor` warns about any left.
+zq, trunk, husky, yorkie, pre-commit.com); the global hk hooks run instead.
+Under an SAH root, that root's `includeIf worktree:` override runs instead of
+the global command. `wt switch` renames retired hooks to
+`<name>.retired-by-dev-profile` (`dev-profile-retire-legacy-hooks [repo]`,
+reversible), and `mise run doctor` warns about any left.
 
 A repo may contain a `mise.toml` with repo-specific tasks and tools the profile
 lacks. Put a one-line reason beside any pin that differs from the profile. A

@@ -1,6 +1,7 @@
-/// The entry point every global git hook runs. Profile-agnostic: the SAH and
-/// personal profiles render it byte-for-byte alike, so whichever profile
-/// installed the global hooks last, both behave the same.
+/// Helper a hook can run when the active hk config may not define that event.
+/// Not what bootstrap installs: `mise run install-git-hooks` writes `hk run`
+/// into `~/.gitconfig`. SAH does not share that install; it overrides those
+/// keys under its root with `includeIf worktree:`.
 module githooks
 
 import "render.pkl"

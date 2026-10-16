@@ -213,8 +213,8 @@ toolPins: Listing<types.Pin> = new {
 gitHooks: Mapping<String, String> = new {
   ["pre-commit"] = "hk run pre-commit --staged"
   ["pre-push"] = "hk run pre-push"
-  // Profile-agnostic: the active hk config owns the rules, so
-  // the SAH and personal profiles can share this one global hook.
+  // This profile owns the unconditional global hook. SAH overrides it under
+  // its root with includeIf worktree:, and does not rewrite this key.
   ["commit-msg"] = "hk run commit-msg"
 }
 
