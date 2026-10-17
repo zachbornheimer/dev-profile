@@ -249,6 +249,19 @@ contractVerbs: Mapping<String, String> = new {
 /// `ci` runs these contract verbs in order, all of them, then fails if any failed.
 ciVerbs: Listing<String> = new { "lint"; "test"; "scan" }
 
+/// The dev task family (`mise run dev`, `dev:status`, `dev:start`, `dev:restart`,
+/// `dev:attach`): one checkout's local serve stack. Not a contract verb — `ci`
+/// never runs it. The script lives in `tools/repo/dev.pkl`.
+devVerbs: Mapping<String, String> = new {
+  ["status"] = "Print this checkout's dev state, read-only: state=running|down|unconfigured"
+  ["start"] = "Start this checkout's dev stack if it is down; idempotent, never kills"
+  ["restart"] = "Stop this checkout's dev stack, then start it (the only verb that kills)"
+  ["attach"] = "Run this checkout's dev stack in the foreground for logs; Ctrl-C stops it"
+}
+
+/// Bare `dev`: print the state, start the stack when it is down, print again.
+devSummary: String = "Serve this checkout: dev:status, dev:start when down, dev:status"
+
 /// Ecosystems by marker file, in run order. Bodies live in lib/contract.pkl.
 contractAdapters: Listing<types.Adapter> = new {
   new { id = "go"; markers { "go.work"; "**/go.mod" } }
@@ -352,7 +365,9 @@ tools: Listing<types.Pin> = new {
   new { id = "stylua"; version = "2.5.2" }
   new { id = "aube"; version = "2.7.0" }
   new { id = "uv"; version = "0.12.24" }
-  // Worktree env isolation (deps symlinks, ports, DB names); run by the wt pre-start hook.
+  // Worktree env isolation (deps symlinks, ports, DB names); installed but not
+  // hooked — its pre-start symlinks share build caches across worktrees (see
+  // lib/render.pkl).
   new { id = "github:rohansx/workz"; version = "0.11.0" }
   // Contract adapters: OpenTofu lint and protobuf lint/breaking/generate.
   new { id = "tflint"; version = "0.64.0" }

@@ -228,14 +228,16 @@ local squashGenerationTemplate =
 
 worktrunk: Dynamic = new {
   ["worktree-path"] = profile.worktreePath
-  // Blocking, so deps and isolated PORT/DB_NAME exist before anyone edits.
-  // --no-install: dependency installs belong to mise (deps auto), not workz.
-  ["pre-start"] { workz = "workz sync --isolated --quiet --no-install" }
-  ["post-start"] { copy = "wt step copy-ignored" }
+  // No pre-start workz: its `sync` symlinks build caches (e.g. target) into every
+  // worktree, sharing one cargo target dir across them. `wt step copy-ignored`
+  // reflinks instead (isolated dir, no extra disk), so post-remove has nothing
+  // left to release.
+  // One entry, because post-start entries run concurrently: the copy lands before
+  // the stack starts (tools/repo/worktree-start.pkl). It starts the stack through
+  // `mise run dev`, so each code root's own profile picks the dispatcher.
+  ["post-start"] { start = pr.bin("dev-profile-worktree-start") }
   // Retire hook files that retired managers left in .git/hooks, wherever you land.
   ["post-switch"] { `retire-legacy-hooks` = pr.bin("dev-profile-retire-legacy-hooks") }
-  // Release the removed worktree's workz port/DB allocation.
-  ["post-remove"] { workz = "workz doctor --fix >/dev/null" }
   step { ["copy-ignored"] { exclude = List(".venv/", "**/.venv/") } }
   commit {
     generation {

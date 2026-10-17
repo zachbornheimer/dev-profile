@@ -61,6 +61,22 @@ tasks: Dynamic = new {
     description = "\(profile.ciVerbs.join(" + ")): the full gate"
     depends = List("\(namespace):ci")
   }
+  // The dev family, declared the way the contract verbs above are: one task per
+  // verb that runs the generated dispatcher from the invoking directory, and the
+  // plain `dev` entry point beside `dev:<verb>` as `ci` sits beside `profile:ci`.
+  // No `depends` twin: a repo's declaration surface is `mise-tasks/dev-serve`.
+  for (verb, summary in profile.devVerbs) {
+    ["dev:\(verb)"] {
+      description = summary
+      dir = "{{cwd}}"
+      run = "dev-profile-dev \(verb)"
+    }
+  }
+  ["dev"] {
+    description = profile.devSummary
+    dir = "{{cwd}}"
+    run = "dev-profile-dev"
+  }
 }
 
 // ---- Dispatcher

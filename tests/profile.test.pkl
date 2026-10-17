@@ -51,6 +51,27 @@ facts {
         && contract.tasks.toMap()[verb].depends == List("\(contract.namespace):\(verb)")
     }
   }
+  ["every dev verb has a dev:<verb> task that runs the dev dispatcher"] {
+    for (verb, _ in profile.devVerbs) {
+      contract.tasks.toMap().containsKey("dev:\(verb)")
+        && contract.tasks.toMap()["dev:\(verb)"].run == "dev-profile-dev \(verb)"
+        && contract.tasks.toMap()["dev:\(verb)"].dir == "{{cwd}}"
+    }
+    contract.tasks.toMap().containsKey("dev")
+    contract.tasks.toMap()["dev"].run == "dev-profile-dev"
+    render.wrappers.containsKey("dev-profile-dev")
+  }
+  // The copy is not `wt step copy-ignored` itself: a reflinked vendor/ carries
+  // Composer's absolute autoload paths. Copy and start are one entry, because
+  // post-start entries run concurrently and the stack must start on a copy that
+  // landed (tools/repo/worktree-start.pkl) — through `mise run dev`, so each code
+  // root's own profile picks the dispatcher.
+  ["worktrunk's post-start is one entry: copy, then start through mise"] {
+    render.worktrunk["post-start"].toMap().keys == Set("start")
+    render.worktrunk["post-start"].start == "\(profile.installPath)/bin/dev-profile-worktree-start"
+    render.wrappers.containsKey("dev-profile-worktree-start")
+    render.wrappers.containsKey("dev-profile-worktree-copy")
+  }
   ["every pre-push step judges: a check, never only a fix"] {
     for (_, step in pushSteps) { hasCheck(step) }
   }

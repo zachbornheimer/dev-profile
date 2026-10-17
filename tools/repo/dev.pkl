@@ -1,0 +1,309 @@
+amends "../../lib/Tool.pkl"
+
+doc =
+  "One checkout's local dev stack behind portless: `mise run dev` prints the state, starts it detached when it is down and prints the state again; `dev:status` is the only probe (it reads a pidfile, never a port or `ps`), `dev:start` is idempotent and never kills, `dev:restart` is the only verb that stops, and `dev:attach` runs it in the foreground. When worktrunk is available the stack runs under its tether (`wt step tether`), which kills the whole process tree when the worktree is removed; otherwise it is a plain detached spawn. A repo declares its own serve command by shipping an executable `mise-tasks/dev-serve`."
+
+local dev =
+  #"""
+  \#(bash)
+  # One checkout's dev stack. `dev:status` is the only probe: it reads the
+  # recorded pid, so nothing has to scan ports or grep `ps`. `dev:start` starts
+  # the stack detached under an exclusive lock and is idempotent, under
+  # worktrunk's tether when it is available. `dev:restart` is the only verb that
+  # signals a process. `dev:attach` runs it in the foreground. Bare `dev` is
+  # status -> start when down -> status.
+  verb="${1:-}"
+
+  root="$(git rev-parse --show-toplevel 2>/dev/null)" || {
+    echo "dev: ${PWD} is not inside a git repository" >&2
+    exit 2
+  }
+  cd "${root}"
+
+  # --- checkout identity
+
+  # The checkout directory's name is the route's DNS label. Worktrunk names a
+  # worktree <repo>-<branch-slug>, so the main checkout claims <repo> and each
+  # worktree claims its own route.
+  checkout="$(printf '%s' "$(basename "${root}")" | tr '[:upper:]' '[:lower:]' |
+    sed -e 's/[^a-z0-9]/-/g' -e 's/--*/-/g' -e 's/^-*//' -e 's/-*$//')"
+  url="https://${checkout}.localhost"
+
+  # One pidfile, one lockfile (and the daemon's log) per checkout.
+  cache="${XDG_CACHE_HOME:-${HOME}/.cache}/dev-profile/dev"
+  pidfile="${cache}/${checkout}.pid"
+  lockfile="${cache}/${checkout}.lock"
+  logfile="${cache}/${checkout}.log"
+
+  # Operational knobs, so a test or a fixture never waits the production time.
+  ready_timeout="${DEV_PROFILE_DEV_READY_TIMEOUT:-60}" # seconds to wait for the stack
+  stop_timeout="${DEV_PROFILE_DEV_STOP_TIMEOUT:-10}"   # seconds before SIGKILL
+  settle="${DEV_PROFILE_DEV_SETTLE:-1}"                # seconds to catch an instant exit
+
+  alive() { kill -0 "$1" 2>/dev/null; }
+
+  recorded_pid() {
+    [[ -s "${pidfile}" ]] || return 0
+    sed -n 1p "${pidfile}"
+  }
+
+  # How to signal the recorded stack: `tether` when worktrunk owns its process
+  # group, `spawn` for a plain detached process.
+  recorded_mode() {
+    sed -n 2p "${pidfile}"
+  }
+
+  # Read-only: true when this checkout's recorded stack process is alive.
+  running() {
+    local pid
+    pid="$(recorded_pid)"
+    [[ -n "${pid}" ]] && alive "${pid}"
+  }
+
+  # --- the serve command
+
+  # aube runs npm, pnpm and aube projects; yarn and bun keep their own tool
+  # (mirrors the node contract adapter).
+  package_manager() {
+    if [[ -f bun.lock || -f bun.lockb ]]; then
+      echo bun
+    elif [[ -f yarn.lock ]]; then
+      echo yarn
+    else
+      echo aube
+    fi
+  }
+
+  has_dev_script() {
+    [[ -f package.json ]] && jq -e '.scripts.dev // empty' package.json >/dev/null 2>&1
+  }
+
+  # Reads only, and prints the command for the child shell, which sees
+  # portless's PORT and HOST. A repo declaring its own serve script wins; else
+  # the markers decide. Exit 1: nothing here serves. The port is left for the
+  # child shell to expand (\$PORT): portless assigns it per checkout.
+  serve_command() {
+    if [[ -x mise-tasks/dev-serve ]]; then
+      echo 'exec ./mise-tasks/dev-serve'
+      return 0
+    fi
+    if [[ -f composer.json && -f package.json ]]; then
+      # The ordinary pair: the app on the routed port, the JS dev server on its
+      # own port, which do not collide.
+      echo "php artisan serve --port=\$PORT & exec $(package_manager) run dev"
+      return 0
+    fi
+    if [[ -f composer.json ]]; then
+      echo "exec php artisan serve --port=\$PORT"
+      return 0
+    fi
+    if has_dev_script; then
+      echo "exec $(package_manager) run dev -- --port \$PORT"
+      return 0
+    fi
+    return 1
+  }
+
+  # --- the tether
+
+  # `wt step tether -- <cmd>` runs the stack in its own process group and kills
+  # the whole group when the worktree is removed, so teardown needs no
+  # pre-remove hook. It needs worktrunk and a git worktree; without either the
+  # family falls back to a plain detached spawn.
+  tether_available() {
+    command -v wt >/dev/null 2>&1 || return 1
+    git rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 1
+    wt step tether --help >/dev/null 2>&1
+  }
+
+  # What the tether runs. `$$` before the exec is the tether's own child, which
+  # the tether made a process-group leader, so line 1 is the whole tree's pid;
+  # then portless assigns the route's port and runs the serve command.
+  tether_child="printf \"%s\n%s\n\" \"\$\$\" tether >\"\${DEV_PROFILE_DEV_PIDFILE}\"; exec portless \"\${DEV_PROFILE_DEV_ROUTE}\" sh -c \"\${DEV_PROFILE_DEV_CMD}\""
+
+  # --- verbs
+
+  # Read-only probe: exit 0 and one machine-readable line when serving, exit 1
+  # and one line otherwise. Nothing on this path writes, and a serving stack is
+  # answered from the pidfile alone, so calling this on every `cd` is cheap.
+  status() {
+    if running; then
+      echo "state=running url=${url} pid=$(recorded_pid)"
+      return 0
+    fi
+    if ! serve_command >/dev/null; then
+      echo "state=unconfigured"
+      return 1
+    fi
+    echo "state=down"
+    return 1
+  }
+
+  # One clear line, machine-readable prefix first, for an on-cd hook's log.
+  unconfigured() {
+    echo "state=unconfigured: nothing to serve here (declare mise-tasks/dev-serve, or add composer.json or a package.json dev script)"
+  }
+
+  require_flock() {
+    command -v flock >/dev/null 2>&1 && return 0
+    echo "dev:start: flock is required to serialise starts (install util-linux)" >&2
+    return 1
+  }
+
+  # One spawn path for `dev:start` and `dev:restart`: under the tether when
+  # worktrunk can own the process group, a plain detach otherwise. Records the
+  # pid and how to signal it, and prints the pid.
+  spawn() {
+    local cmd="$1" pid waited=0
+    mkdir -p "${cache}"
+    rm -f "${pidfile}"
+    if tether_available; then
+      DEV_PROFILE_DEV_CMD="${cmd}" DEV_PROFILE_DEV_ROUTE="${checkout}" \
+        DEV_PROFILE_DEV_PIDFILE="${pidfile}" \
+        nohup wt step tether -- sh -c "${tether_child}" >>"${logfile}" 2>&1 </dev/null 9>&- &
+      pid=$!
+      disown
+      # The tether's child records the leader pid a moment after the spawn; wait
+      # for it, failing fast when the tether itself is gone.
+      while [[ -z "$(recorded_pid)" ]]; do
+        if ! alive "${pid}"; then
+          echo "dev:start: the tether exited before it started the stack; see ${logfile}" >&2
+          return 1
+        fi
+        if (( waited >= ready_timeout )); then
+          echo "dev:start: the tether did not start the stack within ${ready_timeout}s; see ${logfile}" >&2
+          return 1
+        fi
+        sleep 1
+        waited=$((waited + 1))
+      done
+    else
+      nohup portless "${checkout}" sh -c "${cmd}" >>"${logfile}" 2>&1 </dev/null 9>&- &
+      pid=$!
+      disown
+      printf '%s\n%s\n' "${pid}" spawn >"${pidfile}"
+    fi
+    recorded_pid
+  }
+
+  start() {
+    # Idempotent and silent: an already-running stack is success, never a kill.
+    if running; then
+      return 0
+    fi
+    local cmd
+    if ! cmd="$(serve_command)"; then
+      unconfigured
+      return 1
+    fi
+    require_flock || return 1
+    mkdir -p "${cache}"
+    exec 9>"${lockfile}"
+    flock 9
+    # A concurrent start may have won the lock while we waited; the stack is a
+    # singleton, so the loser reports success and starts nothing.
+    if running; then
+      return 0
+    fi
+    local pid
+    # spawn reports the pid it recorded, or fails when the tether never started.
+    if ! pid="$(spawn "${cmd}")"; then
+      return 1
+    fi
+    # Readiness is the fact `dev:status` reports, so the daemon and the probe
+    # can never disagree. A command that cannot start exits inside the settle
+    # window; the deadline stops a slow machine from waiting forever.
+    sleep "${settle}"
+    local waited=0
+    while ! running; do
+      if ! alive "${pid}"; then
+        echo "dev:start: the dev stack exited before it served; see ${logfile}" >&2
+        return 1
+      fi
+      if (( waited >= ready_timeout )); then
+        echo "dev:start: the dev stack did not come up within ${ready_timeout}s; see ${logfile}" >&2
+        return 1
+      fi
+      sleep 1
+      waited=$((waited + 1))
+    done
+    echo "${url}"
+  }
+
+  # Send a signal to the recorded stack: the whole process group when the tether
+  # owns it, else the single recorded process.
+  signal_stack() {
+    if [[ "$(recorded_mode)" == tether ]]; then
+      kill "-$2" -- "-$1" 2>/dev/null || :
+    else
+      kill "-$2" "$1" 2>/dev/null || :
+    fi
+  }
+
+  # SIGTERM the recorded stack, then SIGKILL after stop_timeout. Never touches a
+  # process this checkout did not record.
+  stop() {
+    local pid waited=0
+    pid="$(recorded_pid)"
+    if [[ -z "${pid}" ]] || ! alive "${pid}"; then
+      rm -f "${pidfile}"
+      return 0
+    fi
+    signal_stack "${pid}" TERM
+    while alive "${pid}"; do
+      if (( waited >= stop_timeout )); then
+        signal_stack "${pid}" KILL
+        break
+      fi
+      sleep 1
+      waited=$((waited + 1))
+    done
+    rm -f "${pidfile}"
+  }
+
+  restart() {
+    stop
+    start
+  }
+
+  # Foreground, for a human who wants the logs: no pidfile, no lock.
+  attach() {
+    local cmd
+    if ! cmd="$(serve_command)"; then
+      unconfigured
+      return 1
+    fi
+    echo "dev:attach: ${url} in the foreground; Ctrl-C stops it" >&2
+    exec portless "${checkout}" sh -c "${cmd}"
+  }
+
+  case "${verb}" in
+    "" | dev)
+      # Safe on every `cd`: a cheap no-op with one clear line when nothing is
+      # configured, an immediate status line when the stack already serves, never
+      # a second stack when two shells enter at once, and always a final status
+      # line so an on-cd hook's log carries the checkout's URL.
+      if ! serve_command >/dev/null; then
+        unconfigured
+        exit 1
+      fi
+      if status; then
+        exit 0
+      fi
+      start || exit $?
+      status
+      ;;
+    status) status ;;
+    start) start ;;
+    restart) restart ;;
+    attach) attach ;;
+    *)
+      echo "dev: unknown verb '${verb}'; expected dev, dev:status, dev:start, dev:restart or dev:attach" >&2
+      exit 2
+      ;;
+  esac
+  """#
+
+scripts {
+  ["dev-profile-dev"] = dev
+}
