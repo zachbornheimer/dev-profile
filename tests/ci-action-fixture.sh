@@ -5,6 +5,10 @@
 # Usage: ci-action-fixture.sh <generated-dir>
 set -euo pipefail
 
+# Offline, as the header says: a prefix pin (`go = "1.27"`) otherwise resolves through
+# a live version-list fetch, and one slow fetch fails every assert below.
+export MISE_OFFLINE=1
+
 out="${1:?usage: ci-action-fixture.sh <generated-dir>}"
 work="$(cd "$(mktemp -d)" && pwd -P)"
 trap 'rm -rf "${work}"' EXIT

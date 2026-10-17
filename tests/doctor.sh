@@ -19,6 +19,7 @@ luac -p "$out/conform.lua" || fail conform.lua
 zsh -n "$out/shell.zsh" || fail shell.zsh
 for f in "$out"/bin/*; do bash -n "$f" || fail "${f##*/}"; done
 shellcheck "$out"/bin/* tests/*.sh || fail shellcheck
+"$out/bin/dev-profile-git-config-hooks" || fail "git 2.54+ (config-based hooks) does not resolve"
 # Every generated script runs under pipefail: a reader that stops early (head)
 # kills its writer with SIGPIPE and the script with exit 141.
 if grep -nE '[|][[:space:]]*head([[:space:]]|$)' "$out"/bin/*; then fail "a generated script pipes into head; under pipefail that exits 141. Use sed -n 1p or awk 'NR <= n'"; fi
