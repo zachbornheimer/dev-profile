@@ -16,7 +16,8 @@ local worktreeCopy =
   #
   # The repair is advisory: an autoloader that cannot be rebuilt leaves the
   # worktree usable and says what to run, but never fails the start. The copy
-  # itself keeps its own failure, since a start without the copied files is wrong.
+  # itself keeps its own failure, since a start without the copied files is wrong,
+  # once it has been retried (see below).
   usage="usage: dev-profile-worktree-copy [--help]"
   if [[ "${1:-}" == --help || "${1:-}" == -h ]]; then
     echo "${usage}"
@@ -33,7 +34,22 @@ local worktreeCopy =
   }
   cd "${root}"
 
-  wt step copy-ignored
+  # The source worktree may be serving, and a dev server rewrites its build
+  # output (a bundler's .mastra/ or .next/) while the copy walks it, so a file the
+  # copy listed can be gone by the time it is cloned. That is a race, not a broken
+  # copy: copy-ignored skips what already landed, so a second pass finishes the
+  # rest. A copy that still fails after the last pass keeps its failure.
+  copy_attempts="${DEV_PROFILE_WORKTREE_COPY_ATTEMPTS:-3}"
+  copy_retry_delay="${DEV_PROFILE_WORKTREE_COPY_RETRY_DELAY:-2}" # seconds
+  attempt=1
+  until wt step copy-ignored; do
+    if (( attempt >= copy_attempts )); then
+      echo "dev-profile-worktree-copy: the copy failed ${attempt} times; run: wt step copy-ignored" >&2
+      exit 1
+    fi
+    attempt=$((attempt + 1))
+    sleep "${copy_retry_delay}"
+  done
 
   # Both markers: composer.json alone is a repo whose dependencies were never
   # installed, and a vendor/ without autoload.php is not an autoloader to rebuild.

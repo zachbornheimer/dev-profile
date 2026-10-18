@@ -31,6 +31,11 @@ cat >"${work}/bin/wt" <<'STUB'
 #!/usr/bin/env bash
 set -euo pipefail
 printf 'wt %s\n' "$*" >>"${CALLS}"
+# STUB_WT_FAIL_FIRST=N: the first N copies fail, as when a serving source rewrites
+# its build output mid-copy; later ones succeed.
+if [[ -n "${STUB_WT_FAIL_FIRST:-}" && "$(grep -c '^wt ' "${CALLS}")" -le "${STUB_WT_FAIL_FIRST}" ]]; then
+	exit 1
+fi
 exit "${STUB_WT_STATUS:-0}"
 STUB
 cat >"${work}/bin/composer" <<'STUB'
@@ -62,6 +67,8 @@ STUB
 chmod +x "${work}"/bin/*
 export CALLS="${log}"
 export PATH="${work}/bin:${PATH}"
+# Retries must not wait the production time.
+export DEV_PROFILE_WORKTREE_COPY_RETRY_DELAY=0
 
 run_start() { "${start}" "$@" >"${work}/output.txt" 2>&1; }
 
@@ -129,7 +136,19 @@ if ! run_start; then fail "a checkout with nothing to serve must exit 0"; fi
 called 'wt step copy-ignored'
 [[ "$(lines "${work}/output.txt")" -eq 0 ]] || fail "nothing to serve must be silent"
 
-# --- a failed copy is not advisory: the stack never starts
+# --- a copy that fails once (a serving source rewrote its build output) is retried
+
+racy="${work}/racy"
+new_repo "${racy}"
+cd "${racy}"
+reset_log
+STUB_WT_FAIL_FIRST=1
+export STUB_WT_FAIL_FIRST
+run_start || fail "a copy that succeeds on the second pass must not fail the entry"
+unset STUB_WT_FAIL_FIRST
+called $'wt step copy-ignored\nwt step copy-ignored\ncomposer dump-autoload --no-interaction --quiet\nmise run dev'
+
+# --- a copy that keeps failing is not advisory: retried, then the stack never starts
 
 broken="${work}/broken"
 new_repo "${broken}"
@@ -139,7 +158,10 @@ STUB_WT_STATUS=1
 export STUB_WT_STATUS
 if run_start; then fail "a failed copy must fail the entry"; fi
 unset STUB_WT_STATUS
-called "wt step copy-ignored"
+called $'wt step copy-ignored\nwt step copy-ignored\nwt step copy-ignored'
+grep -qF 'the copy failed 3 times; run: wt step copy-ignored' "${work}/output.txt" ||
+	fail "a copy that keeps failing must say what to run"
+[[ ! -e "$(git rev-parse --git-dir)/.worktree-copied" ]] || fail "a failed copy must not leave the marker"
 
 # --- a failed repair is advisory: one line, and the stack still starts
 
