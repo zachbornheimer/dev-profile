@@ -29,10 +29,9 @@ local dev =
   }
 
   # The checkout directory's name keys the state files, so every worktree has
-  # its own pid, lock and log. The route is named for the repo, never the
-  # worktree: portless prepends a linked worktree's branch as a subdomain, so
-  # the main checkout serves https://<repo>.localhost and a worktree serves
-  # https://<branch>.<repo>.localhost.
+  # its own pid, lock and log. The route is the repo's name for the main
+  # checkout (https://<repo>.localhost) and <branch>.<repo> for a linked
+  # worktree (https://feat-x.<repo>.localhost for branch feat/x).
   checkout="$(slug "$(basename "${root}")")"
   common_dir="$(git rev-parse --path-format=absolute --git-common-dir)"
   git_dir="$(git rev-parse --path-format=absolute --git-dir)"
@@ -50,17 +49,46 @@ local dev =
   }
   repo="$(repo_name)"
 
-  # The name this checkout registers with portless. portless prefixes a linked
-  # worktree's branch as a subdomain, except for a detached HEAD or a branch
-  # named main or master; there the bare repo name would take the main
-  # checkout's route, so the worktree keeps its own checkout name instead.
-  route_name() {
-    if [[ "${git_dir}" != "${common_dir}" ]] &&
-      [[ "$(portless get "${repo}")" == "$(portless get "${repo}" --no-worktree)" ]]; then
-      echo "${checkout}"
+  # A linked worktree's subdomain: its whole branch name, slashes folded to
+  # dashes (feat/x and fix/x stay apart as feat-x and fix-x). A detached HEAD has
+  # no branch, so the worktree's directory name stands in. A DNS label is at most
+  # 63 characters; a longer one keeps its head and gains a checksum of the whole.
+  worktree_label() {
+    local branch label
+    branch="$(git branch --show-current)"
+    if [[ -n "${branch}" ]]; then
+      label="$(slug "${branch//\//-}")"
     else
-      echo "${repo}"
+      label="$(slug "${checkout#"${repo}"-}")"
     fi
+    if (( ${#label} > 63 )); then
+      label="${label:0:52}-$(printf '%s' "${label}" | cksum | cut -d' ' -f1)"
+    fi
+    echo "${label}"
+  }
+
+  # The host this checkout registers with portless. The script owns the whole
+  # name because portless's own worktree prefix keeps only a branch's last path
+  # segment and skips main, master and a detached HEAD.
+  route_name() {
+    if [[ "${git_dir}" == "${common_dir}" ]]; then
+      echo "${repo}"
+    else
+      echo "$(worktree_label).${repo}"
+    fi
+  }
+
+  # portless is run from the cache directory, outside any git repo, so it applies
+  # no worktree prefix of its own to the name it is given.
+  portless_here() {
+    mkdir -p "${cache}"
+    (cd "${cache}" && portless "$@")
+  }
+
+  # The serve command, run from the checkout: portless starts it in the cache
+  # directory, so it first returns to the root.
+  in_root() {
+    echo "cd $(printf '%q' "${root}") && $1"
   }
 
   # The URL portless serves this stack on, asked of portless so it cannot drift
@@ -69,7 +97,8 @@ local dev =
   route_url() {
     local name
     name="$(recorded_route)"
-    portless get "${name:-${repo}}" 2>/dev/null || echo "https://${name:-${repo}}.localhost"
+    name="${name:-$(route_name)}"
+    portless_here get "${name}" 2>/dev/null || echo "https://${name}.localhost"
   }
 
   # One pidfile, one lockfile (and the daemon's log) per checkout.
@@ -169,7 +198,7 @@ local dev =
   # What the tether runs. `$$` before the exec is the tether's own child, which
   # the tether made a process-group leader, so line 1 is the whole tree's pid;
   # then portless assigns the route's port and runs the serve command.
-  tether_child="printf \"%s\n%s\n%s\n\" \"\$\$\" tether \"\${DEV_PROFILE_DEV_ROUTE}\" >\"\${DEV_PROFILE_DEV_PIDFILE}\"; exec portless run --name \"\${DEV_PROFILE_DEV_ROUTE}\" sh -c \"\${DEV_PROFILE_DEV_CMD}\""
+  tether_child="cd \"\${DEV_PROFILE_DEV_CACHE}\"; printf \"%s\n%s\n%s\n\" \"\$\$\" tether \"\${DEV_PROFILE_DEV_ROUTE}\" >\"\${DEV_PROFILE_DEV_PIDFILE}\"; exec portless run --name \"\${DEV_PROFILE_DEV_ROUTE}\" sh -c \"\${DEV_PROFILE_DEV_CMD}\""
 
   # --- verbs
 
@@ -210,7 +239,8 @@ local dev =
     mkdir -p "${cache}"
     rm -f "${pidfile}"
     if tether_available; then
-      DEV_PROFILE_DEV_CMD="${cmd}" DEV_PROFILE_DEV_ROUTE="${route}" \
+      DEV_PROFILE_DEV_CMD="$(in_root "${cmd}")" DEV_PROFILE_DEV_ROUTE="${route}" \
+        DEV_PROFILE_DEV_CACHE="${cache}" \
         DEV_PROFILE_DEV_PIDFILE="${pidfile}" \
         nohup wt step tether -- sh -c "${tether_child}" >>"${logfile}" 2>&1 </dev/null 9>&- &
       pid=$!
@@ -230,7 +260,8 @@ local dev =
         waited=$((waited + 1))
       done
     else
-      nohup portless run --name "${route}" sh -c "${cmd}" >>"${logfile}" 2>&1 </dev/null 9>&- &
+      (cd "${cache}" && exec nohup portless run --name "${route}" sh -c "$(in_root "${cmd}")") \
+        >>"${logfile}" 2>&1 </dev/null 9>&- &
       pid=$!
       disown
       printf '%s\n%s\n%s\n' "${pid}" spawn "${route}" >"${pidfile}"
@@ -327,8 +358,10 @@ local dev =
     fi
     local route
     route="$(route_name)"
-    echo "dev:attach: $(portless get "${route}" 2>/dev/null || echo "https://${route}.localhost") in the foreground; Ctrl-C stops it" >&2
-    exec portless run --name "${route}" sh -c "${cmd}"
+    echo "dev:attach: $(portless_here get "${route}" 2>/dev/null || echo "https://${route}.localhost") in the foreground; Ctrl-C stops it" >&2
+    mkdir -p "${cache}"
+    cd "${cache}"
+    exec portless run --name "${route}" sh -c "$(in_root "${cmd}")"
   }
 
   case "${verb}" in

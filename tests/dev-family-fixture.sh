@@ -50,24 +50,21 @@ export DEV_FIXTURE_SPAWNS="${work}/spawns" DEV_FIXTURE_PIDS="${work}/pids"
 # Short waits: the fixture must not depend on production timings.
 export DEV_PROFILE_DEV_SETTLE=0 DEV_PROFILE_DEV_READY_TIMEOUT=5 DEV_PROFILE_DEV_STOP_TIMEOUT=2
 
-# The portless stub answers `get <name>` the way portless does (a linked
-# worktree's branch, last path segment, is a subdomain of the name), and for
-# `run --name <name> <cmd>` assigns PORT and runs the command, recording each spawn.
+# The portless stub answers `get <name>` with the name as given, and for
+# `run --name <name> <cmd>` assigns PORT and runs the command, recording each
+# spawn. Real portless prefixes a git worktree's branch onto any name it is run
+# in, so the stub refuses to run inside a git repo: the script must hand portless
+# the whole host and keep portless out of the checkout.
 mkdir -p "${work}/bin"
 cat >"${work}/bin/portless" <<'STUB'
 #!/usr/bin/env bash
 set -euo pipefail
+if git rev-parse --git-dir >/dev/null 2>&1; then
+	echo "portless stub: run inside a git repo, where real portless adds a worktree prefix" >&2
+	exit 65
+fi
 if [[ "$1" == get ]]; then
-	host="$2"
-	if [[ " $* " != *" --no-worktree "* && "$(git rev-parse --git-dir)" != "$(git rev-parse --git-common-dir)" ]]; then
-		# Like portless: no prefix for a detached HEAD or a main or master branch.
-		branch="$(git branch --show-current)"
-		case "${branch}" in
-			main | master | "") ;;
-			*) host="${branch##*/}.${host}" ;;
-		esac
-	fi
-	echo "https://${host}.localhost"
+	echo "https://$2.localhost"
 	exit 0
 fi
 [[ "$1" == run && "$2" == --name ]] || { echo "portless stub: unexpected args: $*" >&2; exit 64; }
@@ -237,10 +234,10 @@ wt="${work}/repo-feat-x"
 git worktree add -q -b feat/x "${wt}"
 cd "${wt}"
 run_dev || fail "dev in a worktree must work"
-expect '^state=running url=https://x\.repo\.localhost pid=[0-9]+$'
-expect_spawn_name repo
-[[ "$(sed -n 3p "${cache}/repo-feat-x.pid")" == repo ]] ||
-	fail "a branch worktree must record the repo name as its route"
+expect '^state=running url=https://feat-x\.repo\.localhost pid=[0-9]+$'
+expect_spawn_name feat-x.repo
+[[ "$(sed -n 3p "${cache}/repo-feat-x.pid")" == feat-x.repo ]] ||
+	fail "a branch worktree must record <branch>.<repo> as its route"
 leader="$(sed -n 1p "${cache}/repo-feat-x.pid")"
 group "${leader}" || fail "the tether must record a stack's process-group leader"
 
@@ -268,21 +265,56 @@ done
 [[ -z "$(survivors "${floor}")" ]] ||
 	fail "removing the worktree must reap the tethered stack; survivors: $(survivors "${floor}")"
 
-# --- a worktree portless cannot prefix keeps its own route, not the main checkout's
+# --- every worktree gets its own host, whatever its branch
 
-# A detached HEAD (and a main or master branch) gets no branch subdomain, so the
-# bare repo name would collide with the main checkout's route.
-det="${work}/repo-detached"
-git worktree add -q --detach "${det}"
-cd "${det}"
-run_dev || fail "dev in a detached worktree must work"
-expect '^state=running url=https://repo-detached\.localhost pid=[0-9]+$'
-[[ "$(sed -n 3p "${cache}/repo-detached.pid")" == repo-detached ]] ||
-	fail "a detached worktree must record its own checkout name as its route"
-stop_stack repo-detached
-cd "${repo}"
-git worktree remove --force "${det}"
+# portless's own prefix would give feat/x and fix/x the same host (x), and none
+# at all to a detached HEAD or a master branch. The script names the host itself,
+# so all of these stay apart from each other and from the main checkout.
+expect_worktree_route() { # <dir> <branch args...> -- <expected route>
+	local dir="$1" route="${*: -1}" args=("${@:2:$#-2}")
+	git worktree add -q "${args[@]}" "${dir}"
+	cd "${dir}"
+	run_dev || fail "dev in worktree ${dir} must work"
+	expect "^state=running url=https://${route//./\\.}\\.localhost pid=[0-9]+"
+	[[ "$(sed -n 3p "${cache}/$(basename "${dir}").pid")" == "${route}" ]] ||
+		fail "worktree ${dir} must record ${route} as its route"
+	cd "${repo}"
+}
+expect_worktree_route "${work}/repo-feat-x" -B feat/x feat-x.repo
+expect_worktree_route "${work}/repo-fix-x" -B fix/x fix-x.repo
+expect_worktree_route "${work}/repo-detached" --detach detached.repo
+expect_worktree_route "${work}/repo-master" -B master master.repo
+# Four stacks at once on four different hosts.
+[[ "$(cut -f1 "${DEV_FIXTURE_SPAWNS}" | sort -u | grep -cE '^(feat-x|fix-x|detached|master)\.repo$')" == 4 ]] ||
+	fail "each worktree must register its own host"
+for name in repo-feat-x repo-fix-x repo-detached repo-master; do
+	stop_stack "${name}"
+	git worktree remove --force "${work}/${name}"
+done
 git worktree prune
+
+# A branch name too long for a DNS label keeps a 63-character host label.
+long="feat/$(printf 'a%.0s' {1..80})"
+git worktree add -q -b "${long}" "${work}/repo-long"
+cd "${work}/repo-long"
+run_dev || fail "dev in a long-branch worktree must work"
+label="$(sed -n 3p "${cache}/repo-long.pid" | cut -d. -f1)"
+((${#label} <= 63)) || fail "a worktree host label must fit in 63 characters, got ${#label}"
+stop_stack repo-long
+cd "${repo}"
+git worktree remove --force "${work}/repo-long"
+git worktree prune
+
+# A bare clone named <repo>.git names its repo without the suffix.
+git clone -q --bare "${repo}" "${work}/bare-home/myrepo.git"
+git -C "${work}/bare-home/myrepo.git" worktree add -q -b feat/b "${work}/myrepo-feat-b" main
+cd "${work}/myrepo-feat-b"
+mkdir -p mise-tasks
+sleeper_serve mise-tasks/dev-serve
+run_dev || fail "dev in a bare repo's worktree must work"
+expect '^state=running url=https://feat-b\.myrepo\.localhost pid=[0-9]+$'
+stop_stack myrepo-feat-b
+cd "${repo}"
 
 # --- worktrunk unusable: the plain detached spawn, signalled as one process
 
