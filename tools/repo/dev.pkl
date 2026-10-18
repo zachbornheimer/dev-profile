@@ -22,12 +22,24 @@ local dev =
 
   # --- checkout identity
 
-  # The checkout directory's name is the route's DNS label. Worktrunk names a
-  # worktree <repo>-<branch-slug>, so the main checkout claims <repo> and each
-  # worktree claims its own route.
-  checkout="$(printf '%s' "$(basename "${root}")" | tr '[:upper:]' '[:lower:]' |
-    sed -e 's/[^a-z0-9]/-/g' -e 's/--*/-/g' -e 's/^-*//' -e 's/-*$//')"
-  url="https://${checkout}.localhost"
+  # A DNS label: lowercase, anything else folded to single dashes.
+  slug() {
+    printf '%s' "$1" | tr '[:upper:]' '[:lower:]' |
+      sed -e 's/[^a-z0-9]/-/g' -e 's/--*/-/g' -e 's/^-*//' -e 's/-*$//'
+  }
+
+  # The checkout directory's name keys the state files, so every worktree has
+  # its own pid, lock and log. The route is named for the repo, never the
+  # worktree: portless prepends a linked worktree's branch as a subdomain, so
+  # the main checkout serves https://<repo>.localhost and a worktree serves
+  # https://<branch>.<repo>.localhost.
+  checkout="$(slug "$(basename "${root}")")"
+  common_dir="$(git rev-parse --path-format=absolute --git-common-dir)"
+  repo="$(slug "$(basename "$(dirname "${common_dir}")")")"
+
+  # The URL portless serves this checkout on. Asked of portless, so it cannot
+  # drift from the route portless registers.
+  route_url() { portless get "${repo}"; }
 
   # One pidfile, one lockfile (and the daemon's log) per checkout.
   cache="${XDG_CACHE_HOME:-${HOME}/.cache}/dev-profile/dev"
@@ -119,7 +131,7 @@ local dev =
   # What the tether runs. `$$` before the exec is the tether's own child, which
   # the tether made a process-group leader, so line 1 is the whole tree's pid;
   # then portless assigns the route's port and runs the serve command.
-  tether_child="printf \"%s\n%s\n\" \"\$\$\" tether >\"\${DEV_PROFILE_DEV_PIDFILE}\"; exec portless \"\${DEV_PROFILE_DEV_ROUTE}\" sh -c \"\${DEV_PROFILE_DEV_CMD}\""
+  tether_child="printf \"%s\n%s\n\" \"\$\$\" tether >\"\${DEV_PROFILE_DEV_PIDFILE}\"; exec portless run --name \"\${DEV_PROFILE_DEV_ROUTE}\" sh -c \"\${DEV_PROFILE_DEV_CMD}\""
 
   # --- verbs
 
@@ -128,7 +140,7 @@ local dev =
   # answered from the pidfile alone, so calling this on every `cd` is cheap.
   status() {
     if running; then
-      echo "state=running url=${url} pid=$(recorded_pid)"
+      echo "state=running url=$(route_url) pid=$(recorded_pid)"
       return 0
     fi
     if ! serve_command >/dev/null; then
@@ -158,7 +170,7 @@ local dev =
     mkdir -p "${cache}"
     rm -f "${pidfile}"
     if tether_available; then
-      DEV_PROFILE_DEV_CMD="${cmd}" DEV_PROFILE_DEV_ROUTE="${checkout}" \
+      DEV_PROFILE_DEV_CMD="${cmd}" DEV_PROFILE_DEV_ROUTE="${repo}" \
         DEV_PROFILE_DEV_PIDFILE="${pidfile}" \
         nohup wt step tether -- sh -c "${tether_child}" >>"${logfile}" 2>&1 </dev/null 9>&- &
       pid=$!
@@ -178,7 +190,7 @@ local dev =
         waited=$((waited + 1))
       done
     else
-      nohup portless "${checkout}" sh -c "${cmd}" >>"${logfile}" 2>&1 </dev/null 9>&- &
+      nohup portless run --name "${repo}" sh -c "${cmd}" >>"${logfile}" 2>&1 </dev/null 9>&- &
       pid=$!
       disown
       printf '%s\n%s\n' "${pid}" spawn >"${pidfile}"
@@ -227,7 +239,7 @@ local dev =
       sleep 1
       waited=$((waited + 1))
     done
-    echo "${url}"
+    route_url
   }
 
   # Send a signal to the recorded stack: the whole process group when the tether
@@ -273,8 +285,8 @@ local dev =
       unconfigured
       return 1
     fi
-    echo "dev:attach: ${url} in the foreground; Ctrl-C stops it" >&2
-    exec portless "${checkout}" sh -c "${cmd}"
+    echo "dev:attach: $(route_url) in the foreground; Ctrl-C stops it" >&2
+    exec portless run --name "${repo}" sh -c "${cmd}"
   }
 
   case "${verb}" in

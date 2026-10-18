@@ -50,13 +50,25 @@ export DEV_FIXTURE_SPAWNS="${work}/spawns" DEV_FIXTURE_PIDS="${work}/pids"
 # Short waits: the fixture must not depend on production timings.
 export DEV_PROFILE_DEV_SETTLE=0 DEV_PROFILE_DEV_READY_TIMEOUT=5 DEV_PROFILE_DEV_STOP_TIMEOUT=2
 
-# The portless stub assigns PORT and runs the command, recording each spawn.
+# The portless stub answers `get <name>` the way portless does (a linked
+# worktree's branch, last path segment, is a subdomain of the name), and for
+# `run --name <name> <cmd>` assigns PORT and runs the command, recording each spawn.
 mkdir -p "${work}/bin"
 cat >"${work}/bin/portless" <<'STUB'
 #!/usr/bin/env bash
 set -euo pipefail
-printf '%s\t%s\n' "$1" "$*" >>"${DEV_FIXTURE_SPAWNS}"
-shift
+if [[ "$1" == get ]]; then
+	host="$2"
+	if [[ "$(git rev-parse --git-dir)" != "$(git rev-parse --git-common-dir)" ]]; then
+		branch="$(git branch --show-current)"
+		host="${branch##*/}.${host}"
+	fi
+	echo "https://${host}.localhost"
+	exit 0
+fi
+[[ "$1" == run && "$2" == --name ]] || { echo "portless stub: unexpected args: $*" >&2; exit 64; }
+printf '%s\t%s\n' "$3" "$*" >>"${DEV_FIXTURE_SPAWNS}"
+shift 3
 export PORT=4611
 exec "$@"
 STUB
@@ -200,7 +212,7 @@ git commit -qm pair
 run_dev start || fail "dev:start must run the php and js pair together"
 expect_spawn "php artisan serve --port=\$PORT & exec aube run dev"
 
-# --- a linked worktree claims its own route, under the tether
+# --- a linked worktree claims <branch>.<repo>.localhost, under the tether
 
 # A tethered stack's recorded pid is its process group's leader, so one signal
 # reaches every process the stack started.
@@ -221,8 +233,8 @@ wt="${work}/repo-feat-x"
 git worktree add -q -b feat/x "${wt}"
 cd "${wt}"
 run_dev || fail "dev in a worktree must work"
-expect '^state=running url=https://repo-feat-x\.localhost pid=[0-9]+$'
-expect_spawn_name repo-feat-x
+expect '^state=running url=https://x\.repo\.localhost pid=[0-9]+$'
+expect_spawn_name repo
 leader="$(sed -n 1p "${cache}/repo-feat-x.pid")"
 group "${leader}" || fail "the tether must record a stack's process-group leader"
 
