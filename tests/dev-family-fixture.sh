@@ -59,9 +59,13 @@ cat >"${work}/bin/portless" <<'STUB'
 set -euo pipefail
 if [[ "$1" == get ]]; then
 	host="$2"
-	if [[ "$(git rev-parse --git-dir)" != "$(git rev-parse --git-common-dir)" ]]; then
+	if [[ " $* " != *" --no-worktree "* && "$(git rev-parse --git-dir)" != "$(git rev-parse --git-common-dir)" ]]; then
+		# Like portless: no prefix for a detached HEAD or a main or master branch.
 		branch="$(git branch --show-current)"
-		host="${branch##*/}.${host}"
+		case "${branch}" in
+			main | master | "") ;;
+			*) host="${branch##*/}.${host}" ;;
+		esac
 	fi
 	echo "https://${host}.localhost"
 	exit 0
@@ -235,6 +239,8 @@ cd "${wt}"
 run_dev || fail "dev in a worktree must work"
 expect '^state=running url=https://x\.repo\.localhost pid=[0-9]+$'
 expect_spawn_name repo
+[[ "$(sed -n 3p "${cache}/repo-feat-x.pid")" == repo ]] ||
+	fail "a branch worktree must record the repo name as its route"
 leader="$(sed -n 1p "${cache}/repo-feat-x.pid")"
 group "${leader}" || fail "the tether must record a stack's process-group leader"
 
@@ -261,6 +267,22 @@ while [[ -n "$(survivors "${floor}")" && "${waited}" -lt 20 ]]; do
 done
 [[ -z "$(survivors "${floor}")" ]] ||
 	fail "removing the worktree must reap the tethered stack; survivors: $(survivors "${floor}")"
+
+# --- a worktree portless cannot prefix keeps its own route, not the main checkout's
+
+# A detached HEAD (and a main or master branch) gets no branch subdomain, so the
+# bare repo name would collide with the main checkout's route.
+det="${work}/repo-detached"
+git worktree add -q --detach "${det}"
+cd "${det}"
+run_dev || fail "dev in a detached worktree must work"
+expect '^state=running url=https://repo-detached\.localhost pid=[0-9]+$'
+[[ "$(sed -n 3p "${cache}/repo-detached.pid")" == repo-detached ]] ||
+	fail "a detached worktree must record its own checkout name as its route"
+stop_stack repo-detached
+cd "${repo}"
+git worktree remove --force "${det}"
+git worktree prune
 
 # --- worktrunk unusable: the plain detached spawn, signalled as one process
 
