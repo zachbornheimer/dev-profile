@@ -32,6 +32,11 @@ cat >"${work}/bin/wt" <<'STUB'
 #!/usr/bin/env bash
 set -euo pipefail
 printf '%s\n' "$*" >>"${WT_LOG}"
+# STUB_WT_FAIL_FIRST=N: the first N copies fail, as when a serving source rewrites
+# its build output mid-copy; later ones succeed.
+if [[ -n "${STUB_WT_FAIL_FIRST:-}" && "$(wc -l <"${WT_LOG}")" -le "${STUB_WT_FAIL_FIRST}" ]]; then
+	exit 1
+fi
 exit "${STUB_WT_STATUS:-0}"
 STUB
 cat >"${work}/bin/composer" <<'STUB'
@@ -44,6 +49,8 @@ STUB
 chmod +x "${work}/bin/wt" "${work}/bin/composer"
 export WT_LOG="${wt_log}" COMPOSER_LOG="${composer_log}"
 export PATH="${work}/bin:${PATH}"
+# Retries must not wait the production time.
+export DEV_PROFILE_WORKTREE_COPY_RETRY_DELAY=0
 
 run_copy() { "${copy}" "$@" >"${work}/output.txt" 2>&1; }
 
@@ -125,19 +132,33 @@ expect 'composer dump-autoload failed: the copied vendor/ points at another chec
 
 # --- composer absent: the same advice, never a stack trace
 
+# The PATH holds only what the wrapper needs, linked in by name: a runner may
+# ship composer in /usr/bin, so trimming the system PATH would not make it absent.
 mkdir -p "${work}/bin-wt"
 cp "${work}/bin/wt" "${work}/bin-wt/wt"
+for tool in env bash git; do
+	ln -s "$(command -v "${tool}")" "${work}/bin-wt/${tool}"
+done
 reset_logs
-if ! PATH="${work}/bin-wt:/usr/bin:/bin" "${copy}" >"${work}/output.txt" 2>&1; then
+if ! PATH="${work}/bin-wt" "${copy}" >"${work}/output.txt" 2>&1; then
 	fail "a missing composer is advisory and must exit 0"
 fi
 expect 'composer is not installed: the copied vendor/ points at another checkout; run: composer dump-autoload'
 [[ "$(lines "${work}/output.txt")" -eq 1 ]] || fail "a missing composer must be one clear line"
 
-# --- the copy's own failure is not advisory: a start without the files is wrong
+# --- a copy that fails once (a serving source rewrote its build output) is retried
+
+reset_logs
+STUB_WT_FAIL_FIRST=2 run_copy || fail "a copy that succeeds on the third pass must exit 0"
+[[ "$(grep -cxF 'step copy-ignored' "${wt_log}")" -eq 3 ]] || fail "the copy must be retried until it lands"
+repaired
+
+# --- the copy's own failure is not advisory: retried, then a start without the files fails
 
 reset_logs
 if STUB_WT_STATUS=1 run_copy; then fail "a failed copy must fail the post-start step"; fi
+[[ "$(grep -cxF 'step copy-ignored' "${wt_log}")" -eq 3 ]] || fail "a failing copy must stop after three passes"
+expect 'the copy failed 3 times; run: wt step copy-ignored'
 not_repaired
 
 echo "worktree-copy fixture ok"
