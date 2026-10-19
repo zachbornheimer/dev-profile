@@ -1,7 +1,7 @@
 amends "../../lib/Tool.pkl"
 
 doc =
-  "A dev server reads its port from $PORT and runs through `mise run dev`, which gives each checkout its own port and https://<name>.localhost URL behind Caddy; a hardcoded dev port literal added by the push fails it unless the same file also reads PORT from the environment. Only lines the push adds are judged, so existing literals never block an unrelated edit."
+  "A dev server reads its port from $PORT and runs through `mise run dev`, which gives each checkout its own port and https://<name>.localhost URL behind Caddy; a hardcoded dev port literal added by the push fails it unless the same file also reads PORT from the environment. Only the app's own server port is judged: a literal that is the fallback of an env read on its line, or a localhost address on a port the repo does not serve (Ollama, a memory API, a proxy), passes. Only lines the push adds are judged, so existing literals never block an unrelated edit."
 skipsLockfiles = true
 
 // Tests, fixtures and docs name ports on purpose.
@@ -25,6 +25,9 @@ local notAppCode: List<String> =
     "**/*.txt",
   )
 
+// git pathspecs that keep own_ports from learning a port out of a test or doc.
+local appCodeOnly: String = notAppCode.map((glob) -> "':(exclude,glob)\(glob)'").join(" ")
+
 on {
   ["pre-push"] {
     exclude = notAppCode
@@ -39,14 +42,38 @@ local hardcodedDevPort =
   # the environment may keep a literal as its fallback default.
   (($#)) || exit 0
 
-  # One ERE per line: host:port, a listen address string, .listen(<port>), PORT=<port>.
-  literal_ports() {
+  # Where the app's own server binds. One ERE per line: a bind address, a listen
+  # address string, .listen(<port>), PORT=<port>. Always judged.
+  listen_sites() {
     cat <<'EOF'
-  (127\.0\.0\.1|localhost|0\.0\.0\.0):[0-9]{4,5}([^0-9]|$)
+  0\.0\.0\.0:[0-9]{4,5}([^0-9]|$)
   ["'`]:[0-9]{4,5}["'`]
   \.listen\([[:space:]]*[0-9]{4,5}
   (^|[^[:alnum:]_])PORT=["']?[0-9]{2,5}
   EOF
+  }
+
+  # A client-side address. It is the app's own only when the repo serves that
+  # port; otherwise it names another service (Ollama, a memory API, a proxy).
+  client_address() {
+    echo '(127\.0\.0\.1|localhost):[0-9]{4,5}([^0-9]|$)'
+  }
+
+  # An env read whose fallback is on the same line: the literal is configurable.
+  env_fallbacks() {
+    cat <<'EOF'
+  \$\{[A-Za-z_][A-Za-z0-9_]*:?[-=]
+  [Ee][Nn][Vv](\.[A-Za-z_][A-Za-z0-9_]*|\[["'][A-Za-z_][A-Za-z0-9_]*["']\])[[:space:]]*(\?\?|\|\|)
+  ENV\{[A-Za-z_][A-Za-z0-9_]*\}[[:space:]]*(//|\|\|)
+  [Gg]etenv\([^)]*\)[[:space:]]*(\?\?|\?:|\|\||or[[:space:]])
+  [A-Za-z_.]*[Ee][Nn][Vv][A-Za-z_.]*\([[:space:]]*["'][A-Z][A-Z0-9_]*["'][[:space:]]*,
+  EOF
+  }
+
+  # Ports most dev servers default to: a URL on one is taken as the app's own
+  # even when no listen site in the repo names it.
+  conventional_dev_ports() {
+    printf '%s\n' 3000 3001 4000 4200 4321 5000 5173 5174 8000 8080 8081 8888 9000
   }
 
   # A compose file's published port, "<host>:<container>".
@@ -112,20 +139,51 @@ local hardcodedDevPort =
     done < <(ranges) | sort -t: -k1,1n -u
   }
 
-  hits_in() {
-    local file="$1" added
-    added="$(added_lines "${file}")"
-    [[ -n "${added}" ]] || return 0
-    grep -E -e "^[0-9]+:.*($(literal_ports | paste -sd'|' -))" <<<"${added}" || true
-    case "${file##*/}" in
-      *compose*.yml | *compose*.yaml)
-        while IFS= read -r l; do
-          grep -qE -e "$(compose_ports)" <<<"${l#*:}" && echo "${l}"
-        done <<<"${added}" || true
-        ;;
-    esac
+  # Every port this repo's own server takes: the conventional dev ports plus
+  # each port a tracked, non-test file listens on or publishes from compose.
+  repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+  own_ports() {
+    conventional_dev_ports
+    {
+      git -C "${repo_root}" grep -hIoE -e "$(listen_sites | paste -sd'|' -)" -e '--port[= ][0-9]{4,5}' \
+        -- . \#(appCodeOnly) || true
+    } | grep -oE '[0-9]{4,5}' || true
+    {
+      git -C "${repo_root}" grep -hIoE -e "$(compose_ports)" -- '*compose*.yml' '*compose*.yaml' \
+        \#(appCodeOnly) || true
+    } | grep -oE '[0-9]{4,5}:' | tr -d ':' || true
   }
 
+  # Lines (stdin, "<line>:<text>") naming localhost:<port> where the repo serves <port>.
+  served_addresses() {
+    local l
+    while IFS= read -r l; do
+      if grep -oE -e "$(client_address)" <<<"${l#*:}" | grep -oE '[0-9]{4,5}' | grep -qxFf <(echo "${own}"); then
+        echo "${l}"
+      fi
+    done < <(grep -E -e "^[0-9]+:.*($(client_address))" || true)
+  }
+
+  hits_in() {
+    local file="$1" added candidates
+    added="$(added_lines "${file}")"
+    [[ -n "${added}" ]] || return 0
+    candidates="$(grep -vE -e "^[0-9]+:.*($(env_fallbacks | paste -sd'|' -))" <<<"${added}" || true)"
+    [[ -n "${candidates}" ]] || return 0
+    {
+      grep -E -e "^[0-9]+:.*($(listen_sites | paste -sd'|' -))" <<<"${candidates}" || true
+      served_addresses <<<"${candidates}"
+      case "${file##*/}" in
+        *compose*.yml | *compose*.yaml)
+          while IFS= read -r l; do
+            grep -qE -e "$(compose_ports)" <<<"${l#*:}" && echo "${l}"
+          done <<<"${candidates}" || true
+          ;;
+      esac
+    } | sort -t: -k1,1n -u
+  }
+
+  own="$(own_ports)"
   status=0
   for file in "$@"; do
     [[ -f "${file}" ]] || continue

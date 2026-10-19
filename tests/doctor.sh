@@ -18,7 +18,8 @@ jq empty "$out/profile.json" || fail profile.json
 luac -p "$out/conform.lua" || fail conform.lua
 zsh -n "$out/shell.zsh" || fail shell.zsh
 for f in "$out"/bin/*; do bash -n "$f" || fail "${f##*/}"; done
-shellcheck "$out"/bin/* tests/*.sh || fail shellcheck
+# Same bar the profile sets for every repo's push: warnings block, info tips do not.
+shellcheck --severity=warning "$out"/bin/* tests/*.sh || fail shellcheck
 "$out/bin/dev-profile-git-config-hooks" || fail "git 2.54+ (config-based hooks) does not resolve"
 # Every generated script runs under pipefail: a reader that stops early (head)
 # kills its writer with SIGPIPE and the script with exit 141.
@@ -46,11 +47,13 @@ bash tests/sync-fixture.sh "$out" || fail "sync fixture"
 bash tests/done-fixture.sh "$out" || fail "done fixture"
 bash tests/retire-fixture.sh "$out" || fail "retire fixture"
 bash tests/shellcheck-fix-fixture.sh "$out" || fail "shellcheck-fix fixture"
+bash tests/shellcheck-severity-fixture.sh "$out" || fail "shellcheck-severity fixture"
 bash tests/dev-family-fixture.sh "$out" || fail "dev-family fixture"
 bash tests/worktree-copy-fixture.sh "$out" || fail "worktree-copy fixture"
 bash tests/worktree-start-fixture.sh "$out" || fail "worktree-start fixture"
 bash tests/identity-guard-fixture.sh "$out" || fail "identity-guard fixture"
 bash tests/hardcoded-dev-port-fixture.sh "$out" || fail "hardcoded-dev-port fixture"
+bash tests/formatter-linter-agreement-fixture.sh "$out" || fail "formatter-linter-agreement fixture"
 bash tests/owned-files-fixture.sh "$out" || fail "owned-files fixture"
 bash tests/kernel-pins-fixture.sh "$out" || fail "kernel-pins fixture"
 bash tests/retire-legacy-hooks-fixture.sh "$out" || fail "retire-legacy-hooks fixture"

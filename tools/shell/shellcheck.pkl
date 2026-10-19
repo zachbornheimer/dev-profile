@@ -1,14 +1,14 @@
 amends "../../lib/Tool.pkl"
 
 doc =
-  "Shell static analysis: at commit, applies only the fixes shellcheck is sure of (quoting a lone variable); at push, reports everything."
+  "Shell static analysis: at commit, applies only the fixes shellcheck is sure of (quoting a lone variable); at push, blocks on warnings and errors (info and style tips, such as SC2016 on an intentional single-quoted script, do not block)."
 pin { id = "shellcheck"; version = "0.11.0" }
 on {
   ["pre-commit"] {
     types = List("bash", "sh")
     fix = "dev-profile-shellcheck-fix {{files}}"
   }
-  ["pre-push"] = module.builtins.shellcheck
+  ["pre-push"] = (module.builtins.shellcheck) { check = "shellcheck --severity=warning {{files}}" }
 }
 
 local shellcheckFix =

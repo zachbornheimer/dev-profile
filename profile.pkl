@@ -36,7 +36,14 @@ exclude = new Listing {
 /// scanners still read them. `*.lock` covers yarn, composer, Cargo, uv, poetry,
 /// Gemfile and mise.
 local lockfileGlobs: List<String> =
-  List("**/pnpm-lock.yaml", "**/package-lock.json", "**/go.sum", "**/bun.lock*", "**/*.lock")
+  List(
+    "**/aube-lock.yaml",
+    "**/pnpm-lock.yaml",
+    "**/package-lock.json",
+    "**/go.sum",
+    "**/bun.lock*",
+    "**/*.lock",
+  )
 
 lockfiles: List<String> = lockfileGlobs
 
