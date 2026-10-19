@@ -1,106 +1,130 @@
 amends "../../lib/Tool.pkl"
 
 doc =
-  "Applies the profile's fixers to the files a push uploads, in a scratch checkout, and fast-forwards the branch over one `style: apply profile fixes` commit. Files with uncommitted edits are left alone. Run by dev-profile-push before a push and by the pre-push fallback; no hook step of its own."
+  "Applies the profile's fixers to the files of the commits a push uploads, in a scratch checkout, and fast-forwards the branch over one `style: apply profile fixes` commit. Files with uncommitted edits are left alone. Run by dev-profile-push before a push and by the pre-push fallback; no hook step of its own."
 
 local autofix =
   #"""
   \#(bash)
-  # Fix what the pushed commits left unfixed: run the profile's fixers (hk fix) on the files the
-  # checked-out branch is about to upload and commit the result as one style commit. Fixers
-  # normally run at commit, so history made without the hooks (HK=0, an older repo, an agent)
-  # reaches push unfixed. The ranges come from SAH_PUSH_REFS, or HEAD against the default branch.
-  # Output: one line per outcome, nothing when there is nothing to fix.
+  # Fix what the pushed commits left unfixed: run the profile's fixers (hk fix) on the files of the
+  # commits the checked-out branch is about to upload, and commit the result as one style commit.
+  # Fixers normally run at commit, so history made without the hooks (HK=0, an older repo, an
+  # agent) reaches push unfixed. Output: one line per outcome, nothing when there is nothing to fix.
   #   fixed 31 files → 4f2a9c1 style: apply profile fixes
   #   left alone (uncommitted edits): app.py util.py
+  #
+  # Which files: those in commits no remote has (git log --not --remotes), so pushing a clone to a
+  # fork touches only your own commits; and only commits the commit hooks did not already see (the
+  # dev-profile-hooked note, tools/repo/commit-marker.pkl), so a push of hooked commits costs a few
+  # git calls, not a fixer run. A repo with no remote-tracking refs at all is a first push:
+  # everything goes up, so everything unhooked is fixed. Only a push of the checked-out branch to its own
+  # name is fixed (SAH_PUSH_REFS names the pushed refs); any other ref is left as it is.
+  #   DEV_PROFILE_AUTOFIX=0   never fix (automated pushes: dev-profile-sync, dev-profile-done)
   #
   # The work happens in a scratch checkout of HEAD, so the working tree and index are never
   # written: the branch only fast-forwards, which git refuses to do over a conflicting edit.
   # Files the scratch checkout lacks (node_modules, vendor/) are not available to the fixers;
   # what they cannot fix is left for the push checks to report.
-  [[ "${HK:-1}" != 0 ]] || exit 0
+  [[ "${HK:-1}" != 0 && "${DEV_PROFILE_AUTOFIX:-1}" != 0 ]] || exit 0
   unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_PREFIX
   root="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
   cd "${root}"
+  \#(gitOperation)
+  \#(checkedOutPushes)
+  \#(countFiles)
+  \#(hookedNotes)
   git symbolic-ref -q HEAD >/dev/null || exit 0
-  for operation in MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD rebase-merge rebase-apply; do
-    if [[ -e "$(git rev-parse --git-path "${operation}")" ]]; then exit 0; fi
-  done
-  \#(pushRanges)
+  if operation_in_progress; then exit 0; fi
+  checked_out="$(git rev-parse HEAD)"
+  pushes="$(checked_out_pushes)"
+  grep -qxF -- "${checked_out}" <<<"${pushes}" || exit 0
 
   message="style: apply profile fixes"
   work="$(mktemp -d)"
-  # Beside the checkout, under .worktrees/: tools that look for a shared config in parent
-  # directories find the same one they find for the checkout itself.
-  parent="${root%/*}"
-  if [[ "${parent##*/}" != .worktrees ]]; then parent="${parent}/.worktrees"; fi
-  scratch="${parent}/${root##*/}-autofix-$$"
+  # A sibling of the checkout, not a subdirectory: configs that reach their parent ("extends":
+  # "../dprint.jsonc") and tools that look for a shared one there resolve exactly as they do for
+  # the checkout itself, and mise's trust for the parent directory covers it.
+  scratch="${root%/*}/.${root##*/}-autofix-$$"
   cleanup() {
     git worktree remove --force "${scratch}" >/dev/null 2>&1 || true
-    rmdir "${parent}" 2>/dev/null || true
     rm -rf "${work}"
   }
   trap cleanup EXIT
 
-  # Tracked files in checkout $1 that differ from HEAD in the index or the working tree, NUL-separated.
+  # Tracked files in checkout $1 that differ from HEAD in the index or the working tree, one per line.
+  # (A name holding a newline is never fixed: it cannot be matched line by line.)
   uncommitted() {
-    { git -C "$1" diff -z --name-only HEAD -- && git -C "$1" diff -z --name-only --cached HEAD --; } | sort -z -u
+    { git -C "$1" diff -z --name-only HEAD -- && git -C "$1" diff -z --name-only --cached HEAD --; } | tr '\0' '\n' | sort -u
+  }
+  # Lines of $1 that are (or, with -v, are not) lines of $2. An empty $2 matches nothing.
+  lines_in() { # [-v] <file> <list>
+    local invert=()
+    if [[ "$1" == -v ]]; then invert=(-v); shift; fi
+    if [[ -s "$2" ]]; then
+      grep -xF ${invert[@]+"${invert[@]}"} -f "$2" "$1" || true
+    elif ((${#invert[@]})); then
+      cat "$1"
+    fi
   }
 
-  checked_out="$(git rev-parse HEAD)"
-  : >"${work}/pushed"
-  while read -r base tip; do
-    [[ "$(git rev-parse -q --verify "${tip}^{commit}")" == "${checked_out}" ]] || continue
-    git diff -z --name-only --diff-filter=ACMR "${base}" "${tip}" -- >>"${work}/pushed"
-  done < <(ranges)
-  sort -z -u -o "${work}/pushed" "${work}/pushed"
+  # The commits to fix: those no remote has and the commit hooks did not already see.
+  remote_refs="$(git for-each-ref --count=1 --format=x refs/remotes 2>/dev/null)"
+  if [[ -n "${remote_refs}" ]]; then
+    git rev-list "${checked_out}" --not --remotes >"${work}/unpushed"
+  else
+    git rev-list "${checked_out}" >"${work}/unpushed"
+  fi
+  { git notes --ref="${hooked_notes}" list 2>/dev/null || true; } | cut -d' ' -f2 >"${work}/hooked"
+  lines_in -v "${work}/unpushed" "${work}/hooked" >"${work}/unhooked"
+  [[ -s "${work}/unhooked" ]] || exit 0
+  if [[ -n "${remote_refs}" ]]; then
+    git log --stdin --no-walk=unsorted -z --name-only --format= --diff-filter=ACMR <"${work}/unhooked" | tr '\0' '\n' | sort -u >"${work}/pushed"
+  else
+    git ls-files -z | tr '\0' '\n' >"${work}/pushed"
+  fi
+  git ls-files -z | tr '\0' '\n' >"${work}/tracked"
+  lines_in "${work}/pushed" "${work}/tracked" >"${work}/files"
 
   # Uncommitted work stays out of the fixers' input.
   uncommitted . >"${work}/dirty"
-  : >"${work}/targets"
-  left_alone=()
-  while IFS= read -r -d '' file; do
-    [[ -f "${file}" ]] || continue
-    if grep -qzxF -- "${file}" "${work}/dirty"; then
-      left_alone+=("${file}")
-    else
-      printf '%s\0' "${file}" >>"${work}/targets"
-    fi
-  done <"${work}/pushed"
+  lines_in "${work}/files" "${work}/dirty" >"${work}/left-alone"
+  lines_in -v "${work}/files" "${work}/dirty" >"${work}/targets"
 
   report_left_alone() {
-    if ((${#left_alone[@]})); then echo "left alone (uncommitted edits): ${left_alone[*]}" >&2; fi
+    if [[ -s "${work}/left-alone" ]]; then
+      echo "left alone (uncommitted edits): $(paste -sd' ' "${work}/left-alone")" >&2
+    fi
   }
   if [[ ! -s "${work}/targets" ]]; then
     report_left_alone
     exit 0
   fi
 
-  mkdir -p "${parent}"
   git worktree add -q --detach "${scratch}" HEAD >/dev/null 2>&1 || exit 0
   hk_command=(hk)
   command -v hk >/dev/null || hk_command=(mise x hk -- hk)
+  tr '\n' '\0' <"${work}/targets" >"${work}/targets0"
   # A fixer that fails leaves its files for the push checks to judge.
-  (cd "${scratch}" && "${hk_command[@]}" fix --no-stage --files0-from "${work}/targets") >"${work}/hk.log" 2>&1 || true
+  (cd "${scratch}" && "${hk_command[@]}" fix --no-stage --files0-from "${work}/targets0") >"${work}/hk.log" 2>&1 || true
 
   # A fixer that reached an uncommitted file (go mod tidy, a package-wide lint) is undone there.
-  fixed=()
   uncommitted "${scratch}" >"${work}/changed"
-  while IFS= read -r -d '' file; do
-    if grep -qzxF -- "${file}" "${work}/dirty"; then
-      git -C "${scratch}" checkout -q HEAD -- "${file}"
-      left_alone+=("${file}")
-    else
-      fixed+=("${file}")
-    fi
-  done <"${work}/changed"
+  lines_in "${work}/changed" "${work}/dirty" >"${work}/reached"
+  if [[ -s "${work}/reached" ]]; then
+    reverted=()
+    while IFS= read -r file; do reverted+=("${file}"); done <"${work}/reached"
+    git -C "${scratch}" checkout -q HEAD -- "${reverted[@]}"
+    cat "${work}/reached" >>"${work}/left-alone"
+    sort -u -o "${work}/left-alone" "${work}/left-alone"
+  fi
   report_left_alone
-  ((${#fixed[@]})) || exit 0
+  lines_in -v "${work}/changed" "${work}/dirty" >"${work}/fixed"
+  [[ -s "${work}/fixed" ]] || exit 0
 
-  # The commit hooks run as usual, in the scratch checkout. The style commit may land on the
-  # default branch: the push is already going there, and this is a mechanical fix, not new work.
-  git -C "${scratch}" add -- "${fixed[@]}"
-  if ! DEV_PROFILE_ALLOW_DEFAULT_BRANCH_COMMIT=1 git -C "${scratch}" commit -q -m "${message}" >"${work}/commit.log" 2>&1; then
+  # The fixers just ran and the message is fixed, so the scratch commit skips the commit hooks
+  # (HK=0, the switch every hook command honors): they would run every fixer again.
+  git -C "${scratch}" add -u
+  if ! HK=0 git -C "${scratch}" commit -q -m "${message}" >"${work}/commit.log" 2>&1; then
     echo "fixes not committed (commit refused: $(sed -n '/./h;${x;p;}' "${work}/commit.log"))" >&2
     exit 0
   fi
@@ -110,9 +134,8 @@ local autofix =
     echo "fixes not applied (the branch moved or an edit conflicts: $(sed -n '/./h;${x;p;}' "${work}/merge.log"))" >&2
     exit 0
   fi
-  noun="files"
-  if ((count == 1)); then noun="file"; fi
-  echo "fixed ${count} ${noun} → $(git rev-parse --short HEAD) ${message}"
+  mark_hooked HEAD
+  echo "fixed $(count_files "${count}") → $(git rev-parse --short HEAD) ${message}"
   """#
 
 scripts {

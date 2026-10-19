@@ -15,8 +15,9 @@ then re-runs `mise bootstrap` on the generated config. That second pass installs
 the tools and links hk, dprint, Worktrunk, mise, and Conform configs.
 
 Bootstrap also writes global git hooks into `~/.gitconfig` (`hook.hk-*`):
-`hk run pre-commit --staged`, `hk run pre-push`, and `hk run commit-msg`. Git
-2.54 or newer runs them in every repo. An SAH bootstrap appends
+`dev-profile-pre-commit` (hk's commit fixers, plus a mark on the commit),
+`dev-profile-post-commit`, `dev-profile-pre-push` (hk's push checks, plus the fixer
+fallback), and `hk run commit-msg`. Git 2.54 or newer runs them in every repo. An SAH bootstrap appends
 `includeIf worktree:<SAH root>/` after those keys and overrides them only for
 checkouts under that root. Personal bootstrap updates an existing hook key in
 place, so a later `--update` does not move that include.
@@ -59,12 +60,27 @@ mise run rollback    # restore the backed-up originals
 | ----------------------- | ---------------- | --------------------------- | ------------------------------------------------------------------------------------------- |
 | save (Neovim)           | the buffer       | format                      | dprint, from the language's `dprint` binding                                                |
 | `git commit`            | staged           | fix, restaged; guards block | every `pre-commit` fixer, dprint last, plus `no-commit-to-branch` and `conventional-commit` |
-| `git push`              | the pushed range | check only                  | every tool's `pre-push` entry                                                               |
+| `git push`              | the pushed range | fix, committed; then check  | the commit fixers as one `style: apply profile fixes` commit, then every `pre-push` entry   |
 | `hk fix` / `hk check`   | modified         | fix / check                 | the commit fixers, without the default-branch commit guard                                  |
 | `hk check --slow --all` | whole tree       | check                       | the commit fixers and every `pre-push` check                                                |
 | `mise run lint`         | whole tree       | check                       | `hk check --all --slow --profile lint` (commit guards off) plus the suppressions report     |
 | `mise run test`, `scan` | whole tree       | native tools                | the contract adapters in `lib/contract.pkl`, not hk                                         |
 | `mise run ci`           | whole tree       | all of the above            | `lint`, then `test`, then `scan`                                                            |
+
+A push never stops for a problem a tool can fix. From zsh, `git push` runs
+`dev-profile-push`: it fixes the pushed files in a throwaway checkout, commits the
+result as `style: apply profile fixes`, fast-forwards the branch, then pushes, all
+in one command. Uncommitted work is never touched; a file with local edits is
+skipped and named. A raw push that skips the zsh function (scripts, agents) gets
+the same fix commit from the pre-push hook, which then asks for the push to be
+run again, because a hook cannot add commits to a push already in progress.
+
+Only the checked-out branch pushed to its own name is fixed, and only commits no
+remote has and the commit hooks have not seen: a commit made through the hooks
+carries a `dev-profile-hooked` git note, so pushing it costs a few git calls, not a
+fixer run. A commit made with `HK=0`, `--no-verify`, or before the profile has no
+note and is fixed at push. `DEV_PROFILE_AUTOFIX=0` turns the fixing off for one push
+(`dev-profile-sync` and `dev-profile-done` set it).
 
 A `fix` rewrites what it safely can and never blocks: push judges the rest. A
 `check` may block. Per-file push checks run on the files changed since the

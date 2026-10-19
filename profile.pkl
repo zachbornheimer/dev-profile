@@ -218,7 +218,10 @@ toolPins: Listing<types.Pin> = new {
 /// Global git hooks (git 2.54+ config-based hooks), written by bootstrap.
 /// No `--from-hook`: that mode skips every repo without its own hk.pkl.
 gitHooks: Mapping<String, String> = new {
-  ["pre-commit"] = "hk run pre-commit --staged"
+  // hk's commit fixers, plus the token that lets a push skip commits made through the hooks
+  // (tools/repo/commit-marker.pkl).
+  ["pre-commit"] = "\(installPath)/bin/dev-profile-pre-commit"
+  ["post-commit"] = "\(installPath)/bin/dev-profile-post-commit"
   // hk's push checks, plus the fixer fallback for a raw `git push` (tools/repo/push-autofix.pkl).
   ["pre-push"] = "\(installPath)/bin/dev-profile-pre-push"
   // This profile owns the unconditional global hook. SAH overrides it under

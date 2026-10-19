@@ -147,7 +147,7 @@ local syncScript =
     local commit="$1" branch="$2"
     shift 2
     [[ "${dry_run}" == false ]] || return 0
-    git push --quiet "$@" origin "${commit}:refs/heads/${branch}"
+    DEV_PROFILE_AUTOFIX=0 git push --quiet "$@" origin "${commit}:refs/heads/${branch}"
   }
 
   # send <commit> <branch> <verb>: push under the branch's own name, never

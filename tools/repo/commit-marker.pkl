@@ -1,0 +1,34 @@
+amends "../../lib/Tool.pkl"
+
+doc =
+  "Marks a commit as made through the commit hooks, so a push skips fixing it: the fixers already ran on exactly its tree. dev-profile-pre-commit runs hk's pre-commit and leaves a token naming the tree it passed; dev-profile-post-commit turns a matching token into a note on the new commit. A commit with no note (HK=0, --no-verify, older history) is fixed at push."
+
+local preCommit =
+  #"""
+  \#(bash)
+  # Git's pre-commit hook command: hk's commit fixers and guards on the staged files. When they pass,
+  # record the tree they passed on; dev-profile-post-commit marks the commit made from that tree.
+  code=0
+  hk run pre-commit --staged "$@" || code=$?
+  if ((code == 0)); then
+    git write-tree >"$(git rev-parse --git-path dev-profile-hooked-tree)" 2>/dev/null || true
+  fi
+  exit "${code}"
+  """#
+
+local postCommit =
+  #"""
+  \#(bash)
+  # Git's post-commit hook command: mark the new commit when pre-commit passed on its exact tree.
+  # A commit made with --no-verify never ran pre-commit, so it has no token and stays unmarked.
+  \#(hookedNotes)
+  token="$(git rev-parse --git-path dev-profile-hooked-tree)"
+  [[ -f "${token}" ]] || exit 0
+  if [[ "$(cat "${token}")" == "$(git rev-parse 'HEAD^{tree}')" ]]; then mark_hooked HEAD; fi
+  rm -f "${token}"
+  """#
+
+scripts {
+  ["dev-profile-pre-commit"] = preCommit
+  ["dev-profile-post-commit"] = postCommit
+}

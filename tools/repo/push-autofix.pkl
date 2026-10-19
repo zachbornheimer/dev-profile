@@ -1,19 +1,62 @@
 amends "../../lib/Tool.pkl"
 
 doc =
-  "A push never stops for a problem a tool can fix. dev-profile-push fixes the pushed commits and pushes in one command; dev-profile-pre-push is the git hook that does the same for a raw `git push`, which git cannot extend mid-push: it commits the fixes and asks for the same push again."
+  "A push never stops for a problem a tool can fix. dev-profile-push fixes the pushed commits and pushes in one command; dev-profile-pre-push is the git hook that does the same for a raw `git push`, which git cannot extend mid-push: it commits the fixes and asks for the same push again. dev-profile-push-remote names the remote a push targets."
 
-// A first push has no <remote>/HEAD. Setting it locally needs a remote that has a default branch.
+// <remote>/HEAD is what hk and the push judges diff from; git prints "fatal: ref ... is not a
+// symbolic ref" while it is missing. It is set once from the remote. A remote with no default
+// branch to give (empty, or HEAD unborn) is marked, so no later push pays for the network call.
 local remoteHead =
   #"""
-  # Point <remote>/HEAD at the remote's default branch, quietly: hk and the push judges
-  # diff from it, and git prints "fatal: ref ... is not a symbolic ref" while it is missing.
-  # An empty remote has no default branch yet; the call fails and the caller copes.
-  set_remote_head() { # <remote>
-    git config --get "remote.$1.url" >/dev/null || return 0
-    git symbolic-ref -q "refs/remotes/$1/HEAD" >/dev/null && return 0
-    git remote set-head "$1" -a >/dev/null 2>&1 || true
+  remote_head_resolves() { # <remote>
+    git rev-parse -q --verify "refs/remotes/$1/HEAD" >/dev/null 2>&1
   }
+  set_remote_head() { # <remote>
+    remote_head_resolves "$1" && return 0
+    [[ "$(git config --get "remote.$1.devProfileHeadTried" || true)" != true ]] || return 0
+    git remote set-head "$1" -a >/dev/null 2>&1 || git config "remote.$1.devProfileHeadTried" true
+  }
+  """#
+
+local pushRemoteOf =
+  #"""
+  \#(bash)
+  # The remote a `git push` with these arguments targets, by its configured name. Prints nothing
+  # when the target is not a configured remote (an unknown URL, a typo): the caller then does not
+  # guess, so no other remote's history is ever diffed against.
+  #   dev-profile-push-remote [git push args...]
+  \#(pushRemote)
+
+  # The repository is the first positional argument, or --repo=<repository> (the argument wins).
+  positional="" flagged="" pending=""
+  for arg in "$@"; do
+    if [[ -n "${pending}" ]]; then
+      if [[ "${pending}" == --repo ]]; then flagged="${arg}"; fi
+      pending=""
+      continue
+    fi
+    case "${arg}" in
+    --repo | -o | --push-option | --receive-pack | --exec) pending="${arg}" ;;
+    --repo=*) flagged="${arg#--repo=}" ;;
+    -*) ;;
+    *) if [[ -z "${positional}" ]]; then positional="${arg}"; fi ;;
+    esac
+  done
+  repo="${positional:-${flagged}}"
+
+  # No repository named: the branch's own push remote, else origin.
+  if [[ -z "${repo}" ]]; then
+    branch="$(git symbolic-ref -q --short HEAD || true)"
+    for key in "branch.${branch}.pushRemote" remote.pushDefault "branch.${branch}.remote"; do
+      value="$(git config --get "${key}" || true)"
+      if [[ -n "${value}" && "${value}" != . ]]; then
+        repo="${value}"
+        break
+      fi
+    done
+    repo="${repo:-origin}"
+  fi
+  remote_named "${repo}"
   """#
 
 local push =
@@ -29,30 +72,6 @@ local push =
 
   if [[ "${HK:-1}" == 0 ]]; then exec git push "$@"; fi
 
-  # The remote the push targets: the first non-flag argument when it names a remote, else the
-  # branch's own push remote.
-  push_remote_of() {
-    local arg skip=false
-    for arg in "$@"; do
-      if [[ "${skip}" == true ]]; then skip=false; continue; fi
-      case "${arg}" in
-      -o | --push-option | --receive-pack | --exec | --repo) skip=true ;;
-      -*) ;;
-      *)
-        if git config --get "remote.${arg}.url" >/dev/null; then echo "${arg}"; return; fi
-        break
-        ;;
-      esac
-    done
-    local branch key value
-    branch="$(git symbolic-ref -q --short HEAD || true)"
-    for key in "branch.${branch}.pushRemote" remote.pushDefault "branch.${branch}.remote"; do
-      value="$(git config --get "${key}" || true)"
-      if [[ -n "${value}" && "${value}" != . ]]; then echo "${value}"; return; fi
-    done
-    echo origin
-  }
-
   # What the push would upload, in pre-push's stdin format ("<local ref> <local sha> <remote ref>
   # <remote sha>"), read off a dry run: the same refs git itself resolves from the arguments.
   pushed_refs() {
@@ -63,7 +82,7 @@ local push =
     git push --porcelain --dry-run --no-verify ${args[@]+"${args[@]}"} 2>/dev/null | while IFS=$'\t' read -r flag spec summary; do
       case "${flag}" in " " | "+" | "*") ;; *) continue ;; esac
       from="${spec%%:*}"
-      [[ "${from}" == refs/heads/* ]] || continue
+      [[ "${from}" == refs/heads/* || "${from}" == HEAD ]] || continue
       lsha="$(git rev-parse -q --verify "${from}^{commit}")" || continue
       rsha="${zeros}"
       if [[ "${flag}" != "*" ]]; then
@@ -74,19 +93,21 @@ local push =
     done || true
   }
 
-  remote="$(push_remote_of "$@")"
+  remote="$("${here}/dev-profile-push-remote" "$@")"
   refs="$(mktemp)"
   trap 'rm -f "${refs}"' EXIT
-  pushed_refs "$@" >"${refs}"
 
-  if [[ -s "${refs}" ]]; then
-    # A failed fixer pass must not stop the push; the pre-push checks still judge it.
-    SAH_PUSH_REFS="${refs}" DEV_PROFILE_PUSH_REMOTE="${remote}" "${here}/dev-profile-autofix" || true
+  if [[ -n "${remote}" && "${DEV_PROFILE_AUTOFIX:-1}" != 0 ]]; then
+    pushed_refs "$@" >"${refs}"
+    if [[ -s "${refs}" ]]; then
+      # A failed fixer pass must not stop the push; the pre-push checks still judge it.
+      SAH_PUSH_REFS="${refs}" DEV_PROFILE_PUSH_REMOTE="${remote}" "${here}/dev-profile-autofix" || true
+    fi
   fi
 
   code=0
   DEV_PROFILE_AUTOFIXED=1 git push "$@" || code=$?
-  if ((code == 0)); then set_remote_head "${remote}"; fi
+  if ((code == 0)) && [[ -n "${remote}" ]]; then set_remote_head "${remote}"; fi
   exit "${code}"
   """#
 
@@ -97,47 +118,57 @@ local prePush =
   #   dev-profile-pre-push <remote> <url>   (pushed refs on stdin)
   # A hook cannot add commits to the push in progress. When the checks fail and the fixers change
   # something, the fixes are committed and the push stops with one line: run the same push again.
+  #   DEV_PROFILE_AUTOFIX=0   leave the fixing out (automated pushes: dev-profile-sync, dev-profile-done)
   \#(remoteHead)
+  \#(pushRemote)
+  \#(countFiles)
   here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 
-  remote="${1:-origin}"
   refs="$(mktemp)"
   cat >"${refs}"
-  export SAH_PUSH_REFS="${refs}" DEV_PROFILE_PUSH_REMOTE="${remote}"
+  remote="$(remote_named "${1:-}")"
+  export SAH_PUSH_REFS="${refs}" DEV_PROFILE_PUSH_REMOTE="${remote:-origin}"
 
-  # hk diffs from <remote>/HEAD. A first push to an empty remote has none to set, so give hk a
-  # stand-in at the pushed branch for this run only: its absence makes hk print a git fatal.
+  # hk diffs from <remote>/HEAD. Take it from the remote once; a first push to an empty remote has
+  # none to take, so give hk a stand-in at the pushed branch for this run only.
   head_ref="refs/remotes/${remote}/HEAD"
+  previous_target=""
   stand_in=false
   cleanup() {
     rm -f "${refs}"
-    if [[ "${stand_in}" == true ]]; then git symbolic-ref --delete "${head_ref}" >/dev/null 2>&1 || true; fi
+    if [[ "${stand_in}" != true ]]; then return 0; fi
+    git symbolic-ref --delete "${head_ref}" >/dev/null 2>&1 || true
+    if [[ -n "${previous_target}" ]]; then git symbolic-ref "${head_ref}" "${previous_target}"; fi
   }
   trap cleanup EXIT
-  set_remote_head "${remote}"
-  if git config --get "remote.${remote}.url" >/dev/null && ! git symbolic-ref -q "${head_ref}" >/dev/null; then
-    read -r _lref _lsha remote_ref _rsha <"${refs}" || true
-    if [[ "${remote_ref:-}" == refs/heads/* ]]; then
-      git symbolic-ref "${head_ref}" "refs/remotes/${remote}/${remote_ref#refs/heads/}" && stand_in=true
+  if [[ -n "${remote}" ]] && ! remote_head_resolves "${remote}"; then
+    if [[ -n "$(git for-each-ref --count=1 --format=x "refs/remotes/${remote}/" 2>/dev/null)" ]]; then
+      set_remote_head "${remote}"
+    fi
+    if ! remote_head_resolves "${remote}"; then
+      read -r _lref _lsha remote_ref _rsha <"${refs}" || true
+      if [[ "${remote_ref:-}" == refs/heads/* ]]; then
+        previous_target="$(git symbolic-ref -q "${head_ref}" || true)"
+        git symbolic-ref "${head_ref}" "refs/remotes/${remote}/${remote_ref#refs/heads/}" && stand_in=true
+      fi
     fi
   fi
 
   code=0
   hk run pre-push "$@" <"${refs}" || code=$?
-  if ((code == 0)) || [[ -n "${DEV_PROFILE_AUTOFIXED:-}" ]]; then exit "${code}"; fi
+  if ((code == 0)) || [[ -n "${DEV_PROFILE_AUTOFIXED:-}" || -z "${remote}" ]]; then exit "${code}"; fi
 
   before="$(git rev-parse HEAD)"
   "${here}/dev-profile-autofix" >/dev/null || true
   after="$(git rev-parse HEAD)"
   if [[ "${before}" == "${after}" ]]; then exit "${code}"; fi
   count="$(git diff --name-only "${before}" "${after}" | wc -l | tr -d ' ')"
-  noun="files"
-  if ((count == 1)); then noun="file"; fi
-  echo "fixed ${count} ${noun} → $(git rev-parse --short HEAD); run the same push again" >&2
+  echo "fixed $(count_files "${count}") → $(git rev-parse --short HEAD); run the same push again" >&2
   exit 1
   """#
 
 scripts {
   ["dev-profile-push"] = push
   ["dev-profile-pre-push"] = prePush
+  ["dev-profile-push-remote"] = pushRemoteOf
 }

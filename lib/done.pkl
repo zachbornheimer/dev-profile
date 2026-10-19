@@ -54,7 +54,7 @@ local doneScript =
   done
 
   # This command parks unfinished work; hk would block snapshot commits and stale-branch pushes.
-  export HK=0
+  export HK=0 DEV_PROFILE_AUTOFIX=0
   export GIT_TERMINAL_PROMPT=0
   max_file_mb="${DEV_PROFILE_SYNC_MAX_FILE_MB:-50}"
   failures=0
