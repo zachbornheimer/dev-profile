@@ -97,36 +97,7 @@ local hardcodedDevPort =
   EOF
   }
 
-  # "<base> <tip>" per pushed ref. In a push, SAH_PUSH_REFS names the saved
-  # pre-push stdin ("<local ref> <local sha> <remote ref> <remote sha>"); a
-  # new branch, or a remote tip this clone lacks, diffs from the merge-base
-  # with the default branch. Outside a push: merge-base of HEAD.
-  empty_tree="$(git hash-object -t tree /dev/null)"
-  default_base() { # <tip>
-    local ref
-    for ref in origin/HEAD origin/main origin/master; do
-      if git rev-parse -q --verify "${ref}^{commit}" >/dev/null; then
-        git merge-base "$1" "${ref}" 2>/dev/null && return 0
-      fi
-    done
-    echo "${empty_tree}"
-  }
-  ranges() {
-    local all_zeros='^0+$' _lref local_sha _rref remote_sha
-    if [[ -n "${SAH_PUSH_REFS:-}" && -r "${SAH_PUSH_REFS}" ]]; then
-      while read -r _lref local_sha _rref remote_sha; do
-        [[ -n "${local_sha:-}" ]] || continue
-        if [[ "${local_sha}" =~ ${all_zeros} ]]; then continue; fi
-        if [[ "${remote_sha}" =~ ${all_zeros} ]] || ! git cat-file -e "${remote_sha}^{commit}" 2>/dev/null; then
-          echo "$(default_base "${local_sha}") ${local_sha}"
-        else
-          echo "${remote_sha} ${local_sha}"
-        fi
-      done <"${SAH_PUSH_REFS}"
-    else
-      echo "$(default_base HEAD) HEAD"
-    fi
-  }
+  \#(pushRanges)
   # "<line>:<text>" for each line the push adds to <file>.
   added_lines() { # <file>
     local base tip

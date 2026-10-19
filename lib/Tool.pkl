@@ -70,6 +70,9 @@ hidden bash: String = script.bash
 /// Script fragment for fixers that walk up from a staged file to a config or crate.
 hidden nearestUp: String = script.nearestUp
 
+/// Script fragment for steps that need the range each pushed ref uploads.
+hidden pushRanges: String = script.pushRanges
+
 /// Script fragment for Go steps that group staged files by package and module.
 hidden goPackages: String = script.goPackages
 
