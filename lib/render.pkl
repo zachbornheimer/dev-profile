@@ -27,18 +27,25 @@ local yamlRenderer = new YamlRenderer {}
 function yamlFile(value: Any): String = header("#") + "\n" + yamlRenderer.renderDocument(value)
 
 /// markdownlint defaults: dprint owns layout, so its formatting rules are off.
+/// tests/formatter-linter-agreement-fixture.sh holds the list to what dprint
+/// really emits: a rule belongs here only when dprint output can break it.
 markdownlint: Dynamic = new {
+  MD004 = false // list marker style: dprint alternates `-` and `*` to keep adjacent lists apart
   MD013 = false // line length
   MD033 = false // inline HTML
   MD041 = false // first line must be a heading
+  MD060 = false // table column style: dprint aligns the columns itself
 }
 
 /// yamllint defaults: dprint owns layout, so only real problems fail --strict.
 yamllint: Dynamic = new {
   `extends` = "default"
+  // Machine-written lockfiles are not hand-edited, so no repo needs its own override.
+  ignore = profile.lockfiles.filter((glob) -> glob.endsWith(".yaml") || glob.endsWith(".yml"))
   rules {
     ["line-length"] = "disable"
     ["document-start"] = "disable"
+    braces = "disable" // dprint writes `{ a: 1 }`, default yamllint wants `{a: 1}`
     truthy { ["check-keys"] = false }
     comments { ["min-spaces-from-content"] = 1 }
   }
