@@ -219,7 +219,8 @@ toolPins: Listing<types.Pin> = new {
 /// No `--from-hook`: that mode skips every repo without its own hk.pkl.
 gitHooks: Mapping<String, String> = new {
   ["pre-commit"] = "hk run pre-commit --staged"
-  ["pre-push"] = "hk run pre-push"
+  // hk's push checks, plus the fixer fallback for a raw `git push` (tools/repo/push-autofix.pkl).
+  ["pre-push"] = "\(installPath)/bin/dev-profile-pre-push"
   // This profile owns the unconditional global hook. SAH overrides it under
   // its root with includeIf worktree:, and does not rewrite this key.
   ["commit-msg"] = "hk run commit-msg"

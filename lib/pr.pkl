@@ -175,7 +175,7 @@ local publish =
     [[ "$(git rev-list --count "origin/${base}..HEAD")" -gt 0 ]] || skip "no commits ahead of ${base}"
   fi
 
-  git push --set-upstream origin "HEAD:refs/heads/${branch}"
+  \#(bin("dev-profile-push")) --set-upstream origin "HEAD:refs/heads/${branch}"
 
   if [[ -n "${url}" ]]; then
     echo "PR: ${url}"

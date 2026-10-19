@@ -418,4 +418,20 @@ shellZsh: String =
     for (tool, cmd in profile.shellInit) {
       "command -v \(tool) >/dev/null && eval \"$(\(cmd))\""
     }
+    gitFunction
   }.join("\n") + "\n"
+
+// `git push` runs the fixers on what it uploads first (dev-profile-push); any other
+// subcommand, or a profile not yet installed, is plain git.
+local gitFunction: String =
+  """
+  git() {
+    local push="\(profile.installPath)/bin/dev-profile-push"
+    if [[ "${1-}" == push && -x "${push}" ]]; then
+      shift
+      "${push}" "$@"
+    else
+      command git "$@"
+    fi
+  }
+  """
