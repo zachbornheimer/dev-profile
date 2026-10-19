@@ -18,7 +18,8 @@ jq empty "$out/profile.json" || fail profile.json
 luac -p "$out/conform.lua" || fail conform.lua
 zsh -n "$out/shell.zsh" || fail shell.zsh
 for f in "$out"/bin/*; do bash -n "$f" || fail "${f##*/}"; done
-shellcheck "$out"/bin/* tests/*.sh || fail shellcheck
+# Same bar the profile sets for every repo's push: warnings block, info tips do not.
+shellcheck --severity=warning "$out"/bin/* tests/*.sh || fail shellcheck
 "$out/bin/dev-profile-git-config-hooks" || fail "git 2.54+ (config-based hooks) does not resolve"
 # Every generated script runs under pipefail: a reader that stops early (head)
 # kills its writer with SIGPIPE and the script with exit 141.
