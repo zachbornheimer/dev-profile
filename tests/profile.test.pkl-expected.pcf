@@ -470,7 +470,7 @@ examples {
       }
       ["shellcheck"] {
         fix = null
-        check = "shellcheck {{files}}"
+        check = "shellcheck --severity=warning {{files}}"
         files = null
         after = List()
         profiles = List("slow")
@@ -788,7 +788,7 @@ examples {
       }
       ["shellcheck"] {
         fix = null
-        check = "shellcheck {{files}}"
+        check = "shellcheck --severity=warning {{files}}"
         files = null
         after = List()
         profiles = null
