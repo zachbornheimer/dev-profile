@@ -223,7 +223,8 @@ fixture_vendored_paths_are_skipped() {
 		mkdir -p "${repo}/${dir}/x"
 		printf '# Log\n\n## v1\n\n## v1\n' >"${repo}/${dir}/x/CHANGELOG.md"
 		head -c 2000000 /dev/zero | tr '\0' 'a' >"${repo}/${dir}/x/big.bin"
-		git -C "$repo" add "$dir"
+		# -f: a global gitignore commonly names node_modules and .venv.
+		git -C "$repo" add -f "$dir"
 		push_check "$repo" check-added-large-files || fail "vendored ${dir}: staged files must be skipped"
 	done
 	repo="$(new_repo vendored-lookalike)"
