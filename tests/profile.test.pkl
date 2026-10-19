@@ -3,7 +3,7 @@
 /// to the hooks, regenerate the snapshot: `pkl test --overwrite tests/profile.test.pkl`.
 amends "pkl:test"
 
-import "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pkl" as hk
+import "package://github.com/jdx/hk/releases/download/v2.7.0/hk@2.7.0#/Config.pkl" as hk
 
 import "../lib/contract.pkl" as contract
 import "../lib/hk.pkl" as config

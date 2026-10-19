@@ -2,7 +2,7 @@
 /// Consumers (hk, dprint, mise, worktrunk, Conform) are generated from this file.
 module profile
 
-import "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pkl" as hk
+import "package://github.com/jdx/hk/releases/download/v2.7.0/hk@2.7.0#/Config.pkl" as hk
 
 import "lib/contract.pkl"
 import "lib/render.pkl"
@@ -67,12 +67,12 @@ dprintPlugins: Listing<String> = new {
   "npm:@dprint/toml@0.9.0"
   "npm:@dprint/dockerfile@0.7.0"
   "npm:dprint-plugin-yaml@0.6.0"
-  "npm:@dprint/ruff@0.9.1"
+  "npm:@dprint/ruff@0.11.1"
   "npm:@jakebailey/dprint-plugin-gofumpt@0.0.19"
   "npm:@dprint/exec@0.7.3/plugin.json@704701df449dd7e942a71144773778ac529d68c2e4657bfc236d393b898b9a67"
   "npm:@kachick/dprint-plugin-sh@0.1.2"
   // HTML/Vue/Svelte/Astro templates (markup_fmt) and CSS/SCSS/Less (malva).
-  "https://plugins.dprint.dev/g-plane/markup_fmt-v0.27.5.wasm"
+  "https://plugins.dprint.dev/g-plane/markup_fmt-v0.27.6.wasm"
   "https://plugins.dprint.dev/g-plane/malva-v0.16.0.wasm"
 }
 
@@ -357,23 +357,23 @@ kernelTools: Listing<types.Pin> = new {
 
 /// Kernel and runtime pins. A tool's own pin lives in its `tools/` file.
 tools: Listing<types.Pin> = new {
-  new { id = "hk"; version = "2.5.0" }
-  new { id = "dprint"; version = "0.61.1" }
+  new { id = "hk"; version = "2.7.0" }
+  new { id = "dprint"; version = "0.63.0" }
   new { id = "worktrunk"; version = "0.80.0" }
   new { id = "go"; version = "1.27" }
   new { id = "node"; version = "24" }
-  new { id = "stylua"; version = "2.5.2" }
-  new { id = "aube"; version = "2.7.0" }
-  new { id = "uv"; version = "0.12.24" }
+  new { id = "stylua"; version = "2.6.0" }
+  new { id = "aube"; version = "2.7.2" }
+  new { id = "uv"; version = "0.13.1" }
   // Worktree env isolation (deps symlinks, ports, DB names); installed but not
   // hooked — its pre-start symlinks share build caches across worktrees (see
   // lib/render.pkl).
   new { id = "github:rohansx/workz"; version = "0.11.0" }
   // Contract adapters: OpenTofu lint and protobuf lint/breaking/generate.
   new { id = "tflint"; version = "0.64.0" }
-  new { id = "buf"; version = "1.73.0" }
-  new { id = "npm:@agentclientprotocol/codex-acp"; version = "2.1.1" }
-  new { id = "npm:@agentclientprotocol/claude-agent-acp"; version = "0.88.0" }
+  new { id = "buf"; version = "1.74.0" }
+  new { id = "npm:@agentclientprotocol/codex-acp"; version = "2.2.2" }
+  new { id = "npm:@agentclientprotocol/claude-agent-acp"; version = "0.93.0" }
 }
 
 brewPackages: Mapping<String, String> = new {

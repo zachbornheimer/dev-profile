@@ -1,7 +1,7 @@
 /// Renders consumer configs from profile.pkl. Each function returns one file body.
 module render
 
-import "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pkl" as hk
+import "package://github.com/jdx/hk/releases/download/v2.7.0/hk@2.7.0#/Config.pkl" as hk
 import "package://pkg.pkl-lang.org/pkl-pantry/pkl.toml@1.0.3#/toml.pkl"
 
 import "../profile.pkl"

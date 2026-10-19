@@ -74,7 +74,7 @@ fi
 # decoy fails every repo, so a clean repo passes only if the render's config wins.
 mkdir -p "${home}/.config/hk"
 cat >"${home}/.config/hk/config.pkl" <<'PKL'
-amends "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pkl"
+amends "package://github.com/jdx/hk/releases/download/v2.7.0/hk@2.7.0#/Config.pkl"
 hooks { ["check"] { steps { ["decoy-live-config"] { check = "false" } } } }
 PKL
 

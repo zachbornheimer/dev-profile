@@ -176,7 +176,7 @@ fixture_git_hook_skips_undefined_hook() {
 	repo="$(new_repo hook-skew)"
 	mkdir -p "$stale"
 	printf 'amends "%s"\nhooks { ["pre-push"] { steps { ["noop"] { check = "true" } } } }\n' \
-		"package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pkl" >"${stale}/config.pkl"
+		"package://github.com/jdx/hk/releases/download/v2.7.0/hk@2.7.0#/Config.pkl" >"${stale}/config.pkl"
 	echo "feat: add thing" >"$msg"
 	HK_CONFIG_DIR="$stale" run_hook "$repo" commit-msg "$msg" || fail "hook skew: an undefined hook must not fail"
 	expect_output "mise bootstrap --from" "hook skew"
