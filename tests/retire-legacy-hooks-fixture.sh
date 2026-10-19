@@ -51,9 +51,10 @@ printf '#!/bin/sh\ncall_lefthook run "pre-commit" "$@"\n' >"${hooks}/pre-commit"
 "${retire}" "${repo}" >/dev/null
 [[ -f "${hooks}/pre-commit${aside}" && -f "${hooks}/pre-commit${aside}.1" ]] || fail "a second retirement must keep both copies"
 
-# A linked worktree shares the main repo's hooks.
-git -C "${repo}" -c user.name=t -c user.email=t@example.com -c commit.gpgsign=false commit -q --allow-empty -m init
-git -C "${repo}" worktree add -q "${work}/linked" -b linked
+# A linked worktree shares the main repo's hooks. The sample hooks are data, not
+# code to run: a real git-lfs on PATH hangs in the post-checkout one.
+git -C "${repo}" -c core.hooksPath=/dev/null -c user.name=t -c user.email=t@example.com -c commit.gpgsign=false commit -q --allow-empty -m init
+git -C "${repo}" -c core.hooksPath=/dev/null worktree add -q "${work}/linked" -b linked
 printf '#!/bin/sh\ncall_lefthook run "pre-push" "$@"\n' >"${hooks}/pre-push"
 (cd "${work}/linked" && "${retire}") >/dev/null
 [[ ! -e "${hooks}/pre-push" ]] || fail "run from a linked worktree must retire the shared hook"
