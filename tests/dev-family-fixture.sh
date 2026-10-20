@@ -44,9 +44,10 @@ export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@example.com GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@example.com
 # One throwaway cache, so the fixture never touches the machine's dev state.
 export XDG_CACHE_HOME="${work}/cache"
-export DEV_FIXTURE_SPAWNS="${work}/spawns" DEV_FIXTURE_PIDS="${work}/pids"
+export DEV_FIXTURE_SPAWNS="${work}/spawns" DEV_FIXTURE_PIDS="${work}/pids" DEV_FIXTURE_ROUTES="${work}/routes"
 : >"${DEV_FIXTURE_SPAWNS}"
 : >"${DEV_FIXTURE_PIDS}"
+: >"${DEV_FIXTURE_ROUTES}"
 # Short waits: the fixture must not depend on production timings.
 export DEV_PROFILE_DEV_SETTLE=0 DEV_PROFILE_DEV_READY_TIMEOUT=5 DEV_PROFILE_DEV_STOP_TIMEOUT=2
 
@@ -65,6 +66,11 @@ if git rev-parse --git-dir >/dev/null 2>&1; then
 fi
 if [[ "$1" == get ]]; then
 	echo "https://$2.localhost"
+	exit 0
+fi
+# `list` reports route holders in portless's normal output shape.
+if [[ "$1" == list ]]; then
+	[[ -f "${DEV_FIXTURE_ROUTES:-}" ]] && cat "${DEV_FIXTURE_ROUTES}"
 	exit 0
 fi
 [[ "$1" == run && "$2" == --name ]] || { echo "portless stub: unexpected args: $*" >&2; exit 64; }
@@ -414,5 +420,25 @@ run_dev restart || fail "dev:restart must work without a usable worktrunk"
 	fail "without a usable worktrunk the stack must be a plain detached spawn"
 expect '^https://repo\.localhost$'
 rm -f "${work}/bin/wt"
+
+# --- a route held by a stack this checkout did not record
+#
+# A stack started outside the family registers its route with portless but has
+# no pidfile. Restart must stop only the PID portless reports for this route.
+
+sleep 300 &
+foreign=$!
+sleep 300 &
+unrelated=$!
+printf '%s\n%s\n' "${foreign}" "${unrelated}" >>"${DEV_FIXTURE_PIDS}"
+printf '  https://repo.localhost  ->  localhost:4611  (pid %s)\n  https://other.localhost  ->  localhost:4622  (pid %s)\n' "${foreign}" "${unrelated}" >"${DEV_FIXTURE_ROUTES}"
+run_dev restart || fail "dev:restart must stop a foreign route holder and start"
+if kill -0 "${foreign}" 2>/dev/null; then fail "dev:restart must stop the foreign route holder"; fi
+if ! kill -0 "${unrelated}" 2>/dev/null; then fail "dev:restart must not touch the unrelated route holder"; fi
+expect '^dev:restart: stopping the route holder'
+expect '^https://repo[.]localhost$'
+kill -TERM "${unrelated}" 2>/dev/null || :
+wait "${unrelated}" 2>/dev/null || :
+: >"${DEV_FIXTURE_ROUTES}"
 
 echo "dev-family fixture ok"
