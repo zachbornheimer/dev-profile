@@ -72,6 +72,11 @@ facts {
     render.wrappers.containsKey("dev-profile-worktree-start")
     render.wrappers.containsKey("dev-profile-worktree-copy")
   }
+  ["worktrunk's post-remove reaps the removed worktree's dev stack"] {
+    render.worktrunk["post-remove"].toMap().keys == Set("reap")
+    render.worktrunk["post-remove"].reap
+      == "\(profile.installPath)/bin/dev-profile-dev reap {{ worktree_path }}"
+  }
   ["every pre-push step judges: a check, never only a fix"] {
     for (_, step in pushSteps) { hasCheck(step) }
   }
