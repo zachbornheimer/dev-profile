@@ -65,6 +65,8 @@ class Pin {
 class Settings {
   experimental: Boolean = true
   autoInstall: Boolean = true
+  /// Profile pins take precedence over PATH edits inherited from login shells or agents.
+  activateAggressive: Boolean = true
   notFoundAutoInstall: Boolean = true
   notFoundAutoInstallRegistry: Boolean = true
   trustedConfigPaths: Listing<String> = new {

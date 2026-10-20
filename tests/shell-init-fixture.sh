@@ -17,10 +17,10 @@ fail() {
 }
 
 output="$(
-	cd "${project}" &&
-		DEV_PROFILE_OUT="${out}" TEST_PROJECT="${project}" \
-			MISE_TRUSTED_CONFIG_PATHS="${project}" \
-			zsh -f -i -c '
+cd "${project}" &&
+	DEV_PROFILE_OUT="${out}" TEST_PROJECT="${project}" \
+		MISE_TRUSTED_CONFIG_PATHS="${project}" \
+		zsh -f -i -c '
 				source "${DEV_PROFILE_OUT}/mise.zsh"
 				print -r -- "start=${SHELL_INIT_TEST:-missing}"
 				builtin cd /tmp
