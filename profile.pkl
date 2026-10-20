@@ -346,15 +346,43 @@ suppressionFiles: Mapping<String, String> = new {
 
 settings: types.Settings = new {}
 
+/// One entry per package manager a repo may have. A provider with no manifest is
+/// inactive, so listing one costs nothing until a repo actually carries its files.
+/// Built-ins (the first nine) are mise's; the rest declare their own inputs.
 deps: Listing<types.DepProvider> = new {
   new { id = "aube" }
   new { id = "pnpm" }
   new { id = "npm" }
+  new { id = "bun" }
   new { id = "uv" }
   new { id = "composer" }
   new { id = "bundler" }
   new { id = "go" }
   new { id = "git-submodule" }
+  // cpanm has no mise provider. A custom provider is always "active" (unlike a
+  // built-in, which is inactive without its lockfile), so each run guards its
+  // own manifest and no outputs are tracked: without outputs, an unchanged
+  // sources hash is what makes it fresh, so a repo without one pays a shell test.
+  new {
+    id = "cpanm"
+    sources = new Listing { "cpanfile" }
+    outputs = new Listing {}
+    run = "if [ -f cpanfile ]; then cpanm --quiet --notest --local-lib local --installdeps .; fi"
+  }
+  // cargo fetch populates CARGO_HOME, so nothing in the repo marks a finished
+  // run: no outputs, and an unchanged manifest is the only proof needed.
+  new {
+    id = "cargo"
+    sources = new Listing { "Cargo.toml"; "Cargo.lock" }
+    outputs = new Listing {}
+    run = "if [ -f Cargo.toml ]; then cargo fetch; fi"
+  }
+  new {
+    id = "swift"
+    sources = new Listing { "Package.swift"; "Package.resolved" }
+    outputs = new Listing {}
+    run = "if [ -f Package.swift ]; then swift package resolve; fi"
+  }
 }
 
 /// Kernel tool required before generation. Also listed here so generated mise can reinstall it.

@@ -70,7 +70,16 @@ local function pins(xs: Listing<types.Pin>): Mapping<String, String> = new {
 
 local function depsFor(ids: Listing<String>?): Mapping<String, Dynamic> = new {
   for (d in profile.deps) {
-    when (ids == null || ids.contains(d.id)) { [d.id] { auto = d.auto } }
+    when (ids == null || ids.contains(d.id)) {
+      [d.id] {
+        auto = d.auto
+        // Only a non-built-in provider carries these; rendered only when set so
+        // a built-in keeps mise's defaults instead of overriding them with null.
+        when (d.sources != null) { sources = d.sources.toList() }
+        when (d.outputs != null) { outputs = d.outputs.toList() }
+        when (d.run != null) { run = d.run }
+      }
+    }
   }
 }
 
@@ -113,6 +122,12 @@ mise: Dynamic = new {
       profile.settings.idiomaticVersionFileIgnoreMinimumVersions
     idiomatic_version_file_enable_tools = profile.settings.idiomaticVersionFileEnableTools.toList()
     trusted_config_paths = profile.settings.trustedConfigPaths.toList()
+    // Dotted setting: `status.show_deps_stale`. Rendered as its own table
+    // because mise rejects the bare `show_deps_stale` key.
+    status { show_deps_stale = profile.settings.showDepsStale }
+    // Dotted setting: `hook_env.chpwd_only`. Prompts stop forking hook-env
+    // unless the directory changed.
+    hook_env { chpwd_only = profile.settings.chpwdOnly }
   }
   env {
     ["_"] { path = List("\(profile.installDir)/bin") }
@@ -412,7 +427,9 @@ personalOverlay: Dynamic = new {
   }
   settings { experimental = true }
   tools { dprint = pins(profile.tools)["dprint"] }
-  deps = depsFor(new Listing { "aube"; "uv"; "composer"; "go" })
+  // Every provider, as the global config has them: narrowing here silently
+  // disabled bundler and the rest in Personal repos, and the two lists drifted.
+  deps = depsFor(null)
   tasks {
     ...contract.tasks
   }

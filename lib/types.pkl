@@ -81,11 +81,24 @@ class Settings {
     "yarn"
   }
   idiomaticVersionFileIgnoreMinimumVersions: Boolean = true
+  /// The activated shell's status line names every stale `auto = true` deps
+  /// provider. Auto-install still runs it before `mise run`/`mise exec`, so the
+  /// notice is noise: hide it rather than teach the user to run `mise deps`.
+  showDepsStale: Boolean = false
+  /// Skip the prompt's hook-env when the directory has not changed: the env a
+  /// prompt needs only changes on cd, so every other prompt is a no-op. A
+  /// config edited in place takes effect on the next cd (or `mise install`).
+  chpwdOnly: Boolean = true
 }
 
 class DepProvider {
   id: String
   auto: Boolean = true
+  /// Overrides for a provider mise does not ship (cpanm, cargo, swift, dotnet).
+  /// Built-ins supply their own sources, outputs and command, so these stay null.
+  sources: Listing<String>? = null
+  outputs: Listing<String>? = null
+  run: String? = null
 }
 
 /// A contract adapter: one ecosystem's native tools behind the contract verbs.
