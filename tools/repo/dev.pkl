@@ -32,9 +32,19 @@ local dev =
   # environment follows a process through setpgid and reparenting, so every process
   # a stack starts carries DEV_PROFILE_DEV_STACK=<checkout> and is found by it.
 
+  # Every process with its environment after the command. macOS's ps wants `-ax`
+  # here and procps rejects it, so each gets its own spelling.
+  process_table() {
+    if [[ "$(uname -s)" == Darwin ]]; then
+      ps eww -ax -o pid=,command=
+    else
+      ps eww ax -o pid=,command=
+    fi
+  }
+
   # The pids tagged with a checkout, never this process or its parent.
   stack_pids() {
-    ps eww -ax -o pid=,command= |
+    process_table |
       awk -v tag="DEV_PROFILE_DEV_STACK=$1" -v self="$$" -v parent="${PPID}" '
         $1 == self || $1 == parent { next }
         { for (i = 2; i <= NF; i++) if ($i == tag) { print $1; next } }'
