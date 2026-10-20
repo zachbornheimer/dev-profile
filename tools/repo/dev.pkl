@@ -1,7 +1,7 @@
 amends "../../lib/Tool.pkl"
 
 doc =
-  "One checkout's local dev stack behind portless: `mise run dev` prints the state, starts it detached when it is down and prints the state again; `dev:status` is the only probe (it reads a pidfile, never a port or `ps`), `dev:start` is idempotent and never kills, `dev:restart` is the only verb that stops, and `dev:attach` runs it in the foreground. When worktrunk is available the stack runs under its tether (`wt step tether`), which kills the whole process tree when the worktree is removed; otherwise it is a plain detached spawn. A repo declares its own serve command by shipping an executable `mise-tasks/dev-serve`."
+  "One checkout's local dev stack behind portless: `mise run dev` prints the state, starts it detached when it is down and prints the state again; `dev:status` is the only probe (it reads a pidfile, never a port or `ps`), `dev:start` is idempotent and never kills, `dev:restart` is the only verb that stops, and `dev:attach` runs it in the foreground. When worktrunk is available the stack runs under its tether (`wt step tether`), which kills the whole process group when the worktree is removed; otherwise it is a plain detached spawn. Every process a stack starts carries `DEV_PROFILE_DEV_STACK=<checkout>`, so what leaves the group (`op run` leads one of its own) is still stopped by `dev:restart` and by `dev-profile-dev reap <worktree-path>`, which worktrunk's post-remove hook runs. A repo declares its own serve command by shipping an executable `mise-tasks/dev-serve`."
 
 local dev =
   #"""
@@ -14,6 +14,98 @@ local dev =
   # status -> start when down -> status.
   verb="${1:-}"
 
+  # A DNS label: lowercase, anything else folded to single dashes.
+  slug() {
+    printf '%s' "$1" | tr '[:upper:]' '[:lower:]' |
+      sed -e 's/[^a-z0-9]/-/g' -e 's/--*/-/g' -e 's/^-*//' -e 's/-*$//'
+  }
+
+  # One pidfile, one lockfile (and the daemon's log) per checkout.
+  cache="${XDG_CACHE_HOME:-${HOME}/.cache}/dev-profile/dev"
+  stop_timeout="${DEV_PROFILE_DEV_STOP_TIMEOUT:-10}" # seconds before SIGKILL
+
+  # --- the stack tag
+  #
+  # A process group does not hold a stack together: `op run` leads a group of its
+  # own, so the tether's group kill reaches portless and misses the `mastra dev`
+  # below it, which then respawns its server for a worktree that is gone. The
+  # environment follows a process through setpgid and reparenting, so every process
+  # a stack starts carries DEV_PROFILE_DEV_STACK=<checkout> and is found by it.
+
+  # Every process with its environment after the command. macOS's ps wants `-ax`
+  # here and procps rejects it, so each gets its own spelling.
+  process_table() {
+    if [[ "$(uname -s)" == Darwin ]]; then
+      ps eww -ax -o pid=,command=
+    else
+      ps eww ax -o pid=,command=
+    fi
+  }
+
+  # The pids tagged with a checkout, never this process or its parent.
+  stack_pids() {
+    process_table |
+      awk -v tag="DEV_PROFILE_DEV_STACK=$1" -v self="$$" -v parent="${PPID}" '
+        $1 == self || $1 == parent { next }
+        { for (i = 2; i <= NF; i++) if ($i == tag) { print $1; next } }'
+  }
+
+  # SIGTERM every process tagged with a checkout, then SIGKILL what is left after
+  # stop_timeout. Only tagged processes: nothing this family did not start.
+  reap_stack() {
+    local pids waited=0
+    pids="$(stack_pids "$1")"
+    [[ -n "${pids}" ]] || return 0
+    # shellcheck disable=SC2086 # one pid per word
+    kill -TERM ${pids} 2>/dev/null || :
+    while pids="$(stack_pids "$1")"; [[ -n "${pids}" ]]; do
+      if (( waited >= stop_timeout )); then
+        # shellcheck disable=SC2086
+        kill -KILL ${pids} 2>/dev/null || :
+        break
+      fi
+      sleep 1
+      waited=$((waited + 1))
+    done
+  }
+
+  # A checkout is live while git still names its directory as a work tree root.
+  live_checkout() {
+    [[ "$(git -C "$1" rev-parse --show-toplevel 2>/dev/null)" == "$1" ]]
+  }
+
+  # `reap <worktree-path>`: the worktree is gone, stop what it left behind.
+  # `reap`: the same for every recorded stack whose checkout is gone. Neither
+  # needs a git checkout to run in, so worktrunk's post-remove hook calls it from
+  # wherever it runs.
+  reap() {
+    local path="${1:-}" pidfile root name
+    if [[ -n "${path}" ]]; then
+      if live_checkout "${path}"; then
+        echo "dev:reap: ${path} is a live checkout; use dev:restart to stop its stack" >&2
+        return 1
+      fi
+      name="$(slug "$(basename "${path}")")"
+      reap_stack "${name}"
+      rm -f "${cache}/${name}.pid"
+      return 0
+    fi
+    for pidfile in "${cache}"/*.pid; do
+      [[ -e "${pidfile}" ]] || continue
+      root="$(sed -n 4p "${pidfile}")"
+      if [[ -n "${root}" ]] && ! live_checkout "${root}"; then
+        name="$(basename "${pidfile}" .pid)"
+        reap_stack "${name}"
+        rm -f "${pidfile}"
+      fi
+    done
+  }
+
+  if [[ "${verb}" == reap ]]; then
+    reap "${2:-}"
+    exit
+  fi
+
   root="$(git rev-parse --show-toplevel 2>/dev/null)" || {
     echo "dev: ${PWD} is not inside a git repository" >&2
     exit 2
@@ -21,12 +113,6 @@ local dev =
   cd "${root}"
 
   # --- checkout identity
-
-  # A DNS label: lowercase, anything else folded to single dashes.
-  slug() {
-    printf '%s' "$1" | tr '[:upper:]' '[:lower:]' |
-      sed -e 's/[^a-z0-9]/-/g' -e 's/--*/-/g' -e 's/^-*//' -e 's/-*$//'
-  }
 
   # The checkout directory's name keys the state files, so every worktree has
   # its own pid, lock and log. The route is the repo's name for the main
@@ -101,15 +187,12 @@ local dev =
     portless_here get "${name}" 2>/dev/null || echo "https://${name}.localhost"
   }
 
-  # One pidfile, one lockfile (and the daemon's log) per checkout.
-  cache="${XDG_CACHE_HOME:-${HOME}/.cache}/dev-profile/dev"
   pidfile="${cache}/${checkout}.pid"
   lockfile="${cache}/${checkout}.lock"
   logfile="${cache}/${checkout}.log"
 
   # Operational knobs, so a test or a fixture never waits the production time.
   ready_timeout="${DEV_PROFILE_DEV_READY_TIMEOUT:-60}" # seconds to wait for the stack
-  stop_timeout="${DEV_PROFILE_DEV_STOP_TIMEOUT:-10}"   # seconds before SIGKILL
   settle="${DEV_PROFILE_DEV_SETTLE:-1}"                # seconds to catch an instant exit
 
   alive() { kill -0 "$1" 2>/dev/null; }
@@ -120,7 +203,8 @@ local dev =
   }
 
   # How to signal the recorded stack: `tether` when worktrunk owns its process
-  # group, `spawn` for a plain detached process.
+  # group, `spawn` for a plain detached process. Line 4 is the checkout's root,
+  # which `reap` tests to learn that the checkout is gone.
   recorded_mode() {
     sed -n 2p "${pidfile}"
   }
@@ -198,7 +282,7 @@ local dev =
   # What the tether runs. `$$` before the exec is the tether's own child, which
   # the tether made a process-group leader, so line 1 is the whole tree's pid;
   # then portless assigns the route's port and runs the serve command.
-  tether_child="cd \"\${DEV_PROFILE_DEV_CACHE}\"; printf \"%s\n%s\n%s\n\" \"\$\$\" tether \"\${DEV_PROFILE_DEV_ROUTE}\" >\"\${DEV_PROFILE_DEV_PIDFILE}\"; exec portless run --name \"\${DEV_PROFILE_DEV_ROUTE}\" sh -c \"\${DEV_PROFILE_DEV_CMD}\""
+  tether_child="cd \"\${DEV_PROFILE_DEV_CACHE}\"; printf \"%s\n%s\n%s\n%s\n\" \"\$\$\" tether \"\${DEV_PROFILE_DEV_ROUTE}\" \"\${DEV_PROFILE_DEV_ROOT}\" >\"\${DEV_PROFILE_DEV_PIDFILE}\"; exec portless run --name \"\${DEV_PROFILE_DEV_ROUTE}\" sh -c \"\${DEV_PROFILE_DEV_CMD}\""
 
   # --- verbs
 
@@ -238,8 +322,12 @@ local dev =
     route="$(route_name)"
     mkdir -p "${cache}"
     rm -f "${pidfile}"
+    # A dead stack can leave children behind; a second stack beside them would
+    # fight them for the route and the port.
+    reap_stack "${checkout}"
     if tether_available; then
       DEV_PROFILE_DEV_CMD="$(in_root "${cmd}")" DEV_PROFILE_DEV_ROUTE="${route}" \
+        DEV_PROFILE_DEV_STACK="${checkout}" DEV_PROFILE_DEV_ROOT="${root}" \
         DEV_PROFILE_DEV_CACHE="${cache}" \
         DEV_PROFILE_DEV_PIDFILE="${pidfile}" \
         nohup wt step tether -- sh -c "${tether_child}" >>"${logfile}" 2>&1 </dev/null 9>&- &
@@ -260,11 +348,12 @@ local dev =
         waited=$((waited + 1))
       done
     else
-      (cd "${cache}" && exec nohup portless run --name "${route}" sh -c "$(in_root "${cmd}")") \
+      (cd "${cache}" && export DEV_PROFILE_DEV_STACK="${checkout}" &&
+        exec nohup portless run --name "${route}" sh -c "$(in_root "${cmd}")") \
         >>"${logfile}" 2>&1 </dev/null 9>&- &
       pid=$!
       disown
-      printf '%s\n%s\n%s\n' "${pid}" spawn "${route}" >"${pidfile}"
+      printf '%s\n%s\n%s\n%s\n' "${pid}" spawn "${route}" "${root}" >"${pidfile}"
     fi
     recorded_pid
   }
@@ -323,12 +412,13 @@ local dev =
     fi
   }
 
-  # SIGTERM the recorded stack, then SIGKILL after stop_timeout. Never touches a
-  # process this checkout did not record.
+  # SIGTERM the recorded stack, then SIGKILL after stop_timeout, then reap what
+  # left its group. Never touches a process this checkout did not start.
   stop() {
     local pid waited=0
     pid="$(recorded_pid)"
     if [[ -z "${pid}" ]] || ! alive "${pid}"; then
+      reap_stack "${checkout}"
       rm -f "${pidfile}"
       return 0
     fi
@@ -341,6 +431,7 @@ local dev =
       sleep 1
       waited=$((waited + 1))
     done
+    reap_stack "${checkout}"
     rm -f "${pidfile}"
   }
 
@@ -385,7 +476,7 @@ local dev =
     restart) restart ;;
     attach) attach ;;
     *)
-      echo "dev: unknown verb '${verb}'; expected dev, dev:status, dev:start, dev:restart or dev:attach" >&2
+      echo "dev: unknown verb '${verb}'; expected dev, dev:status, dev:start, dev:restart, dev:attach or reap" >&2
       exit 2
       ;;
   esac

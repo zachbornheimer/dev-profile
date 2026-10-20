@@ -265,6 +265,92 @@ done
 [[ -z "$(survivors "${floor}")" ]] ||
 	fail "removing the worktree must reap the tethered stack; survivors: $(survivors "${floor}")"
 
+# --- a child that leaves the group outlives the tether; reap and restart stop it
+
+# Job control gives the background job a process group of its own, the way `op
+# run` leads one: the tether's group kill reaches the shell, never this child.
+# macOS hides the environment of its own platform binaries (/bin/bash, sleep), so
+# the child is a Homebrew bash when there is one; `op`, `aube` and `node` are not
+# platform binaries, and their environment shows.
+for DEV_FIXTURE_ESCAPEE_SHELL in /opt/homebrew/bin/bash /usr/local/bin/bash "$(command -v bash)"; do
+	[[ -x "${DEV_FIXTURE_ESCAPEE_SHELL}" ]] && break
+done
+export DEV_FIXTURE_ESCAPEE_SHELL
+escaping_serve() {
+	cat >"$1" <<'SERVE'
+#!/usr/bin/env bash
+set -euo pipefail
+set -m
+"${DEV_FIXTURE_ESCAPEE_SHELL}" -c 'while :; do sleep 1; done' &
+printf '%s\n' "$!" >>"${DEV_FIXTURE_PIDS}"
+wait
+SERVE
+	chmod +x "$1"
+}
+
+gone() {
+	local state
+	state="$(ps -o state= -p "$1" 2>/dev/null | tr -d ' ')"
+	[[ -z "${state}" || "${state}" == Z* ]]
+}
+
+wait_for() {
+	local waited=0
+	until "$@"; do
+		((waited++ < 20)) || return 1
+		sleep 1
+	done
+}
+
+newest_pid_is_not() { [[ "$(tail -n 1 "${DEV_FIXTURE_PIDS}")" != "$1" ]]; }
+
+# A worktree whose stack has a child in a group of its own; sets leader and escapee.
+start_escaping() {
+	local floor
+	floor="$(tail -n 1 "${DEV_FIXTURE_PIDS}")"
+	git worktree add -q -b "feat/${1##*/}" "$1"
+	mkdir -p "$1/mise-tasks"
+	escaping_serve "$1/mise-tasks/dev-serve"
+	cd "$1"
+	run_dev || fail "dev in $1 must start the escaping stack"
+	cd "${repo}"
+	leader="$(sed -n 1p "${cache}/$(basename "$1").pid")"
+	wait_for newest_pid_is_not "${floor}" || fail "the escaping child never started in $1"
+	escapee="$(tail -n 1 "${DEV_FIXTURE_PIDS}")"
+}
+
+# The worktree goes; the tether stops the group, and the escapee is what is left.
+remove_escaping() {
+	git worktree remove --force "$1"
+	git worktree prune
+	wait_for gone "${leader}" || fail "the tether must stop the stack's group when $1 goes"
+	if gone "${escapee}"; then fail "a child in a group of its own must outlive the tether, or reap has no job"; fi
+}
+
+start_escaping "${work}/repo-esc1"
+remove_escaping "${work}/repo-esc1"
+if run_dev reap "${repo}"; then fail "reap <path> must refuse a live checkout"; fi
+expect 'is a live checkout'
+run_dev reap "${work}/repo-esc1" || fail "reap <path> must succeed for a removed worktree"
+wait_for gone "${escapee}" || fail "reap <path> must stop the child that left the group"
+[[ ! -e "${cache}/repo-esc1.pid" ]] || fail "reap <path> must drop the stack's pidfile"
+
+start_escaping "${work}/repo-esc2"
+remove_escaping "${work}/repo-esc2"
+run_dev reap || fail "reap must succeed with nothing to name"
+wait_for gone "${escapee}" || fail "reap must stop the stack of every checkout that is gone"
+[[ ! -e "${cache}/repo-esc2.pid" ]] || fail "reap must drop the pidfile of a checkout that is gone"
+
+start_escaping "${work}/repo-esc3"
+old="${escapee}"
+cd "${work}/repo-esc3"
+run_dev restart || fail "dev:restart must work for a stack with an escaping child"
+cd "${repo}"
+wait_for gone "${old}" || fail "dev:restart must stop the child that left the group"
+stop_stack repo-esc3
+git worktree remove --force "${work}/repo-esc3"
+git worktree prune
+
 # --- every worktree gets its own host, whatever its branch
 
 # portless's own prefix would give feat/x and fix/x the same host (x), and none

@@ -243,6 +243,13 @@ worktrunk: Dynamic = new {
   // the stack starts (tools/repo/worktree-start.pkl). It starts the stack through
   // `mise run dev`, so each code root's own profile picks the dispatcher.
   ["post-start"] { start = pr.bin("dev-profile-worktree-start") }
+  // The tether kills a stack's process group when its worktree goes, but a child
+  // that leads a group of its own (`op run`) outlives it, and so does the
+  // `mastra dev` below it, which respawns its server for a worktree that is gone.
+  // The removed worktree's path names the stack to stop, by the tag every process
+  // of it carries (tools/repo/dev.pkl). Runs in the primary worktree, in the
+  // background, after `wt remove` and the removal inside `wt merge`.
+  ["post-remove"] { reap = "\(pr.bin("dev-profile-dev")) reap {{ worktree_path }}" }
   // Retire hook files that retired managers left in .git/hooks, wherever you land.
   ["post-switch"] { `retire-legacy-hooks` = pr.bin("dev-profile-retire-legacy-hooks") }
   step { ["copy-ignored"] { exclude = List(".venv/", "**/.venv/") } }
