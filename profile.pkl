@@ -747,6 +747,7 @@ output {
     ["deny.toml"] { text = render.tomlFile(shared.denyConfig) }
     // Hand-written adapter; copied so install-live links one directory.
     ["shell.zsh"] { text = render.shellZsh }
+    ["mise.zsh"] { text = render.miseZsh }
     ["markdownlintrc.json"] {
       value = render.markdownlint
       renderer = new JsonRenderer { indent = "  " }
