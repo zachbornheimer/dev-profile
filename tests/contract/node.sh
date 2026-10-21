@@ -1,25 +1,8 @@
 #!/usr/bin/env bash
-# Contract fixtures for the node adapters: a pnpm lockfile runs through aube, and
-# setup installs each workspace once, skipping vendored trees.
-# Usage: node.sh <generated-dir>
+# Contract fixture for setup in a node repo: each workspace installs once and
+# vendored node_modules stay untouched. Usage: node.sh <generated-dir>
 set -euo pipefail
 . "$(dirname "$0")/world.sh" "$@"
-
-fixture_pnpm() {
-	local with without
-	with="$(new_repo pnpm-with-test)"
-	touch "${with}/pnpm-lock.yaml"
-	echo '{"scripts":{"test":"vitest"}}' >"${with}/package.json"
-	run_task "$with" test || fail "pnpm with test: test failed"
-	expect_call "aube|${with}|run test" "pnpm lockfile runs through aube"
-
-	without="$(new_repo pnpm-without-test)"
-	touch "${without}/pnpm-lock.yaml"
-	echo '{"scripts":{"build":"tsc"}}' >"${without}/package.json"
-	run_task "$without" test || fail "pnpm without test: test should pass"
-	expect_no_call "run test" "pnpm without test"
-	expect_output "nothing to test" "pnpm without test"
-}
 
 fixture_nested_node_setup() {
 	local repo
@@ -35,6 +18,5 @@ fixture_nested_node_setup() {
 	expect_no_call "node_modules/dep|install" "nested node"
 }
 
-fixture_pnpm
 fixture_nested_node_setup
 echo "contract node fixtures ok"

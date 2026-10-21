@@ -23,3 +23,5 @@
 !/tests/*.pcf
 !/tests/contract/
 !/tests/contract/*.sh
+!/tests/guards/
+!/tests/guards/*.sh
