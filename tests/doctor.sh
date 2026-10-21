@@ -27,38 +27,46 @@ if grep -nE '[|][[:space:]]*head([[:space:]]|$)' "$out"/bin/*; then fail "a gene
 golangci-lint config verify --config "$out/golangci.yml" || fail golangci.yml
 grep -F "allow-parallel-runners: true" "$out/golangci.yml" || fail "golangci allow-parallel-runners"
 grep -F "composer audit --locked" "$out/bin/dev-profile-contract-php" || fail "composer audit --locked"
-if pkl eval -x 'checks["oxlint"].check' profile.pkl | grep -F -- "--deny-warnings"; then fail "oxlint must not deny-warnings"; fi
+# The `--deny-warnings` bar is an invariant `pkl test` below already evaluates,
+# so it costs no second full evaluation of the profile here.
 while IFS= read -r cmd; do [[ -x "$out/bin/$cmd" ]] || fail "hk step command without a rendered bin script: $cmd"; done < <(grep -ohE "dev-profile-[a-z0-9-]+" "$out/src/profile.pkl" "$out"/src/tools/*/*.pkl | sort -u)
 pkl test tests/profile.test.pkl || fail "pkl test (regenerate the snapshot with: pkl test --overwrite tests/profile.test.pkl)"
-bash tests/contract-fixtures.sh "$out" || fail "contract fixtures"
-bash tests/go-fix-fixture.sh "$out" || fail "go-fix fixture"
-bash tests/gosec-fixture.sh "$out" || fail "gosec fixture"
-bash tests/go-mod-tidy-fixture.sh "$out" || fail "go-mod-tidy fixture"
-bash tests/bump-fixture.sh "$out" || fail "bump fixture"
-bash tests/modernizer-fixture.sh "$out" || fail "modernizer fixture"
-bash tests/perl-profile-fixture.sh "$out" || fail "perl-profile fixture"
-bash tests/guards-fixture.sh "$out" || fail "guards fixture"
-bash tests/deny-fixture.sh "$out" || fail "deny fixture"
-bash tests/lint-full-tree-fixture.sh "$out" || fail "lint-full-tree fixture"
+bash tests/fixture-runner-test.sh || fail "fixture runner"
 for gem_tool in bundle-audit brakeman; do command -v "$gem_tool" >/dev/null || echo "note: $gem_tool is not installed; run mise install (pinned in profile.pkl tools). Its push check is skipped until then."; done
-bash tests/pr-fixture.sh "$out" || fail "pr fixture"
-bash tests/escape-hatch-fixture.sh README.md "$out" || fail "escape-hatch fixture"
-bash tests/sync-fixture.sh "$out" || fail "sync fixture"
-bash tests/done-fixture.sh "$out" || fail "done fixture"
-bash tests/retire-fixture.sh "$out" || fail "retire fixture"
-bash tests/shellcheck-fix-fixture.sh "$out" || fail "shellcheck-fix fixture"
-bash tests/shellcheck-severity-fixture.sh "$out" || fail "shellcheck-severity fixture"
-bash tests/tool-path-fixture.sh "$out" || fail "tool-path fixture"
-bash tests/shell-init-fixture.sh "$out" || fail "shell-init fixture"
-bash tests/dev-family-fixture.sh "$out" || fail "dev-family fixture"
-bash tests/worktree-copy-fixture.sh "$out" || fail "worktree-copy fixture"
-bash tests/worktree-start-fixture.sh "$out" || fail "worktree-start fixture"
-bash tests/identity-guard-fixture.sh "$out" || fail "identity-guard fixture"
-bash tests/hardcoded-dev-port-fixture.sh "$out" || fail "hardcoded-dev-port fixture"
-bash tests/formatter-linter-agreement-fixture.sh "$out" || fail "formatter-linter-agreement fixture"
-bash tests/owned-files-fixture.sh "$out" || fail "owned-files fixture"
-bash tests/kernel-pins-fixture.sh "$out" || fail "kernel-pins fixture"
-bash tests/retire-legacy-hooks-fixture.sh "$out" || fail "retire-legacy-hooks fixture"
-bash tests/ci-action-fixture.sh "$out" || fail "ci-action fixture"
-bash tests/lint-binding-fixture.sh "$out" || fail "lint-binding fixture"
+# Every fixture builds its own repos under mktemp -d and reads this render
+# read-only, so they run as a pool. The worker count backs off as the machine
+# load rises (tests/lib/run-fixtures.sh); each failure is named with its log.
+fixtures=(
+	tests/contract-fixtures.sh
+	tests/go-fix-fixture.sh
+	tests/gosec-fixture.sh
+	tests/go-mod-tidy-fixture.sh
+	tests/bump-fixture.sh
+	tests/modernizer-fixture.sh
+	tests/perl-profile-fixture.sh
+	tests/guards-fixture.sh
+	tests/deny-fixture.sh
+	tests/lint-full-tree-fixture.sh
+	tests/pr-fixture.sh
+	tests/escape-hatch-fixture.sh
+	tests/sync-fixture.sh
+	tests/done-fixture.sh
+	tests/retire-fixture.sh
+	tests/shellcheck-fix-fixture.sh
+	tests/shellcheck-severity-fixture.sh
+	tests/tool-path-fixture.sh
+	tests/shell-init-fixture.sh
+	tests/dev-family-fixture.sh
+	tests/worktree-copy-fixture.sh
+	tests/worktree-start-fixture.sh
+	tests/identity-guard-fixture.sh
+	tests/hardcoded-dev-port-fixture.sh
+	tests/formatter-linter-agreement-fixture.sh
+	tests/owned-files-fixture.sh
+	tests/kernel-pins-fixture.sh
+	tests/retire-legacy-hooks-fixture.sh
+	tests/ci-action-fixture.sh
+	tests/lint-binding-fixture.sh
+)
+bash tests/run-fixtures.sh "$out" "${fixtures[@]}" || fail "fixtures"
 echo "doctor ok"
