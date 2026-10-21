@@ -49,6 +49,9 @@ for tool in "${stubbed_tools[@]}"; do ln -s stub "${stubs}/${tool}"; done
 
 # Isolated from the user's global mise config; HK=0 skips global git hooks.
 export STUB_LOG="$log" STUB_FAIL="" HK=0
+# These stubs intentionally shadow profile pins; aggressive PATH priority would
+# put the real go/node/git ahead of them and test the machine instead of dispatch.
+export MISE_ACTIVATE_AGGRESSIVE=0
 export MISE_CONFIG_DIR="${work}/mise-config" MISE_TRUSTED_CONFIG_PATHS="$root" MISE_YES=1
 export PATH="${stubs}:${out}/bin:${PATH}"
 # Hook fixtures pick the hk config per run; never the caller's.
