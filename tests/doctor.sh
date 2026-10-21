@@ -20,7 +20,7 @@ zsh -n "$out/shell.zsh" || fail shell.zsh
 for f in "$out"/bin/*; do bash -n "$f" || fail "${f##*/}"; done
 # Same bar the profile sets for every repo's push: warnings block, info tips do not.
 # -x follows `source`, so tests/contract/*.sh are judged with their world.sh.
-shellcheck -x --severity=warning "$out"/bin/* tests/*.sh tests/contract/*.sh || fail shellcheck
+shellcheck -x --severity=warning "$out"/bin/* tests/*.sh tests/contract/*.sh tests/guards/*.sh || fail shellcheck
 "$out/bin/dev-profile-git-config-hooks" || fail "git 2.54+ (config-based hooks) does not resolve"
 # Every generated script runs under pipefail: a reader that stops early (head)
 # kills its writer with SIGPIPE and the script with exit 141.
@@ -42,6 +42,7 @@ fixtures=(
 	tests/contract/hooks.sh
 	tests/contract/dotnet.sh
 	tests/contract/node.sh
+	tests/contract/pnpm.sh
 	tests/contract/composer.sh
 	tests/contract/overrides.sh
 	tests/contract/runners.sh
@@ -53,7 +54,10 @@ fixtures=(
 	tests/bump-fixture.sh
 	tests/modernizer-fixture.sh
 	tests/perl-profile-fixture.sh
-	tests/guards-fixture.sh
+	tests/guards/commit.sh
+	tests/guards/push.sh
+	tests/guards/skip.sh
+	tests/guards/util.sh
 	tests/deny-fixture.sh
 	tests/lint-full-tree-fixture.sh
 	tests/pr-fixture.sh
