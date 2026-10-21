@@ -19,7 +19,8 @@ luac -p "$out/conform.lua" || fail conform.lua
 zsh -n "$out/shell.zsh" || fail shell.zsh
 for f in "$out"/bin/*; do bash -n "$f" || fail "${f##*/}"; done
 # Same bar the profile sets for every repo's push: warnings block, info tips do not.
-shellcheck --severity=warning "$out"/bin/* tests/*.sh || fail shellcheck
+# -x follows `source`, so tests/contract/*.sh are judged with their world.sh.
+shellcheck -x --severity=warning "$out"/bin/* tests/*.sh tests/contract/*.sh || fail shellcheck
 "$out/bin/dev-profile-git-config-hooks" || fail "git 2.54+ (config-based hooks) does not resolve"
 # Every generated script runs under pipefail: a reader that stops early (head)
 # kills its writer with SIGPIPE and the script with exit 141.
@@ -34,10 +35,18 @@ pkl test tests/profile.test.pkl || fail "pkl test (regenerate the snapshot with:
 bash tests/fixture-runner-test.sh || fail "fixture runner"
 for gem_tool in bundle-audit brakeman; do command -v "$gem_tool" >/dev/null || echo "note: $gem_tool is not installed; run mise install (pinned in profile.pkl tools). Its push check is skipped until then."; done
 # Every fixture builds its own repos under mktemp -d and reads this render
-# read-only, so they run as a pool. The worker count backs off as the machine
-# load rises (tests/lib/run-fixtures.sh); each failure is named with its log.
+# read-only, so they run as a pool. The worker count is the core count, capped
+# (tests/run-fixtures.sh); each failure is named with its own log.
 fixtures=(
-	tests/contract-fixtures.sh
+	tests/contract/go.sh
+	tests/contract/hooks.sh
+	tests/contract/dotnet.sh
+	tests/contract/node.sh
+	tests/contract/composer.sh
+	tests/contract/overrides.sh
+	tests/contract/runners.sh
+	tests/contract/tasks.sh
+	tests/contract/suppressions.sh
 	tests/go-fix-fixture.sh
 	tests/gosec-fixture.sh
 	tests/go-mod-tidy-fixture.sh
