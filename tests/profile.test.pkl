@@ -113,6 +113,10 @@ facts {
         || profile.fullTreeChecks.containsKey(id)
     }
   }
+  ["no step passes --deny-warnings: warnings inform, they do not block"] {
+    for (_, step in config.steps) { !commandsOf(step).any((c) -> c.contains("--deny-warnings")) }
+    for (_, step in pushSteps) { !commandsOf(step).any((c) -> c.contains("--deny-warnings")) }
+  }
   ["hk fix and check skip the default-branch commit guard"] {
     config.hooks["fix"].steps["no-commit-to-branch"].step_condition == "false"
     config.hooks["check"].steps["no-commit-to-branch"].step_condition == "false"
