@@ -29,6 +29,18 @@ local function dprint_cwd(self, ctx)
   return root or vim.fs.dirname(ctx.filename)
 end
 
+-- Saves call dprint through mise's shim, not through whatever PATH holds. PATH
+-- names a versioned install directory, so a process started before a pin
+-- change keeps running the old binary: 0.61.1 took 0.7 to 1.6 s per save where
+-- the pinned fork takes 0.15 s. The shim picks the version pinned for the
+-- directory dprint runs in on every call, for about 40 ms.
+local function dprint_command()
+  local shim = (vim.env.MISE_DATA_DIR or vim.fn.expand("~/.local/share/mise")) .. "/shims/dprint"
+  return vim.fn.executable(shim) == 1 and shim or "dprint"
+end
+
+local DPRINT = dprint_command()
+
 -- A dprint run first downloads and compiles every plugin its config lists. With
 -- the profile's twelve that takes far longer than FORMAT_TIMEOUT_MS (about 9 s
 -- of compiling alone), so with an empty cache, as after a macOS storage purge,
@@ -38,10 +50,10 @@ end
 local WARM_TIMEOUT_MS = 180000
 
 local function warm_dprint_cache()
-  if vim.fn.executable("dprint") ~= 1 then
+  if vim.fn.executable(DPRINT) ~= 1 then
     return
   end
-  vim.system({ "dprint", "fmt", "--stdin", "dev-profile-warm.md" }, {
+  vim.system({ DPRINT, "fmt", "--stdin", "dev-profile-warm.md" }, {
     stdin = "",
     cwd = vim.fn.getcwd(),
     timeout = WARM_TIMEOUT_MS,
@@ -66,7 +78,7 @@ return {
   end,
   opts = {
     formatters_by_ft = formatters_by_ft,
-    formatters = { dprint = { cwd = dprint_cwd } },
+    formatters = { dprint = { command = DPRINT, cwd = dprint_cwd } },
     format_on_save = function(bufnr)
       local ft = vim.bo[bufnr].filetype
       if vim.g.disable_autoformat or vim.b[bufnr].disable_autoformat or skip[ft] then
