@@ -54,7 +54,7 @@ grep -qF '| node |' "$summary" && fail "node must not be bumped: a major-only pi
 expect profile.pkl 'id = "node"; version = "24"'
 grep -qF 'Held, a major-only pin moves by hand: node 24 -> 26' "$summary" || fail "the held pin must be reported"
 grep -qF 'Lookups that failed' "$summary" || fail "the summary must list the lookups the stub refused"
-grep -qE 'Lookups that failed.* dprint( |$)' "$summary" || fail "dprint's failed lookup must be listed"
+grep -qE 'Lookups that failed.* github:zachbornheimer/dprint( |$)' "$summary" || fail "dprint's failed lookup must be listed"
 
 # Nothing newer and some lookups failed: the task must say so and fail rather
 # than claim every pin is current.
