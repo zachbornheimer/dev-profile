@@ -203,18 +203,17 @@ function literal(step: hk.Step): hk.Step = new {
 
 /// A hook entry, with the tool-level glob or types filled in when it has none.
 function entry(tool: Tool, hook: Tool.Hook): hk.Step =
-  literal(
-    (tool.on[hook]) {
-      when (tool.on[hook].glob == null && tool.on[hook].types == null) {
-        when (tool.glob != null) { glob = tool.glob }
-        when (tool.types != null) { types = tool.types }
-      }
-      when (tool.skipsLockfiles) {
-        exclude =
-          lockfileGlobs + (if (tool.on[hook].exclude is List) tool.on[hook].exclude as List else List())
-      }
-    },
-  )
+  literal((tool.on[hook]) {
+    when (tool.on[hook].glob == null && tool.on[hook].types == null) {
+      when (tool.glob != null) { glob = tool.glob }
+      when (tool.types != null) { types = tool.types }
+    }
+    when (tool.skipsLockfiles) {
+      exclude =
+        lockfileGlobs
+          + (if (tool.on[hook].exclude is List) tool.on[hook].exclude as List else List())
+    }
+  })
 
 /// Commit: the pre-commit `fix` entries. Each rewrites what it safely can and
 /// is restaged; fixers never fail on what they cannot fix. Push judges that.
@@ -448,7 +447,10 @@ kernelTools: Listing<types.Pin> = new {
 /// Kernel and runtime pins. A tool's own pin lives in its `tools/` file.
 tools: Listing<types.Pin> = new {
   new { id = "hk"; version = "2.5.0" }
-  new { id = "dprint"; version = "0.61.1" }
+  // Fork of dprint/dprint: 0.64.1 plus fast exit (skips wasmtime module teardown, which
+  // costs 0.5-1 s per successful run on macOS). Drop back to the upstream `dprint` pin once
+  // the change lands upstream. macOS arm64 release asset only.
+  new { id = "github:zachbornheimer/dprint"; version = "0.64.1-zach.1" }
   new { id = "worktrunk"; version = "0.80.0" }
   new { id = "go"; version = "1.27" }
   new { id = "node"; version = "24" }

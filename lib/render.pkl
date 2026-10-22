@@ -427,7 +427,7 @@ personalOverlay: Dynamic = new {
     ["_"] { path = List("\(profile.installDir)/bin") }
   }
   settings { experimental = true }
-  tools { dprint = pins(profile.tools)["dprint"] }
+  tools { ["github:zachbornheimer/dprint"] = pins(profile.tools)["github:zachbornheimer/dprint"] }
   // Every provider, as the global config has them: narrowing here silently
   // disabled bundler and the rest in Personal repos, and the two lists drifted.
   deps = depsFor(null)
