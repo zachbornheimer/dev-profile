@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run doctor's fixtures as a pool. Each fixture builds its own repos under
+# Run doctor's checks and fixtures as a pool. Each builds its own repos under
 # mktemp -d and reads the generated profile read-only, so they are independent;
 # only the worker count and the reporting are shared.
 set -euo pipefail
@@ -7,11 +7,17 @@ set -euo pipefail
 worker_count() {
 	local jobs="${DEV_PROFILE_DOCTOR_JOBS:-}" limit="${DEV_PROFILE_DOCTOR_MAX_JOBS:-4}" cpus
 	if [[ -n "$jobs" ]]; then
-		[[ "$jobs" =~ ^[1-9][0-9]*$ ]] || { echo 'DEV_PROFILE_DOCTOR_JOBS must be a positive integer' >&2; return 1; }
+		[[ "$jobs" =~ ^[1-9][0-9]*$ ]] || {
+			echo 'DEV_PROFILE_DOCTOR_JOBS must be a positive integer' >&2
+			return 1
+		}
 		printf '%s\n' "$jobs"
 		return
 	fi
-	[[ "$limit" =~ ^[1-9][0-9]*$ ]] || { echo 'DEV_PROFILE_DOCTOR_MAX_JOBS must be a positive integer' >&2; return 1; }
+	[[ "$limit" =~ ^[1-9][0-9]*$ ]] || {
+		echo 'DEV_PROFILE_DOCTOR_MAX_JOBS must be a positive integer' >&2
+		return 1
+	}
 	cpus="$(getconf _NPROCESSORS_ONLN)"
 	[[ "$cpus" =~ ^[1-9][0-9]*$ ]] || cpus=1
 	if ((cpus > limit)); then cpus="$limit"; fi
@@ -39,7 +45,10 @@ run_one() {
 main() {
 	local out="${1:?usage: run-fixtures.sh <generated-dir> <fixtures...>}" jobs logs fixture status failed=0
 	shift
-	(($#)) || { echo 'No fixtures supplied' >&2; return 1; }
+	(($#)) || {
+		echo 'No fixtures supplied' >&2
+		return 1
+	}
 	jobs="$(worker_count)" || return 1
 	logs="$(mktemp -d)"
 	trap 'rm -rf "$logs"' EXIT
@@ -56,7 +65,10 @@ main() {
 	# locals left scope, where `logs` is unset under `set -u`.
 	rm -rf "$logs"
 	trap - EXIT
-	((failed == 0)) || { printf 'FAIL: %s fixture(s) failed\n' "$failed" >&2; return 1; }
+	((failed == 0)) || {
+		printf 'FAIL: %s fixture(s) failed\n' "$failed" >&2
+		return 1
+	}
 }
 
 if [[ "${1:-}" == --fixture ]]; then

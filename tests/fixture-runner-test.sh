@@ -30,7 +30,10 @@ DEV_PROFILE_DOCTOR_JOBS=1 run
 DEV_PROFILE_DOCTOR_JOBS=2 run
 [[ "$(peak)" == 2 ]]
 [[ "$(wc -l <"$FIXTURE_EVENTS" | tr -d ' ')" == 6 ]]
-! grep -q 'fixture ok' "$work/log" || { echo 'FAIL: a passing fixture echoed into the log' >&2; exit 1; }
+! grep -q 'fixture ok' "$work/log" || {
+	echo 'FAIL: a passing fixture echoed into the log' >&2
+	exit 1
+}
 # A failing fixture fails the pool, names itself, and shows its own log only.
 printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail' 'echo deliberate-failure >&2' 'exit 7' >"$work/fail.sh"
 if DEV_PROFILE_DOCTOR_JOBS=2 bash "$runner" "$EXPECTED_OUT" "$work/fail.sh" "$work/a fixture.sh" >"$work/log" 2>&1; then

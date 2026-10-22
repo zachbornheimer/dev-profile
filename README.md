@@ -50,6 +50,8 @@ mise run rollback    # restore the backed-up originals
 | `lib/retire.pkl`         | retire script the fixture calls; no worktrunk alias           |
 | `tests/profile.test.pkl` | invariants and a snapshot of what each hook runs              |
 | `tests/*-fixture.sh`     | the generated scripts against real git and go                 |
+| `tests/checks/*.sh`      | each generated file through the tool that consumes it         |
+| `tests/run-fixtures.sh`  | the pool `mise run doctor` runs every check and fixture in    |
 | `mise-tasks/bump`        | bump every outdated pin to its latest release                 |
 | `.github/workflows/`     | `ci` runs doctor on every push and PR; `bump` runs weekly     |
 
