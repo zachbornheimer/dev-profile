@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 #MISE description="Generate, back up live configs, then re-bootstrap on the generated config"
 set -euo pipefail
+# A scratch render goes away with its temp dir; live configs linked to it would break.
+[[ "${DEV_PROFILE_OUT##*/}" != dev-profile-out-* ]] || {
+	echo "refusing to link live configs to the scratch render ${DEV_PROFILE_OUT}: run this at the default branch tip, or set DEV_PROFILE_OUT" >&2
+	exit 1
+}
 mise run doctor # generates, then syntax-checks before anything is linked
 mise run backup-live
 mise run install-git-hooks

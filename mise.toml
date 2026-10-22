@@ -9,8 +9,11 @@ min_version = "2026.10.0"
 pkl = "0.32.1"
 
 [env]
-# Overridable so validation can render somewhere other than the live output.
-DEV_PROFILE_OUT = "{{ get_env(name='DEV_PROFILE_OUT', default=env.HOME ~ '/.local/share/dev-profile') }}"
+# The live profile at the default branch's tip, a scratch directory for every other
+# checkout (mise-tasks/out-dir): a branch running doctor, lint or fmt, which all
+# generate first, must never overwrite the live profile. Overridable so validation
+# can render somewhere else.
+DEV_PROFILE_OUT = "{% set picked = exec(command='bash ' ~ config_root ~ '/mise-tasks/out-dir') %}{{ get_env(name='DEV_PROFILE_OUT', default=picked) }}"
 DEV_PROFILE_BACKUPS = "{{env.HOME}}/.local/state/dev-profile/backups"
 
 [bootstrap.packages]

@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+#MISE description="Print the render directory for this checkout: the live profile at the default branch tip, a scratch directory anywhere else"
+set -euo pipefail
+# DEV_PROFILE_OUT defaults to the live profile, and generate replaces that
+# directory wholesale. doctor, fmt and lint all generate first, so running one
+# from a feature branch used to overwrite the live profile with an unmerged one
+# (the dprint pin and nvim config reverted that way). Only the default branch's
+# tip is the live profile; every other checkout renders into its own scratch
+# directory. mise.toml calls this for the DEV_PROFILE_OUT default.
+live="${HOME}/.local/share/dev-profile"
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+if ! git -C "${root}" rev-parse --git-dir >/dev/null 2>&1; then
+	echo "${live}" # a tarball install is not a checkout
+	exit 0
+fi
+
+default="$(git -C "${root}" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || echo origin/main)"
+default="${default#origin/}"
+tip="$(git -C "${root}" rev-parse --verify --quiet "refs/heads/${default}" ||
+	git -C "${root}" rev-parse --verify --quiet "refs/remotes/origin/${default}" || true)"
+head="$(git -C "${root}" rev-parse --verify --quiet HEAD || true)"
+
+if [[ -n "${tip}" && "${head}" == "${tip}" ]]; then
+	echo "${live}"
+	exit 0
+fi
+
+# macOS TMPDIR is a symlink (/var/...); pkl rejects an output path that is not resolved.
+base="$(cd "${TMPDIR:-/tmp}" && pwd -P)"
+echo "${base}/dev-profile-out-$(printf '%s' "${root}" | shasum | cut -c1-12)"

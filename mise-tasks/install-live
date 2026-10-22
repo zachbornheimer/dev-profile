@@ -2,4 +2,9 @@
 #MISE description="Re-link generated configs into live paths (bootstrap already does this)"
 #MISE depends=["doctor", "backup-live"]
 set -euo pipefail
+# A scratch render goes away with its temp dir; live configs linked to it would break.
+[[ "${DEV_PROFILE_OUT##*/}" != dev-profile-out-* ]] || {
+	echo "refusing to link live configs to the scratch render ${DEV_PROFILE_OUT}: run this at the default branch tip, or set DEV_PROFILE_OUT" >&2
+	exit 1
+}
 MISE_GLOBAL_CONFIG_FILE="$DEV_PROFILE_OUT/mise-profile.toml" mise bootstrap dotfiles apply --yes --force
