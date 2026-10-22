@@ -27,7 +27,16 @@ chmod +x "${work}/bin/mise"
 # One entry per pinned tool, installed at its pin plus a patch suffix for prefix pins.
 all_current() {
 	jq -Rn '[inputs | split(" ") | {key: .[0], value: [{version: (.[1] + (if (.[1] | test("^[0-9]+\\.[0-9]+\\.[0-9]+")) then "" else ".1" end)), installed: true, active: true}]}] | from_entries' \
-		< <(awk '/^\[/ { in_tools = ($0 == "[tools]"); next } in_tools && /=/' "${out}/mise-profile.toml" |
+		< <(awk '
+			# `id = "version"` lines of [tools], and the version of each [tools."id"] table (a pin with options).
+			/^\[/ {
+				in_tools = ($0 == "[tools]"); table = ""
+				if ($0 ~ /^\[tools\./) { table = $0; sub(/^\[tools\./, "", table); sub(/\]$/, "", table); gsub(/"/, "", table) }
+				next
+			}
+			in_tools && /=/ { print }
+			table != "" && /^version *=/ { v = $0; sub(/^version *= *"/, "", v); sub(/"$/, "", v); print table " " v }
+		' "${out}/mise-profile.toml" |
 			sed -E 's/^"?([^"=]+[^"= ])"? *= *"(.*)"$/\1 \2/')
 }
 
@@ -50,5 +59,24 @@ grep -Fq "doctor: pkl" "${work}/output.txt" || fail "an absent pkl must warn"
 
 run_warner '{}'
 grep -Fq "doctor: pkl" "${work}/output.txt" || fail "an empty machine must warn"
+
+# dprint is pinned per OS: the fork on macOS only, upstream on Linux and Windows. A
+# stubbed `uname` stands in for the OS, so these cases run the same on every runner.
+run_warner_on() { # <uname -s output> <mise ls json>: must exit 0
+	mkdir -p "${work}/os"
+	printf '#!/bin/sh\necho %s\n' "$1" >"${work}/os/uname"
+	chmod +x "${work}/os/uname"
+	MISE_LS_JSON="$2" PATH="${work}/os:${work}/bin:${PATH}" "$warner" >"${work}/output.txt" 2>&1 || fail "the warning must exit 0"
+}
+fork="github:zachbornheimer/dprint"
+
+run_warner_on Linux "$(all_current | jq --arg fork "${fork}" 'del(.[$fork])')"
+[[ ! -s "${work}/output.txt" ]] || fail "linux does not request the dprint fork: its absence must not warn"
+run_warner_on Linux "$(all_current | jq 'del(.dprint)')"
+grep -Fq "doctor: dprint " "${work}/output.txt" || fail "linux requests upstream dprint: its absence must warn"
+run_warner_on Darwin "$(all_current | jq 'del(.dprint)')"
+[[ ! -s "${work}/output.txt" ]] || fail "macos does not request upstream dprint: its absence must not warn"
+run_warner_on Darwin "$(all_current | jq --arg fork "${fork}" 'del(.[$fork])')"
+grep -Fq "doctor: ${fork} " "${work}/output.txt" || fail "macos requests the dprint fork: its absence must warn"
 
 echo "kernel-pins fixture ok"

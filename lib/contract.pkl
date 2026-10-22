@@ -519,7 +519,14 @@ local kernelPins =
   \(bash)
   # mise ls --global lists what the rendered profile config requests, installed or not.
   active="$(mise ls --global --json 2>/dev/null || echo '{}')"
-  while read -r id pin; do
+  # A pin restricted to other operating systems is not requested here, so it is not checked.
+  case "$(uname -s)" in
+    Darwin) this_os=macos ;;
+    Linux) this_os=linux ;;
+    *) this_os=windows ;;
+  esac
+  while read -r id pin oses; do
+    case ",${oses}," in ",-,"|*",${this_os},"*) ;; *) continue ;; esac
     if ! jq -e --arg id "${id}" --arg pin "${pin}" \
       '(.[$id] // []) | any(.installed and .active and (.version == $pin or (.version | startswith($pin + "."))))' \
       <<<"${active}" >/dev/null; then
@@ -534,7 +541,9 @@ local kernelPins =
 local kernelPinLines: String =
   List(profile.kernelTools.toList(), profile.tools.toList())
     .flatten()
-    .map((pin) -> "\(pin.id) \(pin.version)")
+    .map((pin) ->
+      "\(pin.id) \(pin.version) \(if (pin.os == null) "-" else pin.os!!.toList().join(","))"
+    )
     .join("\n")
 
 local adapterBodies: Mapping<String, String> = new {

@@ -447,10 +447,17 @@ kernelTools: Listing<types.Pin> = new {
 /// Kernel and runtime pins. A tool's own pin lives in its `tools/` file.
 tools: Listing<types.Pin> = new {
   new { id = "hk"; version = "2.5.0" }
-  // Fork of dprint/dprint: 0.64.1 plus fast exit (skips wasmtime module teardown, which
-  // costs 0.5-1 s per successful run on macOS). Drop back to the upstream `dprint` pin once
-  // the change lands upstream. macOS arm64 release asset only.
-  new { id = "github:zachbornheimer/dprint"; version = "0.64.1-zach.1" }
+  // dprint: a fork of dprint/dprint at 0.64.1 plus fast exit, which skips freeing the loaded
+  // wasm modules on exit. That teardown costs 0.5-1 s per successful run on macOS and nothing
+  // measurable on Linux, so the fork installs on macOS only (its release ships a darwin-arm64
+  // asset, and Intel Macs have none) and every other OS gets the same core version from
+  // upstream. Replace both with one upstream pin once the change lands upstream.
+  new {
+    id = "github:zachbornheimer/dprint"
+    version = "0.64.1-zach.1"
+    os = new Listing { "macos" }
+  }
+  new { id = "dprint"; version = "0.64.1"; os = new Listing { "linux"; "windows" } }
   new { id = "worktrunk"; version = "0.80.0" }
   new { id = "go"; version = "1.27" }
   new { id = "node"; version = "24" }

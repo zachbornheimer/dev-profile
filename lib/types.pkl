@@ -60,6 +60,10 @@ class Pin {
   version: String(this != "latest")
   /// When false, the tool is documented but not globally installed.
   install: Boolean = true
+  /// Operating systems that install this pin, spelled as mise's `os` tool option
+  /// spells them: "linux", "macos", "windows". mise takes no architecture here.
+  /// Unset installs everywhere.
+  os: Listing<String>?
 }
 
 class Settings {
