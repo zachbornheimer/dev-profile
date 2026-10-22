@@ -149,17 +149,72 @@ function commitStepName(name: String, tool: Tool): String =
   else
     "\(name)-staged"
 
-/// A hook entry, with the tool-level glob or types filled in when it has none.
-local function entry(tool: Tool, hook: Tool.Hook): hk.Step = (tool.on[hook]) {
-  when (tool.on[hook].glob == null && tool.on[hook].types == null) {
-    when (tool.glob != null) { glob = tool.glob }
-    when (tool.types != null) { types = tool.types }
-  }
-  when (tool.skipsLockfiles) {
-    exclude =
-      lockfileGlobs + (if (tool.on[hook].exclude is List) tool.on[hook].exclude as List else List())
-  }
+/// The same step as a plain literal: every field it effectively has, copied out
+/// of whatever it was derived from. A tool still declares its step by amending
+/// the hk builtin (so it inherits the builtin's glob, commands and defaults), but
+/// hk is only ever given the flattened result.
+///
+/// This is a cost, not a style choice. hk pays for each step that amends an hk
+/// builtin at config-evaluation time, before any tool runs: one such step in an
+/// otherwise empty config costs 3.8s and 3.8GB resident, the same config with a
+/// literal step costs 2.0s and 0.7GB, and the whole 72-module profile costs
+/// 8s and 6.6GB on every hook run. Flattening here is the only place every step
+/// passes through, so it is the only place this can be said once.
+function literal(step: hk.Step): hk.Step = new {
+  required = step.required
+  glob = step.glob
+  types = step.types
+  match_any = step.match_any
+  allow_binary = step.allow_binary
+  allow_symlinks = step.allow_symlinks
+  check = step.check
+  check_list_files = step.check_list_files
+  check_diff = step.check_diff
+  apply_check_diff = step.apply_check_diff
+  check_after_diff = step.check_after_diff
+  check_failed_files = step.check_failed_files
+  fix = step.fix
+  check_first = step.check_first
+  batch = step.batch
+  batch_min_files = step.batch_min_files
+  stomp = step.stomp
+  workspace_indicator = step.workspace_indicator
+  prefix = step.prefix
+  dir = step.dir
+  profiles = step.profiles
+  depends = step.depends
+  allow_failure = step.allow_failure
+  shell = step.shell
+  stage = step.stage
+  exclusive = step.exclusive
+  exclude = step.exclude
+  interactive = step.interactive
+  stdin = step.stdin
+  condition = step.condition
+  step_condition = step.step_condition
+  hide = step.hide
+  output_summary = step.output_summary
+  diagnostic_format = step.diagnostic_format
+  diagnostic_tool = step.diagnostic_tool
+  diagnostic_severity = step.diagnostic_severity
+  env = step.env
+  tests = step.tests
 }
+
+/// A hook entry, with the tool-level glob or types filled in when it has none.
+function entry(tool: Tool, hook: Tool.Hook): hk.Step =
+  literal(
+    (tool.on[hook]) {
+      when (tool.on[hook].glob == null && tool.on[hook].types == null) {
+        when (tool.glob != null) { glob = tool.glob }
+        when (tool.types != null) { types = tool.types }
+      }
+      when (tool.skipsLockfiles) {
+        exclude =
+          lockfileGlobs + (if (tool.on[hook].exclude is List) tool.on[hook].exclude as List else List())
+      }
+    },
+  )
 
 /// Commit: the pre-commit `fix` entries. Each rewrites what it safely can and
 /// is restaged; fixers never fail on what they cannot fix. Push judges that.

@@ -19,10 +19,12 @@ exclude = profile.exclude.toList()
 // Top-level steps feed the implicit pre-commit, fix and check hooks.
 steps {
   // Format last, after fixers have removed or rewritten code.
-  ["dprint"] = (Builtins.dprint) {
-    depends = profile.fixers.keys.toList()
-    exclude = profile.lockfiles
-  }
+  ["dprint"] = profile.literal(
+    (Builtins.dprint) {
+      depends = profile.fixers.keys.toList()
+      exclude = profile.lockfiles
+    },
+  )
   ...profile.fixers
   // Commit guards judge the commit being made, not the code: the lint verb
   // disables them. A hygiene tool (same step at commit and push) stays on.
