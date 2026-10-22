@@ -20,7 +20,7 @@ zsh -n "$out/shell.zsh" || fail shell.zsh
 for f in "$out"/bin/*; do bash -n "$f" || fail "${f##*/}"; done
 # Same bar the profile sets for every repo's push: warnings block, info tips do not.
 # -x follows `source`, so tests/contract/*.sh are judged with their world.sh.
-shellcheck -x --severity=warning "$out"/bin/* tests/*.sh tests/contract/*.sh tests/guards/*.sh || fail shellcheck
+shellcheck -x --severity=warning "$out"/bin/* tests/*.sh tests/contract/*.sh tests/dev-family/*.sh tests/guards/*.sh tests/lint-binding/*.sh || fail shellcheck
 "$out/bin/dev-profile-git-config-hooks" || fail "git 2.54+ (config-based hooks) does not resolve"
 # Every generated script runs under pipefail: a reader that stops early (head)
 # kills its writer with SIGPIPE and the script with exit 141.
@@ -69,7 +69,15 @@ fixtures=(
 	tests/shellcheck-severity-fixture.sh
 	tests/tool-path-fixture.sh
 	tests/shell-init-fixture.sh
-	tests/dev-family-fixture.sh
+	tests/dev-family/restart.sh
+	tests/dev-family/routes.sh
+	tests/dev-family/state.sh
+	tests/dev-family/markers.sh
+	tests/dev-family/tether.sh
+	tests/dev-family/escape-restart.sh
+	tests/dev-family/escape-reap-path.sh
+	tests/dev-family/route-labels.sh
+	tests/dev-family/escape-reap-all.sh
 	tests/worktree-copy-fixture.sh
 	tests/worktree-start-fixture.sh
 	tests/identity-guard-fixture.sh
@@ -79,7 +87,10 @@ fixtures=(
 	tests/kernel-pins-fixture.sh
 	tests/retire-legacy-hooks-fixture.sh
 	tests/ci-action-fixture.sh
-	tests/lint-binding-fixture.sh
+	tests/lint-binding/yaml.sh
+	tests/lint-binding/json.sh
+	tests/lint-binding/lenient-json.sh
+	tests/lint-binding/go.sh
 )
 bash tests/run-fixtures.sh "$out" "${fixtures[@]}" || fail "fixtures"
 echo "doctor ok"

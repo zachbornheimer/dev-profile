@@ -25,3 +25,7 @@
 !/tests/contract/*.sh
 !/tests/guards/
 !/tests/guards/*.sh
+!/tests/lint-binding/
+!/tests/lint-binding/*.sh
+!/tests/dev-family/
+!/tests/dev-family/*.sh
