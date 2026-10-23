@@ -77,10 +77,13 @@ facts {
     render.worktrunk["post-remove"].reap
       == "\(profile.installPath)/bin/dev-profile-dev reap {{ worktree_path }}"
   }
-  ["worktrunk aliases include prune and commit-unstaged"] {
+  ["commit-unstaged commits in the new worktree, not the invoking shell"] {
     render.worktrunk.aliases.prune == "wt step prune --min-age=0s"
-    render.worktrunk.aliases["commit-unstaged"]
-      == "git stash push -u && wt switch --create chore/uncommited && git stash pop && wt step commit && wt merge"
+    let (alias = render.worktrunk.aliases["commit-unstaged"])
+      alias.contains("--no-cd -x sh -- -c")
+        && alias.contains("git stash pop && wt step commit && wt merge")
+        && alias.contains("exit \"$status\"")
+        && !alias.contains("wt switch --create chore/uncommited &&")
   }
   ["every pre-push step judges: a check, never only a fix"] {
     for (_, step in pushSteps) { hasCheck(step) }

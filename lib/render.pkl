@@ -313,9 +313,32 @@ worktrunk: Dynamic = new {
     ...done.aliases
     // Prune what is merged now; the built-in `--min-age` default is 1d.
     prune = "wt step prune --min-age=0s"
-    // The branch name is the one the hand alias already uses.
+    // `wt switch` cds the interactive shell only after the top-level wt
+    // returns, so a later `&&` still runs in the invoking worktree and the
+    // default-branch guard refuses the commit. `-x` runs pop, commit, and
+    // merge in the new worktree whether or not the shell follows. `--no-cd`
+    // keeps a successful merge from leaving the shell in the worktree it
+    // removes. Success then switches to the default branch; failure switches
+    // to the feature branch and exits non-zero. An existing branch is reused
+    // so a retry after that failure pops the stash there instead of dying
+    // on `--create`. The branch name is the one the hand alias already uses.
     ["commit-unstaged"] =
-      "git stash push -u && wt switch --create chore/uncommited && git stash pop && wt step commit && wt merge"
+      """
+      git stash push -u || exit 1
+      cmd='git stash pop && wt step commit && wt merge'
+      if git show-ref --verify --quiet refs/heads/chore/uncommited; then
+        wt switch chore/uncommited --no-cd -x sh -- -c "$cmd"
+      else
+        wt switch --create chore/uncommited --no-cd -x sh -- -c "$cmd"
+      fi
+      status=$?
+      if [ "$status" -eq 0 ]; then
+        wt switch ^
+      else
+        wt switch chore/uncommited
+        exit "$status"
+      fi
+      """
   }
 }
 
