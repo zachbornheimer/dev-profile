@@ -41,6 +41,10 @@ local hardcodedDevPort =
   # Pre-push judge: no hardcoded dev port added to app code (added lines only). A file that reads PORT from
   # the environment may keep a literal as its fallback default.
   (($#)) || exit 0
+  # No commits means no added lines. Diffing HEAD here prints
+  # "fatal: bad revision" and hk treats that stderr as a failed lint.
+  git rev-parse -q --verify 'HEAD^{commit}' >/dev/null 2>&1 || exit 0
+
 
   # Where the app's own server binds. One ERE per line: a bind address, a listen
   # address string, .listen(<port>), PORT=<port>. Always judged.
@@ -127,17 +131,6 @@ local hardcodedDevPort =
       echo "$(default_base HEAD) HEAD"
     fi
   }
-  # "<line>:<text>" for each line the push adds to <file>.
-  added_lines() { # <file>
-    local base tip
-    while read -r base tip; do
-      git diff -U0 --no-color --no-ext-diff "${base}" "${tip}" -- "$1" | awk '
-        /^@@/ { split($3, a, ","); n = substr(a[1], 2) + 0; next }
-        /^\+\+\+/ { next }
-        /^\+/ { print n ":" substr($0, 2); n++ }
-      '
-    done < <(ranges) | sort -t: -k1,1n -u
-  }
 
   # Every port this repo's own server takes: the conventional dev ports plus
   # each port a tracked, non-test file listens on or publishes from compose.
@@ -154,47 +147,78 @@ local hardcodedDevPort =
     } | grep -oE '[0-9]{4,5}:' | tr -d ':' || true
   }
 
-  # Lines (stdin, "<line>:<text>") naming localhost:<port> where the repo serves <port>.
-  served_addresses() {
-    local l
-    while IFS= read -r l; do
-      if grep -oE -e "$(client_address)" <<<"${l#*:}" | grep -oE '[0-9]{4,5}' | grep -qxFf <(echo "${own}"); then
-        echo "${l}"
-      fi
-    done < <(grep -E -e "^[0-9]+:.*($(client_address))" || true)
-  }
-
-  hits_in() {
-    local file="$1" added candidates
-    added="$(added_lines "${file}")"
-    [[ -n "${added}" ]] || return 0
-    candidates="$(grep -vE -e "^[0-9]+:.*($(env_fallbacks | paste -sd'|' -))" <<<"${added}" || true)"
-    [[ -n "${candidates}" ]] || return 0
-    {
-      grep -E -e "^[0-9]+:.*($(listen_sites | paste -sd'|' -))" <<<"${candidates}" || true
-      served_addresses <<<"${candidates}"
-      case "${file##*/}" in
-        *compose*.yml | *compose*.yaml)
-          while IFS= read -r l; do
-            grep -qE -e "$(compose_ports)" <<<"${l#*:}" && echo "${l}"
-          done <<<"${candidates}" || true
-          ;;
-      esac
-    } | sort -t: -k1,1n -u
-  }
 
   own="$(own_ports)"
   status=0
-  for file in "$@"; do
-    [[ -f "${file}" ]] || continue
-    if grep -qIE -e "$(reads_port)" -- "${file}"; then continue; fi
-    hits="$(hits_in "${file}")"
-    [[ -n "${hits}" ]] || continue
-    while IFS= read -r hit; do
-      echo "${file}:${hit}" >&2
-    done <<<"${hits}"
+  # One diff, one judge. A per-file re-diff was 16s on a 223-file push, and
+  # a per-file awk of that diff was still 7s. A hook that slow fails the push.
+  diff_cache="$(mktemp)"
+  readers="$(mktemp)"
+  trap 'rm -f "${diff_cache}" "${readers}"' EXIT
+  while read -r base tip; do
+    [[ -n "${base:-}" && -n "${tip:-}" ]] || continue
+    git rev-parse -q --verify "${tip}^{commit}" >/dev/null 2>&1 || continue
+    git diff -U0 --no-color --no-ext-diff "${base}" "${tip}" -- "$@" >>"${diff_cache}" || [[ $? -eq 1 ]]
+  done < <(ranges)
+
+  grep -lIE -e "$(reads_port)" -- "$@" >"${readers}" 2>/dev/null || true
+  hits="$(
+    LISTEN_RE="$(listen_sites | paste -sd'|' -)" \
+    FALLBACK_RE="$(env_fallbacks | paste -sd'|' -)" \
+    CLIENT_RE="$(client_address)" \
+    COMPOSE_RE="$(compose_ports)" \
+    OWN_PORTS="${own}" \
+    READERS="${readers}" \
+    awk '
+      BEGIN {
+        listen = ENVIRON["LISTEN_RE"]
+        fallback = ENVIRON["FALLBACK_RE"]
+        client = ENVIRON["CLIENT_RE"]
+        compose = ENVIRON["COMPOSE_RE"]
+        readers = ENVIRON["READERS"]
+        while ((getline line < readers) > 0) skip[line] = 1
+        close(readers)
+        nown = split(ENVIRON["OWN_PORTS"], ports, "\n")
+        for (i = 1; i <= nown; i++) if (ports[i] != "") is_own[ports[i]] = 1
+      }
+      /^diff --git / { file = ""; next }
+      /^\+\+\+ / {
+        path = substr($0, 5)
+        if (substr(path, 1, 1) == "\"") path = substr(path, 2, length(path) - 2)
+        sub(/^b\//, "", path)
+        file = path
+        next
+      }
+      file == "" || (file in skip) { next }
+      /^@@/ { split($3, a, ","); n = substr(a[1], 2) + 0; next }
+      /^\+/ {
+        text = substr($0, 2)
+        line_no = n
+        n++
+        if (fallback != "" && text ~ fallback) next
+        bad = (listen != "" && text ~ listen)
+        if (!bad && client != "" && text ~ client) {
+          rest = text
+          while (match(rest, client)) {
+            chunk = substr(rest, RSTART, RLENGTH)
+            rest = substr(rest, RSTART + RLENGTH)
+            if (match(chunk, /[0-9]{4,5}/) && (substr(chunk, RSTART, RLENGTH) in is_own)) bad = 1
+          }
+        }
+        if (!bad) {
+          base = file
+          sub(/^.*\//, "", base)
+          if (base ~ /compose/ && base ~ /\.ya?ml$/ && compose != "" && text ~ compose) bad = 1
+        }
+        if (bad) print file ":" line_no ":" text
+      }
+    ' "${diff_cache}" | sort -t: -k1,1 -k2,2n -u
+  )"
+  if [[ -n "${hits}" ]]; then
+    printf '%s\n' "${hits}" >&2
     status=1
-  done
+  fi
+
 
   if [[ "${status}" -ne 0 ]]; then
     echo "hardcoded dev port: read \$PORT from the environment (a literal fallback default is fine) and run the app with PORT set per checkout (e.g. through 'mise run dev')." >&2
