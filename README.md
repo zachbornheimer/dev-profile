@@ -129,21 +129,23 @@ live profile follows `main`.
 
 ## End of day: `wt done`
 
-`lib/done.pkl` renders `dev-profile-done` and the `wt done` alias. Commit,
-push, draft pull requests, and prune are on. `--drop` is not. Worktrunk may
-swallow flags, so from the alias pass them after `--`. Parking unfinished
-work sets `HK=0` and commits/pushes with `--no-verify` so quality hooks
-cannot block a snapshot.
+`lib/done.pkl` renders `dev-profile-done` and the `wt done` alias. The default
+finishes the worktree you are in: commit, restack, push, a draft pull request,
+and prune for that branch. `--all` (`wt done-all`, or `wt done -- --all`) is
+the clone-wide run. `--drop` requires `--all`. Worktrunk may swallow flags, so
+from the alias pass them after `--`. Parking unfinished work sets `HK=0` and
+commits and pushes with `--no-verify` so quality hooks cannot block a snapshot.
 
-| Command       | Does                                                                                                                                                      |
-| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `wt done`     | fetch, fast-forward a strictly-behind default branch, restack each eligible branch onto origin/default, commit, push, open draft pull requests, and prune |
-| `--no-commit` | skip branches with uncommitted work, stashes, and detached HEAD                                                                                           |
-| `--no-push`   | do not push. Pull requests are skipped too                                                                                                                |
-| `--no-pr`     | do not open pull requests                                                                                                                                 |
-| `--no-prune`  | do not delete local or origin refs                                                                                                                        |
-| `--drop`      | Trash the clone when nothing was skipped, every tip is on origin, and no linked worktree remains                                                          |
-| `--dry-run`   | print the plan. `git fetch` is the only change                                                                                                            |
+| Command       | Does                                                                                                      |
+| ------------- | --------------------------------------------------------------------------------------------------------- |
+| `wt done`     | finish the invoking worktree: commit, restack onto origin/default, push, open a draft pull request, prune |
+| `--all`       | every worktree and every local branch. `wt done-all`, or `wt done -- --all`                               |
+| `--no-commit` | skip branches with uncommitted work, stashes, and detached HEAD                                           |
+| `--no-push`   | do not push. Pull requests are skipped too                                                                |
+| `--no-pr`     | do not open pull requests                                                                                 |
+| `--no-prune`  | do not delete local or origin refs                                                                        |
+| `--drop`      | Trash the clone when nothing was skipped and every tip is on origin. Requires `--all`                     |
+| `--dry-run`   | print the plan. `git fetch` is the only change                                                            |
 
 A rewritten branch uses `--force-with-lease`. A conflict goes to
 `backup/conflicts/<clone>/<branch>` and opens a draft into the branch it
@@ -164,7 +166,8 @@ is the stacked restack command (`wt-sync`). `dev-profile-sync` and
 
 ```bash
 wt done -- --dry-run
-wt done -- --drop
+wt done-all
+wt done -- --all --drop
 ```
 
 `wt prune` deletes merged branches now (`wt step prune --min-age=0s`; the
