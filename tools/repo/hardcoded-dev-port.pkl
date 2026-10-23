@@ -41,6 +41,10 @@ local hardcodedDevPort =
   # Pre-push judge: no hardcoded dev port added to app code (added lines only). A file that reads PORT from
   # the environment may keep a literal as its fallback default.
   (($#)) || exit 0
+  # No commits means no added lines. Diffing HEAD here prints
+  # "fatal: bad revision" and hk treats that stderr as a failed lint.
+  git rev-parse -q --verify 'HEAD^{commit}' >/dev/null 2>&1 || exit 0
+
 
   # Where the app's own server binds. One ERE per line: a bind address, a listen
   # address string, .listen(<port>), PORT=<port>. Always judged.
@@ -152,9 +156,11 @@ local hardcodedDevPort =
   readers="$(mktemp)"
   trap 'rm -f "${diff_cache}" "${readers}"' EXIT
   while read -r base tip; do
-    [[ -n "${base:-}" ]] || continue
+    [[ -n "${base:-}" && -n "${tip:-}" ]] || continue
+    git rev-parse -q --verify "${tip}^{commit}" >/dev/null 2>&1 || continue
     git diff -U0 --no-color --no-ext-diff "${base}" "${tip}" -- "$@" >>"${diff_cache}" || [[ $? -eq 1 ]]
   done < <(ranges)
+
   grep -lIE -e "$(reads_port)" -- "$@" >"${readers}" 2>/dev/null || true
   hits="$(
     LISTEN_RE="$(listen_sites | paste -sd'|' -)" \
