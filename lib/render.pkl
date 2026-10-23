@@ -298,6 +298,11 @@ worktrunk: Dynamic = new {
     ...sync.aliases
     ...retire.aliases
     ...done.aliases
+    // Prune what is merged now; the built-in `--min-age` default is 1d.
+    prune = "wt step prune --min-age=0s"
+    // The branch name is the one the hand alias already uses.
+    ["commit-unstaged"] =
+      "git stash push -u && wt switch --create chore/uncommited && git stash pop && wt step commit && wt merge"
   }
 }
 

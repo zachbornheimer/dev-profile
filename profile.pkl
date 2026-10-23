@@ -699,7 +699,8 @@ languages: Listing<types.Spec> = new {
     nativeConfigs { ".swiftlint.yml"; ".swift-format" }
     dprint {
       kind = "exec"
-      command = "dev-profile-swift-format"
+      // dprint pipes stdin. `--stdin-path` finds the repo's `.swift-format`.
+      command = "dev-profile-swift-format --stdin-path {{file_path}}"
       exts { "swift" }
     }
   }

@@ -9,7 +9,7 @@ fail() {
 HK_FILE="$out/hk-config.pkl" hk validate >/dev/null || fail hk-config.pkl
 dprint output-resolved-config --config "$out/dprint.jsonc" >/dev/null || fail dprint.jsonc
 wt --config "$out/worktrunk.toml" config show >/dev/null || fail worktrunk.toml
-for alias in up pr pr-draft pr-auto "done"; do
+for alias in up pr pr-draft pr-auto "done" prune commit-unstaged; do
 	wt --config "$out/worktrunk.toml" config alias show "$alias" >/dev/null || fail "worktrunk alias $alias"
 done
 wt --config "$out/worktrunk.toml" config alias dry-run pr -- @ >/dev/null || fail worktrunk alias dry-run pr
@@ -56,6 +56,7 @@ bash tests/worktree-start-fixture.sh "$out" || fail "worktree-start fixture"
 bash tests/identity-guard-fixture.sh "$out" || fail "identity-guard fixture"
 bash tests/hardcoded-dev-port-fixture.sh "$out" || fail "hardcoded-dev-port fixture"
 bash tests/formatter-linter-agreement-fixture.sh "$out" || fail "formatter-linter-agreement fixture"
+bash tests/swift-format-fixture.sh "$out" || fail "swift-format fixture"
 bash tests/owned-files-fixture.sh "$out" || fail "owned-files fixture"
 bash tests/kernel-pins-fixture.sh "$out" || fail "kernel-pins fixture"
 bash tests/retire-legacy-hooks-fixture.sh "$out" || fail "retire-legacy-hooks fixture"

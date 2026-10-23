@@ -156,6 +156,11 @@ wt done -- --dry-run
 wt done -- --drop
 ```
 
+`wt prune` deletes merged branches now (`wt step prune --min-age=0s`; the
+built-in wait is 1d). `wt commit-unstaged` stashes everything, commits it on
+`chore/uncommited`, and merges that branch back. Both are generated aliases,
+not a hand edit of `worktrunk.toml`.
+
 ## Repo contract
 
 A repo inherits the profile and commits nothing the profile already owns. A repo
