@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# `wt done` parks unfinished work and restacks each eligible branch onto
-# origin/<default>. Real git; wt-sync and gh are stubs that log arguments.
+# `wt done` finishes the invoking worktree. `--all` is the clone-wide run.
+# Real git; wt-sync and gh are stubs that log arguments.
 # Usage: done-fixture.sh <generated-dir>
 set -euo pipefail
 
@@ -122,7 +122,7 @@ git -C "$repo" switch -q main
 git -C "$repo" worktree add -q "${work}/stack-feat" feat/stacked
 commit "$repo" extra.txt extra
 git -C "$repo" push --no-verify -q origin main
-run_done "$repo" --no-pr --no-prune >"${work}/stack.out" 2>&1 || fail "done must restack onto origin/main: $(cat "${work}/stack.out")"
+run_done "$repo" --all --no-pr --no-prune >"${work}/stack.out" 2>&1 || fail "done must restack onto origin/main: $(cat "${work}/stack.out")"
 git -C "$repo" merge-base --is-ancestor origin/main feat/stacked || fail "feat/stacked must be restacked onto origin/main"
 [[ "$(git -C "$repo" rev-parse feat/stacked^)" != "$(git -C "$repo" rev-parse backup/snap)" ]] ||
 	fail "feat/stacked must not have backup/snap as first parent"
@@ -143,7 +143,7 @@ git -C "$repo" push --no-verify -q origin feat/clean
 commit "$repo" clean.txt yes
 clean_tip="$(git -C "$repo" rev-parse feat/clean)"
 git -C "$repo" switch -q main
-run_done "$repo" --no-pr --no-prune >"${work}/split.out" 2>&1 || fail "a single conflict must not fail done: $(cat "${work}/split.out")"
+run_done "$repo" --all --no-pr --no-prune >"${work}/split.out" 2>&1 || fail "a single conflict must not fail done: $(cat "${work}/split.out")"
 [[ "$(git -C "$origin" rev-parse feat/clean)" == "${clean_tip}" ]] || fail "the clean branch must reach origin"
 [[ "$(git -C "$repo" rev-parse feat/clash)" == "${clash_before}" ]] || fail "the diverged local tip must stay unchanged"
 [[ "$(git -C "$origin" rev-parse "backup/conflicts/split/feat/clash")" == "${clash_before}" ]] ||
@@ -158,7 +158,7 @@ loose_tip="$(git -C "$repo" rev-parse feat/loose)"
 git -C "$repo" switch -q main
 commit "$repo" extra.txt extra
 git -C "$repo" push --no-verify -q origin main
-run_done "$repo" --no-pr --no-prune >"${work}/stay.out" 2>&1 || fail "done must push a branch with no worktree: $(cat "${work}/stay.out")"
+run_done "$repo" --all --no-pr --no-prune >"${work}/stay.out" 2>&1 || fail "done must push a branch with no worktree: $(cat "${work}/stay.out")"
 [[ "$(git -C "$repo" symbolic-ref --short HEAD)" == main ]] ||
 	fail "done must leave the primary clone on main, not $(git -C "$repo" symbolic-ref --short HEAD 2>/dev/null || git -C "$repo" rev-parse --short HEAD)"
 [[ "$(git -C "$origin" rev-parse feat/loose)" == "${loose_tip}" ]] || fail "a branch with no worktree must still be pushed as-is"
@@ -172,7 +172,7 @@ git -C "$repo" switch -q main
 git -C "$repo" worktree add -q "${work}/same-feat" feat/same
 commit "$repo" extra.txt from-main
 git -C "$repo" push --no-verify -q origin main
-run_done "$repo" --no-prune >"${work}/same.out" 2>&1 || fail "a same-commit conflict PR must not fail done: $(cat "${work}/same.out")"
+run_done "$repo" --all --no-prune >"${work}/same.out" 2>&1 || fail "a same-commit conflict PR must not fail done: $(cat "${work}/same.out")"
 grep -q 'pr create' "$WT_LOG" && fail "open_pr must not create a PR with no commits: $(cat "$WT_LOG")"
 
 # --- --dry-run still only fetches.
@@ -185,6 +185,29 @@ run_done "$repo" --dry-run --no-pr --no-prune >"${work}/dry.out" 2>&1 || fail "d
 [[ "$(git -C "$repo" status --porcelain)" == "${dirty_before}" ]] || fail "dry-run must leave the dirty file uncommitted"
 grep -Eq 'would-restack +origin/main' "${work}/dry.out" || fail "dry-run must restack onto origin/main: $(cat "${work}/dry.out")"
 grep -F 'wt-sync --all' "${work}/dry.out" && fail "dry-run must not restack with wt-sync --all: $(cat "${work}/dry.out")"
+# --- Default scope is the invoking worktree, not the clone.
+setup_clone scope
+git -C "$repo" switch -q -c feat/here
+commit "$repo" here.txt here
+git -C "$repo" switch -q -c feat/there main
+commit "$repo" there.txt there
+there_tip="$(git -C "$repo" rev-parse feat/there)"
+git -C "$repo" switch -q feat/here
+git -C "$repo" worktree add -q "${work}/scope-there" feat/there
+printf 'other\n' >"${work}/scope-there/there.txt"
+printf 'dirty\n' >"${repo}/here.txt"
+run_done "$repo" --no-pr --no-prune >"${work}/scope.out" 2>&1 || fail "done must finish the current worktree: $(cat "${work}/scope.out")"
+git -C "$origin" rev-parse --verify --quiet refs/heads/feat/there >/dev/null &&
+	fail "default scope must not push the other branch: $(cat "${work}/scope.out")"
+[[ "$(git -C "$repo" rev-parse feat/there)" == "${there_tip}" ]] || fail "default scope must not move the other branch"
+[[ -n "$(git -C "${work}/scope-there" status --porcelain)" ]] || fail "default scope must leave the other worktree dirty"
+git -C "$origin" rev-parse --verify --quiet refs/heads/feat/here >/dev/null || fail "the current branch must still be pushed"
+# --- --drop without --all must not trash the clone.
+setup_clone nodrop
+run_done "$repo" --drop >"${work}/nodrop.out" 2>&1 && fail "--drop without --all must fail"
+[[ -d "$repo/.git" ]] || fail "--drop without --all must leave the clone"
+grep -Fq 'pass --all' "${work}/nodrop.out" || fail "--drop without --all must say why: $(cat "${work}/nodrop.out")"
+
 grep -Fq 'dry-run: fetched origin; no other changes' "${work}/dry.out" || fail "dry-run must only fetch"
 
 # The script itself must disable quality hooks; the fixture did not export HK=0.

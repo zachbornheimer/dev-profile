@@ -1,7 +1,7 @@
-/// End-of-day clone command behind `wt done`.
+/// End-of-day command behind `wt done`.
 ///
-/// Commit, push, draft pull requests, and prune are on by default.
-/// `--drop` is not. `--dry-run` only fetches origin.
+/// Default: the invoking worktree and its branch. `--all` keeps the clone-wide run.
+/// Commit, push, draft pull requests, and prune are on. `--drop` requires `--all`.
 module done
 
 import "pr.pkl"
@@ -10,17 +10,18 @@ import "script.pkl"
 local doneScript =
   #"""
   \#(script.bash)
-  # Fetch, fast-forward a default branch that is strictly behind, and restack.
+  # Default: the invoking worktree and its branch.
+  #   --all        every worktree and every local branch
   # Then commit, push, open draft pull requests, and prune.
   #   --no-commit  skip branches with uncommitted work, stashes, and detached HEAD
   #   --no-push    do not push
   #   --no-pr      do not open pull requests
   #   --no-prune   do not delete local or origin refs
-  #   --drop       Trash the clone when every tip is on origin
+  #   --drop       Trash the clone when every tip is on origin. Requires --all.
   #   --dry-run    print the plan; git fetch is the only change
   # --commit, --push, --pr, and --prune are accepted and are already the default.
   usage() {
-    echo "usage: dev-profile-done [--dry-run] [--no-commit] [--no-push] [--no-pr] [--no-prune] [--drop]" >&2
+    echo "usage: dev-profile-done [--all] [--dry-run] [--no-commit] [--no-push] [--no-pr] [--no-prune] [--drop]" >&2
   }
 
   dry_run=false
@@ -29,8 +30,10 @@ local doneScript =
   do_pr=true
   do_prune=true
   do_drop=false
+  do_all=false
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      --all) do_all=true ;;
       --dry-run) dry_run=true ;;
       --commit) do_commit=true ;;
       --push) do_push=true ;;
@@ -67,6 +70,16 @@ local doneScript =
     echo "origin is required" >&2
     exit 1
   }
+  invoke_raw="$(git rev-parse --show-toplevel)"
+  invoke_root="$(cd "${invoke_raw}" && pwd -P)"
+  invoke_branch=""
+  if git symbolic-ref --quiet HEAD >/dev/null; then
+    invoke_branch="$(git symbolic-ref --short HEAD)"
+  fi
+  if [[ "${do_drop}" == true && "${do_all}" != true ]]; then
+    echo "dev-profile-done: --drop removes the clone; pass --all" >&2
+    exit 2
+  fi
   common="$(git rev-parse --path-format=absolute --git-common-dir)"
   primary="$(cd "$(dirname "${common}")" && pwd -P)"
   cd "${primary}" || exit 1
@@ -88,6 +101,18 @@ local doneScript =
   mark_once() {
     if marked "$2" "$1"; then return 0; fi
     printf '%s\n' "$2" >>"$1"
+  }
+  in_scope_branch() {
+    [[ "${do_all}" == true ]] && return 0
+    [[ -n "${invoke_branch}" && "$1" == "${invoke_branch}" ]] && return 0
+    marked "$1" "${state}/planned"
+  }
+  in_scope_path() {
+    local canon
+    [[ "${do_all}" == true ]] && return 0
+    [[ "$1" == "${invoke_root}" || "$1" == "${invoke_raw}" ]] && return 0
+    canon="$(cd "$1" 2>/dev/null && pwd -P)" || return 1
+    [[ "${canon}" == "${invoke_root}" ]]
   }
 
   clone_id() { git config --get dev-profile.sync-clone || :; }
@@ -150,6 +175,7 @@ local doneScript =
   }
 
   write_worktrees() {
+    local path branch locked
     git worktree list --porcelain | awk '
       function emit() { if (path != "") print path "\t" branch "\t" locked }
       /^worktree / { emit(); path = substr($0, 10); branch = ""; locked = "" }
@@ -157,6 +183,16 @@ local doneScript =
       /^locked/ { locked = "locked" }
       END { emit() }
     ' >"${state}/worktrees"
+    if [[ "${do_all}" == true ]]; then
+      return 0
+    fi
+    : >"${state}/worktrees.scoped"
+    while IFS=$'\t' read -r path branch locked; do
+      [[ -z "${path}" ]] && continue
+      in_scope_path "${path}" || continue
+      printf '%s\t%s\t%s\n' "${path}" "${branch}" "${locked}"
+    done <"${state}/worktrees" >"${state}/worktrees.scoped"
+    mv "${state}/worktrees.scoped" "${state}/worktrees"
   }
 
   worktree_of() {
@@ -395,6 +431,12 @@ local doneScript =
 
   commit_stash() {
     local current target switched
+    if [[ "${do_all}" != true ]]; then
+      if git rev-parse --verify --quiet refs/stash >/dev/null; then
+        report skip "stash: pass --all"
+      fi
+      return 0
+    fi
     git rev-parse --verify --quiet refs/stash >/dev/null || return 0
     if [[ "${do_commit}" != true ]]; then
       report skip "stash"
@@ -473,9 +515,11 @@ local doneScript =
   # `%(refname:short)` prints `heads/main` when a tag is also named main.
   # Callers then look up `refs/heads/heads/main` and the script dies.
   each_branch() {
-    local ref
+    local ref name
     while IFS= read -r ref; do
-      printf '%s\n' "${ref#refs/heads/}"
+      name="${ref#refs/heads/}"
+      in_scope_branch "${name}" || continue
+      printf '%s\n' "${name}"
     done < <(git for-each-ref --format='%(refname)' refs/heads)
   }
 
@@ -799,6 +843,7 @@ local doneScript =
       [[ "${ref}" == refs/remotes/origin || "${ref}" == refs/remotes/origin/HEAD ]] && continue
       branch="${ref#refs/remotes/origin/}"
       [[ "${branch}" == HEAD || "${branch}" == "${default_branch}" ]] && continue
+      in_scope_branch "${branch}" || continue
       case "${branch}" in
         backup/*) continue ;;
       esac
@@ -962,15 +1007,28 @@ local doneScript =
     fi
   fi
   report clone "${clone}"
+  if [[ "${do_all}" == true ]]; then
+    report scope all
+  else
+    report scope "${invoke_branch:-detached}"
+  fi
 
-  restore_submodules
+  if [[ "${do_all}" == true ]]; then
+    restore_submodules
+  else
+    (cd "${invoke_root}" && restore_submodules)
+  fi
   write_worktrees
   commit_worktrees
   commit_stash
-  ff_default
+  if [[ "${do_all}" == true || "${invoke_branch}" == "${default_branch}" ]]; then
+    ff_default
+  fi
   write_worktrees
   restack_branches
-  publish_main
+  if [[ "${do_all}" == true || "${invoke_branch}" == "${default_branch}" ]]; then
+    publish_main
+  fi
   publish_branches
   publish_prs
   if [[ "${do_prune}" == true ]]; then
@@ -993,4 +1051,5 @@ wrappers: Mapping<String, String> = new {
 
 aliases: Mapping<String, String> = new {
   ["done"] = pr.bin("dev-profile-done") + " {{ args }}"
+  ["done-all"] = pr.bin("dev-profile-done") + " --all {{ args }}"
 }
