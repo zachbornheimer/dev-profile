@@ -64,13 +64,8 @@ function execCommand(cmd: String): String =
 /// JSONC file (dprint accepts comments) with a generated-file banner.
 function jsoncFile(value: Any): String = header("//") + "\n" + jsonRenderer.renderDocument(value)
 
-local function pins(xs: Listing<types.Pin>): Mapping<String, Any> = new {
-  for (p in xs) {
-    when (p.install) {
-      [p.id] =
-        if (p.os == null) p.version else new Dynamic { version = p.version; os = p.os!!.toList() }
-    }
-  }
+local function pins(xs: Listing<types.Pin>): Mapping<String, String> = new {
+  for (p in xs) { when (p.install) { [p.id] = p.version } }
 }
 
 local function depsFor(ids: Listing<String>?): Mapping<String, Dynamic> = new {
@@ -437,12 +432,7 @@ personalOverlay: Dynamic = new {
     ["_"] { path = List("\(profile.installDir)/bin") }
   }
   settings { experimental = true }
-  // dprint is the tool this overlay exists to pin: one entry per OS it installs on.
-  tools {
-    ...pins(
-      profile.tools.toList().filter((p) -> p.id == "dprint" || p.id.endsWith("/dprint")).toListing(),
-    )
-  }
+  tools { dprint = pins(profile.tools)["dprint"] }
   // Every provider, as the global config has them: narrowing here silently
   // disabled bundler and the rest in Personal repos, and the two lists drifted.
   deps = depsFor(null)

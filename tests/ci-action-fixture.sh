@@ -55,10 +55,6 @@ for tool in ${pinned} npm:markdownlint-cli betterleaks; do
 	grep -Fxq -- "${tool}" <<<"${active}" || fail "${tool} has no version outside a code root"
 done
 
-# dprint is pinned per OS (the fork on macOS, upstream elsewhere): exactly one resolves here.
-[[ "$(grep -cE '^(dprint|github:zachbornheimer/dprint)$' <<<"${active}")" -eq 1 ]] ||
-	fail "exactly one dprint pin must resolve outside a code root"
-
 # The local entry gives a clone outside every code root the same context, from an
 # isolated config dir under the cache, and leaves the live ~/.config alone.
 env_bin="${out}/bin/dev-profile-env"

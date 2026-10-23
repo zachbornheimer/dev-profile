@@ -105,21 +105,6 @@ facts {
   ["tool pins do not repeat a kernel or runtime pin"] {
     for (pin in profile.toolPins) { !profile.tools.toList().any((p) -> p.id == pin.id) }
   }
-  ["each OS gets exactly one dprint pin, and the fork only where its release has an asset"] {
-    for (os in List("linux", "macos", "windows")) {
-      profile.tools
-        .toList()
-        .filter((p) ->
-          (p.id == "dprint" || p.id.endsWith("/dprint"))
-            && (p.os == null || p.os!!.toList().contains(os))
-        )
-        .length == 1
-    }
-    profile.tools
-      .toList()
-      .filter((p) -> p.id.startsWith("github:zachbornheimer/dprint"))
-      .every((p) -> p.os != null && p.os!!.toList() == List("macos"))
-  }
   ["a `latest` pin cannot be built: the Pin type rejects it"] {
     module.catch(() -> new types.Pin { id = "x"; version = "latest" }.version).contains("latest")
   }
