@@ -15,12 +15,16 @@ fail() {
 	exit 1
 }
 
-# The stub prints $MISE_LS_JSON for `mise ls --global --json`.
+# The stub prints $MISE_LS_JSON for `mise ls --global --json` and, for the
+# directory the warning runs in, $MISE_LS_DPRINT_JSON for `mise ls --json dprint`.
 mkdir -p "${work}/bin"
 cat >"${work}/bin/mise" <<'STUB'
 #!/usr/bin/env bash
-[[ "$*" == "ls --global --json" ]] || exit 1
-printf '%s' "${MISE_LS_JSON}"
+case "$*" in
+"ls --global --json") printf '%s' "${MISE_LS_JSON}" ;;
+"ls --json dprint") printf '%s' "${MISE_LS_DPRINT_JSON:-[]}" ;;
+*) exit 1 ;;
+esac
 STUB
 chmod +x "${work}/bin/mise"
 
@@ -50,5 +54,13 @@ grep -Fq "doctor: pkl" "${work}/output.txt" || fail "an absent pkl must warn"
 
 run_warner '{}'
 grep -Fq "doctor: pkl" "${work}/output.txt" || fail "an empty machine must warn"
+
+dprint_pin="$(sed -n 's/^dprint = "\(.*\)"$/\1/p' "${out}/mise-profile.toml")"
+[[ -n "$dprint_pin" ]] || fail "the rendered profile has no dprint pin"
+MISE_LS_DPRINT_JSON="[{\"version\":\"${dprint_pin}\",\"active\":true}]" run_warner "$(all_current)"
+[[ ! -s "${work}/output.txt" ]] || fail "a directory on the profile's dprint: no warning expected"
+MISE_LS_DPRINT_JSON='[{"version":"0.61.1","active":true},{"version":"0.64.3","active":false}]' run_warner "$(all_current)"
+grep -Fq "doctor: this directory pins dprint 0.61.1; Neovim saves run the profile's ${dprint_pin}" "${work}/output.txt" ||
+	fail "a directory pinning another dprint must warn that the editor disagrees"
 
 echo "kernel-pins fixture ok"

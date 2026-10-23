@@ -80,6 +80,17 @@ at commit, push and lint. `*.jsonc`, `tsconfig*.json`, `jsconfig*.json`,
 `mise run explain go` prints the resolved plan for one tool or one `tools/`
 category: the step name per hook, its command, files and ordering.
 
+A Neovim save runs `bin/dev-profile-dprint`, which executes the profile's dprint
+pin by its path in mise's install directory. No `PATH` lookup, no mise call and
+no cache: a Neovim started before a pin change still formats with the new build
+on its next save, once `mise run generate` has rewritten the wrapper and
+`mise install` has installed the pin. Until it is installed, the wrapper falls
+back to mise's shim (about 40 ms slower, installs on demand), then to `dprint`
+on `PATH`. The profile's pin wins over a repo's own dprint pin, because the
+profile owns the shared `dprint.jsonc` those saves format with; a repo that
+pins another version formats with it under `mise run fmt`, and `mise run doctor`
+there warns that the two differ.
+
 ## Pull requests from wt
 
 `lib/pr.pkl` renders two scripts and the aliases that call them. None of

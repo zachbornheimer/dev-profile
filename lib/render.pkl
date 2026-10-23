@@ -105,6 +105,24 @@ dprint: Dynamic = new {
   plugins = profile.dprintPlugins.toList()
 }
 
+local dprintVersion: String =
+  profile.tools.toList().filter((pin) -> pin.id == "dprint").first.version
+
+/// What Neovim runs on save: the profile's dprint by absolute path. A PATH that
+/// predates a pin change cannot pick another build, and mise's shim (44 ms a
+/// call) is only the way to a pin that is not installed yet.
+local dprintWrapper =
+  #"""
+  #!/bin/sh
+  set -eu
+  \#(header("#"))
+  mise_data="${MISE_DATA_DIR:-${XDG_DATA_HOME:-${HOME}/.local/share}/mise}"
+  pinned="${mise_data}/installs/dprint/\#(dprintVersion)/dprint"
+  [ -x "${pinned}" ] && exec "${pinned}" "$@"
+  [ -x "${mise_data}/shims/dprint" ] && exec "${mise_data}/shims/dprint" "$@"
+  exec dprint "$@"
+  """#
+
 /// Second bootstrap pass loads this as the global config; install links it to
 /// ~/.config/mise/conf.d/dev-profile.toml.
 mise: Dynamic = new {
@@ -415,6 +433,7 @@ manifest: Manifest = new {
 // ---- wrapper scripts (generated bin/)
 /// Every tool's scripts, plus the contract and git-hook entry points.
 wrappers: Mapping<String, String> = new {
+  ["dev-profile-dprint"] = dprintWrapper
   for (_, tool in profile.catalog) { ...tool.scripts }
   ...contract.wrappers
   ...githooks.wrappers
