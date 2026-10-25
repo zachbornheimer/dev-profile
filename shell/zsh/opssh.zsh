@@ -9,7 +9,7 @@ opssh() {
 	local name="$1"
 	if [[ -z $name ]]; then
 		__ -t failed "usage: opssh <keyname> user@host [ssh args...]"
-		[[ -d $OP_SSH_DIR ]] && __ "keys: ${(j:, :)$(cd $OP_SSH_DIR && print -l -- *.pub(N:r))}" >&2
+		[[ -d $OP_SSH_DIR ]] && __ -o stderr "keys: ${(j:, :)$(cd $OP_SSH_DIR && print -l -- *.pub(N:r))}"
 		return 2
 	fi
 	shift

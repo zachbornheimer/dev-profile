@@ -53,11 +53,11 @@ repo-reports() {
 	local src="${1:-$gh_cmd api --paginate user/orgs -q .[].login}" # override the login source if you like
 	eval "$src" | GH_CMD="$gh_cmd" xargs -P4 -I{} sh -c \
 		'uv run -- "'"$script"'" "$1" --format md > "/tmp/'"$d"'-$1.md"' _ {}
-	__ -t success "repo-reports: wrote /tmp/$d-*.md" >&2
+	__ -o stderr -t success "repo-reports: wrote /tmp/$d-*.md"
 }
 
 gclone() {
-	git clone "$1" && cd "$(basename "$1" .git)"
+	git clone "$1" && cd "$(basename "$1" .git)" || exit
 }
 
 # ── git push --fix ──────────────────────────────────────────────────────────
@@ -106,7 +106,7 @@ git() {
 	command git push "${args[@]}" 2>&1 | tee "$log"
 	local push_status=${pipestatus[1]}
 	if ((!push_status)); then
-		__ -t success "git push --fix: push succeeded" >&2
+		__ -o stderr -t success "git push --fix: push succeeded"
 		rm -f "$log"
 		return 0
 	fi
@@ -117,7 +117,7 @@ git() {
 		command git push "${args[@]}" 2>&1 | tee -a "$log"
 		push_status=${pipestatus[1]}
 		if ((!push_status)); then
-			__ -t success "git push --fix: hk fix cleared it, push succeeded" >&2
+			__ -o stderr -t success "git push --fix: hk fix cleared it, push succeeded"
 			rm -f "$log"
 			return 0
 		fi

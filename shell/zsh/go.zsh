@@ -74,6 +74,10 @@ go::uninstall() {
 		type: "pending", message: "Uninstalling \($path)",
 		onComplete: {
 			success: {type: "success", message: "Uninstalled \($path) ... \($done)"},
-			failed: {type: "failed", message: "failed to remove \"\($path)\" (exit %e)."}}}')
-	__ "$spec" -- rm -rf -- "$abspath"
+			failed: {type: "failed", message: "failed to remove \"\($path)\" (exit %e)."}}}' 2>/dev/null) || spec=
+	if [[ -n $spec ]]; then
+		__ "$spec" -- rm -rf -- "$abspath"
+	else
+		__ -t pending "Uninstalling $abspath" -- rm -rf -- "$abspath"
+	fi
 }

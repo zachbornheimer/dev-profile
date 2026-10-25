@@ -107,7 +107,7 @@ optimize() {
 	_optimize_cleanup() { rm -rf -- "$tmp"; }
 	trap '_optimize_cleanup' EXIT INT
 
-	__ "Scanning $phys" >&2
+	__ -o stderr "Scanning $phys"
 	optimize::unique-bytes "$phys" >"$tmp/unique_before" &
 	local unique_pid=$!
 	if ! fclones --progress=true group --format json --one-fs --hidden --no-ignore "$phys" \
@@ -168,7 +168,7 @@ print("%d\t%d" % (group_count, total_file_count))
 
 	local unique_after=$unique_before
 	if ((group_count > 0)); then
-		__ "Deduping $group_count groups" >&2
+		__ -o stderr "Deduping $group_count groups"
 		if ! fclones --progress=true dedupe <"$tmp/groups.json"; then
 			__ -t failed "fclones dedupe failed."
 			return 1

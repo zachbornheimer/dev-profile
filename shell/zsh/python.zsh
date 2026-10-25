@@ -36,8 +36,8 @@ python::is-user-managed() {
 python::deny() {
 	local name="$1" bin="$2"
 	__ -t failed "python-fence: blocked \`${name}\` → ${bin}"
-	__ "python-fence: system/Homebrew Python is reserved for the OS." >&2
-	__ "python-fence: use \`uv run …\`, \`uv tool run …\`, or a project .venv." >&2
+	__ -o stderr "python-fence: system/Homebrew Python is reserved for the OS."
+	__ -o stderr "python-fence: use \`uv run …\`, \`uv tool run …\`, or a project .venv."
 	return 126
 }
 

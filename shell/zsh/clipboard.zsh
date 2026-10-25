@@ -41,7 +41,7 @@ cb2f() {
 		local response
 		read -r response
 		if [[ -n $response && ! $response =~ ^[Yy]$ ]]; then
-			__ -t warn "Aborted. File was not written." 2>&1
+			__ -o stdout -t warn "Aborted. File was not written."
 			return 0
 		fi
 	fi
@@ -126,7 +126,7 @@ cxc() {
 		__ -t success "Copied command to clipboard."
 	else
 		echo "$snippet"
-		__ -t warn "No clipboard utility found; printed command instead." 2>&1
+		__ -o stdout -t warn "No clipboard utility found; printed command instead."
 	fi
 }
 

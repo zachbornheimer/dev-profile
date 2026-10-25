@@ -79,7 +79,7 @@ grok-mcp-off() {
 	local n
 	while IFS= read -r n; do
 		[[ -n "$n" ]] || continue
-		command grok mcp disable "$n" && __ -t success "disabled $n" >&2
+		command grok mcp disable "$n" && __ -o stderr -t success "disabled $n"
 	done < <(grok::mcp-names)
 }
 
@@ -88,7 +88,7 @@ grok-mcp-on() {
 	# include currently disabled rows too
 	while IFS= read -r n; do
 		[[ -n "$n" ]] || continue
-		command grok mcp enable "$n" && __ -t success "enabled $n" >&2
+		command grok mcp enable "$n" && __ -o stderr -t success "enabled $n"
 	done < <(grok::mcp-names)
 }
 

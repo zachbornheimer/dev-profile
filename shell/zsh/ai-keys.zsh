@@ -11,18 +11,11 @@
 # via `op inject` into a private cache, not on every launch via `op run` —
 # avoids a 1Password round-trip per invocation. `ai-keys-refresh` forces a
 # re-inject when the template changes.
-# `__` lives in 01-output.zsh, which a non-interactive shell never loads: env.sh
-# resolves keys with `zsh -fc`, and that shell has no `__`. Report through `__`
-# when it is there and fall back to plain stderr otherwise, so a stale cache can
-# still say what went wrong instead of dying on `command not found: __`.
-ai-keys::fail() {
-	if (($+functions[__])); then
-		__ -t failed "$1"
-	else
-		print -ru2 -- "✘ $1"
-	fi
-	return 1
-}
+# env.sh resolves keys with `zsh -fc`, which never loads the module that
+# defines `__`. Load it here so every failure still goes through `__`.
+if ((!$+functions[__])); then
+	builtin source "${ZSH_CONFIG_DIR:-$HOME/.config/zsh}/01-output.zsh"
+fi
 
 ai-keys::env() {
 	local template="$HOME/.config/ai/keys.env.op"
@@ -30,7 +23,7 @@ ai-keys::env() {
 	local cache="$cache_dir/keys.env"
 
 	if [[ ! -f "$template" ]]; then
-		ai-keys::fail "ai-keys::env: missing template $template"
+		__ -t failed "ai-keys::env: missing template $template"
 		return 1
 	fi
 
@@ -40,7 +33,7 @@ ai-keys::env() {
 	fi
 
 	(umask 077 && mkdir -p "$cache_dir") || {
-		ai-keys::fail "ai-keys::env: failed to create $cache_dir"
+		__ -t failed "ai-keys::env: failed to create $cache_dir"
 		return 1
 	}
 
@@ -52,7 +45,7 @@ ai-keys::env() {
 	# the keys to child processes, not only ai-keys::exec.
 	local mustache_tmpl
 	mustache_tmpl="$(mktemp "$cache_dir/keys.env.tmpl.XXXXXX")" || {
-		ai-keys::fail "ai-keys::env: mktemp failed in $cache_dir"
+		__ -t failed "ai-keys::env: mktemp failed in $cache_dir"
 		return 1
 	}
 	chmod 600 "$mustache_tmpl"
@@ -68,7 +61,7 @@ ai-keys::env() {
 
 	if ! (umask 077 && op inject -f -i "$mustache_tmpl" -o "$tmp") >/dev/null 2>&1; then
 		rm -f "$tmp" "$mustache_tmpl"
-		ai-keys::fail "ai-keys::env: op inject failed; run 'ai-keys-refresh' after checking 1Password sign-in"
+		__ -t failed "ai-keys::env: op inject failed; run 'ai-keys-refresh' after checking 1Password sign-in"
 		return 1
 	fi
 	chmod 600 "$tmp"
@@ -90,7 +83,7 @@ ai-keys::exec() {
 	shift
 	local bin keys_env
 	bin="$(whence -p "$name")" || {
-		ai-keys::fail "ai-keys::exec: $name not found in PATH"
+		__ -t failed "ai-keys::exec: $name not found in PATH"
 		return 127
 	}
 	keys_env="$(ai-keys::env)" || return 1

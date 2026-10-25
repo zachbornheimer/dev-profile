@@ -20,6 +20,7 @@ ai() {
 	dir=$(mktemp -d /tmp/ai.XXXXXXXX) || return 1
 
 	if ! printf '%s' "$*" >"$dir/prompt"; then
+		__ -t failed "ai: could not write the prompt"
 		rm -rf -- "$dir"
 		return 1
 	fi
@@ -66,7 +67,7 @@ rmdir "$dir" 2>/dev/null || :
 if [ -n "${HERDR_PANE_ID:-}" ]; then
   herdr --session one-shots pane close \
     "$HERDR_PANE_ID" >/dev/null 2>&1 ||
-    printf 'ai: could not close pane\n' >&2
+    zsh -fc 'source "${ZSH_CONFIG_DIR:-$HOME/.config/zsh}/01-output.zsh"; __ -t failed "ai: could not close pane"'
 fi
 
 exit "$status"
@@ -81,12 +82,14 @@ SH
 		--cwd "$PWD" \
 		--label "ai: ${PWD:t}" \
 		--focus) || {
+		__ -t failed "ai: could not create a herdr workspace"
 		rm -rf -- "$dir"
 		return 1
 	}
 
 	# Extract the newly created pane ID.
 	pane=$(jq -er '.result.root_pane.pane_id' <<<"$response") || {
+		__ -t failed "ai: herdr did not return a pane id"
 		rm -rf -- "$dir"
 		return 1
 	}
@@ -94,6 +97,7 @@ SH
 	# Launch the runner in the new pane.
 	if ! herdr --session one-shots pane run \
 		"$pane" "sh $dir/run"; then
+		__ -t failed "ai: could not start the runner"
 		herdr --session one-shots pane close \
 			"$pane" >/dev/null 2>&1 || :
 		rm -rf -- "$dir"

@@ -8,7 +8,7 @@ alias ..='cd ..'
 alias ...='cd ../..'
 alias ....='cd ../../..'
 alias -- -='cd -'
-mkcd() { mkdir -p -- "$1" && cd -- "$1"; }
+mkcd() { mkdir -p -- "$1" && cd -- "$1" || exit; }
 alias take=mkcd
 alias reload='exec zsh'
 alias myip='curl -s ifconfig.me'
@@ -74,7 +74,9 @@ alias unlock_pdf='qpdf --decrypt --replace-input'
 alias update-financials='sh /Users/zbornheimer/scripts/shell\ scripts/update-financials.sh'
 alias wav2mp3='for i in *.wav; do ffmpeg -i "$i" -ab 320k "${i%.*}.mp3"; done'
 alias which-command=whence
-alias zab-update='__ "Updating ZAB AI..." && python3 -m pip uninstall -y zab_ai >/dev/null 2>&1 && python3 -m pip install -q git+https://github.com/ZAB-AI-LLC/python-lib.git@main && __ -t success "ZAB AI updated successfully!" || __ -t failed "Update failed" 2>&1'
+zab-update() {
+	__ -t pending "Updating ZAB AI" -- zsh -c 'python3 -m pip uninstall -y zab_ai >/dev/null && python3 -m pip install -q git+https://github.com/ZAB-AI-LLC/python-lib.git@main'
+}
 alias zbm='opssh id-rsa-zbm zbm@zbm.ssh.wpengine.net'
 alias zbm-insta='perl /Users/zbornheimer/scripts/perl/insta-music-share/insta-music-share.pl'
 alias zysys='opssh zysys-hosting-key ec2-user@srv1.web.zysyshosting.com'

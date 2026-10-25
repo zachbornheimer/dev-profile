@@ -3,13 +3,15 @@
 #
 #   __ MESSAGE                        neutral, stdout
 #   __ -t TYPE MESSAGE                typed; MESSAGE is never parsed as JSON
+#   __ -o stdout|stderr ...           force the stream (do not redirect `__` itself)
 #   __ '{"type":TYPE,"message":MESSAGE}'
 #   __ -t pending MESSAGE -- CMD...   spinner while CMD runs, then a final line
 #   __ '{"type":"pending",...}' -- CMD...
 #
 # TYPE is success (✔ green), failed (✘ red), warn (⚠ yellow) or neutral. failed
-# and warn go to stderr, the rest to stdout. Color only reaches a terminal and
-# stays off under NO_COLOR. JSON needs jq; JSON without a type is neutral.
+# and warn go to stderr, the rest to stdout, unless -o says otherwise. Color only
+# reaches a terminal and stays off under NO_COLOR. JSON needs jq; JSON without a
+# type is neutral.
 #
 # A pending message runs CMD (a command or a shell function) in the background
 # while gum draws a blue minidot spinner on stderr, then replaces the spinner with
@@ -32,20 +34,38 @@ __() {
 	emulate -L zsh
 	setopt no_monitor no_notify
 
-	local type=neutral message spec='{}'
+	local type=neutral message spec='{}' stream=
 	local -a fields
 
-	if [[ ${1-} == -t ]]; then
-		if (($# < 3)); then
-			__::render failed "usage: __ [-t TYPE] MESSAGE [-- CMD...]"
+	while [[ ${1-} == -* && ${1-} != -- ]]; do
+		case $1 in
+		-t)
+			if (($# < 2)); then
+				__::render failed "usage: __ [-o stdout|stderr] [-t TYPE] MESSAGE [-- CMD...]"
+				return 2
+			fi
+			type=$2
+			shift 2
+			;;
+		-o)
+			if [[ ${2-} != stdout && ${2-} != stderr ]]; then
+				__::render failed "usage: __ [-o stdout|stderr] [-t TYPE] MESSAGE [-- CMD...]"
+				return 2
+			fi
+			stream=$2
+			shift 2
+			;;
+		*)
+			__::render failed "usage: __ [-o stdout|stderr] [-t TYPE] MESSAGE [-- CMD...]"
 			return 2
-		fi
-		type=$2 message=$3
-		shift 3
-	elif (($# == 0)); then
-		__::render failed "usage: __ [-t TYPE] MESSAGE [-- CMD...]"
+			;;
+		esac
+	done
+
+	if (($# == 0)); then
+		__::render failed "usage: __ [-o stdout|stderr] [-t TYPE] MESSAGE [-- CMD...]"
 		return 2
-	elif [[ $1 == '{'* ]]; then
+	elif [[ -z $type || $type == neutral ]] && [[ $1 == '{'* ]]; then
 		if ((!$+commands[jq])); then
 			__::render failed "__: jq is required for JSON messages"
 			return 127
@@ -69,19 +89,19 @@ __() {
 			return 2
 		fi
 		shift
-		__::pending "$spec" "$message" "$@"
+		__::pending "$spec" "$message" "$stream" "$@"
 		return
 	fi
 	if (($#)); then
 		__::render failed "__: only a pending message runs a command"
 		return 2
 	fi
-	__::render "$type" "$message"
+	__::render "$type" "$message" "$stream"
 }
 
-# Prints one message line to the stream its type belongs to.
+# Prints one message line. $3, when set, is stdout or stderr and wins over the type.
 __::render() {
-	local icon color
+	local icon color stream=${3-}
 	local -i fd=1
 	case $1 in
 	success) icon='✔' color=$_c_green ;;
@@ -92,6 +112,10 @@ __::render() {
 		print -ru2 -- "__: unknown message type: $1"
 		return 2
 		;;
+	esac
+	case $stream in
+	stdout) fd=1 ;;
+	stderr) fd=2 ;;
 	esac
 
 	if [[ -z $icon ]]; then
@@ -104,9 +128,10 @@ __::render() {
 }
 
 # Runs CMD under the spinner, then renders the onComplete route for its status.
+# $3 is the -o stream, forwarded to the final line.
 __::pending() {
-	local spec=$1 message=$2
-	shift 2
+	local spec=$1 message=$2 stream=$3
+	shift 3
 	local out err
 	local -i code pid=0
 
@@ -125,7 +150,7 @@ __::pending() {
 			else
 				code=130
 			fi
-			__::route "$spec" "$message" $code
+			__::route "$spec" "$message" $code "$stream"
 			cat -- "$out"
 			cat -- "$err" >&2
 		} always {
@@ -141,7 +166,7 @@ __::pending() {
 	else
 		"$@"
 		code=$?
-		__::route "$spec" "$message" $code
+		__::route "$spec" "$message" $code "$stream"
 	fi
 	return $code
 }
@@ -151,9 +176,9 @@ __::route() {
 	local -a fields
 	if ((!$+commands[jq])); then
 		if (($3 == 0)); then
-			__::render success "$2"
+			__::render success "$2" "$4"
 		else
-			__::render failed "$2 (exit $3)"
+			__::render failed "$2 (exit $3)" "$4"
 		fi
 		return
 	fi
@@ -169,5 +194,5 @@ __::route() {
 										else "\($fallback) (exit %e)" end)
 				| tostring | gsub("%e"; $code | tostring))]
 		| @sh' <<<"$1")}}")
-	__::render "$fields[1]" "$fields[2]"
+	__::render "$fields[1]" "$fields[2]" "$4"
 }

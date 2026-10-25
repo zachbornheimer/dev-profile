@@ -9,8 +9,8 @@
 
 within::usage() {
 	__ -t failed "usage: within <duration> -- <command>"
-	__ "duration: <n><d|h|m|s|ms>    e.g. 1s, 5m, 2h, 1d, 500ms" >&2
-	__ "quote pipelines: within 1s -- 'cmd | other'" >&2
+	__ -o stderr "duration: <n><d|h|m|s|ms>    e.g. 1s, 5m, 2h, 1d, 500ms"
+	__ -o stderr "quote pipelines: within 1s -- 'cmd | other'"
 }
 
 # Print a GNU timeout duration, or fail. ms becomes fractional seconds.
@@ -89,7 +89,7 @@ within::verdict() {
 		__ -t success Passed
 		return 0
 	fi
-	__ -t failed Failed 2>&1
+	__ -o stdout -t failed Failed
 	return 1
 }
 
