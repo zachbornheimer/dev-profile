@@ -1,0 +1,691 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/ui-decomposition.schema.json",
+  "title": "UI Decomposition",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "title",
+    "requestSha256",
+    "scope",
+    "source",
+    "surfaces",
+    "nodes",
+    "states",
+    "interactions",
+    "unresolved",
+    "coverage"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1.1"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "requestSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "scope": {
+      "$ref": "#/$defs/scope"
+    },
+    "source": {
+      "$ref": "#/$defs/source"
+    },
+    "surfaces": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/surface"
+      }
+    },
+    "nodes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/node"
+      }
+    },
+    "states": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/state"
+      }
+    },
+    "interactions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/interaction"
+      }
+    },
+    "unresolved": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/unresolved"
+      }
+    },
+    "coverage": {
+      "$ref": "#/$defs/coverage"
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "default": []
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9._:-]*$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "source", "locator"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "source-location",
+            "selector",
+            "design-node",
+            "visible-text",
+            "rendered-region",
+            "interaction-trace",
+            "other"
+          ]
+        },
+        "source": {
+          "type": "string",
+          "minLength": 1
+        },
+        "locator": {
+          "type": "string",
+          "minLength": 1
+        },
+        "note": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "exclusion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["description", "reason", "evidence"],
+      "properties": {
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidence"
+          },
+          "default": [],
+          "minItems": 1
+        }
+      }
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requested", "rootSurfaceIds", "exclusions"],
+      "properties": {
+        "requested": {
+          "type": "string",
+          "minLength": 1
+        },
+        "rootSurfaceIds": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/id"
+          }
+        },
+        "exclusions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/exclusion"
+          }
+        }
+      }
+    },
+    "sourceFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "role", "inspected"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "role": {
+          "type": "string",
+          "enum": ["entry", "dependency", "supporting", "generated-preview", "other"]
+        },
+        "inspected": {
+          "type": "boolean"
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "default": []
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "entryFiles", "filesRead"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["claude-design", "local-files", "url", "image", "mixed", "other"]
+        },
+        "project": {
+          "type": "string",
+          "minLength": 1
+        },
+        "entryFiles": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "filesRead": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/sourceFile"
+          }
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "default": []
+        }
+      }
+    },
+    "surface": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "type",
+        "parentSurfaceId",
+        "rootNodeId",
+        "triggerInteractionIds",
+        "evidence"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "page",
+            "screen",
+            "pane",
+            "dialog",
+            "drawer",
+            "menu",
+            "popover",
+            "tooltip",
+            "overlay",
+            "preview",
+            "empty-state",
+            "loading-state",
+            "error-state",
+            "success-state",
+            "warning-state",
+            "confirmation",
+            "other"
+          ]
+        },
+        "parentSurfaceId": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "rootNodeId": {
+          "$ref": "#/$defs/id"
+        },
+        "triggerInteractionIds": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/id"
+          }
+        },
+        "evidence": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/evidence"
+          }
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "default": []
+        }
+      }
+    },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "surfaceId",
+        "parentId",
+        "childIds",
+        "name",
+        "role",
+        "kind",
+        "atomic",
+        "interactive",
+        "interactionIds",
+        "stateIds",
+        "visibleText",
+        "evidence"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "surfaceId": {
+          "$ref": "#/$defs/id"
+        },
+        "parentId": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "childIds": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/id"
+          }
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "role": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "layout",
+            "container",
+            "navigation",
+            "toolbar",
+            "group",
+            "list",
+            "list-item",
+            "question",
+            "field-group",
+            "control",
+            "input",
+            "text",
+            "icon",
+            "image",
+            "badge",
+            "status",
+            "action",
+            "link",
+            "separator",
+            "shortcut",
+            "feedback",
+            "data-display",
+            "drag-handle",
+            "other"
+          ]
+        },
+        "atomic": {
+          "type": "boolean"
+        },
+        "interactive": {
+          "type": "boolean"
+        },
+        "interactionIds": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/id"
+          }
+        },
+        "stateIds": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/id"
+          }
+        },
+        "visibleText": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "evidence": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/evidence"
+          }
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "default": []
+        }
+      }
+    },
+    "state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "ownerType", "ownerId", "name", "kind", "changes", "evidence"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "ownerType": {
+          "type": "string",
+          "enum": ["surface", "node"]
+        },
+        "ownerId": {
+          "$ref": "#/$defs/id"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "default",
+            "hover",
+            "focus",
+            "active",
+            "selected",
+            "disabled",
+            "open",
+            "closed",
+            "loading",
+            "empty",
+            "error",
+            "validation",
+            "conditional",
+            "unsaved",
+            "saving",
+            "saved",
+            "success",
+            "warning",
+            "other"
+          ]
+        },
+        "trigger": {
+          "type": "string",
+          "minLength": 1
+        },
+        "changes": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "evidence": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/evidence"
+          }
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "default": []
+        }
+      }
+    },
+    "interaction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "sourceNodeId",
+        "name",
+        "gesture",
+        "result",
+        "targetSurfaceId",
+        "targetStateId",
+        "description",
+        "evidence"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "sourceNodeId": {
+          "$ref": "#/$defs/id"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "gesture": {
+          "type": "string",
+          "enum": [
+            "click",
+            "keyboard",
+            "input",
+            "select",
+            "drag",
+            "drop",
+            "hover",
+            "focus",
+            "submit",
+            "navigation",
+            "other"
+          ]
+        },
+        "result": {
+          "type": "string",
+          "enum": [
+            "none",
+            "state-change",
+            "opens-surface",
+            "closes-surface",
+            "navigates-surface",
+            "data-change",
+            "external",
+            "unknown"
+          ]
+        },
+        "targetSurfaceId": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "targetStateId": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/evidence"
+          }
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "default": []
+        }
+      }
+    },
+    "unresolved": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "scopeType", "scopeId", "question", "reason", "evidence"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "scopeType": {
+          "type": "string",
+          "enum": ["source", "surface", "node", "state", "interaction"]
+        },
+        "scopeId": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "question": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/evidence"
+          }
+        }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sourceFilesInspected", "surfaceIds", "nodeIds", "stateIds", "interactionIds"],
+      "properties": {
+        "sourceFilesInspected": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "surfaceIds": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/id"
+          }
+        },
+        "nodeIds": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/id"
+          }
+        },
+        "stateIds": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/id"
+          }
+        },
+        "interactionIds": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/id"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "session_id": "hgtest-h1b",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Bash",
+  "tool_input": { "command": "git clone git@github.com:org/repo.git /Users/zbornheimer/Desktop/y" }
+}

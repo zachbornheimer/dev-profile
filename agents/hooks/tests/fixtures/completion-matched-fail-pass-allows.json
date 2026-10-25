@@ -1,0 +1,7 @@
+{
+  "session_id": "hgtest-cg-mpass",
+  "hook_event_name": "Stop",
+  "reason": "end_turn",
+  "transcript_path": "/Users/zbornheimer/.claude/hooks/tests/fixtures/completion-matched-fail-pass.txt",
+  "last_assistant_message": "Done. The classify hang is fixed and verified."
+}

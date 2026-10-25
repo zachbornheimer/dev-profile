@@ -1,0 +1,8 @@
+{
+  "session_id": "hgtest-hd1",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "cat > /Users/zbornheimer/Developer/Software-Automation-Holdings/isa-platform/main.go <<'GO'\npackage main\n\nimport \"github.com/Software-Automation-Holdings-LLC/isa-platform/services/account/internal/dbconfig\"\nGO"
+  }
+}

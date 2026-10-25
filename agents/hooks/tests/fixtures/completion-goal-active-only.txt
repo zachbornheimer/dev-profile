@@ -1,0 +1,1 @@
+A session-scoped Stop hook is now active with condition: "All issues in ~/Desktop/everest-feedback/assessments/*.md are proveably resolved". Briefly acknowledge the goal, then continue.

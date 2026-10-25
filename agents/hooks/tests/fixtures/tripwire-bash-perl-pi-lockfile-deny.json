@@ -1,0 +1,6 @@
+{
+  "session_id": "hgtest-m4d",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Bash",
+  "tool_input": { "command": "perl -pi -e 's/1.0.0/1.0.1/' package-lock.json" }
+}

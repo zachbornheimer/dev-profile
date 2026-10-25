@@ -1,0 +1,280 @@
+#!/usr/bin/env bash
+# aubx-skills — install or update a skill globally so the only durable write on
+# this machine is inside $AGENTS_HOME/available-skills.
+#
+# `aubx skills add -g` (aube dlx of vercel-labs/skills) derives every path it
+# writes from $HOME: the skill folder under ~/.agents/skills, a link or copy per
+# targeted agent, and ~/.agents/.skill-lock.json. It has no output-directory
+# flag, so no argument can redirect it.
+#
+# So the installer runs under a throwaway HOME: everything it derives from $HOME
+# lands in a scratch tree that is deleted on exit. The skill folders are then
+# copied into available-skills, and its install record is merged into
+# available-skills/.skill-lock.json.
+#
+# `aubx-skills update` runs the same way, seeded with the record and the existing
+# skill folders, so an update also writes nowhere but available-skills.
+#
+# A before/after audit of ~/.agents and every harness skill root still runs as a
+# tripwire: anything new there is named and the run exits 3. That catches an
+# installer that reaches a real path without going through $HOME.
+#
+# Package-manager state (aube's own download cache and store, under
+# ~/.cache/aube and ~/.local/share/aube) is left alone: it is the same state any
+# aube invocation writes, and it is not skill content.
+#
+# Usage:
+#   aubx-skills skills add vercel-labs/agent-skills --skill deploy-to-vercel -g -y
+#   aubx-skills add <package> [aubx skills add flags...]
+#   aubx-skills update -g [skill...]
+#
+# Env:
+#   AGENTS_HOME  default $HOME/.agents
+#   AUBX         default: first `aubx` on PATH outside the guard directory
+#   AUBX_AGENT   default codex
+#   DRY_RUN=1    install into scratch, report, change nothing permanent
+set -uo pipefail
+
+SELF_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+AGENTS_HOME="${AGENTS_HOME:-$HOME/.agents}"
+AVAILABLE_DIR="$AGENTS_HOME/available-skills"
+RECORD_FILE="$AVAILABLE_DIR/.skill-lock.json"
+AUBX_NAME="${AUBX:-aubx}"
+AUBX_AGENT="${AUBX_AGENT:-codex}"
+REAL_HOME="$HOME"
+LINK_ROOTS=(
+  "$REAL_HOME/.claude/skills"
+  "$REAL_HOME/.codex/skills"
+  "$REAL_HOME/.grok/skills"
+  "$REAL_HOME/.cursor/skills"
+  "$REAL_HOME/.config/opencode/skills"
+  "$REAL_HOME/.gemini/skills"
+)
+
+die() { printf 'aubx-skills: %s\n' "$*" >&2; exit 2; }
+note() { printf 'aubx-skills: %s\n' "$*"; }
+
+# Resolve the real aubx, never this directory's guard shim: delegating back to
+# the shim recurses for as long as the shell survives.
+resolve_aubx() {
+  local d candidate
+  local IFS=:
+  for d in ${PATH:-}; do
+    [ -n "$d" ] || continue
+    [ -d "$d" ] || continue
+    [ "$(cd -- "$d" && pwd -P)" = "$SELF_DIR" ] && continue
+    candidate="$d/$AUBX_NAME"
+    [ -x "$candidate" ] || continue
+    printf '%s\n' "$candidate"
+    return 0
+  done
+  return 1
+}
+
+[ "$#" -ge 1 ] || die "usage: aubx-skills [skills] add <package> [flags...]"
+REAL_AUBX="$(resolve_aubx)" || die "no $AUBX_NAME on PATH outside $SELF_DIR"
+
+# Accept `skills add ...`, `add ...`, `skills update ...`, `update ...`, and a
+# bare package (add implied).
+raw=("$@")
+[ "${raw[0]:-}" = "skills" ] && raw=("${raw[@]:1}")
+mode=add
+case "${raw[0]:-}" in
+  add) raw=("${raw[@]:1}") ;;
+  update|upgrade) mode=update; raw=("${raw[@]:1}") ;;
+esac
+[ "${#raw[@]}" -ge 1 ] || die "usage: aubx-skills [skills] add <package> [flags...]"
+
+has_global=0; has_yes=0; has_agent=0
+for a in "${raw[@]}"; do
+  case "$a" in
+    -g|--global) has_global=1 ;;
+    -y|--yes) has_yes=1 ;;
+    -a|--agent|--agent=*) has_agent=1 ;;
+  esac
+done
+
+# The skills CLI parses `<source>` as the first positional, and a `-a` that
+# precedes it swallows it ("Missing required argument: source"), so defaults are
+# appended, never prepended.
+# The installer tokenizes `<source>` and the value lists for -s/-a/--subagent
+# the same way: a value list swallows every following word that is not a flag.
+# So `add -s '*' vercel-labs/agent-skills` reads the package as a skill name and
+# dies with the cryptic "Missing required argument: source". Detect it here and
+# name the fix instead of forwarding an argv that cannot work.
+if [ "$mode" = add ]; then
+  has_source=0
+  i=0
+  n=${#raw[@]}
+  while [ "$i" -lt "$n" ]; do
+    a="${raw[$i]}"
+    case "$a" in
+      -a|--agent|-s|--skill|--subagent)
+        i=$((i + 1))
+        while [ "$i" -lt "$n" ]; do
+          case "${raw[$i]}" in -*) break ;; esac
+          i=$((i + 1))
+        done
+        ;;
+      --metadata) i=$((i + 2)) ;;
+      -*) i=$((i + 1)) ;;
+      *) has_source=1; i=$((i + 1)) ;;
+    esac
+  done
+  if [ "$has_source" -eq 0 ]; then
+    die "no package source: -s/-a/--subagent swallow every following non-flag word, so put the package first (aubx skills add <package> -s <name>)"
+  fi
+fi
+
+args=("${raw[@]}")
+[ "$has_global" -eq 1 ] || args+=(-g)
+[ "$has_yes" -eq 1 ] || args+=(-y)
+if [ "$mode" = add ] && [ "$has_agent" -eq 0 ]; then
+  args+=(-a "$AUBX_AGENT")
+fi
+
+# Everything this wrapper may audit: entries in AGENTS_HOME except our own tree,
+# plus each harness skill root.
+audit_snapshot() {
+  local out="$1" root
+  : >"$out"
+  if [ -d "$AGENTS_HOME" ]; then
+    find "$AGENTS_HOME" -mindepth 1 -maxdepth 1 ! -name available-skills -print 2>/dev/null >>"$out"
+  fi
+  for root in "${LINK_ROOTS[@]}"; do
+    [ -d "$root" ] || continue
+    find "$root" -mindepth 1 -maxdepth 1 -print 2>/dev/null >>"$out"
+  done
+  sort -o "$out" "$out"
+}
+
+scratch="$(mktemp -d "${TMPDIR:-/tmp}/aubx-skills.XXXXXX")" || die "mktemp failed"
+before="$(mktemp)"; after="$(mktemp)"
+trap 'rm -rf "$scratch" "$before" "$after"' EXIT
+
+mkdir -p "$scratch/.agents/skills"
+audit_snapshot "$before"
+
+# Seed the scratch tree so an update sees what is installed.
+if [ "$mode" = update ]; then
+  [ -f "$RECORD_FILE" ] && cp "$RECORD_FILE" "$scratch/.agents/.skill-lock.json"
+  if [ -d "$AVAILABLE_DIR" ]; then cp -R "$AVAILABLE_DIR/." "$scratch/.agents/skills/" 2>/dev/null || true; fi
+fi
+
+note "running $REAL_AUBX skills $mode ${args[*]} (isolated HOME=$scratch)"
+( cd "$scratch" && HOME="$scratch" AGENTS_HOME="$scratch/.agents" "$REAL_AUBX" skills "$mode" "${args[@]}" )
+rc=$?
+
+installed=()
+if [ -d "$scratch/.agents/skills" ]; then
+  for src in "$scratch/.agents/skills"/*; do
+    [ -d "$src" ] || continue
+    [ -f "$src/SKILL.md" ] || continue
+    installed+=("$(basename "$src")")
+  done
+fi
+
+if [ "${#installed[@]}" -eq 0 ]; then
+  audit_snapshot "$after"
+  if [ -s "$after" ] && [ -n "$(comm -13 "$before" "$after" 2>/dev/null)" ]; then
+    printf 'aubx-skills: WROTE OUTSIDE %s:\n' "$AVAILABLE_DIR" >&2
+    comm -13 "$before" "$after" 2>/dev/null | sed 's/^/  /' >&2
+    exit 3
+  fi
+  if [ "$rc" -ne 0 ]; then
+    printf 'aubx-skills: installer exited %d and nothing new landed\n' "$rc" >&2
+    exit "$rc"
+  fi
+  note "nothing new to install (already installed?)"
+  note "no writes outside $AVAILABLE_DIR"
+  exit 0
+fi
+
+for name in "${installed[@]}"; do
+  src="$scratch/.agents/skills/$name"
+  dest="$AVAILABLE_DIR/$name"
+  if [ "${DRY_RUN:-0}" = "1" ]; then
+    note "would install $name -> $dest"
+    continue
+  fi
+  mkdir -p "$AVAILABLE_DIR" || die "cannot create $AVAILABLE_DIR"
+  if [ -L "$dest" ]; then rm -f "$dest"; fi
+  if [ -e "$dest" ]; then rm -rf "$dest"; fi
+  cp -R "$src" "$dest" || die "copy into $dest failed"
+  note "installed $name -> $dest"
+done
+
+# Merge the scratch run's bookkeeping into a record kept inside available-skills.
+scratch_lock="$scratch/.agents/.skill-lock.json"
+if [ -f "$scratch_lock" ] && [ "${DRY_RUN:-0}" != "1" ]; then
+  if command -v jq >/dev/null 2>&1; then
+    [ -f "$RECORD_FILE" ] || printf '{"version":3,"skills":{}}\n' >"$RECORD_FILE"
+    if jq -s '.[0] as $old | .[1] as $new
+              | {version: 3, skills: (($old.skills // {}) + ($new.skills // {}))}' \
+         "$RECORD_FILE" "$scratch_lock" >"$RECORD_FILE.tmp" 2>/dev/null; then
+      mv "$RECORD_FILE.tmp" "$RECORD_FILE"
+    else
+      rm -f "$RECORD_FILE.tmp"
+      note "kept existing $RECORD_FILE (merge failed)"
+    fi
+  else
+    note "jq not found; skipping install record"
+  fi
+fi
+
+# Tripwire: anything new outside available-skills is a violation. A link into
+# available-skills is harmless noise; a real file or dir is a leak.
+audit_snapshot "$after"
+# Resolve a link to the canonical path it names. Spelling is not evidence: a
+# stray link often reaches available-skills through ~/.agents/skills, which is
+# itself a symlink to available-skills, so a prefix match on the raw target
+# would report a harmless link as a leak.
+resolve_link_target() {
+  local link="$1" raw base dir
+  raw="$(readlink "$link")" || return 1
+  case "$raw" in
+    /*) : ;;
+    *) raw="$(dirname -- "$link")/$raw" ;;
+  esac
+  base="$(basename -- "$raw")"
+  dir="$(cd -- "$(dirname -- "$raw")" 2>/dev/null && pwd -P)" || return 1
+  printf '%s/%s\n' "$dir" "$base"
+}
+available_canon="$(cd -- "$AVAILABLE_DIR" 2>/dev/null && pwd -P)"
+[ -n "$available_canon" ] || available_canon="$AVAILABLE_DIR"
+# Declared before use: bash 3.2 treats ${#arr[@]} on an undeclared name as
+# an unbound variable under set -u, which would abort the audit on the
+# clean path and leave the run reporting success it never checked.
+violations=()
+while IFS= read -r p; do
+  [ -n "$p" ] || continue
+  if [ -L "$p" ]; then
+    target="$(readlink "$p")"
+    resolved="$(resolve_link_target "$p")"
+    case "$resolved" in
+      "$available_canon"|"$available_canon"/*)
+        if [ "${DRY_RUN:-0}" = "1" ]; then
+          note "would remove stray link $p -> $target"
+        else
+          rm -f "$p" && note "removed stray link $p -> $target"
+        fi
+        ;;
+      *) violations+=("$p -> $target") ;;
+    esac
+  elif [ -e "$p" ]; then
+    violations+=("$p (real file/dir)")
+  fi
+done < <(comm -13 "$before" "$after" 2>/dev/null || true)
+
+if [ "${#violations[@]}" -gt 0 ]; then
+  printf 'aubx-skills: WROTE OUTSIDE %s:\n' "$AVAILABLE_DIR" >&2
+  printf '  %s\n' "${violations[@]}" >&2
+  exit 3
+fi
+
+if [ "$rc" -ne 0 ]; then
+  printf 'aubx-skills: installer exited %d after installing; installed %d skill(s)\n' "$rc" "${#installed[@]}" >&2
+fi
+note "${#installed[@]} skill(s) now live in $AVAILABLE_DIR"
+note "no writes outside $AVAILABLE_DIR"
+exit 0

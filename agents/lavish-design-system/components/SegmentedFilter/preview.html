@@ -1,0 +1,22 @@
+<!-- @dsCard group="Actions" -->
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SegmentedFilter</title>
+<link rel="stylesheet" href="../../colors_and_type.css">
+<style>
+*{box-sizing:border-box}body{margin:0;background:var(--color-bg-page);font-family:var(--font-sans);font-size:var(--text-body);color:var(--color-text);-webkit-font-smoothing:antialiased}
+.preview{padding:var(--space-24);display:flex;flex-direction:column;gap:var(--space-20)}
+.row{display:flex;gap:var(--space-20);flex-wrap:wrap;align-items:flex-start}
+.cell{display:flex;flex-direction:column;gap:var(--space-6);align-items:flex-start}
+.lbl{font-size:var(--text-meta);color:var(--color-text-muted)}
+.mono{font-family:var(--font-mono);font-size:var(--text-mono)}
+.card{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-card);padding:var(--space-20);display:flex;flex-direction:column;gap:var(--space-12)}
+.card h2{margin:0;font-size:var(--text-section-title);font-weight:var(--weight-semibold)}
+.card p{margin:0;font-size:var(--text-body);line-height:var(--leading-prose);color:var(--color-text-secondary)}
+.seg{display:inline-flex;flex-wrap:wrap;gap:var(--space-4);background:var(--color-bg-page);padding:3px;border-radius:var(--radius-card)}
+.seg button{font:inherit;font-size:var(--text-meta);font-weight:var(--weight-medium);border:0;border-radius:var(--radius-control);padding:5px var(--space-10);cursor:pointer;white-space:nowrap;background:transparent;color:var(--color-text-secondary)}
+.seg button.on{background:var(--color-surface);color:var(--color-text);box-shadow:var(--shadow-segment)}
+.seg button span{color:var(--color-text-subtle);font-weight:var(--weight-regular)}
+</style></head>
+<body><div class="preview">
+<div class="row"><div class="cell"><span class="lbl">Route filter, All active</span><div class="seg"><button class="on">All <span>13</span></button><button class="">Admin <span>5</span></button><button class="">AJAX <span>2</span></button><button class="">REST <span>6</span></button></div></div><div class="cell"><span class="lbl">REST active</span><div class="seg"><button class="">All <span>13</span></button><button class="">Admin <span>5</span></button><button class="">AJAX <span>2</span></button><button class="on">REST <span>6</span></button></div></div></div><div class="cell"><span class="lbl">Suggestion filter</span><div class="seg"><button class="on">All <span>9</span></button><button class="">Schema <span>2</span></button><button class="">Internal links <span>2</span></button><button class="">Titles <span>2</span></button><button class="">Page checks <span>3</span></button></div></div>
+</div></body></html>

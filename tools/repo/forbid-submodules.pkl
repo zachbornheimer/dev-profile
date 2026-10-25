@@ -1,6 +1,0 @@
-amends "../../lib/Tool.pkl"
-
-doc = "No new submodules. Only when .gitmodules is pushed: existing submodules never block a push."
-on {
-  ["pre-push"] = (module.builtins.forbid_submodules) { glob = List("**/.gitmodules") }
-}

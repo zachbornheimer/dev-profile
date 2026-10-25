@@ -1,0 +1,6 @@
+{
+  "session_id": "hgtest-cg3",
+  "hook_event_name": "Stop",
+  "reason": "end_turn",
+  "last_assistant_message": "Done.\n\n```evidence\n{not json at all\n```\n"
+}

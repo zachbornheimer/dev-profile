@@ -1,0 +1,12 @@
+{
+  "tokensSha256": "ad41420b3dc7e73fde5079633d653200c3393cddb702b3ff79d23ec6beae443a",
+  "files": {
+    "contract.gen.css": "a13f530e40346f2166d14982516b53ceb4b0fba2b24430f5b5ccdf99c3e132a5",
+    "contract.min.css": "602f5955ebc9715f83fbe870d41c36ae9fe476b63cd007964d9abc2e6b4777c5",
+    "contract.gen.legacy.css": "2a9854035b0e14a4f25a41bb0564e396c84456b982952ce6feded74d30a5c398",
+    "contract.min.legacy.css": "7013e9a12d808d1f9e281fb392d248a77ea0e09c58e1b82e88f99a0863f70d43",
+    "brand.example.css": "9373ead012057071e265b1f81caaf60cbd1a11ef4d14289c051decc207e7d12c",
+    "contract.json": "7679f986e500f0b7d6ccf77c6da58f937c87ae66e3a4c48e7bf39235d5b7e7da",
+    "contract.md": "2e57c4c73f01f68cc9d2ef23b9509acdb589f280ce5f77bf8eef07d9e0186e8c"
+  }
+}

@@ -1,0 +1,18 @@
+<!-- @dsCard group="Foundations" -->
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Typography</title>
+<link rel="stylesheet" href="../../../colors_and_type.css">
+<style>
+*{box-sizing:border-box}body{margin:0;background:var(--color-bg-page);font-family:var(--font-sans);font-size:var(--text-body);color:var(--color-text);-webkit-font-smoothing:antialiased}
+.preview{padding:var(--space-24);display:flex;flex-direction:column;gap:var(--space-20)}
+.row{display:flex;gap:var(--space-20);flex-wrap:wrap;align-items:flex-start}
+.cell{display:flex;flex-direction:column;gap:var(--space-6);align-items:flex-start}
+.lbl{font-size:var(--text-meta);color:var(--color-text-muted)}
+.mono{font-family:var(--font-mono);font-size:var(--text-mono)}
+.card{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-card);padding:var(--space-20);display:flex;flex-direction:column;gap:var(--space-12)}
+.card h2{margin:0;font-size:var(--text-section-title);font-weight:var(--weight-semibold)}
+.card p{margin:0;font-size:var(--text-body);line-height:var(--leading-prose);color:var(--color-text-secondary)}.t{display:grid;grid-template-columns:170px 1fr;gap:var(--space-16);align-items:baseline;border-bottom:1px solid var(--color-row-divider);padding-bottom:var(--space-8)}.t code{font-family:var(--font-mono);font-size:var(--text-mono-sm);color:var(--color-text-muted)}
+</style></head>
+<body><div class="preview">
+<div class="card"><div class="t"><code>--text-page-title</code><span style="font-size:var(--text-page-title);font-weight:var(--weight-medium);letter-spacing:var(--tracking-title)">Page title, 23px / 500</span></div><div class="t"><code>--text-heading-lg</code><span style="font-size:var(--text-heading-lg);font-weight:var(--weight-medium)">Feature heading, 18px / 500</span></div><div class="t"><code>--text-stat</code><span style="font-size:var(--text-stat);font-weight:var(--weight-medium);font-variant-numeric:tabular-nums">Stat value 374, 22px / 500</span></div><div class="t"><code>--text-section-title</code><span style="font-size:var(--text-section-title);font-weight:var(--weight-semibold)">Section title, 15px / 600</span></div><div class="t"><code>--text-subsection-title</code><span style="font-size:var(--text-subsection-title);font-weight:var(--weight-semibold)">Subsection title, 14px / 600</span></div><div class="t"><code>--text-body</code><span style="font-size:var(--text-body);line-height:var(--leading-prose);color:var(--color-text-secondary)">Body copy, 13px. Plain, second person, says what happens.</span></div><div class="t"><code>--text-meta</code><span style="font-size:var(--text-meta);color:var(--color-text-muted)">Meta line, 12px, muted</span></div><div class="t"><code>--text-badge</code><span style="font-size:var(--text-badge);font-weight:var(--weight-semibold);text-transform:uppercase;letter-spacing:var(--tracking-badge)">Badge, 11px uppercase</span></div><div class="t"><code>--text-mono</code><span style="font-size:var(--text-mono);font-family:var(--font-mono)">/wp/v2/users/me  route, mono 12.5px</span></div><div class="t"><code>--text-mono-sm</code><span style="font-size:var(--text-mono-sm);font-family:var(--font-mono);color:var(--color-text-muted)">noindex  tech label, mono 11.5px</span></div><span class="lbl">Tabular nums on every number: 1,240 · 2.30 s · 38</span></div>
+</div></body></html>

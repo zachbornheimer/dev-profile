@@ -1,0 +1,8 @@
+{
+  "session_id": "hgtest-er1",
+  "hook_event_name": "PostToolUse",
+  "tool_name": "Edit",
+  "tool_input": {
+    "file_path": "/tmp/x.go"
+  }
+}

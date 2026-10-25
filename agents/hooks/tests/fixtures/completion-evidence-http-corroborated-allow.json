@@ -1,0 +1,7 @@
+{
+  "session_id": "hgtest-cg7",
+  "hook_event_name": "Stop",
+  "reason": "end_turn",
+  "transcript_path": "/Users/zbornheimer/.claude/hooks/tests/fixtures/completion-transcript-no-evidence.txt",
+  "last_assistant_message": "Done.\n\n```evidence\n{\"claim\": \"endpoint is live\", \"type\": \"http\", \"ref\": \"curl -sS https://example.com/health\", \"scope\": \"live\"}\n```\n"
+}

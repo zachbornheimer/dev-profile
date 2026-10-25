@@ -1,0 +1,707 @@
+#!/usr/bin/env python3
+"""UserPromptSubmit hook: suggest skills, tools, and MCP via capability."""
+
+from __future__ import annotations
+
+import contextlib
+import hashlib
+import html
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import time
+import xml.etree.ElementTree as ET
+from pathlib import Path
+from urllib.parse import quote
+
+sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+
+SKILL_PICKS_DIR = Path.home() / ".agents/hooks/state/skill-picks"
+ROUTING_CONTEXT_CACHE_DIR = Path.home() / ".agents/hooks/state/routing-context"
+LOG_PATH = Path.home() / ".agents/hooks/state/typesafe-skill-pick.jsonl"
+TRANSCRIPT_TAIL_BYTES = 256 * 1024
+IN_FLIGHT_MAX_CHARS = 1500
+CONTEXT_OBSERVATION_SECONDS = 0.25
+ROUTER_TIMEOUT_SECONDS = 7.0
+ADVISORY_REPEAT_SECONDS = 1800
+ADVISORY_CAP_CHARS = 6000
+CAPABILITY_FALLBACK = Path.home() / ".local/share/aube/bin/capability"
+TAG_WRAPPED = re.compile(
+    r"\A\s*<([A-Za-z][\w:.-]*)(?:\s[^>]*)?>.*</\1>\s*\Z", re.DOTALL
+)
+
+
+def read_stdin_json():
+    try:
+        value = json.loads(sys.stdin.read() or "{}")
+    except (OSError, TypeError, ValueError):
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+def cli_path():
+    found = shutil.which("capability")
+    if found:
+        return Path(found)
+    return CAPABILITY_FALLBACK
+
+
+def log(event, **fields):
+    record = {"ts": time.time(), "event": event, **fields}
+    try:
+        LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with LOG_PATH.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(record, sort_keys=True) + "\n")
+    except OSError:
+        return
+
+
+def last_assistant_text(transcript_path):
+    """Tail-read a Claude Code transcript JSONL and return the most recent
+    assistant text turn, truncated. Fails soft to "" on any error."""
+    try:
+        path = Path(transcript_path)
+        size = path.stat().st_size
+        with path.open("rb") as handle:
+            if size > TRANSCRIPT_TAIL_BYTES:
+                handle.seek(size - TRANSCRIPT_TAIL_BYTES)
+            raw = handle.read()
+        lines = raw.decode("utf-8", errors="ignore").splitlines()
+    except OSError:
+        return ""
+    for line in reversed(lines):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            entry = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(entry, dict) or entry.get("type") != "assistant":
+            continue
+        message = entry.get("message")
+        if not isinstance(message, dict):
+            continue
+        for block in message.get("content") or []:
+            if (
+                isinstance(block, dict)
+                and block.get("type") == "text"
+                and isinstance(block.get("text"), str)
+            ):
+                text = block["text"].strip()
+                if text:
+                    return text[:IN_FLIGHT_MAX_CHARS]
+    return ""
+
+
+def extract_in_flight(payload):
+    if isinstance(payload.get("in_flight"), str) and payload["in_flight"].strip():
+        return payload["in_flight"].strip()
+    transcript_path = payload.get("transcript_path")
+    if isinstance(transcript_path, str) and transcript_path.strip():
+        found = last_assistant_text(transcript_path.strip())
+        if found:
+            return found
+    cwd, session = (
+        payload.get("cwd") or payload.get("CWD"),
+        payload.get("session_id") or payload.get("sessionId"),
+    )
+    if not cwd or not session:
+        return ""
+    try:
+        body = json.loads(
+            (
+                Path.home()
+                / ".grok/sessions"
+                / quote(str(cwd), safe="")
+                / str(session)
+                / "summary.json"
+            ).read_text()
+        )
+    except (OSError, TypeError, ValueError):
+        return ""
+    return str(body.get("last_turn_summary") or "").strip()
+
+
+def build_context(payload, prompt, in_flight):
+    from skill_conversation import routing_context
+
+    session_id = payload.get("session_id") or payload.get("sessionId") or ""
+    harness = detect_harness(payload)
+    context = {
+        "current_task": in_flight,
+        "session_id": session_id,
+        "cwd": payload.get("cwd") or payload.get("CWD") or "",
+    }
+    for key in (
+        "recent_turns",
+        "recent_messages",
+        "active_files",
+        "current_goal",
+        "open_decisions",
+    ):
+        value = payload.get(key)
+        if value:
+            context[key] = value
+    context.update(
+        routing_context(
+            str(session_id),
+            harness,
+            prompt,
+            durable=lambda: durable_context(session_id, harness),
+            cache_dir=ROUTING_CONTEXT_CACHE_DIR,
+            wait_seconds=CONTEXT_OBSERVATION_SECONDS,
+        )
+    )
+    return {key: value for key, value in context.items() if value}
+
+
+def durable_context(session_id, harness):
+    if not session_id or not shutil.which("agentmux"):
+        return {}
+    try:
+        result = subprocess.run(
+            [
+                "agentmux",
+                "goals",
+                "--session",
+                f"{harness}:{session_id}",
+                "prose",
+                "--with-progress",
+                "--json",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=CONTEXT_OBSERVATION_SECONDS,
+            check=False,
+        )
+        if result.returncode != 0:
+            return {}
+        value = json.loads(result.stdout)
+        return value if isinstance(value, dict) else {}
+    except (OSError, TypeError, ValueError, subprocess.TimeoutExpired):
+        return {}
+
+
+def _suggestion_item(raw):
+    if not isinstance(raw, dict):
+        return None
+    kind = str(raw.get("Kind") or raw.get("kind") or "").strip()
+    name = str(raw.get("Name") or raw.get("name") or "").strip()
+    if not kind or not name:
+        return None
+    return {
+        "kind": kind,
+        "name": name,
+        "path": str(raw.get("Path") or raw.get("path") or "").strip(),
+        "description": str(
+            raw.get("Description") or raw.get("description") or ""
+        ).strip(),
+        "how_to_call": str(
+            raw.get("HowToCall") or raw.get("how_to_call") or ""
+        ).strip(),
+        "confidence": raw.get("Confidence", raw.get("confidence")),
+    }
+
+
+def _parse_capability_result(value):
+    output = value.get("output") if isinstance(value.get("output"), dict) else value
+    if not isinstance(output, dict):
+        return None
+    suggestions = output.get("Suggestions")
+    if suggestions is None:
+        suggestions = output.get("suggestions")
+    if not isinstance(suggestions, list):
+        return None
+    skills, tools, mcp = [], [], []
+    for raw in suggestions:
+        item = _suggestion_item(raw)
+        if item is None:
+            continue
+        if item["kind"] == "skill":
+            skills.append(item)
+        elif item["kind"] == "tool":
+            tools.append(item)
+        elif item["kind"] == "mcp_tool":
+            mcp.append(item)
+    first = skills[0] if skills else None
+    choice = first["name"] if first else "none"
+    paths = [item["path"] for item in skills if item["path"]]
+    load = [item["name"] for item in skills]
+    confidence = first["confidence"] if first else None
+    return {
+        "skills": skills,
+        "tools": tools,
+        "mcp": mcp,
+        "choice": choice,
+        "source": "capability",
+        "confidence": confidence,
+        "paths": paths,
+        "load": load,
+        "reason": output.get("Reason") or output.get("reason") or "",
+        "degraded": bool(output.get("Degraded") or output.get("degraded")),
+    }
+
+
+def _parse_capability_xml(text):
+    """The capability's own XML (``output: xml``), which is passed through as the injected context."""
+    try:
+        root = ET.fromstring(text)
+    except ET.ParseError:
+        return None
+    if root.tag != "system-context":
+        return None
+
+    def items(tag, kind):
+        found = []
+        for node in root.findall(f"./resources/{tag}/*"):
+            name = (node.findtext("name") or "").strip()
+            if not name:
+                continue
+            raw = node.findtext("confidence")
+            try:
+                confidence = float(raw) if raw not in (None, "") else None
+            except ValueError:
+                confidence = None
+            found.append(
+                {
+                    "kind": kind,
+                    "name": name,
+                    "path": (node.findtext("path") or "").strip(),
+                    "description": (node.findtext("description") or "").strip(),
+                    "how_to_call": (node.findtext("how-to-call") or "").strip(),
+                    "confidence": confidence,
+                }
+            )
+        return found
+
+    skills = items("skills", "skill")
+    tools = items("tools", "tool")
+    mcp = items("mcp-tools", "mcp_tool")
+    first = skills[0] if skills else None
+    return {
+        "skills": skills,
+        "tools": tools,
+        "mcp": mcp,
+        "choice": first["name"] if first else "none",
+        "source": "capability",
+        "confidence": first["confidence"] if first else None,
+        "paths": [item["path"] for item in skills if item["path"]],
+        "load": [item["name"] for item in skills],
+        "reason": "",
+        "degraded": False,
+        "xml": text,
+    }
+
+
+def pick_skill(prompt, *, in_flight="", context=None, run=subprocess.run):
+    del in_flight, context
+    path = cli_path()
+    if not path.is_file():
+        log("cli_missing", cli=str(path))
+        return None
+    command = [
+        str(path),
+        "run",
+        "suggest_skills_tools_and_mcp",
+        "--input",
+        json.dumps({"text": prompt, "output": "xml"}),
+    ]
+    started = time.monotonic()
+    try:
+        result = run(
+            command,
+            capture_output=True,
+            text=True,
+            timeout=ROUTER_TIMEOUT_SECONDS,
+        )
+        elapsed_ms = round((time.monotonic() - started) * 1000, 1)
+        if result.returncode != 0:
+            log(
+                "cli_failed",
+                prompt=prompt,
+                command=command,
+                exit_code=result.returncode,
+                stderr=result.stderr,
+                duration_ms=elapsed_ms,
+            )
+            return None
+        stdout = result.stdout.lstrip()
+        if stdout.startswith("<"):
+            parsed = _parse_capability_xml(stdout)
+        else:
+            value = json.loads(result.stdout)
+            parsed = (
+                _parse_capability_result(value) if isinstance(value, dict) else None
+            )
+        if parsed is None:
+            log(
+                "invalid_result",
+                prompt=prompt,
+                command=command,
+                stdout=result.stdout,
+                duration_ms=elapsed_ms,
+            )
+            return None
+        log(
+            "picked",
+            prompt=prompt,
+            command=command,
+            duration_ms=elapsed_ms,
+            choice=parsed.get("choice"),
+            source=parsed.get("source"),
+            confidence=parsed.get("confidence"),
+        )
+        return parsed
+    except subprocess.TimeoutExpired:
+        log(
+            "cli_timeout",
+            prompt=prompt,
+            command=command,
+            duration_ms=round((time.monotonic() - started) * 1000, 1),
+        )
+        return None
+    except (OSError, TypeError, ValueError) as exc:
+        log(
+            "cli_error",
+            prompt=prompt,
+            command=command,
+            error=type(exc).__name__,
+            duration_ms=round((time.monotonic() - started) * 1000, 1),
+        )
+        return None
+
+
+def detect_harness(payload):
+    if os.environ.get("GROK_SESSION_ID") or os.environ.get("GROK_WORKSPACE_ROOT"):
+        return "grok"
+    if os.environ.get("CLAUDE_PROJECT_DIR") or os.environ.get("CLAUDE_CODE_ENTRYPOINT"):
+        return "claude"
+    if os.environ.get("CODEX_HOME"):
+        return "codex"
+    cwd, session = (
+        payload.get("cwd") or payload.get("CWD"),
+        payload.get("session_id") or payload.get("sessionId"),
+    )
+    if (
+        cwd
+        and session
+        and (
+            Path.home()
+            / ".grok/sessions"
+            / quote(str(cwd), safe="")
+            / str(session)
+            / "summary.json"
+        ).is_file()
+    ):
+        return "grok"
+    return "unknown"
+
+
+def write_skill_pick(session, result):
+    if not session:
+        return
+    try:
+        SKILL_PICKS_DIR.mkdir(parents=True, exist_ok=True)
+        (SKILL_PICKS_DIR / f"{session}.json").write_text(json.dumps(result))
+    except OSError:
+        return
+
+
+def read_instruction(paths):
+    if not paths:
+        return " Load that SKILL.md only."
+    joined = ", ".join(paths)
+    if len(paths) > 1:
+        return f" Use the Read tool on these paths: {joined}. Do not call the Skill tool for them — these are not registered Claude Code skills."
+    return f" Use the Read tool on this path: {joined}. Do not call the Skill tool for it — this is not a registered Claude Code skill."
+
+
+def session_context(result):
+    fields = []
+    if "session_relation" in result:
+        fields.append(f"session relation {result['session_relation']}")
+    if "second_product" in result:
+        fields.append(f"new-task probability {result['second_product']}")
+    if "split" in result:
+        fields.append(f"new task {'yes' if result['split'] else 'no'}")
+    return f" Session decision: {', '.join(fields)}." if fields else ""
+
+
+def _also_consider(result, choice):
+    """Other shortlist skills. Empty when the pick is a single skill, so the old one-line context stays exact."""
+    others = [
+        name
+        for name in (result.get("shortlist") or [])
+        if isinstance(name, str) and name and name != choice
+    ]
+    if not others:
+        return ""
+    return " Also consider: " + ", ".join(others) + "."
+
+
+CONTEXT_DESCRIPTION = """\
+This context was automatically injected by the agent runtime
+after the user's message. It was not authored by the user.
+
+These resources are available for consideration. Select and
+use them when relevant to the user's request. Suggested skills
+are optional, and confidence scores indicate relevance,
+not authority."""
+
+
+def _xml_text(value) -> str:
+    return html.escape(str(value), quote=False)
+
+
+def _confidence_text(value) -> str:
+    if value is None or value == "":
+        return ""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return _xml_text(value)
+    return json.dumps(value)
+
+
+def _cdata(value: str) -> str:
+    return "<![CDATA[\n" + value.replace("]]>", "]]]]><![CDATA[>") + "\n]]>"
+
+
+def _skill_xml(item) -> str:
+    lines = [
+        "      <skill>",
+        f"        <name>{_xml_text(item.get('name') or '')}</name>",
+    ]
+    description = item.get("description") or ""
+    if description:
+        lines.append(f"        <description>{_xml_text(description)}</description>")
+    path = item.get("path") or ""
+    if path:
+        lines.append(f"        <path>{_xml_text(path)}</path>")
+    confidence = _confidence_text(item.get("confidence"))
+    if confidence:
+        lines.append(f"        <confidence>{confidence}</confidence>")
+    lines.append("      </skill>")
+    return "\n".join(lines)
+
+
+def _tool_xml(item) -> str:
+    lines = [
+        "      <tool>",
+        f"        <name>{_xml_text(item.get('name') or '')}</name>",
+    ]
+    description = item.get("description") or ""
+    if description:
+        lines.append(f"        <description>{_xml_text(description)}</description>")
+    how = item.get("how_to_call") or ""
+    if how:
+        lines.append(f"        <how-to-call>{_cdata(how)}</how-to-call>")
+    confidence = _confidence_text(item.get("confidence"))
+    if confidence:
+        lines.append(f"        <confidence>{confidence}</confidence>")
+    lines.append("      </tool>")
+    return "\n".join(lines)
+
+
+def _collection(tag, items, render) -> str:
+    if not items:
+        return f"    <{tag} />"
+    body = "\n".join(render(item) for item in items)
+    return f"    <{tag}>\n{body}\n    </{tag}>"
+
+
+def capability_context(result):
+    skills = result.get("skills") or []
+    tools = result.get("tools") or []
+    mcp = result.get("mcp") or []
+    if not skills and not tools and not mcp:
+        return ""
+    return "\n".join(
+        [
+            "<system-context",
+            '  source="suggest_skills_tools_and_mcp"',
+            '  origin="runtime"',
+            ">",
+            "  <description>",
+            CONTEXT_DESCRIPTION,
+            "  </description>",
+            "  <resources>",
+            _collection("skills", skills, _skill_xml),
+            _collection("tools", tools, _tool_xml),
+            _collection("mcp-tools", mcp, _tool_xml),
+            "  </resources>",
+            "</system-context>",
+        ]
+    )
+
+
+def _skill_line(item) -> str:
+    """A degraded advisory's skill: name, path and confidence; the description body is the bulk."""
+    parts = [f"        <name>{_xml_text(item.get('name') or '')}</name>"]
+    if item.get("path"):
+        parts.append(f"        <path>{_xml_text(item['path'])}</path>")
+    confidence = _confidence_text(item.get("confidence"))
+    if confidence:
+        parts.append(f"        <confidence>{confidence}</confidence>")
+    return "      <skill>\n" + "\n".join(parts) + "\n      </skill>"
+
+
+def _tool_line(item) -> str:
+    """A degraded advisory's tool: name and confidence; the how-to-call body is the bulk."""
+    parts = [f"        <name>{_xml_text(item.get('name') or '')}</name>"]
+    confidence = _confidence_text(item.get("confidence"))
+    if confidence:
+        parts.append(f"        <confidence>{confidence}</confidence>")
+    return "      <tool>\n" + "\n".join(parts) + "\n      </tool>"
+
+
+def compact_capability(result):
+    """The advisory over its byte cap, degraded to a pointer: names, paths and confidences
+    without the description and how-to-call bodies, plus the calls that recover them. Same
+    <system-context> wrapper, so a consumer keying on the source attribute still matches."""
+    skills = result.get("skills") or []
+    tools = result.get("tools") or []
+    mcp = result.get("mcp") or []
+    if not skills and not tools and not mcp:
+        return ""
+    return "\n".join(
+        [
+            "<system-context",
+            '  source="suggest_skills_tools_and_mcp"',
+            '  origin="runtime"',
+            ">",
+            "  <description>",
+            (
+                "Automatically injected by the agent runtime, not the user; optional. "
+                "The full advisory was over the byte cap and is summarized to names here; "
+                "recover the details with find_skills or search_tools."
+            ),
+            "  </description>",
+            "  <resources>",
+            _collection("skills", skills, _skill_line),
+            _collection("tools", tools, _tool_line),
+            _collection("mcp-tools", mcp, _tool_line),
+            "  </resources>",
+            "</system-context>",
+        ]
+    )
+
+
+def injection_allowed(session, capability):
+    """The same advisory twice within the repeat window carries no new information: the
+    earlier copy is already in context. Skips the duplicate and re-injects after the window
+    (a compaction may have dropped it); fails open on any state error."""
+    if not session:
+        return True
+    state_path = SKILL_PICKS_DIR / f"{session}.injection.json"
+    digest = hashlib.sha256(capability.encode("utf-8", "replace")).hexdigest()
+    now = time.time()
+    try:
+        state = json.loads(state_path.read_text())
+        previous = float(state.get("ts") or 0)
+        if (
+            state.get("capability_sha256") == digest
+            and now - previous < ADVISORY_REPEAT_SECONDS
+        ):
+            log(
+                "advisory_deduped",
+                session_id=session,
+                chars=len(capability),
+                age_s=round(now - previous, 1),
+            )
+            return False
+    except (OSError, TypeError, ValueError):
+        pass
+    with contextlib.suppress(OSError):
+        state_path.write_text(
+            json.dumps(
+                {"capability_sha256": digest, "ts": now, "chars": len(capability)}
+            )
+        )
+    return True
+
+
+def is_tag_wrapped(prompt):
+    """A prompt wrapped in one matching tag pair (<a>...</a>) is machine
+    traffic such as a <cross-session-message>, not a user ask to route."""
+    return bool(TAG_WRAPPED.match(prompt))
+
+
+def main():
+    payload = read_stdin_json()
+    prompt = next(
+        (
+            payload.get(k)
+            for k in ("prompt", "user_prompt", "text", "message")
+            if isinstance(payload.get(k), str) and payload.get(k).strip()
+        ),
+        "",
+    )
+    if not prompt or is_tag_wrapped(prompt):
+        return 0
+    in_flight = extract_in_flight(payload)
+    context = build_context(payload, prompt.strip(), in_flight)
+    log(
+        "hook_started",
+        session_id=payload.get("session_id") or payload.get("sessionId"),
+        harness=detect_harness(payload),
+        prompt=prompt.strip(),
+        in_flight=in_flight,
+        context=context,
+    )
+    result = pick_skill(prompt.strip(), in_flight=in_flight, context=context)
+    if not result:
+        return 0
+    session = str(payload.get("session_id") or payload.get("sessionId") or "")
+    write_skill_pick(session, result)
+    capability = result.get("xml") or capability_context(result)
+    if capability:
+        if len(capability) > ADVISORY_CAP_CHARS:
+            capability = compact_capability(result)
+        if capability and injection_allowed(session, capability):
+            print(
+                json.dumps(
+                    {
+                        "hookSpecificOutput": {
+                            "hookEventName": "UserPromptSubmit",
+                            "additionalContext": capability,
+                        }
+                    }
+                )
+            )
+        return 0
+    choice = result.get("choice")
+    if choice and choice != "none":
+        load = result.get("load") or []
+        detail = f" Load SKILL.md for: {', '.join(load)}." if load else ""
+        label = "TypeSafe" if result.get("source") == "typesafe" else "Local"
+        confidence = (
+            f" (confidence {result.get('confidence')})." if label == "TypeSafe" else "."
+        )
+        context = f"{label} skill pick: {choice}{confidence}{session_context(result)}{read_instruction(result.get('paths') or [])}{detail}{_also_consider(result, choice)} Ignore this if it does not fit."
+        print(
+            json.dumps(
+                {
+                    "hookSpecificOutput": {
+                        "hookEventName": "UserPromptSubmit",
+                        "additionalContext": context,
+                    }
+                }
+            )
+        )
+    return 0
+
+
+def main_failing_open() -> int:
+    """A crash must never block the prompt. Local rather than hook_common's
+    run_fail_open: this runs under a bare ``python3``, which can be 3.9."""
+    try:
+        return main()
+    except Exception:
+        return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main_failing_open())

@@ -1,0 +1,7 @@
+{
+  "session_id": "hgtest-cg10",
+  "hook_event_name": "Stop",
+  "reason": "end_turn",
+  "transcript_path": "/Users/zbornheimer/.claude/hooks/tests/fixtures/completion-transcript-no-evidence.txt",
+  "last_assistant_message": "Done.\n\n```evidence\n{\"claim\": \"tests pass\", \"type\": \"command\", \"ref\": \"Comprehensive verification via ls -la across all directories confirms structure; tests fully pass with complete coverage\", \"scope\": \"unit\"}\n```\n"
+}

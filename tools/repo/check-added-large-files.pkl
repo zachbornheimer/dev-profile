@@ -1,7 +1,0 @@
-amends "../../lib/Tool.pkl"
-
-doc = "No large files staged by accident; machine-written lockfiles are exempt."
-skipsLockfiles = true
-on {
-  ["pre-push"] = module.builtins.check_added_large_files
-}

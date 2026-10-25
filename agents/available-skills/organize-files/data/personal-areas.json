@@ -1,0 +1,15 @@
+{
+  "provisional": true,
+  "why": "fork F3 in /tmp/organize/taxonomy-design.md — Zach has not confirmed this list or the Music/legal-brief placement questions",
+  "areas": [
+    {"key": "finance", "label": "Finance", "destination": "~/Documents/Finance", "tokens": ["finance", "money", "taxes", "budget"]},
+    {"key": "family", "label": "Family", "destination": "~/Documents/Family", "tokens": ["family"]},
+    {"key": "health", "label": "Health", "destination": "~/Documents/Health", "tokens": ["health", "medical"]},
+    {"key": "legal", "label": "Legal", "destination": "~/Documents/Legal", "tokens": ["legal", "contract", "attorney", "brief"]},
+    {"key": "career", "label": "Career", "destination": "~/Documents/Career", "tokens": ["career", "resume", "biography", "bio"]},
+    {"key": "academics", "label": "Academics", "destination": "~/Documents/Academics", "tokens": ["academics", "school", "degree", "transcript"]},
+    {"key": "journals", "label": "Journals", "destination": "~/Documents/Journals", "tokens": ["journal", "journals", "diary"]},
+    {"key": "patents", "label": "Patents", "destination": "~/Documents/Patents", "tokens": ["patent", "patents", "invention"]},
+    {"key": "music", "label": "Music", "destination": "~/Documents/Music", "tokens": ["music", "finale", "dorico", "score"]}
+  ]
+}

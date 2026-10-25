@@ -1,0 +1,1177 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="paper">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AI history UI — thinking glow + action stack</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/daisyui@5"
+      rel="stylesheet"
+      type="text/css"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style type="text/tailwindcss">
+    @theme {
+      --font-sans: ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+      --font-serif: ui-serif, "Iowan Old Style", Palatino, Georgia, serif;
+      --font-mono: ui-monospace, Menlo, Consolas, monospace;
+    }
+    </style>
+    <!-- House theme: daisyUI tokens only. Not a second component system. -->
+    <style id="house">
+    :root,
+    [data-theme="paper"] {
+      color-scheme: light;
+      --color-base-100: oklch(98.4% 0.008 85);
+      --color-base-200: oklch(95.6% 0.012 85);
+      --color-base-300: oklch(90.8% 0.018 80);
+      --color-base-content: oklch(24% 0.02 55);
+      --color-primary: oklch(54% 0.14 255);
+      --color-primary-content: oklch(98% 0.01 85);
+      --color-secondary: oklch(42% 0.03 70);
+      --color-secondary-content: oklch(98% 0.01 85);
+      --color-accent: oklch(72% 0.11 70);
+      --color-accent-content: oklch(28% 0.04 55);
+      --color-neutral: oklch(22% 0.02 55);
+      --color-neutral-content: oklch(97% 0.01 85);
+      --color-info: oklch(62% 0.1 240);
+      --color-success: oklch(48% 0.1 150);
+      --color-warning: oklch(78% 0.1 75);
+      --color-error: oklch(55% 0.16 28);
+      --radius-box: 0.85rem;
+      --radius-field: 0.55rem;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+    body {
+      font-family: var(--font-sans);
+    }
+
+    .paper-prose > p {
+      max-width: 46rem;
+    }
+    .paper-prose > h2 {
+      font-family: var(--font-serif);
+      font-size: 1.85rem;
+      line-height: 1.2;
+      letter-spacing: -0.02em;
+      margin: 0 0 0.75rem;
+    }
+    .paper-prose > h3 {
+      font-family: var(--font-serif);
+      font-size: 1.25rem;
+      margin: 1.6rem 0 0.5rem;
+    }
+
+    .shimmer {
+      display: inline-block;
+      background: linear-gradient(
+        100deg,
+        color-mix(
+          in oklch,
+          var(--color-base-content) 38%,
+          var(--color-base-100)
+        ) 0%,
+        color-mix(
+          in oklch,
+          var(--color-base-content) 38%,
+          var(--color-base-100)
+        ) 35%,
+        var(--color-base-content) 50%,
+        color-mix(
+          in oklch,
+          var(--color-base-content) 38%,
+          var(--color-base-100)
+        ) 65%,
+        color-mix(
+          in oklch,
+          var(--color-base-content) 38%,
+          var(--color-base-100)
+        ) 100%
+      );
+      background-size: 220% 100%;
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      animation: sweep 1.4s linear infinite;
+    }
+    @keyframes sweep {
+      0% {
+        background-position: 100% 0;
+      }
+      100% {
+        background-position: -100% 0;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .shimmer {
+        animation: none;
+        color: var(--color-base-content);
+        background: none;
+      }
+    }
+
+    .avatar-blob {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      margin: 0 auto 6px;
+      background: radial-gradient(
+        circle at 35% 30%,
+        #9ec0ff,
+        #5b7cf0 55%,
+        #7a8dff
+      );
+      position: relative;
+    }
+    .avatar-blob::before,
+    .avatar-blob::after {
+      content: "";
+      position: absolute;
+      top: 16px;
+      width: 6px;
+      height: 10px;
+      background: #f4f7ff;
+      border-radius: 6px;
+    }
+    .avatar-blob::before {
+      left: 13px;
+    }
+    .avatar-blob::after {
+      right: 13px;
+    }
+    .action-child .ico {
+      position: relative;
+    }
+    .action-child .ico::before {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: -9px;
+      width: 1px;
+      height: 8px;
+      background: color-mix(
+        in oklch,
+        var(--color-base-content) 22%,
+        var(--color-base-100)
+      );
+    }
+    </style>
+  </head>
+  <body class="bg-base-200 text-base-content">
+    <div class="mx-auto max-w-6xl px-5 pb-24 pt-7">
+      <header class="hero min-h-0 items-end rounded-box bg-base-100 px-0 py-2">
+        <div class="hero-content grid w-full max-w-none grid-cols-1 items-end gap-8 p-0 lg:grid-cols-[1.2fr_0.8fr]">
+          <div>
+            <p class="mb-2 font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-base-content/55">
+              History UI contract · v0.1.0 · 15 Aug 2026
+            </p>
+            <h1 class="font-serif text-4xl font-semibold leading-[1.05] tracking-tight lg:text-5xl">
+              Show the work as a glow, then get it out of the way.
+            </h1>
+            <p class="mt-4 max-w-xl text-lg leading-relaxed text-base-content/80">
+              While the model is working, the status label and the current
+              action shimmer like a skeleton loader. Finished actions stack
+              underneath as a quiet tree. When the turn completes, the glow
+              dies, the tree collapses, and the answer is what you read.
+            </p>
+          </div>
+          <figure>
+            <img
+              class="max-h-[28rem] w-full rounded-box border border-base-300 object-cover object-top"
+              src="screenshots/crop-active-row.jpg"
+              alt="Thinking label plus four action rows, the last row washed out by the shimmer"
+            />
+            <figcaption class="mt-2 text-sm text-base-content/55">
+              Reference crop — Bevel, ~19s. Last row is live. Everything above
+              is done.
+            </figcaption>
+          </figure>
+        </div>
+      </header>
+
+      <nav class="sticky top-0 z-10 mt-4 rounded-box border border-base-300/80 bg-base-200/90 px-3 py-2 backdrop-blur">
+        <ul class="menu menu-horizontal flex-wrap gap-1 p-0 text-sm">
+          <li><a href="#idea">Idea</a></li>
+          <li><a href="#observed">What the video does</a></li>
+          <li><a href="#shimmer">The glow</a></li>
+          <li><a href="#tree">Action tree</a></li>
+          <li><a href="#done">When it completes</a></li>
+          <li><a href="#mock">Live mock</a></li>
+          <li><a href="#states">States</a></li>
+          <li><a href="#events">Events</a></li>
+          <li><a href="#shots">Screenshots</a></li>
+          <li><a href="#copy">Copy out</a></li>
+        </ul>
+      </nav>
+
+      <section id="idea" class="paper-prose pt-12">
+        <h2>The idea, in one breath</h2>
+        <p>
+          The recording is Bevel answering <em>How has my health been this
+            week?</em>
+          The thing that works — the thing to steal — is not the avatar or
+          the sheet. It is this: <strong>unknown-duration work is a moving
+            highlight through the words</strong>, and <strong>named actions
+            accumulate under those words</strong>. You always know the system is
+          working. You can see what it is doing. You can open a finished step.
+          You are never staring at a spinner.
+        </p>
+        <div class="mt-6 grid gap-4 md:grid-cols-3">
+          <article class="card bg-base-100 shadow-sm">
+            <div class="card-body">
+              <h3 class="card-title font-serif text-lg">Waiting</h3>
+              <p>
+                Composer is empty or has unsent text. Send is an arrow. Nothing
+                shimmers.
+              </p>
+            </div>
+          </article>
+          <article class="card bg-base-100 shadow-sm">
+            <div class="card-body">
+              <h3 class="card-title font-serif text-lg">Working</h3>
+              <p>
+                “Thinking…” shimmers. The current action shimmers. Older
+                actions sit still. Stop replaces Send.
+              </p>
+            </div>
+          </article>
+          <article class="card bg-base-100 shadow-sm">
+            <div class="card-body">
+              <h3 class="card-title font-serif text-lg">Done</h3>
+              <p>
+                Glow gone. Header becomes “Thought for N seconds.” Tree
+                collapses. Answer is the hero.
+              </p>
+            </div>
+          </article>
+        </div>
+        <div role="alert" class="alert alert-warning mt-6 items-start">
+          <span>
+            <strong>DELTA vs the video.</strong>
+            Bevel leaves the full action list expanded after it finishes. That
+            is fine while you watch a live turn. It is wrong for history: ten
+            tool rows steal the answer. This spec collapses the tree on
+            completion (unless the user had it open) and always opens historical
+            turns collapsed.
+          </span>
+        </div>
+      </section>
+
+      <section id="observed" class="paper-prose pt-12">
+        <h2>What the 38-second video actually does</h2>
+        <p>
+          (informative) Timed from <code class="font-mono text-sm"
+          >source-video.mp4</code>.
+        </p>
+        <div class="mt-4 overflow-x-auto rounded-box border border-base-300 bg-base-100">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>What you see</th>
+                <th>Rule it implies</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="font-mono text-sm">0–8s</td>
+                <td>Empty chat, greeting, composer focused, keyboard up.</td>
+                <td>Waiting. No thinking chrome yet.</td>
+              </tr>
+              <tr>
+                <td class="font-mono text-sm">~9s</td>
+                <td>
+                  Send. Keyboard drops. User bubble docks under a “New chat /
+                  Today” header.
+                </td>
+                <td>The turn exists the instant send is hit.</td>
+              </tr>
+              <tr>
+                <td class="font-mono text-sm">~10s</td>
+                <td>
+                  “Thinking…” appears immediately, already shimmering.
+                  Send becomes a filled stop square.
+                </td>
+                <td>REQ-001. Do not wait for the first tool call.</td>
+              </tr>
+              <tr>
+                <td class="font-mono text-sm">~13s</td>
+                <td>
+                  Two rows appear: brain “Analyzing Health This Week ›”
+                  and sparkle “Evaluating next steps”. Header gets a
+                  chevron.
+                </td>
+                <td>
+                  Tree is born under the status. Collapse exists only once there
+                  is a tree.
+                </td>
+              </tr>
+              <tr>
+                <td class="font-mono text-sm">~19s</td>
+                <td>
+                  More rows. The newest (“Analyzing health metrics for the
+                  week”) is pale, no chevron — same shimmer as the status.
+                </td>
+                <td>Only the live row glows. It is not tappable yet.</td>
+              </tr>
+              <tr>
+                <td class="font-mono text-sm">~22s</td>
+                <td>That row snaps solid and grows a chevron.</td>
+                <td>
+                  Completion is a one-frame state change, not a fade of the
+                  whole tree.
+                </td>
+              </tr>
+              <tr>
+                <td class="font-mono text-sm">~24s</td>
+                <td>
+                  Tap opens a sheet titled with the action name, payload labeled
+                  “Python”.
+                </td>
+                <td>Finished inspectable rows are doors, not decoration.</td>
+              </tr>
+              <tr>
+                <td class="font-mono text-sm">~32s</td>
+                <td>
+                  Label becomes “Thought for 20 seconds.” Shimmer gone.
+                  Answer starts under the tree. Stop becomes Send.
+                </td>
+                <td>
+                  Terminal label is a duration. Answer is a sibling below, not a
+                  child.
+                </td>
+              </tr>
+              <tr>
+                <td class="font-mono text-sm">~37s</td>
+                <td>
+                  Answer overflows. A down-arrow chip sits above the composer.
+                </td>
+                <td>
+                  If the user is not pinned, give them a jump to the live end.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="shimmer" class="paper-prose pt-12">
+        <h2>The glow is a skeleton sweep through the letters</h2>
+        <p>
+          It is not a spinner. It is not a bar. It is not a pulsing opacity on a
+          bubble. A highlight band travels through the glyphs of the live text
+          — the same family of motion as a skeleton loader, applied to real
+          words instead of gray bars.
+        </p>
+        <div class="mt-6 grid gap-4 md:grid-cols-2">
+          <figure>
+            <img
+              class="w-full rounded-box border border-base-300"
+              src="screenshots/crop-shimmer-pale.jpg"
+              alt="Thinking label washed pale by the highlight band"
+            />
+            <figcaption class="mt-2 text-sm text-base-content/55">
+              Band over the word — contrast drops, the letters look lit from
+              inside.
+            </figcaption>
+          </figure>
+          <figure>
+            <img
+              class="w-full rounded-box border border-base-300"
+              src="screenshots/crop-shimmer-solid.jpg"
+              alt="Thinking label at the solid part of the sweep"
+            />
+            <figcaption class="mt-2 text-sm text-base-content/55">
+              Band off the word — text sits at the dim base, still clearly
+              “Thinking…”.
+            </figcaption>
+          </figure>
+        </div>
+        <h3>Motion tokens</h3>
+        <div class="overflow-x-auto rounded-box border border-base-300 bg-base-100">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Token</th>
+                <th>Value</th>
+                <th>Why</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="font-mono text-sm">sweep-duration</td>
+                <td>1.4s linear, infinite</td>
+                <td>
+                  Slow enough to read, fast enough to feel alive. Match the
+                  status and the live row — one clock.
+                </td>
+              </tr>
+              <tr>
+                <td class="font-mono text-sm">base-contrast</td>
+                <td>~40% of completed text</td>
+                <td>
+                  The word stays legible at the dim end. If it vanishes, it
+                  looks like a bug.
+                </td>
+              </tr>
+              <tr>
+                <td class="font-mono text-sm">peak-contrast</td>
+                <td>~90% of completed text</td>
+                <td>
+                  Never brighter than a finished row. Finished is the solid
+                  state; live is the moving one.
+                </td>
+              </tr>
+              <tr>
+                <td class="font-mono text-sm">direction</td>
+                <td>left → right through the glyphs</td>
+                <td>
+                  Same direction as reading. A bounce or a vertical pulse reads
+                  as a spinner.
+                </td>
+              </tr>
+              <tr>
+                <td class="font-mono text-sm">reduced-motion</td>
+                <td>
+                  static live color + “In progress” in the accessibility
+                  tree
+                </td>
+                <td>The sweep is decoration. The state is not.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="mt-4">
+          Implementation sketch (informative): a wide <code
+            class="font-mono text-sm"
+          >linear-gradient</code>
+          clipped to the text, <code class="font-mono text-sm"
+          >background-size: 220% 100%</code>, animating <code
+            class="font-mono text-sm"
+          >background-position</code>. Do not animate
+          <code class="font-mono text-sm">opacity</code> on the whole node —
+          that fades the word in and out instead of walking through it.
+        </p>
+      </section>
+
+      <section id="tree" class="paper-prose pt-12">
+        <h2>Actions live under the status, as a tree</h2>
+        <div class="mt-4 grid gap-4 md:grid-cols-2">
+          <figure>
+            <img
+              class="w-full rounded-box border border-base-300"
+              src="screenshots/crop-first-actions.jpg"
+              alt="Thinking header with two action rows"
+            />
+            <figcaption class="mt-2 text-sm text-base-content/55">
+              First two rows. Parent is inspectable (chevron). Child plan step
+              is not.
+            </figcaption>
+          </figure>
+          <figure>
+            <img
+              class="w-full rounded-box border border-base-300"
+              src="screenshots/crop-row-done.jpg"
+              alt="Four action rows, all solid, last one now with a chevron"
+            />
+            <figcaption class="mt-2 text-sm text-base-content/55">
+              Same last row after completion — solid, chevron, now a door.
+            </figcaption>
+          </figure>
+        </div>
+        <dl class="mt-6 grid grid-cols-[6.5rem_1fr] gap-x-4 gap-y-2 text-sm">
+          <dt class="font-mono text-xs text-base-content/55">Header</dt>
+          <dd>
+            Working copy (“Thinking…”) or duration (“Thought for 20
+            seconds.”) + collapse chevron once a tree exists.
+          </dd>
+          <dt class="font-mono text-xs text-base-content/55">Parent</dt>
+          <dd>
+            Reasoning group. Brain icon. Title in Title Case. Chevron if it has
+            a payload.
+          </dd>
+          <dt class="font-mono text-xs text-base-content/55">Child</dt>
+          <dd>
+            Indented. Connected by a 1px rail. Sparkle = plan, terminal =
+            code/tool, page = document.
+          </dd>
+          <dt class="font-mono text-xs text-base-content/55">Live child</dt>
+          <dd>Same shimmer as the header. No chevron. Not a hit target.</dd>
+          <dt class="font-mono text-xs text-base-content/55">Done child</dt>
+          <dd>
+            Static ink. Chevron only if inspectable. Tap opens the inspector.
+          </dd>
+        </dl>
+        <h3>Action kinds seen in the reference</h3>
+        <div class="overflow-x-auto rounded-box border border-base-300 bg-base-100">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Kind</th>
+                <th>Icon</th>
+                <th>Example</th>
+                <th>Inspectable?</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="font-mono text-sm">reason</td>
+                <td>brain</td>
+                <td>Analyzing Health This Week</td>
+                <td>Usually yes — the reasoning block.</td>
+              </tr>
+              <tr>
+                <td class="font-mono text-sm">plan</td>
+                <td>sparkle</td>
+                <td>Evaluating next steps</td>
+                <td>No, in the video. IMPLEMENTATION-DEFINED.</td>
+              </tr>
+              <tr>
+                <td class="font-mono text-sm">tool</td>
+                <td>terminal</td>
+                <td>Analyzing health metrics for the week</td>
+                <td>Yes — code / query / result.</td>
+              </tr>
+              <tr>
+                <td class="font-mono text-sm">doc</td>
+                <td>page</td>
+                <td>Checking for life events earlier this week</td>
+                <td>Yes.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="mt-4">
+          Titles are short verb phrases, sentence or title case, no trailing
+          ellipsis on completed rows. The live row may share the header’s
+          ellipsis energy because it is still happening — the shimmer is that
+          signal, not “…”.
+        </p>
+      </section>
+
+      <section id="done" class="paper-prose pt-12">
+        <h2>When it completes — the modification</h2>
+        <p>
+          The video’s completed state keeps every row visible and starts the
+          answer underneath. That is the live-watching layout. A history UI has
+          a different job: when you scroll back, you want the question, the fact
+          that it thought, and the answer. The tool list is evidence, not the
+          story.
+        </p>
+        <div class="mt-6 grid gap-4 md:grid-cols-2">
+          <article class="card bg-base-100 shadow-sm">
+            <div class="card-body">
+              <h3 class="card-title font-serif text-lg">Reference (Bevel)</h3>
+              <p>
+                Header becomes “Thought for 20 seconds.” Glow stops. All 10
+                rows stay open. Answer streams below. You have to hunt past the
+                tree to read.
+              </p>
+            </div>
+          </article>
+          <article class="card bg-base-100 shadow-sm">
+            <div class="card-body">
+              <h3 class="card-title font-serif text-lg">This spec (DELTA)</h3>
+              <p>
+                Same header. Glow stops. Tree collapses, unless the user had it
+                expanded. Historical opens are always collapsed. Expand is one
+                tap. Optional “10 steps” on the header.
+              </p>
+            </div>
+          </article>
+        </div>
+        <figure class="mt-6">
+          <img
+            class="w-full rounded-box border border-base-300"
+            src="screenshots/11-answer-overflow.jpg"
+            alt="Completed turn with full action list and answer overflowing behind the composer"
+          />
+          <figcaption class="mt-2 text-sm text-base-content/55">
+            Why the delta exists. The answer is already fighting the composer
+            and a ten-row tree.
+          </figcaption>
+        </figure>
+        <h3>Completed rules, short</h3>
+        <ul class="list-disc space-y-1 pl-5">
+          <li>Shimmer cancels on the same frame as the terminal event.</li>
+          <li>
+            Header: “Thought for N seconds.” / “Stopped after N
+            seconds.” / “Failed after N seconds.”
+          </li>
+          <li>Collapse unless the user opened the tree during this turn.</li>
+          <li>Reopening the transcript later: collapsed, no glow. Ever.</li>
+          <li>Answer sits below the thinking block, never inside it.</li>
+          <li>Every inspectable row still works after collapse/expand.</li>
+        </ul>
+      </section>
+
+      <section id="mock" class="paper-prose pt-12">
+        <h2>Live mock</h2>
+        <p class="text-base-content/70">
+          Same structure as the reference. Completed state uses the delta
+          (collapsed). Drive it with the buttons.
+        </p>
+        <div class="mt-4 grid items-start gap-6 lg:grid-cols-[380px_1fr]">
+          <div>
+            <div class="mb-3 flex flex-wrap gap-2" id="controls"></div>
+            <div class="mockup-window border border-base-300 bg-base-100">
+              <div class="bg-base-200 px-4 pb-4 pt-2" id="phone"></div>
+            </div>
+          </div>
+          <div class="grid gap-4">
+            <article class="card bg-base-100 shadow-sm">
+              <div class="card-body">
+                <h3 class="card-title font-serif text-lg">
+                  What this mock is asserting
+                </h3>
+                <p>
+                  One clock for both shimmers. One live row. Completion is a
+                  snap, not a dissolve. Done collapses. Expand still shows the
+                  full tree. Stop is a first-class terminal state.
+                </p>
+                <p>
+                  If a future implementation cannot match this mock’s states,
+                  the implementation is wrong — not the mock.
+                </p>
+              </div>
+            </article>
+            <article class="card bg-base-100 shadow-sm">
+              <div class="card-body">
+                <h3 class="card-title font-serif text-lg">
+                  Inspector (from the video)
+                </h3>
+                <figure>
+                  <img
+                    class="w-full rounded-box border border-base-300"
+                    src="screenshots/08-action-detail-sheet.jpg"
+                    alt="Bottom sheet titled Analyzing health metrics for the week showing Python code"
+                  />
+                  <figcaption class="mt-2 text-sm text-base-content/55">
+                    Sheet title = action title. Language label. Payload in a
+                    quiet well. Dismiss does not change the turn.
+                  </figcaption>
+                </figure>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="states" class="paper-prose pt-12">
+        <h2>State machine</h2>
+        <div class="overflow-x-auto rounded-box border border-base-300 bg-base-100 p-3">
+          <svg
+            class="h-auto w-full"
+            viewBox="0 0 1100 260"
+            role="img"
+            aria-label="Turn states: waiting to working to done, stopped, or failed"
+          >
+            <defs>
+              <style>
+              .s {
+                font: 600 15px ui-sans-serif, sans-serif;
+                fill: oklch(24% 0.02 55);
+              }
+              .t {
+                font: 400 12px ui-sans-serif, sans-serif;
+                fill: oklch(45% 0.02 55);
+              }
+              .box {
+                fill: oklch(98.4% 0.008 85);
+                stroke: oklch(88% 0.02 80);
+              }
+              .boxw {
+                fill: oklch(94% 0.03 250);
+                stroke: oklch(82% 0.05 250);
+              }
+              .boxd {
+                fill: oklch(94% 0.03 150);
+                stroke: oklch(80% 0.05 150);
+              }
+              .boxs {
+                fill: oklch(94% 0.04 75);
+                stroke: oklch(82% 0.06 75);
+              }
+              .ln {
+                stroke: oklch(55% 0.02 55);
+                fill: none;
+                marker-end: url(#arr);
+              }
+              </style>
+              <marker
+                id="arr"
+                markerWidth="8"
+                markerHeight="8"
+                refX="6"
+                refY="3"
+                orient="auto"
+              >
+                <path d="M0,0 L6,3 L0,6 Z" fill="oklch(55% 0.02 55)" />
+              </marker>
+            </defs>
+            <rect class="box" x="20" y="80" width="150" height="70" rx="12" />
+            <text class="s" x="95" y="112" text-anchor="middle">waiting</text>
+            <text class="t" x="95" y="132" text-anchor="middle">
+              composer idle
+            </text>
+            <rect class="boxw" x="260" y="80" width="170" height="70" rx="12" />
+            <text class="s" x="345" y="112" text-anchor="middle">working</text>
+            <text class="t" x="345" y="132" text-anchor="middle">
+              shimmer + tree
+            </text>
+            <rect class="boxd" x="540" y="20" width="170" height="70" rx="12" />
+            <text class="s" x="625" y="52" text-anchor="middle">done</text>
+            <text class="t" x="625" y="72" text-anchor="middle">
+              collapse + answer
+            </text>
+            <rect
+              class="boxs"
+              x="540"
+              y="110"
+              width="170"
+              height="70"
+              rx="12"
+            />
+            <text class="s" x="625" y="142" text-anchor="middle">stopped</text>
+            <text class="t" x="625" y="162" text-anchor="middle">
+              user cancelled
+            </text>
+            <rect
+              class="boxs"
+              x="540"
+              y="190"
+              width="170"
+              height="70"
+              rx="12"
+            />
+            <text class="s" x="625" y="222" text-anchor="middle">failed</text>
+            <text class="t" x="625" y="242" text-anchor="middle">
+              producer error
+            </text>
+            <path class="ln" d="M170,115 H255" />
+            <text class="t" x="212" y="104" text-anchor="middle">send</text>
+            <path class="ln" d="M430,100 C480,100 490,55 535,55" />
+            <text class="t" x="480" y="38">turn.done</text>
+            <path class="ln" d="M430,115 H535" />
+            <text class="t" x="478" y="108">stop</text>
+            <path class="ln" d="M430,130 C480,130 490,225 535,225" />
+            <text class="t" x="486" y="200">turn.failed</text>
+            <rect class="box" x="800" y="80" width="270" height="70" rx="12" />
+            <text class="s" x="935" y="112" text-anchor="middle">
+              history reopen
+            </text>
+            <text class="t" x="935" y="132" text-anchor="middle">
+              terminal + collapsed, never shimmer
+            </text>
+            <path class="ln" d="M710,55 C760,55 770,100 795,115" />
+            <path class="ln" d="M710,145 C760,145 770,125 795,120" />
+            <path class="ln" d="M710,225 C760,225 770,140 795,125" />
+          </svg>
+        </div>
+      </section>
+
+      <section id="events" class="paper-prose pt-12">
+        <h2>Producer events</h2>
+        <p>
+          A renderer that can replay this log can paint live and history from
+          the same code path.
+        </p>
+        <div class="mockup-code w-full text-sm">
+          <pre id="event-example"><code>{
+  "turn_id": "trn_01HZK2N5GQR9T8X4B6FJW3Y1AS",
+  "events": [
+    { "type": "turn.accepted", "at": 0 },
+    { "type": "action.started",   "id": "a1", "kind": "reason", "title": "Analyzing Health This Week" },
+    { "type": "action.started",   "id": "a2", "parent_id": "a1", "kind": "plan", "title": "Evaluating next steps" },
+    { "type": "action.completed", "id": "a2", "inspectable": false },
+    { "type": "action.completed", "id": "a1", "inspectable": true },
+    { "type": "action.started",   "id": "a3", "kind": "reason", "title": "Analyzing Health Data" },
+    { "type": "action.started",   "id": "a4", "parent_id": "a3", "kind": "tool", "title": "Analyzing health metrics for the week" },
+    { "type": "action.completed", "id": "a4", "inspectable": true, "payload": { "language": "Python", "body": "..." } },
+    { "type": "turn.done", "duration_ms": 20100 }
+  ]
+}</code></pre>
+        </div>
+        <p class="mt-4">
+          Rules: one <code class="font-mono text-sm">in_progress</code> peer at
+          a time. Complete (or fail) the live row before starting the next
+          sibling. Children may exist only while their parent is still the
+          current group — or after the parent is terminal. The renderer
+          self-heals a second live peer by completing the older one, and treats
+          that as a producer bug.
+        </p>
+      </section>
+
+      <section id="shots" class="paper-prose pt-12">
+        <h2>Screenshot index</h2>
+        <p>Full frames from the recording, plus the 38-frame contact sheet.</p>
+        <div class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <figure>
+            <img
+              class="max-h-80 w-full rounded-box border border-base-300 object-cover object-top"
+              src="screenshots/01-empty-compose.jpg"
+              alt="Empty Bevel chat compose screen"
+            />
+            <figcaption class="mt-2 text-sm text-base-content/55">
+              01 empty compose
+            </figcaption>
+          </figure>
+          <figure>
+            <img
+              class="max-h-80 w-full rounded-box border border-base-300 object-cover object-top"
+              src="screenshots/03-thinking-shimmer-pale.jpg"
+              alt="Thinking label pale"
+            />
+            <figcaption class="mt-2 text-sm text-base-content/55">
+              03 thinking, shimmer pale
+            </figcaption>
+          </figure>
+          <figure>
+            <img
+              class="max-h-80 w-full rounded-box border border-base-300 object-cover object-top"
+              src="screenshots/05-first-actions.jpg"
+              alt="First two actions"
+            />
+            <figcaption class="mt-2 text-sm text-base-content/55">
+              05 first actions
+            </figcaption>
+          </figure>
+          <figure>
+            <img
+              class="max-h-80 w-full rounded-box border border-base-300 object-cover object-top"
+              src="screenshots/06-active-row-shimmer.jpg"
+              alt="Live row shimmering"
+            />
+            <figcaption class="mt-2 text-sm text-base-content/55">
+              06 live row shimmer
+            </figcaption>
+          </figure>
+          <figure>
+            <img
+              class="max-h-80 w-full rounded-box border border-base-300 object-cover object-top"
+              src="screenshots/08-action-detail-sheet.jpg"
+              alt="Python inspector sheet"
+            />
+            <figcaption class="mt-2 text-sm text-base-content/55">
+              08 inspector sheet
+            </figcaption>
+          </figure>
+          <figure>
+            <img
+              class="max-h-80 w-full rounded-box border border-base-300 object-cover object-top"
+              src="screenshots/10-completed-duration.jpg"
+              alt="Thought for 20 seconds and answer"
+            />
+            <figcaption class="mt-2 text-sm text-base-content/55">
+              10 completed (reference, tree still open)
+            </figcaption>
+          </figure>
+        </div>
+        <figure class="mt-6">
+          <img
+            class="w-full rounded-box border border-base-300"
+            src="screenshots/contact-sheet.jpg"
+            alt="Contact sheet of one frame per second from the recording"
+          />
+          <figcaption class="mt-2 text-sm text-base-content/55">
+            One frame per second, 0–38s. Use this to re-check timing without
+            scrubbing the video.
+          </figcaption>
+        </figure>
+      </section>
+
+      <section id="copy" class="paper-prose pt-12">
+        <h2>Copy this into an implementer</h2>
+        <p>
+          Normative text lives in <a class="link link-primary" href="SPEC.md"
+          >SPEC.md</a>. The buttons below serialize the contract this page is
+          arguing for.
+        </p>
+        <div class="mt-4 flex flex-wrap gap-2">
+          <button class="btn btn-neutral" id="copy-json" type="button">
+            Copy as JSON
+          </button>
+          <button class="btn btn-outline" id="copy-prompt" type="button">
+            Copy as prompt
+          </button>
+        </div>
+        <p
+          class="mt-2 min-h-6 text-sm text-success"
+          id="toast"
+          aria-live="polite"
+        >
+        </p>
+        <p class="text-sm text-base-content/60">
+          This spec is satisfied when every entry in
+          <code class="font-mono text-sm">tests/spec/traceability.yaml</code>
+          has
+          <code class="font-mono text-sm">status: passing</code>.
+        </p>
+      </section>
+    </div>
+
+    <script>
+    const CONTRACT = {
+      name: "ai-turn-history-thinking-glow",
+      version: "0.1.0",
+      source: "Bevel screen recording 2026-08-15, 38s",
+      one_liner:
+        "Working work shimmers through its words; finished work stacks underneath; completed history collapses so the answer is what you read.",
+      states: ["waiting", "working", "done", "stopped", "failed"],
+      delta_from_reference: [
+        "On terminal state, collapse the action tree unless the user expanded it during the turn.",
+        "Historical reopens are always collapsed and never shimmer.",
+      ],
+      shimmer: {
+        kind: "skeleton-sweep-through-glyphs",
+        duration_ms: 1400,
+        easing: "linear",
+        loop: true,
+        apply_to: ["status_label_when_working", "in_progress_action_title"],
+        forbidden: [
+          "spinner",
+          "determinate_bar",
+          "percent",
+          "whole_node_opacity_pulse",
+        ],
+      },
+      completed: {
+        header: "Thought for {n} seconds.",
+        stopped: "Stopped after {n} seconds.",
+        failed: "Failed after {n} seconds.",
+        collapse: "default_unless_user_expanded",
+        history_reopen: "collapsed_no_shimmer",
+        answer: "sibling_below_thinking_block",
+      },
+    };
+
+    const STEPS = [
+      { id: "think", label: "1 · Thinking" },
+      { id: "two", label: "2 · First actions" },
+      { id: "live", label: "3 · Live row" },
+      { id: "more", label: "4 · Stack grown" },
+      { id: "done", label: "5 · Done (collapsed)" },
+      { id: "open", label: "6 · Done, expanded" },
+      { id: "stop", label: "Stop mid-flight" },
+    ];
+
+    const ICO = { reason: "◉", plan: "✶", tool: "⌘", doc: "▤" };
+
+    const TREES = {
+      think: [],
+      two: [
+        {
+          kind: "reason",
+          title: "Analyzing Health This Week",
+          state: "done",
+          inspectable: true,
+        },
+        {
+          kind: "plan",
+          title: "Evaluating next steps",
+          state: "done",
+          child: true,
+        },
+      ],
+      live: [
+        {
+          kind: "reason",
+          title: "Analyzing Health This Week",
+          state: "done",
+          inspectable: true,
+        },
+        {
+          kind: "plan",
+          title: "Evaluating next steps",
+          state: "done",
+          child: true,
+        },
+        {
+          kind: "reason",
+          title: "Analyzing Health Data",
+          state: "done",
+          inspectable: true,
+        },
+        {
+          kind: "tool",
+          title: "Analyzing health metrics for the week",
+          state: "live",
+          child: true,
+        },
+      ],
+      more: [
+        {
+          kind: "reason",
+          title: "Analyzing Health This Week",
+          state: "done",
+          inspectable: true,
+        },
+        {
+          kind: "plan",
+          title: "Evaluating next steps",
+          state: "done",
+          child: true,
+        },
+        {
+          kind: "reason",
+          title: "Analyzing Health Data",
+          state: "done",
+          inspectable: true,
+        },
+        {
+          kind: "tool",
+          title: "Analyzing health metrics for the week",
+          state: "done",
+          inspectable: true,
+          child: true,
+        },
+        {
+          kind: "reason",
+          title: "Analyzing Data Schema",
+          state: "done",
+          inspectable: true,
+        },
+        {
+          kind: "tool",
+          title: "Generating week summary charts",
+          state: "live",
+          child: true,
+        },
+      ],
+    };
+    TREES.done = TREES.more.map((r) => ({ ...r, state: "done" }));
+    TREES.open = TREES.done;
+    TREES.stop = TREES.live.map((r) =>
+      r.state === "live" ? { ...r, state: "stopped", title: r.title } : r
+    );
+
+    let phase = "think";
+
+    function renderControls() {
+      const nav = document.getElementById("controls");
+      nav.innerHTML = STEPS.map((s) =>
+        `<button class="btn btn-xs ${
+          s.id === phase ? "btn-neutral" : "btn-ghost"
+        }" type="button" data-id="${s.id}" aria-pressed="${
+          s.id === phase
+        }">${s.label}</button>`
+      ).join("");
+      nav.querySelectorAll("button").forEach((b) => {
+        b.addEventListener("click", () => {
+          phase = b.dataset.id;
+          render();
+        });
+      });
+    }
+
+    function renderPhone() {
+      const working = ["think", "two", "live", "more"].includes(phase);
+      const collapsed = phase === "done";
+      const terminal = ["done", "open", "stop"].includes(phase);
+      const header = phase === "stop"
+        ? "Stopped after 8 seconds."
+        : terminal
+        ? "Thought for 20 seconds."
+        : "Thinking…";
+      const headerCls = working ? "shimmer" : "";
+      const rows = TREES[phase] || [];
+      const showTree = rows.length > 0 && !collapsed;
+      const showChevron = rows.length > 0;
+      const treeHtml = showTree
+        ? rows.map((r) => {
+          const title = r.state === "live"
+            ? `<span class="shimmer">${r.title}</span>`
+            : r.title;
+          const go = (r.inspectable && r.state === "done") ? "›" : "";
+          return `<div class="grid grid-cols-[18px_1fr_auto] items-center gap-2 text-sm ${
+            r.child ? "action-child" : ""
+          }">
+          <div class="ico text-center text-base-content/45">${ICO[r.kind]}</div>
+          <div>${title}</div>
+          <div class="text-base-content/35">${go}</div>
+        </div>`;
+        }).join("")
+        : "";
+      const answer = (phase === "done" || phase === "open")
+        ? `<div class="mt-3 text-sm">Oh man, it’s been a bit of a rollercoaster this week. Recovery has been averaging about 34%.</div>`
+        : "";
+      const count = collapsed
+        ? `<span class="text-xs text-base-content/45">10 steps</span>`
+        : "";
+      document.getElementById("phone").innerHTML = `
+        <div class="mb-2 flex justify-between text-xs text-base-content/45"><span>11:20</span><span>Bevel mock</span></div>
+        <div class="avatar-blob"></div>
+        <div class="text-center text-xs text-base-content/50"><span class="badge badge-sm">New chat</span><br />Today</div>
+        <div class="chat chat-end mt-3">
+          <div class="chat-bubble chat-bubble-primary">How has my health been this week?</div>
+        </div>
+        <div class="mt-3 flex items-center justify-between text-[15px]">
+          <div><span class="${headerCls}">${header}</span> ${count}</div>
+          <div class="px-1 text-base-content/40">${
+        showChevron ? (collapsed ? "›" : "⌄") : ""
+      }</div>
+        </div>
+        <div class="mt-2 grid gap-1.5">${treeHtml}</div>
+        ${answer}
+        <div class="card mt-4 bg-base-100 shadow-sm">
+          <div class="card-body gap-2 p-3 text-sm text-base-content/40">
+            Ask Bevel anything
+            <div class="flex items-center justify-between">
+              <span>+ · Adaptive</span>
+              <span class="btn btn-xs btn-circle btn-neutral">${
+        working ? "■" : "↑"
+      }</span>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function render() {
+      renderControls();
+      renderPhone();
+    }
+
+    const PROMPT =
+      `Implement the AI turn history UI from ~/Downloads/ai-history-ui-spec.
+
+Read SPEC.md (normative) and spec.html (annotated reference + live mock). Ground truth video: source-video.mp4.
+
+Non-negotiables:
+- Unknown-duration work is a skeleton luminance sweep THROUGH the glyphs of "Thinking…" and the single in-progress action title. No spinner. No percent. No whole-node opacity pulse.
+- Actions append under the status as a tree (parent/child rail). Only one in-progress row. Live row has no chevron and is not tappable. Completed inspectable rows get a chevron and open a sheet.
+- On send, show Thinking… + shimmer within 100ms. Send becomes Stop.
+- On done: header becomes "Thought for N seconds.", shimmer dies, tree COLLAPSES unless the user had expanded it. Answer is a sibling below the thinking block.
+- Historical turns always render collapsed, never shimmer.
+- Stop and failed are first-class ("Stopped after N seconds." / "Failed after N seconds.").
+- prefers-reduced-motion disables the sweep.
+- Same component paints live and history from the producer event log.
+
+DELTA vs the Bevel video: Bevel leaves the tree expanded after completion. We collapse it for history.
+
+Do not implement composer chrome, model picker, or branding. Satisfy every REQ/INV in tests/spec/traceability.yaml.`;
+
+    async function copyText(text, ok) {
+      try {
+        await navigator.clipboard.writeText(text);
+        document.getElementById("toast").textContent = ok;
+      } catch (err) {
+        document.getElementById("toast").textContent =
+          "Clipboard blocked — select from SPEC.md instead.";
+      }
+    }
+
+    document.getElementById("copy-json").addEventListener("click", () => {
+      copyText(JSON.stringify(CONTRACT, null, 2), "Copied JSON contract.");
+    });
+    document.getElementById("copy-prompt").addEventListener("click", () => {
+      copyText(PROMPT, "Copied implementer prompt.");
+    });
+
+    render();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,7 @@
+{
+  "session_id": "hgtest-reject-cap",
+  "hook_event_name": "Stop",
+  "reason": "end_turn",
+  "transcript_path": "/Users/zbornheimer/.agents/hooks/tests/fixtures/turn-judge/transcripts/deferred-handoff-with-ask.jsonl",
+  "last_assistant_message": "Done. The form-builder rebuild is complete."
+}

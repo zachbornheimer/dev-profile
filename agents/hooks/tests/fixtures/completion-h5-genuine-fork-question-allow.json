@@ -1,0 +1,6 @@
+{
+  "session_id": "hgtest-h5d",
+  "hook_event_name": "Stop",
+  "reason": "end_turn",
+  "last_assistant_message": "Both schemas satisfy the constraint. Which of these two schemas do you prefer?"
+}

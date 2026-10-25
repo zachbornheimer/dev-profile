@@ -1,6 +1,0 @@
-amends "../../lib/Tool.pkl"
-
-doc = "No private keys in pushed files."
-on {
-  ["pre-push"] = module.builtins.detect_private_key
-}

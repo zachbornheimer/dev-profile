@@ -1,0 +1,5 @@
+--smart-case
+--hidden
+--glob=!.git
+--glob=!.DS_Store
+--glob=!node_modules

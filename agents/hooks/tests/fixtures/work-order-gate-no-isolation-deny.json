@@ -1,0 +1,11 @@
+{
+  "session_id": "hgtest-wog4",
+  "tool_name": "Agent",
+  "cwd": "/Users/zbornheimer/Developer/Personal/zq",
+  "tool_input": {
+    "subagent_type": "implement",
+    "isolation": "",
+    "cwd": "/Users/zbornheimer/Developer/Personal/zq",
+    "prompt": "```yaml\nwork_order:\n  schema_version: 1\n  intent: \"Add a clarify feedback field for scoped runner arguments.\"\n  scope:\n    primary_targets:\n      - README.md\n    allowed_writes:\n      - README.md\n  acceptance:\n    - id: t\n      kind: command\n      run: echo hi\n      expect:\n        exit_code: 0\n```\n\nAdd the field."
+  }
+}

@@ -1,0 +1,24 @@
+<!-- @dsCard group="Status" -->
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>TypeBadge</title>
+<link rel="stylesheet" href="../../colors_and_type.css">
+<style>
+*{box-sizing:border-box}body{margin:0;background:var(--color-bg-page);font-family:var(--font-sans);font-size:var(--text-body);color:var(--color-text);-webkit-font-smoothing:antialiased}
+.preview{padding:var(--space-24);display:flex;flex-direction:column;gap:var(--space-20)}
+.row{display:flex;gap:var(--space-20);flex-wrap:wrap;align-items:flex-start}
+.cell{display:flex;flex-direction:column;gap:var(--space-6);align-items:flex-start}
+.lbl{font-size:var(--text-meta);color:var(--color-text-muted)}
+.mono{font-family:var(--font-mono);font-size:var(--text-mono)}
+.card{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-card);padding:var(--space-20);display:flex;flex-direction:column;gap:var(--space-12)}
+.card h2{margin:0;font-size:var(--text-section-title);font-weight:var(--weight-semibold)}
+.card p{margin:0;font-size:var(--text-body);line-height:var(--leading-prose);color:var(--color-text-secondary)}
+.type{font-size:var(--text-badge);font-weight:var(--weight-semibold);text-transform:uppercase;letter-spacing:var(--tracking-badge);color:var(--color-text-secondary);background:var(--color-bg-page);border-radius:var(--radius-badge);padding:2px var(--space-6);display:inline-block;min-width:48px;text-align:center}
+.tag{font-size:var(--text-badge);font-weight:var(--weight-semibold);border-radius:var(--radius-badge);padding:2px var(--space-6);display:inline-block}
+.tag.warn{color:var(--color-warning-text);background:var(--color-warning-bg)}.tag.ok{color:var(--color-success-text);background:var(--color-success-bg)}
+.tag.outline{color:var(--color-text-secondary);background:var(--color-surface);border:1px solid var(--color-border);padding:1px var(--space-6)}
+.ratio{font-size:var(--text-meta);font-weight:var(--weight-semibold);font-variant-numeric:tabular-nums;padding:2px var(--space-8);border-radius:var(--radius-pill);display:inline-block}
+.ratio.warn{background:var(--color-warning-bg);color:var(--color-warning-text)}.ratio.hot{background:var(--color-error-bg);color:var(--color-error-text)}
+</style></head>
+<body><div class="preview">
+<div class="row"><div class="cell"><span class="lbl">Admin</span><span class="type">admin</span></div><div class="cell"><span class="lbl">AJAX</span><span class="type">ajax</span></div><div class="cell"><span class="lbl">REST</span><span class="type">rest</span></div><div class="cell"><span class="lbl">In a route cell</span><div style="display:flex;gap:var(--space-8);align-items:center"><span class="type">rest</span><span class="mono">/wp/v2/users/me</span></div></div></div><div class="row"><div class="cell"><span class="lbl">Other tags</span><div class="row"><span class="tag warn">Demand not verified</span><span class="tag ok">JSON-LD valid</span><span class="tag outline">Custom description</span><span class="type">Optional</span></div></div></div>
+</div></body></html>

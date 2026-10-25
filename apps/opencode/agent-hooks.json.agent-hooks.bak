@@ -1,0 +1,124 @@
+{
+  "hooks": {
+    "PermissionRequest": [
+      {
+        "hooks": [
+          {
+            "command": "agent-hooks PermissionRequest",
+            "statusMessage": "Running PermissionRequest hooks...",
+            "timeout": 30,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "PostCompact": [
+      {
+        "hooks": [
+          {
+            "command": "agent-hooks PostCompact",
+            "statusMessage": "Running PostCompact hooks...",
+            "timeout": 30,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "agent-hooks PostToolUse",
+            "statusMessage": "Running PostToolUse hooks...",
+            "timeout": 30,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "command": "agent-hooks PreCompact",
+            "statusMessage": "Running PreCompact hooks...",
+            "timeout": 30,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "agent-hooks PreToolUse",
+            "statusMessage": "Running PreToolUse hooks...",
+            "timeout": 30,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "command": "agent-hooks SessionStart",
+            "statusMessage": "Running SessionStart hooks...",
+            "timeout": 30,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "command": "agent-hooks Stop",
+            "statusMessage": "Running Stop hooks...",
+            "timeout": 30,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "command": "agent-hooks SubagentStart",
+            "statusMessage": "Running SubagentStart hooks...",
+            "timeout": 30,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "command": "agent-hooks SubagentStop",
+            "statusMessage": "Running SubagentStop hooks...",
+            "timeout": 660,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "command": "agent-hooks UserPromptSubmit",
+            "statusMessage": "Running UserPromptSubmit hooks...",
+            "timeout": 30,
+            "type": "command"
+          }
+        ]
+      }
+    ]
+  }
+}

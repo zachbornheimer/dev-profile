@@ -1,0 +1,10 @@
+{
+  "session_id": "hgtest-wog3",
+  "tool_name": "Agent",
+  "tool_input": {
+    "subagent_type": "implement",
+    "isolation": "worktree",
+    "cwd": "/Users/zbornheimer/Developer/Personal/zq",
+    "prompt": "```yaml\nwork_order:\n  schema_version: 1\n  intent: \"Add a clarify feedback field for scoped runner arguments.\"\n  scope:\n    primary_targets:\n      - README.md\n    allowed_writes:\n      - README.md\n```\n\n```work_order_patch\n[{\"op\": \"add\", \"path\": \"/work_order/acceptance\", \"value\": [{\"id\": \"t\", \"kind\": \"command\", \"run\": \"echo hi\", \"expect\": {\"exit_code\": 0}}]}]\n```\n\nAdd the field."
+  }
+}

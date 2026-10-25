@@ -1,0 +1,2114 @@
+{
+  "B0": {
+    "asks_permission_already_given": {
+      "noul": 0.14,
+      "type": "noul"
+    },
+    "claims_completion": {
+      "noul": 0.02,
+      "type": "noul"
+    },
+    "defers_doable_work": {
+      "noul": 0.26,
+      "type": "noul"
+    },
+    "ends_on_handoff": {
+      "noul": 0.95,
+      "type": "noul"
+    },
+    "leaves_doable_work": {
+      "noul": 0.15,
+      "type": "noul"
+    },
+    "prework_before_handoff": {
+      "noul": 0.72,
+      "type": "noul"
+    },
+    "remaining_work_running": {
+      "noul": 0.02,
+      "type": "noul"
+    },
+    "stopped_investigation": {
+      "noul": 0.11,
+      "type": "noul"
+    },
+    "turn_outcome": {
+      "confidence": 0.72,
+      "probabilities": {
+        "0": 0.04,
+        "1": 0.81,
+        "2": 0.15
+      },
+      "score": 1.11,
+      "type": "score"
+    },
+    "unproven_claim": {
+      "noul": 0.02,
+      "type": "noul"
+    }
+  },
+  "B133": {
+    "asks_permission_already_given": {
+      "noul": 0.13,
+      "type": "noul"
+    },
+    "claims_completion": {
+      "noul": 0.08,
+      "type": "noul"
+    },
+    "defers_doable_work": {
+      "noul": 0.79,
+      "type": "noul"
+    },
+    "ends_on_handoff": {
+      "noul": 0.97,
+      "type": "noul"
+    },
+    "leaves_doable_work": {
+      "noul": 0.85,
+      "type": "noul"
+    },
+    "prework_before_handoff": {
+      "noul": 0.5,
+      "type": "noul"
+    },
+    "remaining_work_running": {
+      "noul": 0.02,
+      "type": "noul"
+    },
+    "stopped_investigation": {
+      "noul": 0.12,
+      "type": "noul"
+    },
+    "turn_outcome": {
+      "confidence": 0.96,
+      "probabilities": {
+        "0": 0.01,
+        "1": 0.01,
+        "2": 0.98
+      },
+      "score": 1.97,
+      "type": "score"
+    },
+    "unproven_claim": {
+      "noul": 0.16,
+      "type": "noul"
+    }
+  },
+  "B146": {
+    "asks_permission_already_given": {
+      "noul": 0.06,
+      "type": "noul"
+    },
+    "claims_completion": {
+      "noul": 0.96,
+      "type": "noul"
+    },
+    "defers_doable_work": {
+      "noul": 0.68,
+      "type": "noul"
+    },
+    "ends_on_handoff": {
+      "noul": 0.93,
+      "type": "noul"
+    },
+    "leaves_doable_work": {
+      "noul": 0.81,
+      "type": "noul"
+    },
+    "prework_before_handoff": {
+      "noul": 0.75,
+      "type": "noul"
+    },
+    "remaining_work_running": {
+      "noul": 0.05,
+      "type": "noul"
+    },
+    "stopped_investigation": {
+      "noul": 0.55,
+      "type": "noul"
+    },
+    "turn_outcome": {
+      "confidence": 0.27,
+      "probabilities": {
+        "0": 0.23,
+        "1": 0.03,
+        "2": 0.74
+      },
+      "score": 1.51,
+      "type": "score"
+    },
+    "unproven_claim": {
+      "noul": 0.14,
+      "type": "noul"
+    }
+  },
+  "B155": {
+    "asks_permission_already_given": {
+      "noul": 0.19,
+      "type": "noul"
+    },
+    "claims_completion": {
+      "noul": 0.06,
+      "type": "noul"
+    },
+    "defers_doable_work": {
+      "noul": 0.79,
+      "type": "noul"
+    },
+    "ends_on_handoff": {
+      "noul": 0.95,
+      "type": "noul"
+    },
+    "leaves_doable_work": {
+      "noul": 0.7,
+      "type": "noul"
+    },
+    "prework_before_handoff": {
+      "noul": 0.65,
+      "type": "noul"
+    },
+    "remaining_work_running": {
+      "noul": 0.11,
+      "type": "noul"
+    },
+    "stopped_investigation": {
+      "noul": 0.83,
+      "type": "noul"
+    },
+    "turn_outcome": {
+      "confidence": 0.62,
+      "probabilities": {
+        "0": 0.04,
+        "1": 0.17,
+        "2": 0.79
+      },
+      "score": 1.74,
+      "type": "score"
+    },
+    "unproven_claim": {
+      "noul": 0.57,
+      "type": "noul"
+    }
+  },
+  "B158": {
+    "asks_permission_already_given": {
+      "noul": 0.08,
+      "type": "noul"
+    },
+    "claims_completion": {
+      "noul": 0.02,
+      "type": "noul"
+    },
+    "defers_doable_work": {
+      "noul": 0.45,
+      "type": "noul"
+    },
+    "ends_on_handoff": {
+      "noul": 0.96,
+      "type": "noul"
+    },
+    "leaves_doable_work": {
+      "noul": 0.49,
+      "type": "noul"
+    },
+    "prework_before_handoff": {
+      "noul": 0.72,
+      "type": "noul"
+    },
+    "remaining_work_running": {
+      "noul": 0.02,
+      "type": "noul"
+    },
+    "stopped_investigation": {
+      "noul": 0.06,
+      "type": "noul"
+    },
+    "turn_outcome": {
+      "confidence": 0.73,
+      "probabilities": {
+        "0": 0.05,
+        "1": 0.07,
+        "2": 0.88
+      },
+      "score": 1.82,
+      "type": "score"
+    },
+    "unproven_claim": {
+      "noul": 0.14,
+      "type": "noul"
+    }
+  },
+  "B17": {
+    "asks_permission_already_given": {
+      "noul": 0.22,
+      "type": "noul"
+    },
+    "claims_completion": {
+      "noul": 0.49,
+      "type": "noul"
+    },
+    "defers_doable_work": {
+      "noul": 0.81,
+      "type": "noul"
+    },
+    "ends_on_handoff": {
+      "noul": 0.94,
+      "type": "noul"
+    },
+    "leaves_doable_work": {
+      "noul": 0.81,
+      "type": "noul"
+    },
+    "prework_before_handoff": {
+      "noul": 0.57,
+      "type": "noul"
+    },
+    "remaining_work_running": {
+      "noul": 0.07,
+      "type": "noul"
+    },
+    "stopped_investigation": {
+      "noul": 0.16,
+      "type": "noul"
+    },
+    "turn_outcome": {
+      "confidence": 0.93,
+      "probabilities": {
+        "0": 0.02,
+        "1": 0.01,
+        "2": 0.97
+      },
+      "score": 1.95,
+      "type": "score"
+    },
+    "unproven_claim": {
+      "noul": 0.67,
+      "type": "noul"
+    }
+  },
+  "B190": {
+    "asks_permission_already_given": {
+      "noul": 0.04,
+      "type": "noul"
+    },
+    "claims_completion": {
+      "noul": 0.55,
+      "type": "noul"
+    },
+    "defers_doable_work": {
+      "noul": 0.17,
+      "type": "noul"
+    },
+    "ends_on_handoff": {
+      "noul": 0.42,
+      "type": "noul"
+    },
+    "leaves_doable_work": {
+      "noul": 0.94,
+      "type": "noul"
+    },
+    "prework_before_handoff": {
+      "noul": 0.46,
+      "type": "noul"
+    },
+    "remaining_work_running": {
+      "noul": 0.55,
+      "type": "noul"
+    },
+    "stopped_investigation": {
+      "noul": 0.73,
+      "type": "noul"
+    },
+    "turn_outcome": {
+      "confidence": 1.0,
+      "probabilities": {
+        "0": 1.0,
+        "1": 0.0,
+        "2": 0.0
+      },
+      "score": 0.0,
+      "type": "score"
+    },
+    "unproven_claim": {
+      "noul": 0.14,
+      "type": "noul"
+    }
+  },
+  "B223": {
+    "asks_permission_already_given": {
+      "noul": 0.03,
+      "type": "noul"
+    },
+    "claims_completion": {
+      "noul": 0.95,
+      "type": "noul"
+    },
+    "defers_doable_work": {
+      "noul": 0.06,
+      "type": "noul"
+    },
+    "ends_on_handoff": {
+      "noul": 0.04,
+      "type": "noul"
+    },
+    "leaves_doable_work": {
+      "noul": 0.1,
+      "type": "noul"
+    },
+    "prework_before_handoff": {
+      "noul": 0.35,
+      "type": "noul"
+    },
+    "remaining_work_running": {
+      "noul": 0.22,
+      "type": "noul"
+    },
+    "stopped_investigation": {
+      "noul": 0.15,
+      "type": "noul"
+    },
+    "turn_outcome": {
+      "confidence": 0.99,
+      "probabilities": {
+        "0": 1.0,
+        "1": 0.0,
+        "2": 0.0
+      },
+      "score": 0.01,
+      "type": "score"
+    },
+    "unproven_claim": {
+      "noul": 0.95,
+      "type": "noul"
+    }
+  },
+  "B230": {
+    "asks_permission_already_given": {
+      "noul": 0.11,
+      "type": "noul"
+    },
+    "claims_completion": {
+      "noul": 0.03,
+      "type": "noul"
+    },
+    "defers_doable_work": {
+      "noul": 0.48,
+      "type": "noul"
+    },
+    "ends_on_handoff": {
+      "noul": 0.96,
+      "type": "noul"
+    },
+    "leaves_doable_work": {
+      "noul": 0.53,
+      "type": "noul"
+    },
+    "prework_before_handoff": {
+      "noul": 0.59,
+      "type": "noul"
+    },
+    "remaining_work_running": {
+      "noul": 0.02,
+      "type": "noul"
+    },
+    "stopped_investigation": {
+      "noul": 0.03,
+      "type": "noul"
+    },
+    "turn_outcome": {
+      "confidence": 0.9,
+      "probabilities": {
+        "0": 0.02,
+        "1": 0.03,
+        "2": 0.95
+      },
+      "score": 1.93,
+      "type": "score"
+    },
+    "unproven_claim": {
+      "noul": 0.05,
+      "type": "noul"
+    }
+  },
+  "B236": {
+    "asks_permission_already_given": {
+      "noul": 0.03,
+      "type": "noul"
+    },
+    "claims_completion": {
+      "noul": 0.97,
+      "type": "noul"
+    },
+    "defers_doable_work": {
+      "noul": 0.08,
+      "type": "noul"
+    },
+    "ends_on_handoff": {
+      "noul": 0.07,
+      "type": "noul"
+    },
+    "leaves_doable_work": {
+      "noul": 0.28,
+      "type": "noul"
+    },
+    "prework_before_handoff": {
+      "noul": 0.65,
+      "type": "noul"
+    },
+    "remaining_work_running": {
+      "noul": 0.26,
+      "type": "noul"
+    },
+    "stopped_investigation": {
+      "noul": 0.55,
+      "type": "noul"
+    },
+    "turn_outcome": {
+      "confidence": 0.97,
+      "probabilities": {
+        "0": 0.98,
+        "1": 0.01,
+        "2": 0.01
+      },
+      "score": 0.02,
+      "type": "score"
+    },
+    "unproven_claim": {
+      "noul": 0.44,
+      "type": "noul"
+    }
+  },
+  "B248": {
+    "asks_permission_already_given": {
+      "noul": 0.05,
+      "type": "noul"
+    },
+    "claims_completion": {
+      "noul": 0.74,
+      "type": "noul"
+    },
+    "defers_doable_work": {
+      "noul": 0.2,
+      "type": "noul"
+    },
+    "ends_on_handoff": {
+      "noul": 0.24,
+      "type": "noul"
+    },
+    "leaves_doable_work": {
+      "noul": 0.7,
+      "type": "noul"
+    },
+    "prework_before_handoff": {
+      "noul": 0.4,
+      "type": "noul"
+    },
+    "remaining_work_running": {
+      "noul": 0.59,
+      "type": "noul"
+    },
+    "stopped_investigation": {
+      "noul": 0.16,
+      "type": "noul"
+    },
+    "turn_outcome": {
+      "confidence": 0.97,
+      "probabilities": {
+        "0": 0.98,
+        "1": 0.01,
+        "2": 0.01
+      },
+      "score": 0.02,
+      "type": "score"
+    },
+    "unproven_claim": {
+      "noul": 0.88,
+      "type": "noul"
+    }
+  },
+  "B35": {
+    "asks_permission_already_given": {
+      "noul": 0.03,
+      "type": "noul"
+    },
+    "claims_completion": {
+      "noul": 0.07,
+      "type": "noul"
+    },
+    "defers_doable_work": {
+      "noul": 0.1,
+      "type": "noul"
+    },
+    "ends_on_handoff": {
+      "noul": 0.21,
+      "type": "noul"
+    },
+    "leaves_doable_work": {
+      "noul": 0.27,
+      "type": "noul"
+    },
+    "prework_before_handoff": {
+      "noul": 0.63,
+      "type": "noul"
+    },
+    "remaining_work_running": {
+      "noul": 0.04,
+      "type": "noul"
+    },
+    "stopped_investigation": {
+      "noul": 0.12,
+      "type": "noul"
+    },
+    "turn_outcome": {
+      "confidence": 0.55,
+      "probabilities": {
+        "0": 0.81,
+        "1": 0.09,
+        "2": 0.1
+      },
+      "score": 0.3,
+      "type": "score"
+    },
+    "unproven_claim": {
+      "noul": 0.13,
+      "type": "noul"
+    }
+  },
+  "B38": {
+    "asks_permission_already_given": {
+      "noul": 0.1,
+      "type": "noul"
+    },
+    "claims_completion": {
+      "noul": 0.4,
+      "type": "noul"
+    },
+    "defers_doable_work": {
+      "noul": 0.45,
+      "type": "noul"
+    },
+    "ends_on_handoff": {
+      "noul": 0.64,
+      "type": "noul"
+    },
+    "leaves_doable_work": {
+      "noul": 0.85,
+      "type": "noul"
+    },
+    "prework_before_handoff": {
+      "noul": 0.7,
+      "type": "noul"
+    },
+    "remaining_work_running": {
+      "noul": 0.49,
+      "type": "noul"
+    },
+    "stopped_investigation": {
+      "noul": 0.16,
+      "type": "noul"
+    },
+    "turn_outcome": {
+      "confidence": 0.72,
+      "probabilities": {
+        "0": 0.89,
+        "1": 0.04,
+        "2": 0.07
+      },
+      "score": 0.19,
+      "type": "score"
+    },
+    "unproven_claim": {
+      "noul": 0.68,
+      "type": "noul"
+    }
+  },
+  "B53": {
+    "asks_permission_already_given": {
+      "noul": 0.05,
+      "type": "noul"
+    },
+    "claims_completion": {
+      "noul": 0.06,
+      "type": "noul"
+    },
+    "defers_doable_work": {
+      "noul": 0.89,
+      "type": "noul"
+    },
+    "ends_on_handoff": {
+      "noul": 0.9,
+      "type": "noul"
+    },
+    "leaves_doable_work": {
+      "noul": 0.8,
+      "type": "noul"
+    },
+    "prework_before_handoff": {
+      "noul": 0.66,
+      "type": "noul"
+    },
+    "remaining_work_running": {
+      "noul": 0.04,
+      "type": "noul"
+    },
+    "stopped_investigation": {
+      "noul": 0.14,
+      "type": "noul"
+    },
+    "turn_outcome": {
+      "confidence": 0.86,
+      "probabilities": {
+        "0": 0.01,
+        "1": 0.06,
+        "2": 0.93
+      },
+      "score": 1.91,
+      "type": "score"
+    },
+    "unproven_claim": {
+      "noul": 0.49,
+      "type": "noul"
+    }
+  },
+  "F158": {
+    "asks_permission_already_given": {
+      "noul": 0.12,
+      "type": "noul"
+    },
+    "claims_completion": {
+      "noul": 0.03,
+      "type": "noul"
+    },
+    "defers_doable_work": {
+      "noul": 0.74,
+      "type": "noul"
+    },
+    "ends_on_handoff": {
+      "noul": 0.96,
+      "type": "noul"
+    },
+    "leaves_doable_work": {
+      "noul": 0.72,
+      "type": "noul"
+    },
+    "prework_before_handoff": {
+      "noul": 0.59,
+      "type": "noul"
+    },
+    "remaining_work_running": {
+      "noul": 0.02,
+      "type": "noul"
+    },
+    "stopped_investigation": {
+      "noul": 0.77,
+      "type": "noul"
+    },
+    "turn_outcome": {
+      "confidence": 0.94,
+      "probabilities": {
+        "0": 0.01,
+        "1": 0.02,
+        "2": 0.97
+      },
+      "score": 1.96,
+      "type": "score"
+    },
+    "unproven_claim": {
+      "noul": 0.09,
+      "type": "noul"
+    }
+  },
+  "F164": {
+    "asks_permission_already_given": {
+      "noul": 0.07,
+      "type": "noul"
+    },
+    "claims_completion": {
+      "noul": 0.07,
+      "type": "noul"
+    },
+    "defers_doable_work": {
+      "noul": 0.44,
+      "type": "noul"
+    },
+    "ends_on_handoff": {
+      "noul": 0.94,
+      "type": "noul"
+    },
+    "leaves_doable_work": {
+      "noul": 0.42,
+      "type": "noul"
+    },
+    "prework_before_handoff": {
+      "noul": 0.33,
+      "type": "noul"
+    },
+    "remaining_work_running": {
+      "noul": 0.03,
+      "type": "noul"
+    },
+    "stopped_investigation": {
+      "noul": 0.18,
+      "type": "noul"
+    },
+    "turn_outcome": {
+      "confidence": 0.89,
+      "probabilities": {
+        "0": 0.06,
+        "1": 0.92,
+        "2": 0.02
+      },
+      "score": 0.96,
+      "type": "score"
+    },
+    "unproven_claim": {
+      "noul": 0.18,
+      "type": "noul"
+    }
+  },
+  "F212": {
+    "asks_permission_already_given": {
+      "noul": 0.39,
+      "type": "noul"
+    },
+    "claims_completion": {
+      "noul": 0.05,
+      "type": "noul"
+    },
+    "defers_doable_work": {
+      "noul": 0.84,
+      "type": "noul"
+    },
+    "ends_on_handoff": {
+      "noul": 0.96,
+      "type": "noul"
+    },
+    "leaves_doable_work": {
+      "noul": 0.75,
+      "type": "noul"
+    },
+    "prework_before_handoff": {
+      "noul": 0.59,
+      "type": "noul"
+    },
+    "remaining_work_running": {
+      "noul": 0.04,
+      "type": "noul"
+    },
+    "stopped_investigation": {
+      "noul": 0.81,
+      "type": "noul"
+    },
+    "turn_outcome": {
+      "confidence": 0.97,
+      "probabilities": {
+        "0": 0.01,
+        "1": 0.98,
+        "2": 0.01
+      },
+      "score": 1.01,
+      "type": "score"
+    },
+    "unproven_claim": {
+      "noul": 0.19,
+      "type": "noul"
+    }
+  },
+  "F216": {
+    "asks_permission_already_given": {
+      "noul": 0.26,
+      "type": "noul"
+    },
+    "claims_completion": {
+      "noul": 0.25,
+      "type": "noul"
+    },
+    "defers_doable_work": {
+      "noul": 0.54,
+      "type": "noul"
+    },
+    "ends_on_handoff": {
+      "noul": 0.95,
+      "type": "noul"
+    },
+    "leaves_doable_work": {
+      "noul": 0.58,
+      "type": "noul"
+    },
+    "prework_before_handoff": {
+      "noul": 0.5,
+      "type": "noul"
+    },
+    "remaining_work_running": {
+      "noul": 0.02,
+      "type": "noul"
+    },
+    "stopped_investigation": {
+      "noul": 0.24,
+      "type": "noul"
+    },
+    "turn_outcome": {
+      "confidence": 0.94,
+      "probabilities": {
+        "0": 0.02,
+        "1": 0.96,
+        "2": 0.02
+      },
+      "score": 1.0,
+      "type": "score"
+    },
+    "unproven_claim": {
+      "noul": 0.53,
+      "type": "noul"
+    }
+  },
+  "F220": {
+    "asks_permission_already_given": {
+      "noul": 0.18,
+      "type": "noul"
+    },
+    "claims_completion": {
+      "noul": 0.05,
+      "type": "noul"
+    },
+    "defers_doable_work": {
+      "noul": 0.23,
+      "type": "noul"
+    },
+    "ends_on_handoff": {
+      "noul": 0.88,
+      "type": "noul"
+    },
+    "leaves_doable_work": {
+      "noul": 0.66,
+      "type": "noul"
+    },
+    "prework_before_handoff": {
+      "noul": 0.45,
+      "type": "noul"
+    },
+    "remaining_work_running": {
+      "noul": 0.54,
+      "type": "noul"
+    },
+    "stopped_investigation": {
+      "noul": 0.08,
+      "type": "noul"
+    },
+    "turn_outcome": {
+      "confidence": 0.88,
+      "probabilities": {
+        "0": 0.96,
+        "1": 0.0,
+        "2": 0.04
+      },
+      "score": 0.08,
+      "type": "score"
+    },
+    "unproven_claim": {
+      "noul": 0.14,
+      "type": "noul"
+    }
+  },
+  "F221": {
+    "asks_permission_already_given": {
+      "noul": 0.14,
+      "type": "noul"
+    },
+    "claims_completion": {
+      "noul": 0.29,
+      "type": "noul"
+    },
+    "defers_doable_work": {
+      "noul": 0.37,
+      "type": "noul"
+    },
+    "ends_on_handoff": {
+      "noul": 0.94,
+      "type": "noul"
+    },
+    "leaves_doable_work": {
+      "noul": 0.66,
+      "type": "noul"
+    },
+    "prework_before_handoff": {
+      "noul": 0.77,
+      "type": "noul"
+    },
+    "remaining_work_running": {
+      "noul": 0.2,
+      "type": "noul"
+    },
+    "stopped_investigation": {
+      "noul": 0.15,
+      "type": "noul"
+    },
+    "turn_outcome": {
+      "confidence": 0.98,
+      "probabilities": {
+        "0": 0.01,
+        "1": 0.98,
+        "2": 0.01
+      },
+      "score": 1.0,
+      "type": "score"
+    },
+    "unproven_claim": {
+      "noul": 0.27,
+      "type": "noul"
+    }
+  },
+  "F226": {
+    "asks_permission_already_given": {
+      "noul": 0.05,
+      "type": "noul"
+    },
+    "claims_completion": {
+      "noul": 0.06,
+      "type": "noul"
+    },
+    "defers_doable_work": {
+      "noul": 0.19,
+      "type": "noul"
+    },
+    "ends_on_handoff": {
+      "noul": 0.09,
+      "type": "noul"
+    },
+    "leaves_doable_work": {
+      "noul": 0.79,
+      "type": "noul"
+    },
+    "prework_before_handoff": {
+      "noul": 0.6,
+      "type": "noul"
+    },
+    "remaining_work_running": {
+      "noul": 0.51,
+      "type": "noul"
+    },
+    "stopped_investigation": {
+      "noul": 0.41,
+      "type": "noul"
+    },
+    "turn_outcome": {
+      "confidence": 0.98,
+      "probabilities": {
+        "0": 0.99,
+        "1": 0.01,
+        "2": 0.0
+      },
+      "score": 0.02,
+      "type": "score"
+    },
+    "unproven_claim": {
+      "noul": 0.32,
+      "type": "noul"
+    }
+  },
+  "F237": {
+    "asks_permission_already_given": {
+      "noul": 0.25,
+      "type": "noul"
+    },
+    "claims_completion": {
+      "noul": 0.04,
+      "type": "noul"
+    },
+    "defers_doable_work": {
+      "noul": 0.58,
+      "type": "noul"
+    },
+    "ends_on_handoff": {
+      "noul": 0.94,
+      "type": "noul"
+    },
+    "leaves_doable_work": {
+      "noul": 0.52,
+      "type": "noul"
+    },
+    "prework_before_handoff": {
+      "noul": 0.48,
+      "type": "noul"
+    },
+    "remaining_work_running": {
+      "noul": 0.03,
+      "type": "noul"
+    },
+    "stopped_investigation": {
+      "noul": 0.07,
+      "type": "noul"
+    },
+    "turn_outcome": {
+      "confidence": 0.15,
+      "probabilities": {
+        "0": 0.05,
+        "1": 0.46,
+        "2": 0.49
+      },
+      "score": 1.43,
+      "type": "score"
+    },
+    "unproven_claim": {
+      "noul": 0.12,
+      "type": "noul"
+    }
+  },
+  "F238": {
+    "asks_permission_already_given": {
+      "noul": 0.33,
+      "type": "noul"
+    },
+    "claims_completion": {
+      "noul": 0.05,
+      "type": "noul"
+    },
+    "defers_doable_work": {
+      "noul": 0.63,
+      "type": "noul"
+    },
+    "ends_on_handoff": {
+      "noul": 0.94,
+      "type": "noul"
+    },
+    "leaves_doable_work": {
+      "noul": 0.64,
+      "type": "noul"
+    },
+    "prework_before_handoff": {
+      "noul": 0.69,
+      "type": "noul"
+    },
+    "remaining_work_running": {
+      "noul": 0.06,
+      "type": "noul"
+    },
+    "stopped_investigation": {
+      "noul": 0.19,
+      "type": "noul"
+    },
+    "turn_outcome": {
+      "confidence": 0.66,
+      "probabilities": {
+        "0": 0.1,
+        "1": 0.03,
+        "2": 0.87
+      },
+      "score": 1.78,
+      "type": "score"
+    },
+    "unproven_claim": {
+      "noul": 0.38,
+      "type": "noul"
+    }
+  },
+  "F241": {
+    "asks_permission_already_given": {
+      "noul": 0.03,
+      "type": "noul"
+    },
+    "claims_completion": {
+      "noul": 0.06,
+      "type": "noul"
+    },
+    "defers_doable_work": {
+      "noul": 0.04,
+      "type": "noul"
+    },
+    "ends_on_handoff": {
+      "noul": 0.04,
+      "type": "noul"
+    },
+    "leaves_doable_work": {
+      "noul": 0.07,
+      "type": "noul"
+    },
+    "prework_before_handoff": {
+      "noul": 0.49,
+      "type": "noul"
+    },
+    "remaining_work_running": {
+      "noul": 0.16,
+      "type": "noul"
+    },
+    "stopped_investigation": {
+      "noul": 0.06,
+      "type": "noul"
+    },
+    "turn_outcome": {
+      "confidence": 1.0,
+      "probabilities": {
+        "0": 1.0,
+        "1": 0.0,
+        "2": 0.0
+      },
+      "score": 0.0,
+      "type": "score"
+    },
+    "unproven_claim": {
+      "noul": 0.3,
+      "type": "noul"
+    }
+  },
+  "F244": {
+    "asks_permission_already_given": {
+      "noul": 0.18,
+      "type": "noul"
+    },
+    "claims_completion": {
+      "noul": 0.07,
+      "type": "noul"
+    },
+    "defers_doable_work": {
+      "noul": 0.65,
+      "type": "noul"
+    },
+    "ends_on_handoff": {
+      "noul": 0.94,
+      "type": "noul"
+    },
+    "leaves_doable_work": {
+      "noul": 0.59,
+      "type": "noul"
+    },
+    "prework_before_handoff": {
+      "noul": 0.54,
+      "type": "noul"
+    },
+    "remaining_work_running": {
+      "noul": 0.06,
+      "type": "noul"
+    },
+    "stopped_investigation": {
+      "noul": 0.19,
+      "type": "noul"
+    },
+    "turn_outcome": {
+      "confidence": 0.63,
+      "probabilities": {
+        "0": 0.01,
+        "1": 0.22,
+        "2": 0.77
+      },
+      "score": 1.75,
+      "type": "score"
+    },
+    "unproven_claim": {
+      "noul": 0.14,
+      "type": "noul"
+    }
+  },
+  "F253": {
+    "asks_permission_already_given": {
+      "noul": 0.04,
+      "type": "noul"
+    },
+    "claims_completion": {
+      "noul": 0.96,
+      "type": "noul"
+    },
+    "defers_doable_work": {
+      "noul": 0.14,
+      "type": "noul"
+    },
+    "ends_on_handoff": {
+      "noul": 0.44,
+      "type": "noul"
+    },
+    "leaves_doable_work": {
+      "noul": 0.46,
+      "type": "noul"
+    },
+    "prework_before_handoff": {
+      "noul": 0.65,
+      "type": "noul"
+    },
+    "remaining_work_running": {
+      "noul": 0.16,
+      "type": "noul"
+    },
+    "stopped_investigation": {
+      "noul": 0.67,
+      "type": "noul"
+    },
+    "turn_outcome": {
+      "confidence": 0.68,
+      "probabilities": {
+        "0": 0.84,
+        "1": 0.1,
+        "2": 0.06
+      },
+      "score": 0.21,
+      "type": "score"
+    },
+    "unproven_claim": {
+      "noul": 0.6,
+      "type": "noul"
+    }
+  },
+  "F254": {
+    "asks_permission_already_given": {
+      "noul": 0.08,
+      "type": "noul"
+    },
+    "claims_completion": {
+      "noul": 0.2,
+      "type": "noul"
+    },
+    "defers_doable_work": {
+      "noul": 0.6,
+      "type": "noul"
+    },
+    "ends_on_handoff": {
+      "noul": 0.88,
+      "type": "noul"
+    },
+    "leaves_doable_work": {
+      "noul": 0.34,
+      "type": "noul"
+    },
+    "prework_before_handoff": {
+      "noul": 0.65,
+      "type": "noul"
+    },
+    "remaining_work_running": {
+      "noul": 0.05,
+      "type": "noul"
+    },
+    "stopped_investigation": {
+      "noul": 0.57,
+      "type": "noul"
+    },
+    "turn_outcome": {
+      "confidence": 0.54,
+      "probabilities": {
+        "0": 0.09,
+        "1": 0.7,
+        "2": 0.21
+      },
+      "score": 1.12,
+      "type": "score"
+    },
+    "unproven_claim": {
+      "noul": 0.48,
+      "type": "noul"
+    }
+  },
+  "F255": {
+    "asks_permission_already_given": {
+      "noul": 0.17,
+      "type": "noul"
+    },
+    "claims_completion": {
+      "noul": 0.46,
+      "type": "noul"
+    },
+    "defers_doable_work": {
+      "noul": 0.78,
+      "type": "noul"
+    },
+    "ends_on_handoff": {
+      "noul": 0.95,
+      "type": "noul"
+    },
+    "leaves_doable_work": {
+      "noul": 0.8,
+      "type": "noul"
+    },
+    "prework_before_handoff": {
+      "noul": 0.59,
+      "type": "noul"
+    },
+    "remaining_work_running": {
+      "noul": 0.04,
+      "type": "noul"
+    },
+    "stopped_investigation": {
+      "noul": 0.78,
+      "type": "noul"
+    },
+    "turn_outcome": {
+      "confidence": 0.84,
+      "probabilities": {
+        "0": 0.04,
+        "1": 0.02,
+        "2": 0.94
+      },
+      "score": 1.89,
+      "type": "score"
+    },
+    "unproven_claim": {
+      "noul": 0.86,
+      "type": "noul"
+    }
+  },
+  "F258": {
+    "asks_permission_already_given": {
+      "noul": 0.07,
+      "type": "noul"
+    },
+    "claims_completion": {
+      "noul": 0.85,
+      "type": "noul"
+    },
+    "defers_doable_work": {
+      "noul": 0.19,
+      "type": "noul"
+    },
+    "ends_on_handoff": {
+      "noul": 0.55,
+      "type": "noul"
+    },
+    "leaves_doable_work": {
+      "noul": 0.64,
+      "type": "noul"
+    },
+    "prework_before_handoff": {
+      "noul": 0.56,
+      "type": "noul"
+    },
+    "remaining_work_running": {
+      "noul": 0.08,
+      "type": "noul"
+    },
+    "stopped_investigation": {
+      "noul": 0.44,
+      "type": "noul"
+    },
+    "turn_outcome": {
+      "confidence": 0.74,
+      "probabilities": {
+        "0": 0.88,
+        "1": 0.07,
+        "2": 0.05
+      },
+      "score": 0.17,
+      "type": "score"
+    },
+    "unproven_claim": {
+      "noul": 0.79,
+      "type": "noul"
+    }
+  },
+  "F262": {
+    "asks_permission_already_given": {
+      "noul": 0.08,
+      "type": "noul"
+    },
+    "claims_completion": {
+      "noul": 0.02,
+      "type": "noul"
+    },
+    "defers_doable_work": {
+      "noul": 0.34,
+      "type": "noul"
+    },
+    "ends_on_handoff": {
+      "noul": 0.94,
+      "type": "noul"
+    },
+    "leaves_doable_work": {
+      "noul": 0.54,
+      "type": "noul"
+    },
+    "prework_before_handoff": {
+      "noul": 0.59,
+      "type": "noul"
+    },
+    "remaining_work_running": {
+      "noul": 0.02,
+      "type": "noul"
+    },
+    "stopped_investigation": {
+      "noul": 0.84,
+      "type": "noul"
+    },
+    "turn_outcome": {
+      "confidence": 0.0,
+      "probabilities": {
+        "0": 0.4,
+        "1": 0.32,
+        "2": 0.28
+      },
+      "score": 0.89,
+      "type": "score"
+    },
+    "unproven_claim": {
+      "noul": 0.05,
+      "type": "noul"
+    }
+  },
+  "F269": {
+    "asks_permission_already_given": {
+      "noul": 0.04,
+      "type": "noul"
+    },
+    "claims_completion": {
+      "noul": 0.04,
+      "type": "noul"
+    },
+    "defers_doable_work": {
+      "noul": 0.1,
+      "type": "noul"
+    },
+    "ends_on_handoff": {
+      "noul": 0.07,
+      "type": "noul"
+    },
+    "leaves_doable_work": {
+      "noul": 0.19,
+      "type": "noul"
+    },
+    "prework_before_handoff": {
+      "noul": 0.42,
+      "type": "noul"
+    },
+    "remaining_work_running": {
+      "noul": 0.9,
+      "type": "noul"
+    },
+    "stopped_investigation": {
+      "noul": 0.14,
+      "type": "noul"
+    },
+    "turn_outcome": {
+      "confidence": 1.0,
+      "probabilities": {
+        "0": 1.0,
+        "1": 0.0,
+        "2": 0.0
+      },
+      "score": 0.0,
+      "type": "score"
+    },
+    "unproven_claim": {
+      "noul": 0.04,
+      "type": "noul"
+    }
+  },
+  "F270": {
+    "asks_permission_already_given": {
+      "noul": 0.08,
+      "type": "noul"
+    },
+    "claims_completion": {
+      "noul": 0.35,
+      "type": "noul"
+    },
+    "defers_doable_work": {
+      "noul": 0.35,
+      "type": "noul"
+    },
+    "ends_on_handoff": {
+      "noul": 0.66,
+      "type": "noul"
+    },
+    "leaves_doable_work": {
+      "noul": 0.6,
+      "type": "noul"
+    },
+    "prework_before_handoff": {
+      "noul": 0.42,
+      "type": "noul"
+    },
+    "remaining_work_running": {
+      "noul": 0.33,
+      "type": "noul"
+    },
+    "stopped_investigation": {
+      "noul": 0.55,
+      "type": "noul"
+    },
+    "turn_outcome": {
+      "confidence": 0.41,
+      "probabilities": {
+        "0": 0.66,
+        "1": 0.29,
+        "2": 0.05
+      },
+      "score": 0.39,
+      "type": "score"
+    },
+    "unproven_claim": {
+      "noul": 0.11,
+      "type": "noul"
+    }
+  },
+  "F271": {
+    "asks_permission_already_given": {
+      "noul": 0.07,
+      "type": "noul"
+    },
+    "claims_completion": {
+      "noul": 0.09,
+      "type": "noul"
+    },
+    "defers_doable_work": {
+      "noul": 0.83,
+      "type": "noul"
+    },
+    "ends_on_handoff": {
+      "noul": 0.95,
+      "type": "noul"
+    },
+    "leaves_doable_work": {
+      "noul": 0.19,
+      "type": "noul"
+    },
+    "prework_before_handoff": {
+      "noul": 0.75,
+      "type": "noul"
+    },
+    "remaining_work_running": {
+      "noul": 0.02,
+      "type": "noul"
+    },
+    "stopped_investigation": {
+      "noul": 0.13,
+      "type": "noul"
+    },
+    "turn_outcome": {
+      "confidence": 0.54,
+      "probabilities": {
+        "0": 0.0,
+        "1": 0.3,
+        "2": 0.7
+      },
+      "score": 1.7,
+      "type": "score"
+    },
+    "unproven_claim": {
+      "noul": 0.11,
+      "type": "noul"
+    }
+  },
+  "F275": {
+    "asks_permission_already_given": {
+      "noul": 0.11,
+      "type": "noul"
+    },
+    "claims_completion": {
+      "noul": 0.04,
+      "type": "noul"
+    },
+    "defers_doable_work": {
+      "noul": 0.59,
+      "type": "noul"
+    },
+    "ends_on_handoff": {
+      "noul": 0.88,
+      "type": "noul"
+    },
+    "leaves_doable_work": {
+      "noul": 0.93,
+      "type": "noul"
+    },
+    "prework_before_handoff": {
+      "noul": 0.62,
+      "type": "noul"
+    },
+    "remaining_work_running": {
+      "noul": 0.05,
+      "type": "noul"
+    },
+    "stopped_investigation": {
+      "noul": 0.78,
+      "type": "noul"
+    },
+    "turn_outcome": {
+      "confidence": 0.0,
+      "probabilities": {
+        "0": 0.63,
+        "1": 0.0,
+        "2": 0.37
+      },
+      "score": 0.74,
+      "type": "score"
+    },
+    "unproven_claim": {
+      "noul": 0.16,
+      "type": "noul"
+    }
+  },
+  "F280": {
+    "asks_permission_already_given": {
+      "noul": 0.09,
+      "type": "noul"
+    },
+    "claims_completion": {
+      "noul": 0.1,
+      "type": "noul"
+    },
+    "defers_doable_work": {
+      "noul": 0.22,
+      "type": "noul"
+    },
+    "ends_on_handoff": {
+      "noul": 0.2,
+      "type": "noul"
+    },
+    "leaves_doable_work": {
+      "noul": 0.91,
+      "type": "noul"
+    },
+    "prework_before_handoff": {
+      "noul": 0.62,
+      "type": "noul"
+    },
+    "remaining_work_running": {
+      "noul": 0.57,
+      "type": "noul"
+    },
+    "stopped_investigation": {
+      "noul": 0.79,
+      "type": "noul"
+    },
+    "turn_outcome": {
+      "confidence": 0.93,
+      "probabilities": {
+        "0": 0.97,
+        "1": 0.01,
+        "2": 0.02
+      },
+      "score": 0.04,
+      "type": "score"
+    },
+    "unproven_claim": {
+      "noul": 0.41,
+      "type": "noul"
+    }
+  },
+  "F291": {
+    "asks_permission_already_given": {
+      "noul": 0.08,
+      "type": "noul"
+    },
+    "claims_completion": {
+      "noul": 0.96,
+      "type": "noul"
+    },
+    "defers_doable_work": {
+      "noul": 0.68,
+      "type": "noul"
+    },
+    "ends_on_handoff": {
+      "noul": 0.91,
+      "type": "noul"
+    },
+    "leaves_doable_work": {
+      "noul": 0.87,
+      "type": "noul"
+    },
+    "prework_before_handoff": {
+      "noul": 0.68,
+      "type": "noul"
+    },
+    "remaining_work_running": {
+      "noul": 0.05,
+      "type": "noul"
+    },
+    "stopped_investigation": {
+      "noul": 0.54,
+      "type": "noul"
+    },
+    "turn_outcome": {
+      "confidence": 0.71,
+      "probabilities": {
+        "0": 0.1,
+        "1": 0.0,
+        "2": 0.9
+      },
+      "score": 1.8,
+      "type": "score"
+    },
+    "unproven_claim": {
+      "noul": 0.17,
+      "type": "noul"
+    }
+  },
+  "F292": {
+    "asks_permission_already_given": {
+      "noul": 0.05,
+      "type": "noul"
+    },
+    "claims_completion": {
+      "noul": 0.49,
+      "type": "noul"
+    },
+    "defers_doable_work": {
+      "noul": 0.16,
+      "type": "noul"
+    },
+    "ends_on_handoff": {
+      "noul": 0.12,
+      "type": "noul"
+    },
+    "leaves_doable_work": {
+      "noul": 0.93,
+      "type": "noul"
+    },
+    "prework_before_handoff": {
+      "noul": 0.46,
+      "type": "noul"
+    },
+    "remaining_work_running": {
+      "noul": 0.37,
+      "type": "noul"
+    },
+    "stopped_investigation": {
+      "noul": 0.11,
+      "type": "noul"
+    },
+    "turn_outcome": {
+      "confidence": 0.95,
+      "probabilities": {
+        "0": 0.98,
+        "1": 0.01,
+        "2": 0.01
+      },
+      "score": 0.03,
+      "type": "score"
+    },
+    "unproven_claim": {
+      "noul": 0.48,
+      "type": "noul"
+    }
+  },
+  "F293": {
+    "asks_permission_already_given": {
+      "noul": 0.23,
+      "type": "noul"
+    },
+    "claims_completion": {
+      "noul": 0.04,
+      "type": "noul"
+    },
+    "defers_doable_work": {
+      "noul": 0.76,
+      "type": "noul"
+    },
+    "ends_on_handoff": {
+      "noul": 0.94,
+      "type": "noul"
+    },
+    "leaves_doable_work": {
+      "noul": 0.79,
+      "type": "noul"
+    },
+    "prework_before_handoff": {
+      "noul": 0.51,
+      "type": "noul"
+    },
+    "remaining_work_running": {
+      "noul": 0.13,
+      "type": "noul"
+    },
+    "stopped_investigation": {
+      "noul": 0.86,
+      "type": "noul"
+    },
+    "turn_outcome": {
+      "confidence": 0.83,
+      "probabilities": {
+        "0": 0.05,
+        "1": 0.02,
+        "2": 0.93
+      },
+      "score": 1.88,
+      "type": "score"
+    },
+    "unproven_claim": {
+      "noul": 0.15,
+      "type": "noul"
+    }
+  },
+  "F296": {
+    "asks_permission_already_given": {
+      "noul": 0.04,
+      "type": "noul"
+    },
+    "claims_completion": {
+      "noul": 0.05,
+      "type": "noul"
+    },
+    "defers_doable_work": {
+      "noul": 0.12,
+      "type": "noul"
+    },
+    "ends_on_handoff": {
+      "noul": 0.13,
+      "type": "noul"
+    },
+    "leaves_doable_work": {
+      "noul": 0.33,
+      "type": "noul"
+    },
+    "prework_before_handoff": {
+      "noul": 0.44,
+      "type": "noul"
+    },
+    "remaining_work_running": {
+      "noul": 0.48,
+      "type": "noul"
+    },
+    "stopped_investigation": {
+      "noul": 0.52,
+      "type": "noul"
+    },
+    "turn_outcome": {
+      "confidence": 0.95,
+      "probabilities": {
+        "0": 0.97,
+        "1": 0.02,
+        "2": 0.01
+      },
+      "score": 0.03,
+      "type": "score"
+    },
+    "unproven_claim": {
+      "noul": 0.13,
+      "type": "noul"
+    }
+  },
+  "F68": {
+    "asks_permission_already_given": {
+      "noul": 0.21,
+      "type": "noul"
+    },
+    "claims_completion": {
+      "noul": 0.03,
+      "type": "noul"
+    },
+    "defers_doable_work": {
+      "noul": 0.53,
+      "type": "noul"
+    },
+    "ends_on_handoff": {
+      "noul": 0.96,
+      "type": "noul"
+    },
+    "leaves_doable_work": {
+      "noul": 0.53,
+      "type": "noul"
+    },
+    "prework_before_handoff": {
+      "noul": 0.64,
+      "type": "noul"
+    },
+    "remaining_work_running": {
+      "noul": 0.02,
+      "type": "noul"
+    },
+    "stopped_investigation": {
+      "noul": 0.67,
+      "type": "noul"
+    },
+    "turn_outcome": {
+      "confidence": 0.99,
+      "probabilities": {
+        "0": 0.01,
+        "1": 0.99,
+        "2": 0.0
+      },
+      "score": 1.0,
+      "type": "score"
+    },
+    "unproven_claim": {
+      "noul": 0.05,
+      "type": "noul"
+    }
+  },
+  "M-analytics": {
+    "asks_permission_already_given": {
+      "noul": 0.16,
+      "type": "noul"
+    },
+    "claims_completion": {
+      "noul": 0.03,
+      "type": "noul"
+    },
+    "defers_doable_work": {
+      "noul": 0.51,
+      "type": "noul"
+    },
+    "ends_on_handoff": {
+      "noul": 0.96,
+      "type": "noul"
+    },
+    "leaves_doable_work": {
+      "noul": 0.63,
+      "type": "noul"
+    },
+    "prework_before_handoff": {
+      "noul": 0.69,
+      "type": "noul"
+    },
+    "remaining_work_running": {
+      "noul": 0.03,
+      "type": "noul"
+    },
+    "stopped_investigation": {
+      "noul": 0.93,
+      "type": "noul"
+    },
+    "turn_outcome": {
+      "confidence": 0.32,
+      "probabilities": {
+        "0": 0.02,
+        "1": 0.42,
+        "2": 0.56
+      },
+      "score": 1.55,
+      "type": "score"
+    },
+    "unproven_claim": {
+      "noul": 0.08,
+      "type": "noul"
+    }
+  },
+  "M-homelab": {
+    "asks_permission_already_given": {
+      "noul": 0.15,
+      "type": "noul"
+    },
+    "claims_completion": {
+      "noul": 0.04,
+      "type": "noul"
+    },
+    "defers_doable_work": {
+      "noul": 0.87,
+      "type": "noul"
+    },
+    "ends_on_handoff": {
+      "noul": 0.97,
+      "type": "noul"
+    },
+    "leaves_doable_work": {
+      "noul": 0.47,
+      "type": "noul"
+    },
+    "prework_before_handoff": {
+      "noul": 0.59,
+      "type": "noul"
+    },
+    "remaining_work_running": {
+      "noul": 0.02,
+      "type": "noul"
+    },
+    "stopped_investigation": {
+      "noul": 0.21,
+      "type": "noul"
+    },
+    "turn_outcome": {
+      "confidence": 0.78,
+      "probabilities": {
+        "0": 0.0,
+        "1": 0.14,
+        "2": 0.86
+      },
+      "score": 1.86,
+      "type": "score"
+    },
+    "unproven_claim": {
+      "noul": 0.18,
+      "type": "noul"
+    }
+  },
+  "THIS-TURN": {
+    "asks_permission_already_given": {
+      "noul": 0.03,
+      "type": "noul"
+    },
+    "claims_completion": {
+      "noul": 0.75,
+      "type": "noul"
+    },
+    "defers_doable_work": {
+      "noul": 0.15,
+      "type": "noul"
+    },
+    "ends_on_handoff": {
+      "noul": 0.3,
+      "type": "noul"
+    },
+    "leaves_doable_work": {
+      "noul": 0.92,
+      "type": "noul"
+    },
+    "prework_before_handoff": {
+      "noul": 0.46,
+      "type": "noul"
+    },
+    "remaining_work_running": {
+      "noul": 0.08,
+      "type": "noul"
+    },
+    "stopped_investigation": {
+      "noul": 0.1,
+      "type": "noul"
+    },
+    "turn_outcome": {
+      "confidence": 0.6,
+      "probabilities": {
+        "0": 0.75,
+        "1": 0.05,
+        "2": 0.2
+      },
+      "score": 0.2,
+      "type": "score"
+    },
+    "unproven_claim": {
+      "noul": 0.86,
+      "type": "noul"
+    }
+  },
+  "U3": {
+    "asks_permission_already_given": {
+      "noul": 0.09,
+      "type": "noul"
+    },
+    "claims_completion": {
+      "noul": 0.9,
+      "type": "noul"
+    },
+    "defers_doable_work": {
+      "noul": 0.71,
+      "type": "noul"
+    },
+    "ends_on_handoff": {
+      "noul": 0.9,
+      "type": "noul"
+    },
+    "leaves_doable_work": {
+      "noul": 0.89,
+      "type": "noul"
+    },
+    "prework_before_handoff": {
+      "noul": 0.5,
+      "type": "noul"
+    },
+    "remaining_work_running": {
+      "noul": 0.03,
+      "type": "noul"
+    },
+    "stopped_investigation": {
+      "noul": 0.05,
+      "type": "noul"
+    },
+    "turn_outcome": {
+      "confidence": 0.18,
+      "probabilities": {
+        "0": 0.27,
+        "1": 0.0,
+        "2": 0.73
+      },
+      "score": 1.46,
+      "type": "score"
+    },
+    "unproven_claim": {
+      "noul": 0.93,
+      "type": "noul"
+    }
+  }
+}

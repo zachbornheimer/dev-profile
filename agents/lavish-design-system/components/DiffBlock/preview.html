@@ -1,0 +1,21 @@
+<!-- @dsCard group="Data" -->
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DiffBlock</title>
+<link rel="stylesheet" href="../../colors_and_type.css">
+<style>
+*{box-sizing:border-box}body{margin:0;background:var(--color-bg-page);font-family:var(--font-sans);font-size:var(--text-body);color:var(--color-text);-webkit-font-smoothing:antialiased}
+.preview{padding:var(--space-24);display:flex;flex-direction:column;gap:var(--space-20)}
+.row{display:flex;gap:var(--space-20);flex-wrap:wrap;align-items:flex-start}
+.cell{display:flex;flex-direction:column;gap:var(--space-6);align-items:flex-start}
+.lbl{font-size:var(--text-meta);color:var(--color-text-muted)}
+.mono{font-family:var(--font-mono);font-size:var(--text-mono)}
+.card{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-card);padding:var(--space-20);display:flex;flex-direction:column;gap:var(--space-12)}
+.card h2{margin:0;font-size:var(--text-section-title);font-weight:var(--weight-semibold)}
+.card p{margin:0;font-size:var(--text-body);line-height:var(--leading-prose);color:var(--color-text-secondary)}
+.diff{border:1px solid var(--color-divider);border-radius:var(--radius-control);overflow:hidden;font-size:var(--text-body);line-height:var(--leading-body);max-width:640px}
+.diff div{display:flex;gap:var(--space-10);padding:var(--space-8) var(--space-12)}.diff .m{background:var(--color-error-bg);color:var(--color-text-secondary)}.diff .m s{text-decoration-color:var(--color-error-soft)}.diff .m b{color:var(--color-error-text);font-family:var(--font-mono);font-weight:var(--weight-regular)}
+.diff .p{background:var(--color-success-bg)}.diff .p b{color:var(--color-success-text);font-family:var(--font-mono);font-weight:var(--weight-regular)}.diff u{color:var(--color-accent)}
+</style></head>
+<body><div class="preview">
+<div class="diff"><div class="m"><b>−</b><s>Selected composers are invited to the arranging workshop held during the summit.</s></div><div class="p"><b>+</b><span>Selected composers are invited to the <u>arranging workshop</u> held during the summit. <span class="lbl">  → Summer Arranging Workshop 2027</span></span></div></div>
+</div></body></html>

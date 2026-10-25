@@ -1,8 +1,0 @@
-amends "../../lib/Tool.pkl"
-
-doc = "go vet has no new-issues mode, so at push only diagnostics in pushed files fail."
-on {
-  ["pre-push"] = (module.builtins.go_vet) {
-    check = "dev-profile-pushed-diagnostics go vet ./... :: {{files}}"
-  }
-}

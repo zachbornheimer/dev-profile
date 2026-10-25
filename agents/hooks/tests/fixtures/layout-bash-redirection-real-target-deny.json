@@ -1,0 +1,6 @@
+{
+  "session_id": "hgtest-f11b",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Bash",
+  "tool_input": { "command": "curl x > /Users/zbornheimer/work/log" }
+}

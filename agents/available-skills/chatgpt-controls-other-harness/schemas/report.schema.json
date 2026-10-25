@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/chatgpt-control-claude/report.schema.json",
+  "title": "Claude Local Run Report",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "uuid",
+    "started_at",
+    "finished_at",
+    "outcome"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "ticket": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "operation": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "repo": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "started_at": {
+      "type": "string"
+    },
+    "finished_at": {
+      "type": "string"
+    },
+    "outcome": {
+      "type": "string",
+      "minLength": 1
+    },
+    "acceptance_proved": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "changed_files": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "unmet_acceptance": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "baseline_notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "deterministic": {
+      "type": "object"
+    },
+    "error": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,21 @@
+[env]
+UV_PROJECT_ENVIRONMENT = "/Users/zbornheimer/.hermes/profiles/zach/cache/scratch/learnings/venv"
+PYTHONPATH = "{{config_root}}/src"
+[tasks.setup]
+run = "uv sync --python 3.12"
+[tasks.test]
+run = "uv run pytest -q"
+[tasks.lint]
+run = "uv run ruff check src tests && uv run ruff format --check src tests && uv run mypy src tests"
+[tasks.format]
+run = "uv run ruff check --fix src tests && uv run ruff format src tests"
+[tasks.scan]
+run = "gitleaks dir . --no-banner && uv run pip-audit"
+[tasks.build]
+run = "uv run python -m compileall -q src"
+[tasks.ci]
+depends = ["lint", "test", "scan"]
+[tasks.extract]
+run = "uv run python -m learnings.cli"
+[tasks.proof]
+run = "uv run python -m learnings.proof"

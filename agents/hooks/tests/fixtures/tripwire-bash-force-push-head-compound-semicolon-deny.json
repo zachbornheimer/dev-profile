@@ -1,0 +1,6 @@
+{
+  "session_id": "hgtest-f9c",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Bash",
+  "tool_input": { "command": "echo start; git push -f origin HEAD" }
+}

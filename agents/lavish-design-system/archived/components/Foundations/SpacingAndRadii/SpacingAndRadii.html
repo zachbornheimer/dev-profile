@@ -1,0 +1,18 @@
+<!-- @dsCard group="Foundations" -->
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SpacingAndRadii</title>
+<link rel="stylesheet" href="../../../colors_and_type.css">
+<style>
+*{box-sizing:border-box}body{margin:0;background:var(--color-bg-page);font-family:var(--font-sans);font-size:var(--text-body);color:var(--color-text);-webkit-font-smoothing:antialiased}
+.preview{padding:var(--space-24);display:flex;flex-direction:column;gap:var(--space-20)}
+.row{display:flex;gap:var(--space-20);flex-wrap:wrap;align-items:flex-start}
+.cell{display:flex;flex-direction:column;gap:var(--space-6);align-items:flex-start}
+.lbl{font-size:var(--text-meta);color:var(--color-text-muted)}
+.mono{font-family:var(--font-mono);font-size:var(--text-mono)}
+.card{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-card);padding:var(--space-20);display:flex;flex-direction:column;gap:var(--space-12)}
+.card h2{margin:0;font-size:var(--text-section-title);font-weight:var(--weight-semibold)}
+.card p{margin:0;font-size:var(--text-body);line-height:var(--leading-prose);color:var(--color-text-secondary)}.s{display:flex;align-items:center;gap:var(--space-12)}.s code,.cell code{font-family:var(--font-mono);font-size:var(--text-mono-sm);color:var(--color-text-muted);width:110px}.s i{height:12px;background:var(--color-accent);border-radius:var(--radius-bar)}.r{width:64px;height:40px;background:var(--color-accent-bg);border:1px solid var(--color-accent)}.sh{width:120px;height:36px;background:var(--color-surface);border-radius:var(--radius-control);box-shadow:var(--shadow-segment)}
+</style></head>
+<body><div class="preview">
+<div class="card"><span class="lbl">Spacing</span><div class="s"><code>--space-2</code><i style="width:var(--space-2)"></i></div><div class="s"><code>--space-4</code><i style="width:var(--space-4)"></i></div><div class="s"><code>--space-6</code><i style="width:var(--space-6)"></i></div><div class="s"><code>--space-8</code><i style="width:var(--space-8)"></i></div><div class="s"><code>--space-10</code><i style="width:var(--space-10)"></i></div><div class="s"><code>--space-12</code><i style="width:var(--space-12)"></i></div><div class="s"><code>--space-14</code><i style="width:var(--space-14)"></i></div><div class="s"><code>--space-16</code><i style="width:var(--space-16)"></i></div><div class="s"><code>--space-20</code><i style="width:var(--space-20)"></i></div><div class="s"><code>--space-24</code><i style="width:var(--space-24)"></i></div><div class="s"><code>--space-28</code><i style="width:var(--space-28)"></i></div></div><div class="card"><span class="lbl">Radii</span><div class="row"><div class="cell"><div class="r" style="border-radius:var(--radius-bar)"></div><code>--radius-bar</code></div><div class="cell"><div class="r" style="border-radius:var(--radius-badge)"></div><code>--radius-badge</code></div><div class="cell"><div class="r" style="border-radius:var(--radius-control)"></div><code>--radius-control</code></div><div class="cell"><div class="r" style="border-radius:var(--radius-card)"></div><code>--radius-card</code></div><div class="cell"><div class="r" style="border-radius:var(--radius-pill)"></div><code>--radius-pill</code></div></div></div><div class="card"><span class="lbl">Shadow (segmented filter active item only)</span><div class="sh"></div><span class="lbl">Layout: --layout-max-width, --layout-card-min (auto-fit card grid), --layout-table-min</span></div>
+</div></body></html>

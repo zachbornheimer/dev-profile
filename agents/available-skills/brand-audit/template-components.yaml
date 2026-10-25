@@ -1,0 +1,136 @@
+# Default semantic-component vocabulary. Copy to ./.brand-audit/components.yaml
+# in your project and customize if your brand defines additional component
+# types (member-only callouts, donation widgets, etc.) — every entry here
+# is what the audit will classify the live page into.
+#
+# Each entry: id, role (one-line description), axes (which CSS axes the audit
+# should diff for this component), selectors per surface.
+
+components:
+  # ── Layout / Surface ──────────────────────────────────────────────
+  - id: page_surface
+    role: Body background — radial brand-wash pulses on paper canvas
+    axes: [surface]
+  - id: section_default
+    role: Default content section on the page surface
+    axes: [space, surface]
+  - id: section_tinted
+    role: Section using the brand-wash tinted surface
+    axes: [space, surface]
+  - id: section_dark
+    role: Section using the ink dark surface
+    axes: [space, surface, color]
+  - id: hero_panel
+    role: Full-bleed hero (image + overlay gradient)
+    axes: [space, surface, pseudo]
+  - id: card
+    role: Bordered or shadowed content card on the page surface
+    axes: [space, surface, shape]
+  - id: divider_hairline
+    role: 1px brand-rule horizontal divider
+    axes: [shape]
+  - id: divider_accent
+    role: 4px brand-deep accent rail (structural punctuation)
+    axes: [shape]
+  - id: signature_accent
+    role: Multi-stop horizontal gradient bar (brand-mid → brand-deep → brand-mid). Optional, sparse, under display headlines.
+    axes: [surface]
+
+  # ── Typography ─────────────────────────────────────────────────────
+  - id: hero_h1
+    role: Primary headline on the home / landing hero
+    axes: [typography]
+  - id: hero_subhead
+    role: Single supporting paragraph directly under the hero h1
+    axes: [typography, color]
+  - id: section_h2
+    role: Section-opening headline inside body content
+    axes: [typography]
+  - id: section_h3
+    role: Subsection heading, two levels under page title
+    axes: [typography]
+  - id: section_h4
+    role: Minor heading inside a section
+    axes: [typography]
+  - id: body_paragraph
+    role: Default running prose paragraph
+    axes: [typography]
+  - id: lead_paragraph
+    role: First prose paragraph in a section (slightly larger)
+    axes: [typography]
+  - id: caption
+    role: Small / muted caption text
+    axes: [typography]
+  - id: eyebrow
+    role: Small uppercase monospace caption above a headline
+    axes: [typography]
+  - id: code_inline
+    role: Inline code span inside prose
+    axes: [typography, surface, shape]
+  - id: code_block
+    role: Pre-formatted code block
+    axes: [typography, surface, shape, space]
+
+  # ── Buttons ────────────────────────────────────────────────────────
+  - id: button_primary
+    role: Primary CTA on light surfaces
+    axes: [typography, surface, shape, space, interactive]
+  - id: button_secondary
+    role: Secondary CTA on light surfaces
+    axes: [typography, surface, shape, space, interactive]
+  - id: button_ghost
+    role: Text-only inline action
+    axes: [typography, color, interactive]
+  - id: button_on_dark_primary
+    role: Primary CTA on dark surfaces — paper fill, brand-deep label
+    axes: [typography, surface, shape, space, interactive]
+  - id: button_on_dark_secondary
+    role: Secondary CTA on dark surfaces — paper outline, transparent fill
+    axes: [typography, surface, shape, space, interactive]
+
+  # ── Form fields ────────────────────────────────────────────────────
+  - id: input_text
+    role: Text input on light surface (paper bg, ink text)
+    axes: [typography, surface, shape, space, interactive]
+  - id: input_text_on_dark
+    role: Text input on dark surface (paper text, paper@10% bg)
+    axes: [typography, surface, shape, space, interactive]
+  - id: label
+    role: Form label paired with an input
+    axes: [typography]
+  - id: error_text
+    role: Validation error message under a field
+    axes: [typography, color]
+
+  # ── Links ──────────────────────────────────────────────────────────
+  - id: prose_link
+    role: Anchor inside running paragraph (brand-mid → brand-deep on hover)
+    axes: [typography, color, interactive]
+  - id: nav_link
+    role: Anchor inside navigation
+    axes: [typography, color, interactive]
+  - id: external_link
+    role: Anchor that opens an external site (with affordance)
+    axes: [typography, color, pseudo]
+  - id: footer_link
+    role: Anchor inside footer column
+    axes: [typography, color, interactive]
+
+  # ── Page-level ────────────────────────────────────────────────────
+  - id: site_header
+    role: Logo + nav + utility CTAs (often floating over hero)
+    axes: [surface, space]
+  - id: site_footer
+    role: Brand block + columns + newsletter + legal bar (ink surface)
+    axes: [surface, space]
+  - id: footer_column_title
+    role: Eyebrow-style heading above each footer column list
+    axes: [typography]
+
+  # ── Iconography ───────────────────────────────────────────────────
+  - id: icon_inline
+    role: Inline stroke icon — 32px box, 1.5px stroke, brand-deep
+    axes: [icon]
+  - id: icon_feature
+    role: Larger stroke icon — 64px box, same stroke + color
+    axes: [icon]

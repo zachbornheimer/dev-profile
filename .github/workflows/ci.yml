@@ -28,14 +28,11 @@ jobs:
           # shares a 60/hour budget with every runner on the same address.
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          out="${RUNNER_TEMP}/profile"
-          DEV_PROFILE_OUT="${out}" mise run generate
-          MISE_GLOBAL_CONFIG_FILE="${out}/mise-profile.toml" mise install --yes
+          echo "MISE_GLOBAL_CONFIG_FILE=${GITHUB_WORKSPACE}/config/tools.toml" >>"$GITHUB_ENV"
+          mise install --yes
       - name: Test
-        # The installed toolset is active only with the rendered profile as
-        # mise's global config, the way bootstrap links it.
+        # Pins live in the repo. There is no generate step.
         env:
-          MISE_GLOBAL_CONFIG_FILE: ${{ runner.temp }}/profile/mise-profile.toml
           GITHUB_TOKEN: ${{ github.token }}
         run: mise run test
 

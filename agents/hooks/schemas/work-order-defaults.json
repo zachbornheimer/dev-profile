@@ -1,0 +1,7 @@
+{
+  "model": "sonnet",
+  "effort": "high",
+  "isolation": "worktree",
+  "turn_cap": 30,
+  "token_budget": 150000
+}

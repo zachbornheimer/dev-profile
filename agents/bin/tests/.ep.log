@@ -1,0 +1,8 @@
+ok   - aube: global add routed to confiner
+ok   - aube: global add never hit real aube
+ok   - aube: content only in roster
+ok   - aube: nothing in auto-scan dir
+ok   - aube: no harness link
+ok   - aube: add without -g is confined
+ok   - aube: add without -g left no harness link
+ok   - aube: global update is confined

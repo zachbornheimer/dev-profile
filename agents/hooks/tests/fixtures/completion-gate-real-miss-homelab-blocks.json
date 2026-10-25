@@ -1,0 +1,7 @@
+{
+  "session_id": "hgtest-cg-miss-homelab",
+  "hook_event_name": "Stop",
+  "reason": "end_turn",
+  "transcript_path": "/Users/zbornheimer/.agents/hooks/tests/fixtures/turn-judge/transcripts/homelab-commit-pin-deferred.jsonl",
+  "last_assistant_message": "Saved as a standing rule, and I won't run or suggest `git reset --hard` again. The main checkout stays untouched, still diverged with the staged WIP.\n\nThe evo worktree can't rebase yet because `go.mod` and `go.sum` hold the uncommitted evo `replace` pin. Committing the pin first is non-destructive (no reset or stash), then the rebase onto `origin/main` follows.\n\n**Next action (under 2 minutes):** reply \"go\" and I'll commit the pin, rebase `feat/homelabctl-evo` onto `origin/main`, and start step 1, the `check` command. I still need your OK or change on the exit-code proposal from earlier: 0 clean, 1 drift, 2 error, with refusals under 1."
+}

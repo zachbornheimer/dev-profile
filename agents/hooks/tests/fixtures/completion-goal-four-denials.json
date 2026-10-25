@@ -1,0 +1,7 @@
+{
+  "session_id": "hgtest-g4",
+  "hook_event_name": "Stop",
+  "reason": "end_turn",
+  "transcript_path": "/Users/zbornheimer/.agents/hooks/tests/fixtures/turn-judge/transcripts/goal-four-denials-with-ask.jsonl",
+  "last_assistant_message": "Done. The assessments are resolved and the work is complete."
+}

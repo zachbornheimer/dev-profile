@@ -1,0 +1,42 @@
+# Drop this at ./.brand-audit/config.yaml in your project root so the
+# brand-audit skill knows where your brand guide lives and how to address
+# your tokens / classes.
+
+# Path to the brand-guide HTML file (canonical spec).
+brand_guide: ./brand-guide.html
+
+# How the brand guide is served via HTTP. The audit must read computed
+# styles, so the guide has to render in a real browser. If your dashboard
+# serves it at a known path, point at that; otherwise spin up a local
+# static server (`python3 -m http.server 8770` from the project root).
+brand_guide_url: http://127.0.0.1:8770/brand-guide/
+
+# Prefix used for CSS custom properties and brand classes on this site.
+# E.g. `isjac` means tokens look like `--isjac-color-ink` and classes look
+# like `.isjac-eyebrow`. The audit uses this to detect class-presence
+# drift and to grep for token references.
+brand_prefix: isjac
+
+# Pages the audit should treat as primary surfaces when discovering drift
+# at scale. The default invocation is one URL at a time, but a future
+# `--all-pages` mode will iterate.
+pages:
+  - name: homepage
+    url: http://localhost:10033/
+  - name: donate
+    url: http://localhost:10033/donate/
+  - name: membership
+    url: http://localhost:10033/membership/
+
+# Optional: per-engagement overrides of the default semantic-token map.
+# Defaults to `~/.claude/skills/brand-audit/template-components.yaml` if
+# this section is absent.
+# components_file: ./.brand-audit/components.yaml
+
+# Optional: ancestor selectors that mark a surface as "dark" so the audit
+# expects on-dark token variants to apply inside them.
+on_dark_surfaces:
+  - .isjac-band--invert
+  - .site-footer
+  - .is-style-isjac-hero
+  - .isjac-hero

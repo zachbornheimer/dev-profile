@@ -1,0 +1,273 @@
+#!/usr/bin/env node
+/**
+ * Mode B of the voice-signing-call-agent skill: a real Twilio outbound call into the
+ * RapidSign voice IVR, TwiML timed to the live IVR sequence (captured 2026-09-29 from
+ * Twilio call events; matches rapidsign internal/handler/twiml.go actionToTwiML):
+ *
+ *   1. code gather   Gather dtmf finishOnKey=# timeout=10, nested code prompt (~3s)
+ *   2. preparing     preparing.mp3 (1.9s) + typing-sounds.mp3 x2 (16s) + Redirect
+ *   3. opener        Start<Recording dual> + Gather dtmf+speech numDigits=1, nested opener.mp3 (5.1s)
+ *   4. name confirm  Gather dtmf+speech numDigits=1, nested capture-name-confirm.mp3 (2.0s)
+ *   5. script:0      Play narration (TTS, ~8s, NOT inside the Gather: DTMF during it is dropped)
+ *                    then Gather dtmf numDigits=1 timeout=5 with gate.mp3 (3.6s).
+ *                    Anything but "1" = repeat, so a mistimed press only replays the step.
+ *   6. goodbye       goodbye.mp3 (5.2s) + Hangup
+ *
+ * A "1" that reaches the opener gather BEFORE the name costs a name retry, so the
+ * name is spoken only after the preparing stall, and "1" is pressed only after it.
+ *
+ * Usage:
+ *   node run-outbound-twilio.mjs [call]     place the call, wait for it to end, fetch the IVR-leg recording
+ *   node run-outbound-twilio.mjs recording  only fetch the recording for OUTBOUND_CALL_SID
+ *   node run-outbound-twilio.mjs twiml      print the TwiML that would be sent (no network)
+ *
+ * Env (required for call): TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, VOICE_CODE, CALLER_SPOKEN_NAME
+ * Optional: TWILIO_FROM (+14327772790), VOICE_IVR_TO (+12727703377), RECORDING_OUT_DIR (cwd),
+ *   timing overrides in seconds: PAUSE_BEFORE_CODE, PAUSE_BEFORE_NAME, PAUSE_BEFORE_NAME_CONFIRM,
+ *   PAUSE_BEFORE_GATE_PRESSES, GATE_PRESS_INTERVAL, GATE_PRESS_COUNT, PAUSE_TAIL.
+ *   TWIML_OVERRIDE_FILE replaces the generated TwiML wholesale (for one tuned retry).
+ * Prints one JSON line on stdout; progress on stderr. Never prints credentials.
+ */
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+const DEFAULT_FROM = '+14327772790';
+const DEFAULT_IVR = '+12727703377';
+const TWILIO_API = 'https://api.twilio.com/2010-04-01';
+const TERMINAL_CALL_STATUSES = new Set(['completed', 'busy', 'failed', 'no-answer', 'canceled']);
+const CALL_END_TIMEOUT_MS = 6 * 60 * 1000;
+const RECORDING_TIMEOUT_MS = 4 * 60 * 1000;
+const POLL_INTERVAL_MS = 5000;
+const INBOUND_LEG_WINDOW_MS = 2 * 60 * 1000;
+
+const num = (name, fallback) => {
+    const raw = process.env[name];
+    return raw === undefined || raw === '' ? fallback : Number(raw);
+};
+
+const timing = {
+    beforeCode: num('PAUSE_BEFORE_CODE', 5),
+    // code tones (~2s) + IVR resolve (~1-2s) + preparing 1.9s + typing 16s + redirect + opener 5.1s
+    beforeName: num('PAUSE_BEFORE_NAME', 24),
+    // speechTimeout=auto end-pointing + webhook + capture-name-confirm.mp3 (2.0s)
+    beforeNameConfirm: num('PAUSE_BEFORE_NAME_CONFIRM', 5),
+    // script:0 narration Play (~8s) precedes the gate Gather; presses before it are dropped harmlessly
+    beforeGatePresses: num('PAUSE_BEFORE_GATE_PRESSES', 4),
+    gatePressInterval: num('GATE_PRESS_INTERVAL', 4),
+    gatePressCount: num('GATE_PRESS_COUNT', 8),
+    tail: num('PAUSE_TAIL', 20),
+};
+
+function config() {
+    return {
+        sid: process.env.TWILIO_ACCOUNT_SID?.trim(),
+        token: process.env.TWILIO_AUTH_TOKEN?.trim(),
+        from: (process.env.TWILIO_FROM ?? DEFAULT_FROM).trim(),
+        to: (process.env.VOICE_IVR_TO ?? DEFAULT_IVR).trim(),
+        code: (process.env.VOICE_CODE ?? '').replace(/[^0-9]/g, ''),
+        spoken: (process.env.CALLER_SPOKEN_NAME ?? '').replace(/[<>&"]/g, '').trim(),
+        outDir: process.env.RECORDING_OUT_DIR ?? process.cwd(),
+    };
+}
+
+function requireEnv(pairs) {
+    for (const [k, v] of pairs) {
+        if (!v) {
+            console.error(`Missing ${k}`);
+            process.exit(2);
+        }
+    }
+}
+
+export function buildTwiml(code, spoken, t = timing) {
+    const gatePresses = Array.from({ length: t.gatePressCount }, () => `  <Play digits="1"/>\n  <Pause length="${t.gatePressInterval}"/>`).join('\n');
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Pause length="${t.beforeCode}"/>
+  <Play digits="${code}#"/>
+  <Pause length="${t.beforeName}"/>
+  <Say voice="Polly.Joanna">${spoken}</Say>
+  <Pause length="${t.beforeNameConfirm}"/>
+  <Play digits="1"/>
+  <Pause length="${t.beforeGatePresses}"/>
+${gatePresses}
+  <Pause length="${t.tail}"/>
+  <Hangup/>
+</Response>`;
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function twilio(cfg, path, init = {}) {
+    const auth = Buffer.from(`${cfg.sid}:${cfg.token}`).toString('base64');
+    const url = path.startsWith('http') ? path : `${TWILIO_API}/Accounts/${cfg.sid}${path}`;
+    const res = await fetch(url, { ...init, headers: { Authorization: `Basic ${auth}`, ...(init.headers ?? {}) } });
+    return res;
+}
+
+async function twilioJson(cfg, path, init) {
+    const res = await twilio(cfg, path, init);
+    const text = await res.text();
+    let json;
+    try {
+        json = JSON.parse(text);
+    } catch {
+        json = { raw: text.slice(0, 500) };
+    }
+    if (!res.ok) throw new Error(`Twilio ${init?.method ?? 'GET'} ${path} -> ${res.status}: ${json.message ?? json.raw ?? ''}`);
+    return json;
+}
+
+async function placeCall(cfg, twiml) {
+    const body = new URLSearchParams({ To: cfg.to, From: cfg.from, Twiml: twiml });
+    const call = await twilioJson(cfg, '/Calls.json', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body,
+    });
+    console.error(`call placed sid=${call.sid} status=${call.status}`);
+    return call;
+}
+
+async function waitForCallEnd(cfg, callSid) {
+    const deadline = Date.now() + CALL_END_TIMEOUT_MS;
+    while (Date.now() < deadline) {
+        const call = await twilioJson(cfg, `/Calls/${callSid}.json`);
+        if (TERMINAL_CALL_STATUSES.has(call.status)) return call;
+        await sleep(POLL_INTERVAL_MS);
+    }
+    throw new Error(`call ${callSid} did not end within ${CALL_END_TIMEOUT_MS / 1000}s`);
+}
+
+/** The IVR's recording lives on the INBOUND leg to the IVR number (a separate CallSid), not on our outbound call. */
+export async function findInboundLeg(cfg, outbound) {
+    const startedAt = Date.parse(outbound.start_time ?? outbound.date_created);
+    const day = new Date(startedAt).toISOString().slice(0, 10);
+    const params = new URLSearchParams({ To: cfg.to, From: outbound.from ?? cfg.from, 'StartTime>': day, PageSize: '50' });
+    const list = await twilioJson(cfg, `/Calls.json?${params}`);
+    const legs = (list.calls ?? [])
+        .filter((c) => c.sid !== outbound.sid && c.direction === 'inbound')
+        .map((c) => ({ call: c, delta: Math.abs(Date.parse(c.start_time ?? c.date_created) - startedAt) }))
+        .filter((c) => c.delta <= INBOUND_LEG_WINDOW_MS)
+        .sort((a, b) => a.delta - b.delta);
+    return legs[0]?.call ?? null;
+}
+
+export async function downloadLegRecording(cfg, legSid, outPath) {
+    const deadline = Date.now() + RECORDING_TIMEOUT_MS;
+    while (Date.now() < deadline) {
+        const list = await twilioJson(cfg, `/Recordings.json?CallSid=${legSid}`);
+        const rec = (list.recordings ?? []).find((r) => r.status === 'completed');
+        if (rec) {
+            const res = await twilio(cfg, `/Recordings/${rec.sid}.mp3`);
+            if (!res.ok) throw new Error(`recording ${rec.sid} download -> ${res.status}`);
+            writeFileSync(outPath, Buffer.from(await res.arrayBuffer()));
+            return { recordingSid: rec.sid, duration: Number(rec.duration), channels: rec.channels, path: outPath };
+        }
+        await sleep(POLL_INTERVAL_MS);
+    }
+    return null;
+}
+
+/**
+ * The IVR leg's webhook timeline from Twilio Call Events (second resolution). Yields the
+ * code-entry -> name-prompt ("pulling up your application") lookup time and whether the
+ * ceremony reached the goodbye. Events can lag the call end, so poll briefly.
+ */
+export async function legTimeline(cfg, legSid) {
+    let events = [];
+    for (let attempt = 0; attempt < 6; attempt++) {
+        const list = await twilioJson(cfg, `/Calls/${legSid}/Events.json?PageSize=100`);
+        events = (list.events ?? []).slice().reverse();
+        if (events.some((e) => /goodbye\.mp3|<Hangup/.test(e.response?.response_body ?? ''))) break;
+        await sleep(POLL_INTERVAL_MS);
+    }
+    const steps = events.map((e) => ({
+        at: e.response?.date_created ?? null,
+        url: (e.request?.url ?? '').split('?')[0].split('/').slice(-1)[0].slice(0, 40),
+        digits: e.request?.parameters?.digits ?? '',
+        speech: e.request?.parameters?.speech_result ?? '',
+        status: e.response?.response_code ?? null,
+        response: String(e.response?.response_body ?? '').replace(/\s+/g, ' ').slice(38, 260),
+    }));
+    const incoming = steps.filter((s) => s.url === 'incoming');
+    const codeEntry = incoming.find((s) => /^\d{6}$/.test(s.digits.replace('#', '')));
+    const namePrompt = incoming.find((s) => /<Start><Recording/.test(s.response));
+    const lookupMs = codeEntry && namePrompt ? Date.parse(namePrompt.at) - Date.parse(codeEntry.at) : null;
+    return {
+        steps,
+        codeEntryAt: codeEntry?.at ?? null,
+        namePromptAt: namePrompt?.at ?? null,
+        codeToNamePromptMs: lookupMs,
+        capturedSpeech: incoming.map((s) => s.speech).filter(Boolean),
+        reachedGoodbye: incoming.some((s) => /goodbye\.mp3/.test(s.response)),
+        failed: incoming.some((s) => /unable to complete|<Say[^>]*>We were unable/.test(s.response)),
+    };
+}
+
+async function fetchRecording(cfg, outboundSid) {
+    const outbound = await twilioJson(cfg, `/Calls/${outboundSid}.json`);
+    const leg = await findInboundLeg(cfg, outbound);
+    if (!leg) return { outbound, leg: null, recording: null, timeline: null };
+    mkdirSync(cfg.outDir, { recursive: true });
+    const timeline = await legTimeline(cfg, leg.sid);
+    const recording = timeline.namePromptAt ? await downloadLegRecording(cfg, leg.sid, join(cfg.outDir, `recording-${leg.sid}.mp3`)) : null;
+    return { outbound, leg, recording, timeline };
+}
+
+function summary(outbound, leg, recording, timeline, extra = {}) {
+    return {
+        callSid: outbound.sid,
+        callStatus: outbound.status,
+        callDuration: Number(outbound.duration ?? 0),
+        from: outbound.from,
+        to: outbound.to,
+        inboundLegSid: leg?.sid ?? null,
+        inboundLegStatus: leg?.status ?? null,
+        recording,
+        reachedGoodbye: timeline?.reachedGoodbye ?? false,
+        codeToNamePromptMs: timeline?.codeToNamePromptMs ?? null,
+        capturedSpeech: timeline?.capturedSpeech ?? [],
+        timeline,
+        ...extra,
+    };
+}
+
+async function main() {
+    const mode = process.argv[2] ?? 'call';
+    const cfg = config();
+    if (mode === 'twiml') {
+        console.log(buildTwiml(cfg.code || '000000', cfg.spoken || 'Signer Name'));
+        return;
+    }
+    requireEnv([
+        ['TWILIO_ACCOUNT_SID', cfg.sid],
+        ['TWILIO_AUTH_TOKEN', cfg.token],
+    ]);
+    if (cfg.from === cfg.to) throw new Error('TWILIO_FROM must not be the IVR number');
+    if (mode === 'recording') {
+        const sid = process.env.OUTBOUND_CALL_SID?.trim();
+        requireEnv([['OUTBOUND_CALL_SID', sid]]);
+        const { outbound, leg, recording, timeline } = await fetchRecording(cfg, sid);
+        console.log(JSON.stringify(summary(outbound, leg, recording, timeline)));
+        return;
+    }
+    requireEnv([
+        ['VOICE_CODE', cfg.code],
+        ['CALLER_SPOKEN_NAME', cfg.spoken],
+    ]);
+    const override = process.env.TWIML_OVERRIDE_FILE;
+    const twiml = override ? readFileSync(override, 'utf8') : buildTwiml(cfg.code, cfg.spoken);
+    const placed = await placeCall(cfg, twiml);
+    const ended = await waitForCallEnd(cfg, placed.sid);
+    console.error(`call ended sid=${ended.sid} status=${ended.status} duration=${ended.duration}s`);
+    const { leg, recording, timeline } = await fetchRecording(cfg, ended.sid);
+    console.log(JSON.stringify(summary(ended, leg, recording, timeline, { timing: override ? 'override' : timing })));
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+    main().catch((err) => {
+        console.error(`run-outbound-twilio:${err.message}`);
+        process.exit(1);
+    });
+}

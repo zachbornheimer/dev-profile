@@ -1,0 +1,7 @@
+interface:
+  display_name: "AI History UI"
+  short_description: "Thinking glow + action stack for AI turns"
+  default_prompt: "Use $ai-history-ui. Follow SPEC.md; look at screenshots/ before painting; mark every tests/spec/traceability.yaml row passing."
+
+policy:
+  allow_implicit_invocation: true

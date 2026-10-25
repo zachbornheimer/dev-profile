@@ -1,0 +1,2 @@
+{"parentUuid":null,"isSidechain":false,"type":"user","message":{"role":"user","content":"Ship the fix and confirm it works."},"uuid":"unproven-ask-user","timestamp":"2026-09-24T00:00:00.000Z"}
+{"parentUuid":"unproven-ask-user","isSidechain":false,"type":"assistant","message":{"model":"claude-sonnet-5","id":"msg_unproven_ask","type":"message","role":"assistant","content":[{"type":"text","text":"Here is a summary of the plan going forward."}]},"uuid":"unproven-ask-assistant","timestamp":"2026-09-24T00:00:05.000Z"}

@@ -1,0 +1,35 @@
+{
+  "v": 3,
+  "assetGroups": {
+    "notes": {
+      "files": {},
+      "name": "notes",
+      "order": []
+    }
+  },
+  "blobs": {},
+  "createdOnFiles": {
+    "at": "2026-10-16T00:36:08.196Z",
+    "v": 1
+  },
+  "docs": {
+    "readme": "project/README.md",
+    "sections": [
+      "project/guidelines/voice.md"
+    ]
+  },
+  "groups": [
+    "notes"
+  ],
+  "layout": "files",
+  "libraries": [],
+  "namespace": "ZysysAdmin_08f832",
+  "sections": {},
+  "title": "Zysys Admin",
+  "lastChange": {
+    "by": "Claude",
+    "via": "Claude Code",
+    "at": "2026-10-23T18:51:09Z",
+    "note": "Finished setting up: moved to the Design System format"
+  }
+}

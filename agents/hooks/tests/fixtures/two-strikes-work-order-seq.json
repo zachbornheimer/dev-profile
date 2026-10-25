@@ -1,0 +1,11 @@
+{
+  "session_id": "hgtest-ts-wo-seq",
+  "agent_id": "agent-stuck-worker",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Agent",
+  "tool_input": {
+    "subagent_type": "implement",
+    "isolation": "worktree",
+    "prompt": "```yaml\nwork_order:\n  schema_version: 1\n  intent: \"stuck worker retry\"\n```\nretry the same denied order"
+  }
+}

@@ -1,0 +1,1009 @@
+amends "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pkl"
+
+// Frozen from the live hk module. A checkout must not amend a path outside the repo.
+fail_fast = false
+stash_backup_count = 20
+exclude =
+  List(
+    "**/testdata",
+    "**/fixtures",
+    "**/node_modules",
+    "**/.venv",
+    "**/vendor",
+    "**/third_party",
+    "**/dist",
+    "**/build",
+    "**/coverage",
+    "**/.next",
+    "**/.turbo",
+    "**/.cache",
+    "**/.beads",
+  )
+steps {
+  ["dprint"] {
+    check = "dprint check --allow-no-files {{files}}"
+    fix = "dprint fmt --allow-no-files {{files}}"
+    check_list_files = "dprint check --allow-no-files --list-different {{files}}"
+    exclude =
+      List(
+        "**/aube-lock.yaml",
+        "**/pnpm-lock.yaml",
+        "**/package-lock.json",
+        "**/go.sum",
+        "**/bun.lock*",
+        "**/*.lock",
+      )
+    depends =
+      List(
+        "stylelint",
+        "dotnet-format",
+        "go-fix",
+        "go-imports",
+        "go-mod-tidy-fix",
+        "go-modernize",
+        "golangci-lint-fix",
+        "oxlint-fix",
+        "markdownlint-fix",
+        "perltidy",
+        "php-fmt",
+        "rector",
+        "ruff-fix",
+        "check-shebang-scripts-are-executable",
+        "newlines",
+        "trailing-whitespace",
+        "uv-instead-of-python-in-tasks",
+        "rubocop-fix",
+        "clippy-fix",
+        "rustfmt",
+        "shellcheck-fix",
+        "swift-format",
+        "swiftlint-fix",
+        "tofu-fix",
+      )
+  }
+  ["stylelint"] {
+    fix = "dev-profile-stylelint-fix {{files}}"
+    glob = List("**/*.css", "**/*.scss", "**/*.sass")
+  }
+  ["dotnet-format"] {
+    fix = "dev-profile-dotnet-format-fix {{files}}"
+    glob = List("**/*.cs", "**/*.vb")
+  }
+  ["go-fix"] {
+    fix = "dev-profile-go-fix {{files}}"
+    glob = List("**/*.go")
+    depends = List("go-imports")
+  }
+  ["go-imports"] {
+    fix = "goimports -w {{files}}"
+    check_list_files =
+      "FILES=$(goimports -l {{files}})\nif [ -n \"$FILES\" ]; then\necho \"$FILES\"\nexit 1\nfi"
+    check_diff =
+      "DIFF=$(goimports -d {{files}})\nif [ -n \"$DIFF\" ]; then\necho \"$DIFF\"\nexit 1\nfi"
+    glob = List("**/*.go")
+  }
+  ["go-mod-tidy-fix"] {
+    fix = "dev-profile-go-mod-tidy {{files}}"
+    glob = List("**/*.go", "**/go.mod", "**/go.sum")
+    depends = List("go-imports", "go-fix", "go-modernize", "golangci-lint-fix")
+    stage = List("**/go.mod", "**/go.sum")
+  }
+  ["go-modernize"] {
+    fix = "dev-profile-go-modernize {{files}}"
+    glob = List("**/*.go")
+    depends = List("go-imports", "go-fix")
+  }
+  ["golangci-lint-fix"] {
+    fix = "dev-profile-fix golangci-lint run --fix --new-from-rev=HEAD ./..."
+    glob = List("**/*.go")
+    dir = "{{workspace}}"
+    workspace_indicator = "go.mod"
+  }
+  ["oxlint-fix"] {
+    fix = "dev-profile-oxlint-fix {{files}}"
+    glob =
+      List(
+        "**/*.js",
+        "**/*.mjs",
+        "**/*.cjs",
+        "**/*.ts",
+        "**/*.mts",
+        "**/*.cts",
+        "**/*.jsx",
+        "**/*.tsx",
+        "**/*.vue",
+        "**/*.svelte",
+        "**/*.astro",
+      )
+  }
+  ["markdownlint-fix"] {
+    fix = "dev-profile-fix markdownlint --fix {{files}}"
+    glob = List("**/*.md", "**/*.markdown")
+  }
+  ["perltidy"] {
+    fix = "dev-profile-perltidy-fix {{files}}"
+    glob = List("**/*.pl", "**/*.pm", "**/*.t")
+  }
+  ["php-fmt"] {
+    fix = "dev-profile-php-fmt {{files}}"
+    glob = List("**/*.php")
+    depends = List("rector")
+  }
+  ["rector"] {
+    fix = "dev-profile-rector-fix {{files}}"
+    glob = List("**/*.php")
+  }
+  ["ruff-fix"] {
+    fix =
+      "ruff check --force-exclude --fix-only --unsafe-fixes --extend-select UP,FURB,SIM,PERF,C4,PIE {{files}}"
+  }
+  ["check-shebang-scripts-are-executable"] {
+    fix = "dev-profile-shebang-scripts-executable {{files}}"
+  }
+  ["newlines"] {
+    fix = "hk util end-of-file-fixer --fix {{files}}"
+    check_diff = "hk util end-of-file-fixer --diff {{files}}"
+  }
+  ["trailing-whitespace"] {
+    fix = "hk util trailing-whitespace --fix {{files}}"
+    check_diff = "hk util trailing-whitespace --diff {{files}}"
+  }
+  ["uv-instead-of-python-in-tasks"] {
+    fix = "dev-profile-uv-instead-of-python-in-tasks {{files}}"
+    glob = List("**/mise.toml", "**/.mise.toml", "**/mise-tasks/**", "**/.mise/tasks/**")
+  }
+  ["rubocop-fix"] {
+    fix = "dev-profile-rubocop-fix {{files}}"
+    glob = List("**/*.rb", "**/*.rake")
+  }
+  ["clippy-fix"] {
+    fix = "dev-profile-clippy-fix {{files}}"
+    glob = List("**/*.rs")
+  }
+  ["rustfmt"] {
+    fix = "dev-profile-rustfmt {{files}}"
+    glob = List("**/*.rs")
+    depends = List("clippy-fix")
+  }
+  ["shellcheck-fix"] {
+    fix = "dev-profile-shellcheck-fix {{files}}"
+  }
+  ["swift-format"] {
+    fix = "dev-profile-swift-format {{files}}"
+    glob = List("**/*.swift")
+    depends = List("swiftlint-fix")
+  }
+  ["swiftlint-fix"] {
+    fix = "dev-profile-swiftlint-fix {{files}}"
+    glob = List("**/*.swift")
+  }
+  ["tofu-fix"] {
+    fix = "tofu fmt {{files}}"
+    glob = List("**/*.tf", "**/*.tfvars")
+  }
+  ["no-commit-to-branch"] {
+    check = "dev-profile-no-commit-to-default-branch"
+    profiles = List("!lint")
+  }
+  ["clang-tidy"] {
+    check = "dev-profile-clang-tidy {{files}}"
+    glob = List("**/*.c", "**/*.cc", "**/*.cpp", "**/*.cxx", "**/*.h", "**/*.hpp")
+    profiles = List("slow")
+  }
+  ["hadolint"] {
+    check = "hadolint {{files}}"
+    glob = List("**/Dockerfile*")
+    profiles = List("slow")
+  }
+  ["actionlint"] {
+    check = "actionlint {{files}}"
+    glob = List(".github/workflows/*.yml", ".github/workflows/*.yaml")
+    profiles = List("slow")
+    diagnostic_format = "gcc"
+  }
+  ["pinact"] {
+    check = "dev-profile-if-installed pinact pinact run --verify-comment --check {{files}}"
+    glob = List(".github/workflows/*", "**/action.*")
+    profiles = List("slow")
+  }
+  ["zizmor"] {
+    check = "dev-profile-if-installed zizmor zizmor --no-progress {{files}}"
+    glob =
+      List(
+        ".github/workflows/*.yml",
+        ".github/workflows/*.yaml",
+        ".github/dependabot.yml",
+        "**/action.yml",
+        "**/action.yaml",
+      )
+    profiles = List("slow")
+  }
+  ["go-mod-tidy"] {
+    check = "dev-profile-go-mod-tidy --diff {{files}}"
+    glob = List("**/*.go", "**/go.mod", "**/go.sum")
+    profiles = List("slow")
+  }
+  ["go-sec"] {
+    check = "dev-profile-gosec-packages {{files}}"
+    glob = List("**/*.go")
+    profiles = List("slow")
+    dir = "{{workspace}}"
+    workspace_indicator = "go.mod"
+  }
+  ["go-vet"] {
+    check = "dev-profile-pushed-diagnostics go vet ./... :: {{files}}"
+    glob = List("**/*.go")
+    profiles = List("slow")
+    dir = "{{workspace}}"
+    workspace_indicator = "go.mod"
+  }
+  ["golangci-lint"] {
+    check = "dev-profile-golangci-ratchet"
+    fix = "golangci-lint run --fix ./..."
+    glob = List("**/*.go")
+    profiles = List("slow", "!lint")
+    dir = "{{workspace}}"
+    workspace_indicator = "go.mod"
+  }
+  ["govulncheck"] {
+    check = "govulncheck ./..."
+    glob = List("**/go.mod", "**/go.sum")
+    profiles = List("slow")
+    dir = "{{workspace}}"
+    workspace_indicator = "go.mod"
+  }
+  ["oxlint"] {
+    check = "oxlint {{files}}"
+    fix = "dev-profile-oxlint-fix {{files}}"
+    glob =
+      List(
+        "**/*.js",
+        "**/*.mjs",
+        "**/*.cjs",
+        "**/*.ts",
+        "**/*.mts",
+        "**/*.cts",
+        "**/*.jsx",
+        "**/*.tsx",
+        "**/*.vue",
+        "**/*.svelte",
+        "**/*.astro",
+      )
+    profiles = List("slow")
+  }
+  ["kube-linter"] {
+    check =
+      "dev-profile-if-installed kube-linter kube-linter lint --fail-if-no-objects-found {{files}}"
+    glob =
+      List(
+        "**/k8s/**/*.yaml",
+        "**/k8s/**/*.yml",
+        "**/kubernetes/**/*.yaml",
+        "**/kubernetes/**/*.yml",
+        "**/manifests/**/*.yaml",
+        "**/manifests/**/*.yml",
+        "**/deploy/**/*.yaml",
+        "**/deploy/**/*.yml",
+        "**/deployments/**/*.yaml",
+        "**/deployments/**/*.yml",
+      )
+    exclude =
+      List(
+        "**/templates/**",
+        "**/values.yaml",
+        "**/values.yml",
+        "**/values-*.yaml",
+        "**/values-*.yml",
+        "**/kustomization.yaml",
+        "**/kustomization.yml",
+      )
+    profiles = List("slow")
+  }
+  ["kubeconform"] {
+    check =
+      "dev-profile-if-installed kubeconform kubeconform -summary -strict -ignore-missing-schemas {{files}}"
+    glob =
+      List(
+        "**/k8s/**/*.yaml",
+        "**/k8s/**/*.yml",
+        "**/kubernetes/**/*.yaml",
+        "**/kubernetes/**/*.yml",
+        "**/manifests/**/*.yaml",
+        "**/manifests/**/*.yml",
+        "**/deploy/**/*.yaml",
+        "**/deploy/**/*.yml",
+        "**/deployments/**/*.yaml",
+        "**/deployments/**/*.yml",
+      )
+    exclude =
+      List(
+        "**/templates/**",
+        "**/values.yaml",
+        "**/values.yml",
+        "**/kustomization.yaml",
+        "**/kustomization.yml",
+      )
+    profiles = List("slow")
+  }
+  ["markdownlint"] {
+    check = "markdownlint {{files}}"
+    fix = "dev-profile-fix markdownlint --fix {{files}}"
+    glob = List("**/*.md", "**/*.markdown")
+    profiles = List("slow")
+  }
+  ["perlcritic"] {
+    check = "dev-profile-perlcritic {{files}}"
+    glob = List("**/*.pl", "**/*.pm", "**/*.t")
+    profiles = List("slow")
+  }
+  ["php-lint"] {
+    check = "dev-profile-php-lint {{files}}"
+    glob = List("**/*.php")
+    profiles = List("slow")
+  }
+  ["ruff"] {
+    check = "ruff check --force-exclude {{files}}"
+    fix = "ruff check --force-exclude --fix {{files}}"
+    check_diff =
+      "ruff check --force-exclude --diff --exit-non-zero-on-fix {{ files }} && ruff check --force-exclude {{ files }}"
+    profiles = List("slow")
+  }
+  ["ty"] {
+    check = "dev-profile-ty {{files}}"
+    profiles = List("slow")
+  }
+  ["betterleaks"] {
+    check =
+      "dev-profile-if-installed betterleaks betterleaks dir --redact --verbose --no-banner {{files}}"
+    profiles = List("slow")
+  }
+  ["case-conflicts"] {
+    check = "hk util check-case-conflict {{files}}"
+    glob = List("**/*")
+    profiles = List("slow")
+  }
+  ["check-added-large-files"] {
+    check = "hk util check-added-large-files {{files}}"
+    glob = List("**/*")
+    exclude =
+      List(
+        "**/aube-lock.yaml",
+        "**/pnpm-lock.yaml",
+        "**/package-lock.json",
+        "**/go.sum",
+        "**/bun.lock*",
+        "**/*.lock",
+      )
+    profiles = List("slow")
+  }
+  ["check-executables-have-shebangs"] {
+    check = "hk util check-executables-have-shebangs {{files}}"
+    profiles = List("slow")
+  }
+  ["check-symlinks"] {
+    check = "hk util check-symlinks {{files}}"
+    glob = List("**/*")
+    profiles = List("slow")
+  }
+  ["destroyed-symlinks"] {
+    check = "hk util destroyed-symlinks"
+    profiles = List("slow")
+  }
+  ["forbid-submodules"] {
+    check = "hk util forbid-submodules"
+    glob = List("**/.gitmodules")
+    profiles = List("slow")
+  }
+  ["gitleaks"] {
+    check = "gitleaks git --redact --no-banner --log-opts=\"HEAD --not --remotes\""
+    profiles = List("slow")
+  }
+  ["hardcoded-dev-port"] {
+    check = "dev-profile-hardcoded-dev-port {{files}}"
+    exclude =
+      List(
+        "**/aube-lock.yaml",
+        "**/pnpm-lock.yaml",
+        "**/package-lock.json",
+        "**/go.sum",
+        "**/bun.lock*",
+        "**/*.lock",
+        "**/tests/**",
+        "**/test/**",
+        "**/__tests__/**",
+        "**/testdata/**",
+        "**/fixtures/**",
+        "**/*_test.go",
+        "**/*.test.*",
+        "**/*.spec.*",
+        "**/test_*.py",
+        "**/*_test.py",
+        "**/conftest.py",
+        "**/docs/**",
+        "**/*.md",
+        "**/*.mdx",
+        "**/*.rst",
+        "**/*.txt",
+      )
+    profiles = List("slow")
+  }
+  ["identity-guard"] {
+    check = "dev-profile-identity-guard"
+    profiles = List("slow")
+  }
+  ["merge-conflicts"] {
+    check = "hk util check-merge-conflict --assume-in-merge {{files}}"
+    profiles = List("slow")
+  }
+  ["no-trunk-prettier"] {
+    check = "dev-profile-ban-trunk-prettier"
+    profiles = List("slow")
+  }
+  ["private-keys"] {
+    check = "hk util detect-private-key {{files}}"
+    profiles = List("slow")
+  }
+  ["strict-json"] {
+    check =
+      "status=0\nfor file in {{files}}; do\n  jq empty \"$file\" || { echo \"not strict JSON: $file\" >&2; status=1; }\ndone\nexit $status"
+    glob = List("**/*.json")
+    exclude =
+      List(
+        "**/aube-lock.yaml",
+        "**/pnpm-lock.yaml",
+        "**/package-lock.json",
+        "**/go.sum",
+        "**/bun.lock*",
+        "**/*.lock",
+        "**/tsconfig*.json",
+        "**/jsconfig*.json",
+        "**/.devcontainer/**",
+        "**/.vscode/**",
+        "**/zed/**/*.json",
+      )
+    profiles = List("slow")
+  }
+  ["suppressions"] {
+    check = "dev-profile-suppressions --unpushed"
+    profiles = List("slow")
+  }
+  ["brakeman"] {
+    check = "dev-profile-if-installed brakeman brakeman -q -w2 {{files}}"
+    profiles = List("slow")
+  }
+  ["bundle-audit"] {
+    check = "dev-profile-if-installed bundle-audit bundle-audit check {{files}}"
+    glob = List("**/Gemfile.lock")
+    profiles = List("slow")
+  }
+  ["rubocop"] {
+    check = "rubocop --force-exclusion {{files}}"
+    fix = "rubocop --force-exclusion --autocorrect {{files}}"
+    check_list_files = "rubocop --force-exclusion --format files {{files}}"
+    glob =
+      List(
+        "**/*.rb",
+        "**/*.arb",
+        "**/*.axlsx",
+        "**/*.builder",
+        "**/*.gemfile",
+        "**/*.gemspec",
+        "**/*.jb",
+        "**/*.jbuilder",
+        "**/*.mspec",
+        "**/*.opal",
+        "**/*.pluginspec",
+        "**/*.podspec",
+        "**/*.rabl",
+        "**/*.rake",
+        "**/*.rbw",
+        "**/*.ru",
+        "**/*.ruby",
+        "**/*.schema",
+        "**/*.spec",
+        "**/*.thor",
+        "**/.irbrc",
+        "**/.pryrc",
+        "**/.simplecov",
+        "**/buildfile",
+        "**/Appraisals",
+        "**/Berksfile",
+        "**/Brewfile",
+        "**/Buildfile",
+        "**/Capfile",
+        "**/Dangerfile",
+        "**/Deliverfile",
+        "**/Fastfile",
+        "**/*Fastfile",
+        "**/Gemfile",
+        "**/Guardfile",
+        "**/Jarfile",
+        "**/Mavenfile",
+        "**/Podfile",
+        "**/Puppetfile",
+        "**/Rakefile",
+        "**/rakefile",
+        "**/Schemafile",
+        "**/Snapfile",
+        "**/Steepfile",
+        "**/Thorfile",
+        "**/Vagrantfile",
+      )
+    exclude = List("node_modules/**/*", "tmp/**/*", "vendor/**/*", ".git/**/*")
+    profiles = List("slow")
+  }
+  ["cargo-check"] {
+    check = "cargo check --quiet"
+    fix = "cargo fix --allow-dirty --allow-staged --quiet"
+    glob = List("**/*.rs")
+    profiles = List("slow")
+    env {
+      ["CARGO_TERM_COLOR"] = "{% if color %}always{% else %}never{% endif %}"
+      ["CARGO_BUILD_WARNINGS"] = "deny"
+    }
+  }
+  ["cargo-deny"] {
+    check = "dev-profile-if-installed cargo-deny cargo-deny --locked --workspace check"
+    glob =
+      List(
+        "**/Cargo.toml",
+        "**/Cargo.lock",
+        "**/deny.toml",
+        "**/.deny.toml",
+        "**/deny.exceptions.toml",
+        "**/.deny.exceptions.toml",
+      )
+    profiles = List("slow")
+    dir = "{{workspace}}"
+    workspace_indicator = "Cargo.toml"
+  }
+  ["clippy"] {
+    check =
+      "dev-profile-pushed-diagnostics cargo clippy --quiet --message-format=short :: {{files}}"
+    fix =
+      "cargo clippy --manifest-path {{workspace_indicator}} --fix --allow-dirty --allow-staged --quiet"
+    glob = List("**/*.rs")
+    profiles = List("slow")
+    workspace_indicator = "Cargo.toml"
+    env {
+      ["CARGO_TERM_PROGRESS_WHEN"] = "never"
+    }
+  }
+  ["shellcheck"] {
+    check = "shellcheck --severity=warning {{files}}"
+    check_diff = "shellcheck --format=diff {{files}}"
+    profiles = List("slow")
+  }
+  ["swiftlint"] {
+    check = "swiftlint lint {{files}}"
+    fix = "swiftlint --fix {{files}}"
+    glob = List("**/*.swift")
+    profiles = List("slow")
+  }
+  ["tofu"] {
+    check = "tofu fmt -check {{files}}"
+    glob = List("**/*.tf", "**/*.tfvars")
+    profiles = List("slow")
+  }
+  ["yamllint"] {
+    check = "yamllint --strict {{files}}"
+    glob = List("**/*.yml", "**/*.yaml")
+    exclude =
+      List(
+        "**/aube-lock.yaml",
+        "**/pnpm-lock.yaml",
+        "**/package-lock.json",
+        "**/go.sum",
+        "**/bun.lock*",
+        "**/*.lock",
+      )
+    profiles = List("slow")
+  }
+  ["golangci-lint-full-tree"] {
+    check = "golangci-lint run --fix=false --allow-parallel-runners ./..."
+    glob = List("**/*.go")
+    profiles = List("lint")
+    dir = "{{workspace}}"
+    workspace_indicator = "go.mod"
+  }
+}
+hooks {
+  ["commit-msg"] {
+    steps {
+      ["conventional-commit"] {
+        check = "dev-profile-commit-msg {{commit_msg_file}}"
+      }
+    }
+  }
+  ["pre-push"] {
+    steps {
+      ["clang-tidy"] {
+        check = "dev-profile-clang-tidy {{files}}"
+        glob = List("**/*.c", "**/*.cc", "**/*.cpp", "**/*.cxx", "**/*.h", "**/*.hpp")
+      }
+      ["hadolint"] {
+        check = "hadolint {{files}}"
+        glob = List("**/Dockerfile*")
+      }
+      ["actionlint"] {
+        check = "actionlint {{files}}"
+        glob = List(".github/workflows/*.yml", ".github/workflows/*.yaml")
+        diagnostic_format = "gcc"
+      }
+      ["pinact"] {
+        check = "dev-profile-if-installed pinact pinact run --verify-comment --check {{files}}"
+        glob = List(".github/workflows/*", "**/action.*")
+      }
+      ["zizmor"] {
+        check = "dev-profile-if-installed zizmor zizmor --no-progress {{files}}"
+        glob =
+          List(
+            ".github/workflows/*.yml",
+            ".github/workflows/*.yaml",
+            ".github/dependabot.yml",
+            "**/action.yml",
+            "**/action.yaml",
+          )
+      }
+      ["go-mod-tidy"] {
+        check = "dev-profile-go-mod-tidy --diff {{files}}"
+        glob = List("**/*.go", "**/go.mod", "**/go.sum")
+      }
+      ["go-sec"] {
+        check = "dev-profile-gosec-packages {{files}}"
+        glob = List("**/*.go")
+        dir = "{{workspace}}"
+        workspace_indicator = "go.mod"
+      }
+      ["go-vet"] {
+        check = "dev-profile-pushed-diagnostics go vet ./... :: {{files}}"
+        glob = List("**/*.go")
+        dir = "{{workspace}}"
+        workspace_indicator = "go.mod"
+      }
+      ["golangci-lint"] {
+        check = "dev-profile-golangci-ratchet"
+        fix = "golangci-lint run --fix ./..."
+        glob = List("**/*.go")
+        dir = "{{workspace}}"
+        workspace_indicator = "go.mod"
+      }
+      ["govulncheck"] {
+        check = "govulncheck ./..."
+        glob = List("**/go.mod", "**/go.sum")
+        dir = "{{workspace}}"
+        workspace_indicator = "go.mod"
+      }
+      ["oxlint"] {
+        check = "oxlint {{files}}"
+        fix = "dev-profile-oxlint-fix {{files}}"
+        glob =
+          List(
+            "**/*.js",
+            "**/*.mjs",
+            "**/*.cjs",
+            "**/*.ts",
+            "**/*.mts",
+            "**/*.cts",
+            "**/*.jsx",
+            "**/*.tsx",
+            "**/*.vue",
+            "**/*.svelte",
+            "**/*.astro",
+          )
+      }
+      ["kube-linter"] {
+        check =
+          "dev-profile-if-installed kube-linter kube-linter lint --fail-if-no-objects-found {{files}}"
+        glob =
+          List(
+            "**/k8s/**/*.yaml",
+            "**/k8s/**/*.yml",
+            "**/kubernetes/**/*.yaml",
+            "**/kubernetes/**/*.yml",
+            "**/manifests/**/*.yaml",
+            "**/manifests/**/*.yml",
+            "**/deploy/**/*.yaml",
+            "**/deploy/**/*.yml",
+            "**/deployments/**/*.yaml",
+            "**/deployments/**/*.yml",
+          )
+        exclude =
+          List(
+            "**/templates/**",
+            "**/values.yaml",
+            "**/values.yml",
+            "**/values-*.yaml",
+            "**/values-*.yml",
+            "**/kustomization.yaml",
+            "**/kustomization.yml",
+          )
+      }
+      ["kubeconform"] {
+        check =
+          "dev-profile-if-installed kubeconform kubeconform -summary -strict -ignore-missing-schemas {{files}}"
+        glob =
+          List(
+            "**/k8s/**/*.yaml",
+            "**/k8s/**/*.yml",
+            "**/kubernetes/**/*.yaml",
+            "**/kubernetes/**/*.yml",
+            "**/manifests/**/*.yaml",
+            "**/manifests/**/*.yml",
+            "**/deploy/**/*.yaml",
+            "**/deploy/**/*.yml",
+            "**/deployments/**/*.yaml",
+            "**/deployments/**/*.yml",
+          )
+        exclude =
+          List(
+            "**/templates/**",
+            "**/values.yaml",
+            "**/values.yml",
+            "**/kustomization.yaml",
+            "**/kustomization.yml",
+          )
+      }
+      ["markdownlint"] {
+        check = "markdownlint {{files}}"
+        fix = "dev-profile-fix markdownlint --fix {{files}}"
+        glob = List("**/*.md", "**/*.markdown")
+      }
+      ["perlcritic"] {
+        check = "dev-profile-perlcritic {{files}}"
+        glob = List("**/*.pl", "**/*.pm", "**/*.t")
+      }
+      ["php-lint"] {
+        check = "dev-profile-php-lint {{files}}"
+        glob = List("**/*.php")
+      }
+      ["ruff"] {
+        check = "ruff check --force-exclude {{files}}"
+        fix = "ruff check --force-exclude --fix {{files}}"
+        check_diff =
+          "ruff check --force-exclude --diff --exit-non-zero-on-fix {{ files }} && ruff check --force-exclude {{ files }}"
+      }
+      ["ty"] {
+        check = "dev-profile-ty {{files}}"
+      }
+      ["betterleaks"] {
+        check =
+          "dev-profile-if-installed betterleaks betterleaks dir --redact --verbose --no-banner {{files}}"
+      }
+      ["case-conflicts"] {
+        check = "hk util check-case-conflict {{files}}"
+        glob = List("**/*")
+      }
+      ["check-added-large-files"] {
+        check = "hk util check-added-large-files {{files}}"
+        glob = List("**/*")
+        exclude =
+          List(
+            "**/aube-lock.yaml",
+            "**/pnpm-lock.yaml",
+            "**/package-lock.json",
+            "**/go.sum",
+            "**/bun.lock*",
+            "**/*.lock",
+          )
+      }
+      ["check-executables-have-shebangs"] {
+        check = "hk util check-executables-have-shebangs {{files}}"
+      }
+      ["check-symlinks"] {
+        check = "hk util check-symlinks {{files}}"
+        glob = List("**/*")
+      }
+      ["destroyed-symlinks"] {
+        check = "hk util destroyed-symlinks"
+      }
+      ["forbid-submodules"] {
+        check = "hk util forbid-submodules"
+        glob = List("**/.gitmodules")
+      }
+      ["gitleaks"] {
+        check = "gitleaks git --redact --no-banner --log-opts=\"HEAD --not --remotes\""
+      }
+      ["hardcoded-dev-port"] {
+        check = "dev-profile-hardcoded-dev-port {{files}}"
+        exclude =
+          List(
+            "**/aube-lock.yaml",
+            "**/pnpm-lock.yaml",
+            "**/package-lock.json",
+            "**/go.sum",
+            "**/bun.lock*",
+            "**/*.lock",
+            "**/tests/**",
+            "**/test/**",
+            "**/__tests__/**",
+            "**/testdata/**",
+            "**/fixtures/**",
+            "**/*_test.go",
+            "**/*.test.*",
+            "**/*.spec.*",
+            "**/test_*.py",
+            "**/*_test.py",
+            "**/conftest.py",
+            "**/docs/**",
+            "**/*.md",
+            "**/*.mdx",
+            "**/*.rst",
+            "**/*.txt",
+          )
+      }
+      ["identity-guard"] {
+        check = "dev-profile-identity-guard"
+      }
+      ["merge-conflicts"] {
+        check = "hk util check-merge-conflict --assume-in-merge {{files}}"
+      }
+      ["no-trunk-prettier"] {
+        check = "dev-profile-ban-trunk-prettier"
+      }
+      ["private-keys"] {
+        check = "hk util detect-private-key {{files}}"
+      }
+      ["strict-json"] {
+        check =
+          "status=0\nfor file in {{files}}; do\n  jq empty \"$file\" || { echo \"not strict JSON: $file\" >&2; status=1; }\ndone\nexit $status"
+        glob = List("**/*.json")
+        exclude =
+          List(
+            "**/aube-lock.yaml",
+            "**/pnpm-lock.yaml",
+            "**/package-lock.json",
+            "**/go.sum",
+            "**/bun.lock*",
+            "**/*.lock",
+            "**/tsconfig*.json",
+            "**/jsconfig*.json",
+            "**/.devcontainer/**",
+            "**/.vscode/**",
+            "**/zed/**/*.json",
+          )
+      }
+      ["suppressions"] {
+        check = "dev-profile-suppressions --unpushed"
+      }
+      ["brakeman"] {
+        check = "dev-profile-if-installed brakeman brakeman -q -w2 {{files}}"
+      }
+      ["bundle-audit"] {
+        check = "dev-profile-if-installed bundle-audit bundle-audit check {{files}}"
+        glob = List("**/Gemfile.lock")
+      }
+      ["rubocop"] {
+        check = "rubocop --force-exclusion {{files}}"
+        fix = "rubocop --force-exclusion --autocorrect {{files}}"
+        check_list_files = "rubocop --force-exclusion --format files {{files}}"
+        glob =
+          List(
+            "**/*.rb",
+            "**/*.arb",
+            "**/*.axlsx",
+            "**/*.builder",
+            "**/*.gemfile",
+            "**/*.gemspec",
+            "**/*.jb",
+            "**/*.jbuilder",
+            "**/*.mspec",
+            "**/*.opal",
+            "**/*.pluginspec",
+            "**/*.podspec",
+            "**/*.rabl",
+            "**/*.rake",
+            "**/*.rbw",
+            "**/*.ru",
+            "**/*.ruby",
+            "**/*.schema",
+            "**/*.spec",
+            "**/*.thor",
+            "**/.irbrc",
+            "**/.pryrc",
+            "**/.simplecov",
+            "**/buildfile",
+            "**/Appraisals",
+            "**/Berksfile",
+            "**/Brewfile",
+            "**/Buildfile",
+            "**/Capfile",
+            "**/Dangerfile",
+            "**/Deliverfile",
+            "**/Fastfile",
+            "**/*Fastfile",
+            "**/Gemfile",
+            "**/Guardfile",
+            "**/Jarfile",
+            "**/Mavenfile",
+            "**/Podfile",
+            "**/Puppetfile",
+            "**/Rakefile",
+            "**/rakefile",
+            "**/Schemafile",
+            "**/Snapfile",
+            "**/Steepfile",
+            "**/Thorfile",
+            "**/Vagrantfile",
+          )
+        exclude = List("node_modules/**/*", "tmp/**/*", "vendor/**/*", ".git/**/*")
+      }
+      ["cargo-check"] {
+        check = "cargo check --quiet"
+        fix = "cargo fix --allow-dirty --allow-staged --quiet"
+        glob = List("**/*.rs")
+        env {
+          ["CARGO_TERM_COLOR"] = "{% if color %}always{% else %}never{% endif %}"
+          ["CARGO_BUILD_WARNINGS"] = "deny"
+        }
+      }
+      ["cargo-deny"] {
+        check = "dev-profile-if-installed cargo-deny cargo-deny --locked --workspace check"
+        glob =
+          List(
+            "**/Cargo.toml",
+            "**/Cargo.lock",
+            "**/deny.toml",
+            "**/.deny.toml",
+            "**/deny.exceptions.toml",
+            "**/.deny.exceptions.toml",
+          )
+        dir = "{{workspace}}"
+        workspace_indicator = "Cargo.toml"
+      }
+      ["clippy"] {
+        check =
+          "dev-profile-pushed-diagnostics cargo clippy --quiet --message-format=short :: {{files}}"
+        fix =
+          "cargo clippy --manifest-path {{workspace_indicator}} --fix --allow-dirty --allow-staged --quiet"
+        glob = List("**/*.rs")
+        workspace_indicator = "Cargo.toml"
+        env {
+          ["CARGO_TERM_PROGRESS_WHEN"] = "never"
+        }
+      }
+      ["shellcheck"] {
+        check = "shellcheck --severity=warning {{files}}"
+        check_diff = "shellcheck --format=diff {{files}}"
+      }
+      ["swiftlint"] {
+        check = "swiftlint lint {{files}}"
+        fix = "swiftlint --fix {{files}}"
+        glob = List("**/*.swift")
+      }
+      ["tofu"] {
+        check = "tofu fmt -check {{files}}"
+        glob = List("**/*.tf", "**/*.tfvars")
+      }
+      ["yamllint"] {
+        check = "yamllint --strict {{files}}"
+        glob = List("**/*.yml", "**/*.yaml")
+        exclude =
+          List(
+            "**/aube-lock.yaml",
+            "**/pnpm-lock.yaml",
+            "**/package-lock.json",
+            "**/go.sum",
+            "**/bun.lock*",
+            "**/*.lock",
+          )
+      }
+    }
+  }
+  ["fix"] {
+    steps {
+      ["no-commit-to-branch"] {
+        check = "dev-profile-no-commit-to-default-branch"
+        step_condition = "false"
+      }
+    }
+  }
+  ["check"] {
+    steps {
+      ["no-commit-to-branch"] {
+        check = "dev-profile-no-commit-to-default-branch"
+        step_condition = "false"
+      }
+    }
+  }
+}

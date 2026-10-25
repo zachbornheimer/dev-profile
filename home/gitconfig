@@ -1,0 +1,95 @@
+[user]
+	name = Zach Bornheimer
+	email = z@chary.me
+	signingkey = 0D741E83928F06F099F11C331AB073BDF43DBBF3
+[pack]
+	windowMemory = 256m
+[core]
+	editor = nvim
+	pager = delta
+[alias]
+	pushall = !git remote | xargs -L1 git push --all
+    ai-commit = "!bash \"$HOME/scripts/shell scripts/ai-commit.sh\""
+[safe]
+	directory = /Users/zbornheimer/Dropbox/Zysys/Software/insurance
+[filter "lfs"]
+	process = git-lfs filter-process
+	required = true
+	clean = git-lfs clean -- %f
+	smudge = git-lfs smudge -- %f
+[http]
+	postBuffer = 157286400
+[push]
+	autoSetupRemote = true
+[coderabbit]
+	machineId = cli/a212caee3dfd41d0b0f8c1ea2009ea44
+[credential "https://github.com"]
+	helper = 
+	helper = !/opt/homebrew/bin/gh auth git-credential
+[credential "https://gist.github.com"]
+	helper = 
+	helper = !/opt/homebrew/bin/gh auth git-credential
+[tag]
+	gpgsign = true
+[pull]
+	ff = only
+	rebase = true
+[fetch]
+	prune = true
+[rerere]
+	enabled = true
+[merge]
+	conflictstyle = zdiff3
+[pager]
+	diff = delta
+	log = delta
+	show = delta
+[interactive]
+	diffFilter = delta --color-only
+[delta]
+	navigate = true
+	side-by-side = true
+	light = false
+	line-numbers = true
+[init]
+	defaultBranch = main
+[worktree]
+	guessRemote = true
+[difftool "difftastic"]
+	cmd = difft "$LOCAL" "$REMOTE"
+[difftool]
+	prompt = false
+[alias]
+	dft = difftool -t difftastic
+	lg = log --oneline --graph --decorate --all
+[branch]
+	sort = -committerdate
+[diff]
+	algorithm = histogram
+[help]
+	autocorrect = 20
+[url "https://github.com/"]
+	insteadOf = git@github.com:
+[commit]
+	gpgsign = true
+[beads]
+	role = maintainer
+[hook "hk-commit-msg"]
+	command = test \"${HK:-1}\" = \"0\" || /opt/homebrew/bin/mise x hk -- hk run commit-msg
+	event = commit-msg
+[hook "hk-pre-commit"]
+	command = test \"${HK:-1}\" = \"0\" || /opt/homebrew/bin/mise x hk -- hk run pre-commit --staged
+	event = pre-commit
+[hook "hk-pre-push"]
+	command = test \"${HK:-1}\" = \"0\" || /opt/homebrew/bin/mise x hk -- hk run pre-push
+	event = pre-push
+[hook "hk-prepare-commit-msg"]
+	command = test \"${HK:-1}\" = \"0\" || /opt/homebrew/bin/mise x hk -- hk run prepare-commit-msg --from-hook
+	event = prepare-commit-msg
+[rebase]
+	autoStash = true
+[includeIf "worktree:/Users/zbornheimer/Developer/Software-Automation-Holdings/"]
+	path = /Users/zbornheimer/Developer/Software-Automation-Holdings/.sah/git-hooks
+[hook "wt-worktree-bootstrap"]
+	command = /Users/zbornheimer/.agents/hooks/wt-post-checkout
+	event = post-checkout

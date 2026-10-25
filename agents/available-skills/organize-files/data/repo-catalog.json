@@ -1,0 +1,3222 @@
+{
+  "generated_at": "2026-09-24T00:53:12Z",
+  "repos": [
+    {
+      "full_name": "Software-Automation-Holdings-LLC/Perl-Module-Pod-Autopod",
+      "description_current": "Release history of Pod-Autopod",
+      "description_proposed": "Vendored mirror of the third-party CPAN Pod-Autopod Perl module, kept for internal reference only, archived",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": "Perl",
+      "pushed_at": "2026-07-14T20:33:56Z",
+      "archived": true,
+      "local_path": null,
+      "keywords": [
+        "pod-autopod",
+        "cpan",
+        "perl",
+        "vendored",
+        "third-party",
+        "archived",
+        "mirror"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/api-documentation",
+      "description_current": "",
+      "description_proposed": "Archived API documentation site for ISA Proxy and RapidSign APIs, replaced by readme.io",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "TypeScript",
+      "pushed_at": "2026-07-02T18:25:38Z",
+      "archived": true,
+      "local_path": "/Users/zbornheimer/Dropbox/Zysys/Software/docs.isaapi.com/api-documentation",
+      "keywords": [
+        "api-documentation",
+        "isa api",
+        "rapidsign",
+        "openapi",
+        "readme.io",
+        "archived"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/auth",
+      "description_current": "Platform authentication library — CredentialVerifier, TokenRepository, AuthContext",
+      "description_proposed": "Shared Go authentication library for ISA platform products — credential verification, token management, and Algosure HMAC auth",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": "Go",
+      "pushed_at": "2026-09-04T16:41:43Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Developer/Software-Automation-Holdings/.worktrees/auth-pin-devconfig-20260904",
+      "keywords": [
+        "auth",
+        "authentication library",
+        "credentialverifier",
+        "algosure",
+        "hmac",
+        "token repository",
+        "isa platform"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/best-plan-pro-c-sharp",
+      "description_current": "",
+      "description_proposed": "Windows Forms C# desktop app (WinForms) for Best Plan Pro's insurance quoting and case-creation workflow",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "C#",
+      "pushed_at": "2026-09-21T21:20:40Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Dropbox/Zysys/Software/best-plan-pro-c-sharp",
+      "keywords": [
+        "best plan pro",
+        "bpp",
+        "winforms",
+        "zyinsapi",
+        "desktop app",
+        "c#",
+        "quoting engine"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/bpp-browser-ext",
+      "description_current": "",
+      "description_proposed": "Archived browser extension for Best Plan Pro",
+      "description_current_accurate": null,
+      "confidence": "low",
+      "language": "JavaScript",
+      "pushed_at": "2026-02-27T18:39:30Z",
+      "archived": true,
+      "local_path": null,
+      "keywords": [
+        "bpp-browser-ext",
+        "best plan pro",
+        "bpp",
+        "browser extension",
+        "archived"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/bpp-compute",
+      "description_current": "",
+      "description_proposed": "PHP compute service for BestPlanPro that processes case data, analytics, and data-retrieval APIs with Redis caching",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "PHP",
+      "pushed_at": "2026-09-19T02:14:54Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Dropbox/Zysys/Software/compute.bestplanpro.com",
+      "keywords": [
+        "bpp-compute",
+        "best plan pro",
+        "bpp",
+        "case processing",
+        "redis",
+        "doppler",
+        "analytics api"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/bpp-csharp",
+      "description_current": "",
+      "description_proposed": "Archived C# codebase related to Best Plan Pro, superseded by best-plan-pro-c-sharp",
+      "description_current_accurate": null,
+      "confidence": "low",
+      "language": "C#",
+      "pushed_at": "2026-02-27T18:58:18Z",
+      "archived": true,
+      "local_path": null,
+      "keywords": [
+        "bpp-csharp",
+        "best plan pro",
+        "bpp",
+        "csharp",
+        "archived"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/bpp-infrastructure-totality",
+      "description_current": "",
+      "description_proposed": "Archived repo covering Best Plan Pro's full infrastructure footprint, likely superseded by infra-bpp/infra",
+      "description_current_accurate": null,
+      "confidence": "low",
+      "language": "JavaScript",
+      "pushed_at": "2026-02-27T18:57:58Z",
+      "archived": true,
+      "local_path": null,
+      "keywords": [
+        "bpp-infrastructure-totality",
+        "best plan pro",
+        "bpp",
+        "infrastructure",
+        "archived"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/bpp-licensing",
+      "description_current": "",
+      "description_proposed": "PHP licensing and white-labeling system for BestPlanPro, generating and validating license keys per IMO",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "PHP",
+      "pushed_at": "2026-09-19T01:41:05Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Dropbox/Zysys/Software/licensing.bestplanpro.com",
+      "keywords": [
+        "bpp-licensing",
+        "best plan pro",
+        "bpp",
+        "licensing",
+        "whitelabel",
+        "imo",
+        "doppler"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/bpp-plan-builder",
+      "description_current": "",
+      "description_proposed": "Archived Next.js app for building Best Plan Pro insurance plans, using Jotai state management",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "SCSS",
+      "pushed_at": "2026-07-02T18:26:38Z",
+      "archived": true,
+      "local_path": null,
+      "keywords": [
+        "bpp-plan-builder",
+        "best plan pro",
+        "bpp",
+        "plan builder",
+        "next.js",
+        "jotai",
+        "archived"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/bpp-profit-calculator",
+      "description_current": "",
+      "description_proposed": "Archived React/Vite web app for calculating Best Plan Pro agent profit/commission",
+      "description_current_accurate": null,
+      "confidence": "low",
+      "language": "JavaScript",
+      "pushed_at": "2026-07-02T18:27:10Z",
+      "archived": true,
+      "local_path": null,
+      "keywords": [
+        "bpp-profit-calculator",
+        "best plan pro",
+        "bpp",
+        "profit calculator",
+        "react",
+        "vite",
+        "archived"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/bpp-systems-web-infrastructure",
+      "description_current": "",
+      "description_proposed": "Archived Perl web infrastructure scripts for Best Plan Pro systems",
+      "description_current_accurate": null,
+      "confidence": "low",
+      "language": "Perl",
+      "pushed_at": "2026-03-09T09:12:05Z",
+      "archived": true,
+      "local_path": null,
+      "keywords": [
+        "bpp-systems-web-infrastructure",
+        "best plan pro",
+        "bpp",
+        "perl",
+        "web infrastructure",
+        "archived"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/bpp-ui",
+      "description_current": "",
+      "description_proposed": "Archived Best Plan Pro UI component codebase, superseded by later BPP frontends",
+      "description_current_accurate": null,
+      "confidence": "low",
+      "language": "JavaScript",
+      "pushed_at": "2026-02-27T18:54:02Z",
+      "archived": true,
+      "local_path": null,
+      "keywords": [
+        "bpp-ui",
+        "best plan pro",
+        "bpp",
+        "ui components",
+        "archived"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/bpp2.0",
+      "description_current": "",
+      "description_proposed": "Best Plan Pro 2.0 web/mobile client app (Expo/React Native + web), the current subscriber-facing BPP product",
+      "description_current_accurate": null,
+      "confidence": "medium",
+      "language": "JavaScript",
+      "pushed_at": "2026-09-19T13:38:41Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Dropbox/Zysys/Software/PhoneGap-BestPlanPro/BPPOnline2.0",
+      "keywords": [
+        "bpp2.0",
+        "best plan pro",
+        "expo",
+        "react native",
+        "playwright",
+        "autocomplete"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/bpponline",
+      "description_current": "BPP Online (Modern + Classic)",
+      "description_proposed": "Web-based Final Expense and life insurance quoting/underwriting tool for agents, live at online.bestplanpro.com",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": "JavaScript",
+      "pushed_at": "2026-09-19T02:04:35Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Dropbox/Zysys/Software/PhoneGap-BestPlanPro/BestPlanPro",
+      "keywords": [
+        "bpponline",
+        "best plan pro",
+        "bpp",
+        "final expense",
+        "multi-carrier quoting",
+        "underwriting",
+        "medicare supplement"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/demo-repository",
+      "description_current": "A code repository designed to show the best GitHub has to offer.",
+      "description_proposed": "GitHub's default org demo/scaffold repo, unused beyond template showcase",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": "JavaScript",
+      "pushed_at": "2026-09-14T14:05:41Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Developer/Software-Automation-Holdings/.worktrees/demo-repository-fix-20260904",
+      "keywords": [
+        "demo-repository",
+        "github demo",
+        "template",
+        "scaffold",
+        "unused"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/dev-config",
+      "description_current": "",
+      "description_proposed": "Org-wide source of truth for repo configuration — CI hooks, lint rules, dependency policy, and scaffold, referenced (not copied) by every product repo",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "Python",
+      "pushed_at": "2026-09-21T21:26:46Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Dropbox/Zysys/Software/insurance/dev-config",
+      "keywords": [
+        "dev-config",
+        "renovate",
+        "scaffold",
+        "metalint",
+        "ci hooks",
+        "dependency policy",
+        "workflows"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/developer-common-cli",
+      "description_current": "CLI tool to help install defaults for security, linting, quality, etc.",
+      "description_proposed": "Archived Go CLI (sah-defaults) that installed security, linting, and quality defaults; consolidated into developer-platform",
+      "description_current_accurate": false,
+      "confidence": "high",
+      "language": "Go",
+      "pushed_at": "2026-03-13T17:46:57Z",
+      "archived": true,
+      "local_path": "/Users/zbornheimer/Dropbox/Zysys/Software/sah-dev-defaults-cli",
+      "keywords": [
+        "developer-common-cli",
+        "sah-defaults",
+        "cli",
+        "linting defaults",
+        "quality defaults",
+        "archived",
+        "moved to developer-platform"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/developer-platform",
+      "description_current": "",
+      "description_proposed": "Shared workflow templates, configs, and CLI tooling used across all SAH repositories",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "Python",
+      "pushed_at": "2026-09-04T19:02:38Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Dropbox/Zysys/Software/developer-platform",
+      "keywords": [
+        "developer-platform",
+        "workflow templates",
+        "cli tooling",
+        "shared config",
+        "devops standard"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/e2e-tests",
+      "description_current": "Consolidated E2E test suites (Playwright)",
+      "description_current_accurate": true,
+      "description_proposed": "Consolidated Playwright end-to-end test suites covering all SAH products (Ninja Quoter, BPP, eApp, etc.)",
+      "confidence": "high",
+      "language": "JavaScript",
+      "pushed_at": "2026-09-19T02:48:23Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Dropbox/Zysys/Software/insurance/e2e-tests",
+      "keywords": [
+        "e2e-tests",
+        "playwright",
+        "e2e",
+        "test suite",
+        "ninja quoter",
+        "best plan pro",
+        "eapp"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/eapp-automated-testing-framework",
+      "description_current": "",
+      "description_proposed": "Archived eApp test automation framework, consolidated into the e2e-tests monorepo",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "JavaScript",
+      "pushed_at": "2026-07-02T18:28:20Z",
+      "archived": true,
+      "local_path": "/Users/zbornheimer/Dropbox/Zysys/Software/eapp-automated-testing",
+      "keywords": [
+        "eapp-automated-testing-framework",
+        "eapp",
+        "test automation",
+        "archived",
+        "moved to e2e-tests"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/eapp-automated-tests",
+      "description_current": "",
+      "description_proposed": "Archived eApp/BPP test suite, consolidated into the e2e-tests monorepo",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "TypeScript",
+      "pushed_at": "2026-07-02T18:28:42Z",
+      "archived": true,
+      "local_path": "/Users/zbornheimer/Dropbox/Zysys/Software/eapp-cicd-test-suite",
+      "keywords": [
+        "eapp-automated-tests",
+        "eapp",
+        "best plan pro",
+        "bpp",
+        "test suite",
+        "archived",
+        "moved to e2e-tests"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/eapp-codebase-useful-functions",
+      "description_current": "",
+      "description_proposed": "Archived eApp documentation (macros, post-change templates), content merged into eapp-system docs",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "TypeScript",
+      "pushed_at": "2026-07-02T18:29:10Z",
+      "archived": true,
+      "local_path": "/Users/zbornheimer/Dropbox/Zysys/Software/eapp-codebase-useful-functions",
+      "keywords": [
+        "eapp-codebase-useful-functions",
+        "eapp",
+        "macros",
+        "documentation",
+        "archived",
+        "moved to eapp-system"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/eapp-hosting-oauth-router",
+      "description_current": "",
+      "description_proposed": "Archived PHP RouteVia OAuth router handling token management and API request routing for eApp hosting",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "PHP",
+      "pushed_at": "2026-07-02T18:29:27Z",
+      "archived": true,
+      "local_path": "/Users/zbornheimer/Dropbox/Zysys/Software/eapp-hosting-oauth-router",
+      "keywords": [
+        "eapp-hosting-oauth-router",
+        "routevia",
+        "oauth",
+        "eapp",
+        "token routing",
+        "archived"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/eapp-hosting-with-api-passthrough-terraform",
+      "description_current": "",
+      "description_proposed": "Archived Terraform IaC for carrier-specific AWS sub-account eApp hosting infrastructure (VPC, EC2, Redis)",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "HCL",
+      "pushed_at": "2026-07-02T18:29:39Z",
+      "archived": true,
+      "local_path": "/Users/zbornheimer/Dropbox/Zysys/Software/eapp-hosting-with-api-passthrough-terraform",
+      "keywords": [
+        "eapp-hosting",
+        "terraform",
+        "carrier sub-accounts",
+        "aws",
+        "api passthrough",
+        "archived",
+        "eapp"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/eapp-publishing-system",
+      "description_current": "",
+      "description_proposed": "Archived Vue 3 app for publishing/managing eApp form definitions",
+      "description_current_accurate": null,
+      "confidence": "medium",
+      "language": "JavaScript",
+      "pushed_at": "2025-12-06T16:44:07Z",
+      "archived": true,
+      "local_path": "/Users/zbornheimer/Dropbox/Zysys/Software/eapp-publishing-system",
+      "keywords": [
+        "eapp-publishing-system",
+        "eapp",
+        "vue",
+        "form publishing",
+        "archived"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/eapp-staging-system",
+      "description_current": "",
+      "description_proposed": "Archived staging environment system for eApp",
+      "description_current_accurate": null,
+      "confidence": "low",
+      "language": "JavaScript",
+      "pushed_at": "2026-02-27T18:38:17Z",
+      "archived": true,
+      "local_path": null,
+      "keywords": [
+        "eapp-staging-system",
+        "eapp",
+        "staging environment",
+        "archived"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/eapp-system",
+      "description_current": "Universal eApp Builder",
+      "description_proposed": "Universal eApp Builder — configurable insurance electronic-application flow builder, live at builder.isarapideapp.com",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": "JavaScript",
+      "pushed_at": "2026-09-23T19:58:10Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Dropbox/Zysys/Software/eapp-system",
+      "keywords": [
+        "eapp-system",
+        "eapp",
+        "rapideapp",
+        "rapidsign",
+        "universal eapp builder",
+        "isarapideapp",
+        "insurance application"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/freefexquoter.com",
+      "description_current": "",
+      "description_proposed": "Marketing/lead-gen web app for FreeFEXQuoter.com, a Best Plan Pro final-expense quoting lead funnel",
+      "description_current_accurate": null,
+      "confidence": "medium",
+      "language": "JavaScript",
+      "pushed_at": "2026-09-19T02:09:19Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Dropbox/Zysys/Software/PhoneGap-BestPlanPro/BPPQuote",
+      "keywords": [
+        "freefexquoter",
+        "final expense",
+        "best plan pro",
+        "bpp",
+        "lead gen",
+        "inbound leads",
+        "quoter"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/gate",
+      "description_current": "Platform enforcement CLI — org-wide code quality, formatting, linting, and policy",
+      "description_proposed": "Go CLI enforcing org-wide code quality, formatting, linting, and workflow security policy across all SAH repos",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": "Go",
+      "pushed_at": "2026-09-10T20:00:45Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Developer/Software-Automation-Holdings/.worktrees/gate-linear-oauth-callers",
+      "keywords": [
+        "gate",
+        "linting",
+        "code quality",
+        "devops standard",
+        "policy enforcement",
+        "cli"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/infra",
+      "description_current": "Consolidated OpenTofu infrastructure monorepo (DevOps Standard §8)",
+      "description_proposed": "Org-wide OpenTofu infrastructure-as-code monorepo, the source of truth for all product stack deployments",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": "HCL",
+      "pushed_at": "2026-09-23T16:55:29Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Dropbox/Zysys/Software/insurance/infra",
+      "keywords": [
+        "infra",
+        "opentofu",
+        "terraform",
+        "iac",
+        "devops standard",
+        "aws",
+        "monorepo",
+        "ecs"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/infra-bpp",
+      "description_current": "",
+      "description_proposed": "Legacy Terraform infrastructure for Best Plan Pro's WordPress and databases, being retired into the infra monorepo",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "Mustache",
+      "pushed_at": "2026-09-19T01:46:16Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Dropbox/Zysys/Software/infra-bpp",
+      "keywords": [
+        "infra-bpp",
+        "terraform",
+        "best plan pro",
+        "bpp",
+        "wordpress",
+        "main-dbs",
+        "retired"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/isa-api-docs",
+      "description_current": "",
+      "description_proposed": "Archived ISA API documentation site, replaced by an OpenAPI 3.1 spec hosted on readme.io",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "TypeScript",
+      "pushed_at": "2026-07-02T18:30:17Z",
+      "archived": true,
+      "local_path": null,
+      "keywords": [
+        "isa-api-docs",
+        "api docs",
+        "openapi",
+        "readme.io",
+        "archived"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/isa-central-api",
+      "description_current": "",
+      "description_proposed": "Archived Ruby API that unified health monitoring, carrier logo management, and BPP data sync for the Best Plan Pro ecosystem",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "Ruby",
+      "pushed_at": "2026-09-11T17:31:44Z",
+      "archived": true,
+      "local_path": "/Users/zbornheimer/Dropbox/Zysys/Software/isa-central-api",
+      "keywords": [
+        "isa-central-api",
+        "best plan pro",
+        "bpp",
+        "carrier logos",
+        "health monitoring",
+        "archived"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/isa-central-api-infra",
+      "description_current": "",
+      "description_proposed": "Archived Terraform infrastructure for the retired isa-central-api service",
+      "description_current_accurate": null,
+      "confidence": "low",
+      "language": "HCL",
+      "pushed_at": "2026-03-09T09:17:10Z",
+      "archived": true,
+      "local_path": null,
+      "keywords": [
+        "isa-central-api-infra",
+        "terraform",
+        "isa central api",
+        "infra",
+        "archived"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/isa-dashboard",
+      "description_current": "ISA operations dashboard — unified subscriber, staff, and curator surfaces",
+      "description_proposed": "Next.js ops dashboard with role-gated subscriber, staff, and curator surfaces for the ISA insurance platform",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": "TypeScript",
+      "pushed_at": "2026-09-23T20:29:16Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Dropbox/Zysys/Software/isa-dashboard",
+      "keywords": [
+        "isa-dashboard",
+        "isa",
+        "best plan pro",
+        "bpp",
+        "subscriber",
+        "curator",
+        "workos",
+        "next.js",
+        "operations"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/isa-platform",
+      "description_current": "Unified analytics platform serving eApp, BPP, and future services",
+      "description_proposed": "Unified analytics and SDK-publishing platform serving eApp, Best Plan Pro, and other ISA services",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": "PHP",
+      "pushed_at": "2026-09-23T19:05:39Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Dropbox/Zysys/Software/insurance/isa-platform",
+      "keywords": [
+        "isa-platform",
+        "isa",
+        "analytics",
+        "eapp",
+        "best plan pro",
+        "bpp",
+        "sdk",
+        "adr-035"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/isa-sdk-csharp",
+      "description_current": "C# SDK mirror for ISA APIs (per-product packages/<product>/). Read-only; published by isa-platform sdk-publish workflow + NuGet.",
+      "description_proposed": "Generated read-only C# SDK mirror for ISA APIs, published to NuGet per product package",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": null,
+      "pushed_at": "2026-09-19T02:19:21Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Developer/Software-Automation-Holdings/.worktrees/isa-sdk-csharp-linear-oauth-callers",
+      "keywords": [
+        "isa-sdk-csharp",
+        "sdk",
+        "csharp",
+        "nuget",
+        "generated",
+        "mirror",
+        "adr-035",
+        "isa-platform"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/isa-sdk-php",
+      "description_current": "PHP SDK mirror for ISA APIs (per-product packages/<product>/). Read-only; published by isa-platform sdk-publish workflow + Packagist.",
+      "description_proposed": "Generated read-only PHP SDK mirror for ISA APIs, published to Packagist per product package",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": "PHP",
+      "pushed_at": "2026-09-19T02:15:37Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Developer/Software-Automation-Holdings/.worktrees/isa-sdk-php-linear-oauth-callers",
+      "keywords": [
+        "isa-sdk-php",
+        "sdk",
+        "php",
+        "packagist",
+        "generated",
+        "mirror",
+        "adr-035",
+        "isa-platform"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/isa-sdk-ts",
+      "description_current": "TypeScript SDK mirror for ISA APIs (per-product packages/<product>/). Read-only; published by isa-platform sdk-publish workflow + npm.",
+      "description_proposed": "Generated read-only TypeScript SDK mirror for ISA APIs, published to npm per product package",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": null,
+      "pushed_at": "2026-09-10T20:01:33Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Developer/Software-Automation-Holdings/.worktrees/isa-sdk-ts-linear-oauth-callers",
+      "keywords": [
+        "isa-sdk-ts",
+        "sdk",
+        "typescript",
+        "npm",
+        "generated",
+        "mirror",
+        "adr-035",
+        "isa-platform"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/isa-ui-kit",
+      "description_current": "",
+      "description_proposed": "Shared ISA UI kit scaffold — design-token packages plus React and Vue component libraries built on Radix",
+      "description_current_accurate": null,
+      "confidence": "medium",
+      "language": "TypeScript",
+      "pushed_at": "2026-09-22T21:58:37Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Dropbox/Zysys/Software/isa-ui-kit-curr",
+      "keywords": [
+        "isa-ui-kit",
+        "isa ui tokens",
+        "isa ui react",
+        "isa ui vue",
+        "radix",
+        "design tokens",
+        "tailwind preset"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/isacrm",
+      "description_current": "ISA CRM (HighLevel white-label) custom CSS, built from the ISA style contract",
+      "description_proposed": "Custom CSS overrides that white-label the HighLevel CRM to the ISA brand style contract",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": "CSS",
+      "pushed_at": "2026-09-23T19:04:21Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Developer/Software-Automation-Holdings/isacrm",
+      "keywords": [
+        "isacrm",
+        "highlevel",
+        "white-label",
+        "style contract",
+        "isa",
+        "crm",
+        "brand css"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/ninja-quoter",
+      "description_current": "",
+      "description_proposed": "Ruby insurance quoting app (Ninja Quoter) that syncs carrier catalogs from Zyins and manages user/Stripe billing status",
+      "description_current_accurate": null,
+      "confidence": "medium",
+      "language": "Ruby",
+      "pushed_at": "2026-09-23T16:56:13Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Dropbox/Zysys/Software/nq",
+      "keywords": [
+        "ninja quoter",
+        "ninjaquoter",
+        "nq",
+        "zyins",
+        "carriers",
+        "quoting",
+        "stripe",
+        "insurance"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/onboarding-probe",
+      "description_current": "THROWAWAY: onboarding sweep probe",
+      "description_proposed": "Throwaway probe repo used to test the SAH onboarding sweep (SAH-3306), archived",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": null,
+      "pushed_at": "2026-07-03T03:29:17Z",
+      "archived": true,
+      "local_path": null,
+      "keywords": [
+        "onboarding-probe",
+        "throwaway",
+        "probe",
+        "sah-3306",
+        "archived"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/rapidsign",
+      "description_current": "RapidSign document signing API — rapidsign.isaapi.com",
+      "description_proposed": "Go Lambda backend for RapidSign, the ISA document e-signature API replacing scattered legacy signature Lambdas",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": "Go",
+      "pushed_at": "2026-09-23T18:35:29Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Dropbox/Zysys/Software/rapidsign",
+      "keywords": [
+        "rapidsign",
+        "isaapi",
+        "document signing",
+        "e-signature",
+        "lambda",
+        "voice ceremony",
+        "universal signature"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/rapidsign-demo-automated-test-suite",
+      "description_current": "",
+      "description_proposed": "Archived Playwright test suite verifying the RapidSign demo eApp snapshot stays online and functional",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "TypeScript",
+      "pushed_at": "2026-07-02T18:31:46Z",
+      "archived": true,
+      "local_path": null,
+      "keywords": [
+        "rapidsign-demo-automated-test-suite",
+        "rapidsign",
+        "playwright",
+        "demo eapp",
+        "test suite",
+        "archived"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/rapidsign-sdk-go",
+      "description_current": "Generated Go SDK for the RapidSign API. Read-only mirror; published by the isa-platform sdk-publish workflow. Source-of-truth: github.com/Software-Automation-Holdings-LLC/isa-platform/shared/schemas/api/rapidsign/v1/*.proto",
+      "description_proposed": "Generated read-only Go SDK mirror for the RapidSign API, published from isa-platform proto definitions",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": null,
+      "pushed_at": "2026-09-19T02:15:12Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Developer/Software-Automation-Holdings/.worktrees/rapidsign-sdk-go-linear-oauth-callers",
+      "keywords": [
+        "rapidsign",
+        "sdk",
+        "go",
+        "generated",
+        "mirror",
+        "proto",
+        "isa-platform"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/rapidsign-sdk-php",
+      "description_current": "Generated PHP SDK for the RapidSign API. Read-only mirror; published by the isa-platform sdk-publish workflow + Private Packagist. Source-of-truth: github.com/Software-Automation-Holdings-LLC/isa-platform/shared/schemas/api/rapidsign/v1/*.proto",
+      "description_proposed": "Generated read-only PHP SDK mirror for the RapidSign API, published to Private Packagist from isa-platform proto definitions",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": null,
+      "pushed_at": "2026-09-19T02:21:38Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Developer/Software-Automation-Holdings/.worktrees/rapidsign-sdk-php-linear-oauth-callers",
+      "keywords": [
+        "rapidsign",
+        "sdk",
+        "php",
+        "packagist",
+        "generated",
+        "proto",
+        "mirror",
+        "isa-platform"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/remote-signature-collector",
+      "description_current": "",
+      "description_proposed": "Vue 3 static SPA (RapidSign) that captures, compresses, and encrypts a signer's handwritten signature client-side",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "JavaScript",
+      "pushed_at": "2026-09-19T01:59:44Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Dropbox/Zysys/Software/remote-signature-collector",
+      "keywords": [
+        "remote-signature-collector",
+        "rapidsign",
+        "vue",
+        "signature capture",
+        "e-signature",
+        "client-side encryption"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/sah-lib",
+      "description_current": "Centralized infrastructure tools like github workflows",
+      "description_proposed": "Archived centralized infrastructure-tooling library, consolidated into developer-platform",
+      "description_current_accurate": false,
+      "confidence": "high",
+      "language": "JavaScript",
+      "pushed_at": "2026-03-13T17:46:59Z",
+      "archived": true,
+      "local_path": null,
+      "keywords": [
+        "sah-lib",
+        "infrastructure tools",
+        "github workflows",
+        "archived",
+        "moved to developer-platform"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/sah-playwright-test-lib",
+      "description_current": "",
+      "description_proposed": "Archived Playwright test-helper library, consolidated into the e2e-tests monorepo",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "TypeScript",
+      "pushed_at": "2026-07-02T18:32:15Z",
+      "archived": true,
+      "local_path": "/Users/zbornheimer/Dropbox/Zysys/Software/sah-playwright-test-lib",
+      "keywords": [
+        "sah-playwright-test-lib",
+        "playwright",
+        "test library",
+        "archived",
+        "moved to e2e-tests"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/sah-scripts",
+      "description_current": "",
+      "description_proposed": "Archived collection of SAH internal utility scripts for various operational tasks",
+      "description_current_accurate": null,
+      "confidence": "medium",
+      "language": "Python",
+      "pushed_at": "2026-03-09T09:13:41Z",
+      "archived": true,
+      "local_path": null,
+      "keywords": [
+        "sah-scripts",
+        "utility scripts",
+        "internal tooling",
+        "archived"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/sdk",
+      "description_current": "Unified Go SDK mirror for ISA APIs (core/zyins/rapidsign/proxy). Read-only; published by the isa-platform sdk-publish workflow. Source-of-truth: github.com/Software-Automation-Holdings-LLC/isa-platform/packages/*/go",
+      "description_proposed": "Generated read-only Go SDK mirror covering core, ZyINS, RapidSign, and proxy ISA APIs",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": "PHP",
+      "pushed_at": "2026-09-04T13:20:50Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Developer/Software-Automation-Holdings/sdk",
+      "keywords": [
+        "sdk",
+        "go sdk",
+        "unified sdk",
+        "generated",
+        "mirror",
+        "isa-platform",
+        "zyins",
+        "rapidsign",
+        "proxy"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/sdk-php",
+      "description_current": "Consolidated PHP SDK mirror for ISA API. Read-only; auto-published from isa-platform/packages/php/ on every release tag.",
+      "description_proposed": "Unified PHP SDK for the Best Plan Pro API covering ZyINS underwriting, RapidSign documents, and the Algosure proxy",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": "PHP",
+      "pushed_at": "2026-09-19T02:12:11Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Developer/Software-Automation-Holdings/.worktrees/sdk-php-linear-oauth-callers",
+      "keywords": [
+        "sdk-php",
+        "sdk",
+        "php",
+        "best plan pro",
+        "zyins",
+        "rapidsign",
+        "algosure",
+        "isaapi"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/terraform-modules",
+      "description_current": "",
+      "description_proposed": "Deprecated SAH Terraform module registry, superseded by modules inside the infra monorepo",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "HCL",
+      "pushed_at": "2026-09-04T16:45:33Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Dropbox/Zysys/Software/sah-terraform-modules",
+      "keywords": [
+        "terraform-modules",
+        "terraform",
+        "deprecated",
+        "infra monorepo",
+        "hcl modules"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/toolkit-fraud-suit",
+      "description_current": "",
+      "description_proposed": "Archived static press-release webpage for ToolkitFraudSuit.com, announcing a lawsuit against Insurance Toolkits, LLC",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "HTML",
+      "pushed_at": "2026-07-02T18:32:48Z",
+      "archived": true,
+      "local_path": null,
+      "keywords": [
+        "toolkit-fraud-suit",
+        "toolkitfraudsuit",
+        "press release",
+        "lawsuit",
+        "insurance toolkits",
+        "archived"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/wp-bestplanpro-accuracy",
+      "description_current": "The bestplanpro-accuracy Wordpress Plugin",
+      "description_proposed": "Archived WordPress plugin, code moved to wp-plugins monorepo (plugins/bestplanpro-accuracy)",
+      "description_current_accurate": false,
+      "confidence": "high",
+      "language": "PHP",
+      "pushed_at": "2026-07-02T18:33:07Z",
+      "archived": true,
+      "local_path": "/Users/zbornheimer/Dropbox/Zysys/Software/wp-bestplanpro-accuracy",
+      "keywords": [
+        "wp-bestplanpro-accuracy",
+        "best plan pro",
+        "bpp",
+        "wordpress plugin",
+        "archived",
+        "moved to wp-plugins"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/wp-bestplanpro-admin",
+      "description_current": "",
+      "description_proposed": "Archived WordPress plugin, code moved to wp-plugins monorepo (plugins/bestplanpro-admin)",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "PHP",
+      "pushed_at": "2026-07-02T18:33:20Z",
+      "archived": true,
+      "local_path": null,
+      "keywords": [
+        "wp-bestplanpro-admin",
+        "best plan pro",
+        "bpp",
+        "wordpress plugin",
+        "archived",
+        "moved to wp-plugins"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/wp-bestplanpro-license",
+      "description_current": "",
+      "description_proposed": "Archived WordPress plugin, code moved to wp-plugins monorepo (plugins/bestplanpro-license)",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "PHP",
+      "pushed_at": "2026-02-27T22:18:45Z",
+      "archived": true,
+      "local_path": null,
+      "keywords": [
+        "wp-bestplanpro-license",
+        "best plan pro",
+        "bpp",
+        "wordpress plugin",
+        "licensing",
+        "archived",
+        "moved to wp-plugins"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/wp-bestplanpro-marketing",
+      "description_current": "",
+      "description_proposed": "Archived WordPress plugin, code moved to wp-plugins monorepo (plugins/bestplanpro-marketing)",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "JavaScript",
+      "pushed_at": "2026-02-27T22:18:46Z",
+      "archived": true,
+      "local_path": null,
+      "keywords": [
+        "wp-bestplanpro-marketing",
+        "best plan pro",
+        "bpp",
+        "wordpress plugin",
+        "archived",
+        "moved to wp-plugins"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/wp-bestplanpro-support",
+      "description_current": "",
+      "description_proposed": "Archived WordPress plugin, code moved to wp-plugins monorepo (plugins/bestplanpro-support)",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "JavaScript",
+      "pushed_at": "2026-07-02T18:33:56Z",
+      "archived": true,
+      "local_path": null,
+      "keywords": [
+        "wp-bestplanpro-support",
+        "best plan pro",
+        "bpp",
+        "wordpress plugin",
+        "archived",
+        "moved to wp-plugins"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/wp-bestplanpro-ux",
+      "description_current": "",
+      "description_proposed": "Archived WordPress plugin, code moved to wp-plugins monorepo (plugins/bestplanpro-ux)",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "CSS",
+      "pushed_at": "2026-02-27T22:18:57Z",
+      "archived": true,
+      "local_path": null,
+      "keywords": [
+        "wp-bestplanpro-ux",
+        "best plan pro",
+        "bpp",
+        "wordpress plugin",
+        "archived",
+        "moved to wp-plugins"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/wp-breakthrough-pro",
+      "description_current": "",
+      "description_proposed": "Archived WordPress theme, code moved to wp-plugins monorepo (themes/breakthrough-pro)",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "PHP",
+      "pushed_at": "2026-07-02T18:34:19Z",
+      "archived": true,
+      "local_path": null,
+      "keywords": [
+        "wp-breakthrough-pro",
+        "breakthrough pro",
+        "wordpress theme",
+        "archived",
+        "moved to wp-plugins"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/wp-plugin-template",
+      "description_current": "Template for SAH WordPress plugins consuming platform-php SDKs",
+      "description_proposed": "WordPress plugin scaffold/template for SAH plugins that consume the generated platform PHP SDKs",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": "PHP",
+      "pushed_at": "2026-09-19T02:16:41Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Developer/Software-Automation-Holdings/.worktrees/wp-plugin-template-linear-oauth-callers",
+      "keywords": [
+        "wp-plugin-template",
+        "wordpress",
+        "plugin",
+        "template",
+        "scaffold",
+        "sdk",
+        "adr-028"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/wp-plugins",
+      "description_current": "Consolidated WordPress plugins, themes, and tools",
+      "description_proposed": "Consolidated monorepo of WordPress plugins, themes, and tools for Best Plan Pro (bestplanpro.com)",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": "PHP",
+      "pushed_at": "2026-09-19T02:11:15Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Developer/Software-Automation-Holdings/.worktrees/wp-plugins-pin-devconfig-20260904",
+      "keywords": [
+        "wp-plugins",
+        "wordpress",
+        "best plan pro",
+        "bestplanpro-accuracy",
+        "breakthrough-pro",
+        "plugins",
+        "themes"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/wp-updater",
+      "description_current": "Update wordpress plugins + themes with a custom json syntax and upload them to a private packagist.",
+      "description_proposed": "Archived Go tool that updated WordPress plugins/themes via custom JSON syntax and published them to Private Packagist, moved to wp-plugins/tools",
+      "description_current_accurate": false,
+      "confidence": "high",
+      "language": "Go",
+      "pushed_at": "2026-02-27T22:19:00Z",
+      "archived": true,
+      "local_path": "/Users/zbornheimer/Dropbox/Zysys/Software/wp-updater",
+      "keywords": [
+        "wp-updater",
+        "wordpress",
+        "private packagist",
+        "plugin updater",
+        "archived",
+        "moved to wp-plugins"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/wp-user-registration-report",
+      "description_current": "",
+      "description_proposed": "Archived WordPress plugin, code moved to wp-plugins monorepo (plugins/user-registration-report)",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "PHP",
+      "pushed_at": "2026-07-02T18:34:40Z",
+      "archived": true,
+      "local_path": null,
+      "keywords": [
+        "wp-user-registration-report",
+        "wordpress plugin",
+        "archived",
+        "moved to wp-plugins",
+        "user registration"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/zdrm-generator",
+      "description_current": "",
+      "description_proposed": "Archived JavaScript system for generating and managing insurance rate charts (ZDRM)",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "JavaScript",
+      "pushed_at": "2026-07-02T18:39:52Z",
+      "archived": true,
+      "local_path": "/Users/zbornheimer/Dropbox/Zysys/Software/plan-builder/zdrm-generator1",
+      "keywords": [
+        "zdrm-generator",
+        "zdrm",
+        "rate charts",
+        "insurance products",
+        "archived",
+        "plan builder"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/zyins",
+      "description_current": "Best Plan Pro's core",
+      "description_proposed": "Go insurance underwriting engine that powers Best Plan Pro",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": "Go",
+      "pushed_at": "2026-09-21T21:40:53Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Dropbox/Zysys/Software/insurance",
+      "keywords": [
+        "zyins",
+        "best plan pro",
+        "bpp",
+        "underwriting",
+        "insurance engine",
+        "openapi"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/zyins-docs",
+      "description_current": "",
+      "description_proposed": "Archived HTML documentation site for the Zyins insurance engine",
+      "description_current_accurate": null,
+      "confidence": "low",
+      "language": "HTML",
+      "pushed_at": "2026-03-09T09:24:10Z",
+      "archived": true,
+      "local_path": null,
+      "keywords": [
+        "zyins-docs",
+        "zyins",
+        "documentation",
+        "archived"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/zyins-plan-builder-react",
+      "description_current": "",
+      "description_proposed": "Next.js plan-builder web app for Best Plan Pro / Zyins insurance plan configuration",
+      "description_current_accurate": null,
+      "confidence": "medium",
+      "language": "JavaScript",
+      "pushed_at": "2026-09-21T20:21:17Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Dropbox/Zysys/Software/plan-builder/zyins-nexjs",
+      "keywords": [
+        "zyins",
+        "plan builder",
+        "best plan pro",
+        "bpp",
+        "next.js",
+        "plan configuration"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/zyins-plan-generator",
+      "description_current": "",
+      "description_proposed": "PHP service that generates insurance plans/documents for Zyins-driven products",
+      "description_current_accurate": null,
+      "confidence": "low",
+      "language": "PHP",
+      "pushed_at": "2026-09-21T13:06:37Z",
+      "archived": false,
+      "local_path": null,
+      "keywords": [
+        "zyins",
+        "plan generator",
+        "best plan pro",
+        "bpp",
+        "insurance plans"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/zyins-sdk-go",
+      "description_current": "Generated Go SDK for the ZyINS API. Read-only mirror; published by the isa-platform sdk-publish workflow. Source-of-truth: github.com/Software-Automation-Holdings-LLC/isa-platform/shared/schemas/api/zyins/v1/*.proto",
+      "description_proposed": "Generated read-only Go SDK mirror for the ZyINS underwriting API, published from isa-platform proto definitions",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": null,
+      "pushed_at": "2026-09-19T02:18:18Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Developer/Software-Automation-Holdings/.worktrees/zyins-sdk-go-linear-oauth-callers",
+      "keywords": [
+        "zyins",
+        "sdk",
+        "go",
+        "generated",
+        "mirror",
+        "proto",
+        "isa-platform"
+      ]
+    },
+    {
+      "full_name": "Software-Automation-Holdings-LLC/zyins-sdk-php",
+      "description_current": "Generated PHP SDK for the ZyINS API. Read-only mirror; published by the isa-platform sdk-publish workflow + Private Packagist. Source-of-truth: github.com/Software-Automation-Holdings-LLC/isa-platform/shared/schemas/api/zyins/v1/*.proto",
+      "description_proposed": "Generated read-only PHP SDK mirror for the ZyINS underwriting API, published to Private Packagist",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": null,
+      "pushed_at": "2026-09-19T02:12:05Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Developer/Software-Automation-Holdings/.worktrees/zyins-sdk-php-linear-oauth-callers",
+      "keywords": [
+        "zyins",
+        "sdk",
+        "php",
+        "packagist",
+        "generated",
+        "mirror",
+        "proto",
+        "isa-platform"
+      ]
+    },
+    {
+      "full_name": "ZAB-AI-LLC/.github",
+      "description_current": "",
+      "description_proposed": "Org-level GitHub repo holding ZAP (Zach's Agile Protocol), the ticket intake/triage/dev/QA/deploy framework used across ZAB-AI-LLC teams.",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": null,
+      "pushed_at": "2025-06-23T11:18:47Z",
+      "archived": false,
+      "local_path": null,
+      "keywords": [
+        "zap",
+        "agile-protocol",
+        "ticket-workflow",
+        "org-defaults",
+        "triage",
+        "qa"
+      ]
+    },
+    {
+      "full_name": "ZAB-AI-LLC/ai-blogger",
+      "description_current": "",
+      "description_proposed": "Python tool that generates AI-written blog posts (with featured images and tags) and publishes drafts to WordPress.",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "Python",
+      "pushed_at": "2026-04-07T22:25:16Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Dropbox/Zysys/Software/zab-ai-blogger",
+      "keywords": [
+        "ai-blogger",
+        "wordpress",
+        "openai",
+        "blog-generation",
+        "markdown",
+        "content-generation",
+        "python"
+      ]
+    },
+    {
+      "full_name": "ZAB-AI-LLC/book-bestie",
+      "description_current": "",
+      "description_proposed": "React Native (Expo) app, backed by Supabase, for tracking books and reading status with cover lookup and scanning.",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "TypeScript",
+      "pushed_at": "2025-11-09T12:48:39Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Dropbox/Zysys/Software/book-bestie",
+      "keywords": [
+        "book-bestie",
+        "react-native",
+        "expo",
+        "supabase",
+        "book-tracking",
+        "scan-screen"
+      ]
+    },
+    {
+      "full_name": "ZAB-AI-LLC/brm-style-redesign",
+      "description_current": "",
+      "description_proposed": "React + Vite prototype redesigning the UI/pages (Rad, Lessons, Index) for a client project codenamed BRM.",
+      "description_current_accurate": null,
+      "confidence": "low",
+      "language": "JavaScript",
+      "pushed_at": "2024-04-11T20:12:11Z",
+      "archived": false,
+      "local_path": null,
+      "keywords": [
+        "brm",
+        "react",
+        "vite",
+        "redesign",
+        "prototype",
+        "lessons",
+        "video-course"
+      ]
+    },
+    {
+      "full_name": "ZAB-AI-LLC/ctf-schema-conversion",
+      "description_current": "",
+      "description_proposed": "Go library that converts JSON Schemas to a token-efficient CTF (Compact Transmission Format) for LLM prompts, cutting prompt tokens 30-60%.",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "Go",
+      "pushed_at": "2026-01-09T14:41:48Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Dropbox/Zysys/Software/zab-ai-ctf-schema-conversion",
+      "keywords": [
+        "ctf",
+        "json-schema",
+        "llm-prompts",
+        "token-efficiency",
+        "go",
+        "encoder",
+        "decoder"
+      ]
+    },
+    {
+      "full_name": "ZAB-AI-LLC/isjac-site",
+      "description_current": "ISJAC.org WordPress site code: isjac-core plugin, dev workflow, deployment tooling. See PROJECT_PLAN.md for the work breakdown and ASSESSMENT.md for the audit.",
+      "description_proposed": "WordPress code, dev workflow, and WP Engine deployment tooling for isjac.org, the International Society of Jazz Arrangers and Composers site.",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": "HTML",
+      "pushed_at": "2026-09-21T14:03:44Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Dropbox/Zysys/Software/isjac",
+      "keywords": [
+        "isjac",
+        "wordpress",
+        "wp-engine",
+        "isjac-core",
+        "members-only",
+        "auth",
+        "zwsip",
+        "jazz"
+      ]
+    },
+    {
+      "full_name": "ZAB-AI-LLC/music-packager",
+      "description_current": "",
+      "description_proposed": "Perl scripts that package and standardize sheet-music PDFs (parts naming, binder assembly, validity checks) for print publication.",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "Perl",
+      "pushed_at": "2026-09-12T23:15:22Z",
+      "archived": false,
+      "local_path": null,
+      "keywords": [
+        "sheet-music",
+        "pdf",
+        "perl",
+        "score-parts",
+        "binder",
+        "publication",
+        "pdfjam"
+      ]
+    },
+    {
+      "full_name": "ZAB-AI-LLC/obsidian-backup",
+      "description_current": "",
+      "description_proposed": "Cross-platform, end-to-end encrypted, chunk-deduplicated Go backup engine that mirrors data to local drives and cloud storage.",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "Go",
+      "pushed_at": "2026-09-12T23:48:37Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Dropbox/Zysys/Software/obsidian-backup",
+      "keywords": [
+        "obsidian-backup",
+        "backup",
+        "encryption",
+        "deduplication",
+        "go",
+        "sync",
+        "queue",
+        "sqlite"
+      ]
+    },
+    {
+      "full_name": "ZAB-AI-LLC/obsidian-backup-macos",
+      "description_current": "",
+      "description_proposed": "Native macOS SwiftUI menu-bar app that drives and monitors the Obsidian Backup engine (upload progress, battery-aware throttling).",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "Swift",
+      "pushed_at": "2026-08-24T16:30:50Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Dropbox/Zysys/Software/obsidian-backup-macos-ui",
+      "keywords": [
+        "obsidian-backup",
+        "macos",
+        "swiftui",
+        "menu-bar",
+        "battery-throttle",
+        "sync-status"
+      ]
+    },
+    {
+      "full_name": "ZAB-AI-LLC/obsidian-vault",
+      "description_current": "",
+      "description_proposed": "Supabase Edge Functions and DB migrations that provision untraceable, ransomware-resistant Wasabi S3 buckets for Obsidian Backup's managed cloud storage.",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "TypeScript",
+      "pushed_at": "2026-03-14T21:50:58Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Dropbox/Zysys/Software/obsidian-vault",
+      "keywords": [
+        "obsidian-backup",
+        "obsidian-vault",
+        "supabase",
+        "edge-functions",
+        "wasabi",
+        "s3",
+        "iam",
+        "managed-cloud-storage"
+      ]
+    },
+    {
+      "full_name": "ZAB-AI-LLC/playcount",
+      "description_current": "",
+      "description_proposed": "Small Go tool/library that extracts a play count from an image (e.g. a screenshot of a player).",
+      "description_current_accurate": null,
+      "confidence": "low",
+      "language": "Go",
+      "pushed_at": "2025-08-31T15:29:37Z",
+      "archived": false,
+      "local_path": null,
+      "keywords": [
+        "playcount",
+        "go",
+        "image-parsing",
+        "ocr"
+      ]
+    },
+    {
+      "full_name": "ZAB-AI-LLC/prepiq",
+      "description_current": "",
+      "description_proposed": "Node.js backend (Express + Knex) for PrepIQ, handling user accounts and recipe data.",
+      "description_current_accurate": null,
+      "confidence": "medium",
+      "language": "JavaScript",
+      "pushed_at": "2024-10-27T23:53:43Z",
+      "archived": false,
+      "local_path": null,
+      "keywords": [
+        "prepiq",
+        "nodejs",
+        "express",
+        "knex",
+        "recipes",
+        "users-table",
+        "backend"
+      ]
+    },
+    {
+      "full_name": "ZAB-AI-LLC/prepiq-ui",
+      "description_current": "",
+      "description_proposed": "Expo/React Native front-end app for PrepIQ, a meal-prep/recipe planning product.",
+      "description_current_accurate": null,
+      "confidence": "medium",
+      "language": "TypeScript",
+      "pushed_at": "2024-11-03T23:41:59Z",
+      "archived": false,
+      "local_path": null,
+      "keywords": [
+        "prepiq",
+        "expo",
+        "react-native",
+        "meal-prep",
+        "recipes",
+        "mobile-app"
+      ]
+    },
+    {
+      "full_name": "ZAB-AI-LLC/progress",
+      "description_current": "",
+      "description_proposed": "Go progress-reporting library for CLIs and distributed systems, built for long-running operations like multi-terabyte backup jobs.",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "Go",
+      "pushed_at": "2026-04-13T14:04:30Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Dropbox/Zysys/Software/zab-ai-progress",
+      "keywords": [
+        "progress-bar",
+        "go",
+        "cli",
+        "grpc",
+        "http-client",
+        "backup-tools",
+        "observability"
+      ]
+    },
+    {
+      "full_name": "ZAB-AI-LLC/python-lib",
+      "description_current": "",
+      "description_proposed": "ZAB AI Framework — a modular Python library for config, state management, logging, and notifications shared across ZAB AI apps.",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "Python",
+      "pushed_at": "2025-01-12T23:09:49Z",
+      "archived": false,
+      "local_path": null,
+      "keywords": [
+        "zab-ai",
+        "python-framework",
+        "config",
+        "logging",
+        "daemon",
+        "notifications",
+        "shared-library"
+      ]
+    },
+    {
+      "full_name": "ZAB-AI-LLC/react-component-lib",
+      "description_current": "",
+      "description_proposed": "React Native component library (@zab-ai/component-lib) of reusable UI elements documented with Storybook.",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "TypeScript",
+      "pushed_at": "2025-11-08T13:44:58Z",
+      "archived": false,
+      "local_path": null,
+      "keywords": [
+        "react-native",
+        "component-library",
+        "zab-ai",
+        "storybook",
+        "ui-alert",
+        "barcode-scanner"
+      ]
+    },
+    {
+      "full_name": "ZAB-AI-LLC/react-library",
+      "description_current": "",
+      "description_proposed": "Shared TypeScript/React utility library: Supabase auth and database helpers, event bus, and hooks (debounce, haptics, network status).",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "TypeScript",
+      "pushed_at": "2025-07-20T01:29:23Z",
+      "archived": false,
+      "local_path": null,
+      "keywords": [
+        "react",
+        "hooks",
+        "supabase",
+        "eventbus",
+        "auth",
+        "shared-library",
+        "zab-ai"
+      ]
+    },
+    {
+      "full_name": "ZAB-AI-LLC/renovate-config",
+      "description_current": "Shared Renovate preset for ZAB-AI-LLC repos",
+      "description_proposed": "Shared, security-first Renovate bot preset (OSV vulnerability alerts, soaked automerge) that ZAB-AI-LLC repos extend for dependency updates.",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": null,
+      "pushed_at": "2026-07-08T12:52:06Z",
+      "archived": false,
+      "local_path": null,
+      "keywords": [
+        "renovate",
+        "dependency-updates",
+        "preset",
+        "osv",
+        "automerge",
+        "security"
+      ]
+    },
+    {
+      "full_name": "ZAB-AI-LLC/website",
+      "description_current": "",
+      "description_proposed": "Next.js marketing website for ZAB AI.",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "TypeScript",
+      "pushed_at": "2025-06-21T15:31:26Z",
+      "archived": false,
+      "local_path": null,
+      "keywords": [
+        "zab-ai",
+        "nextjs",
+        "marketing-site",
+        "website"
+      ]
+    },
+    {
+      "full_name": "ZAB-AI-LLC/zwsip",
+      "description_current": "",
+      "description_proposed": "ZWSIP (Zysys WordPress Systematic Improvement Process) — the methodology and audit dashboard for rebuilding accreted WordPress client sites in place.",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "TypeScript",
+      "pushed_at": "2026-09-19T18:49:58Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Dropbox/Zysys/Software/zwsip",
+      "keywords": [
+        "zwsip",
+        "wordpress",
+        "methodology",
+        "audit-dashboard",
+        "seo-scoring",
+        "typesafe",
+        "zysys-engagement"
+      ]
+    },
+    {
+      "full_name": "ZAB-AI-LLC/zwsip-wp-tooling",
+      "description_current": "ZWSIP WP Tooling — scaffold templates + 'zwsip new-engagement' CLI for spinning up a new ZAB WordPress client engagement that consumes zwsip/runtime.",
+      "description_proposed": "Empty repository reserved for a 'zwsip new-engagement' CLI and scaffold templates that bootstrap new ZAB WordPress client engagements.",
+      "description_current_accurate": true,
+      "confidence": "low",
+      "language": null,
+      "pushed_at": "2026-05-18T19:27:07Z",
+      "archived": false,
+      "local_path": null,
+      "keywords": [
+        "zwsip",
+        "scaffold",
+        "cli",
+        "new-engagement",
+        "wordpress",
+        "empty-repo"
+      ]
+    },
+    {
+      "full_name": "ZAB-AI-LLC/zysys-wp-runtime",
+      "description_current": "Shared WordPress engagement runtime. Brand-templated CSS, blocks, auth, perf, security primitives. Each client repo requires zysys/wp-runtime as a Composer vendor dependency and parameterizes its brand at build time.",
+      "description_proposed": "White-label WordPress runtime (Composer package) providing brand-templated CSS, blocks, auth, performance, and security primitives shared across ZAB AI client engagements.",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": "PHP",
+      "pushed_at": "2026-09-19T13:52:18Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Dropbox/Zysys/Software/zysys-wp-runtime",
+      "keywords": [
+        "wp-runtime",
+        "wordpress",
+        "composer",
+        "white-label",
+        "brand",
+        "zwsip",
+        "membership",
+        "auth"
+      ]
+    },
+    {
+      "full_name": "isa-sdk/sdk",
+      "description_current": "Unified Go SDK mirror for ISA APIs. Read-only; published by the isa-platform sdk-publish workflow. Source: github.com/Software-Automation-Holdings-LLC/isa-platform/packages/go",
+      "description_proposed": "Read-only Go SDK mirror for the ISA API (Best Plan Pro / ZyINS), auto-published from isa-platform on every release tag.",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": "Go",
+      "pushed_at": "2026-06-26T02:41:47Z",
+      "archived": false,
+      "local_path": null,
+      "keywords": [
+        "isa-sdk",
+        "go-sdk",
+        "isaapi",
+        "read-only-mirror",
+        "best-plan-pro",
+        "zyins",
+        "sdk-publish"
+      ]
+    },
+    {
+      "full_name": "isa-sdk/sdk-php",
+      "description_current": "Unified PHP SDK for ISA APIs",
+      "description_proposed": "PHP 8.2 SDK for the Best Plan Pro API (ZyINS underwriting, RapidSign document workflows, Algosure-HMAC proxy), mirroring the unified TS SDK surface.",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": "PHP",
+      "pushed_at": "2026-06-26T02:40:55Z",
+      "archived": false,
+      "local_path": null,
+      "keywords": [
+        "isa-sdk",
+        "php-sdk",
+        "best-plan-pro",
+        "zyins",
+        "rapidsign",
+        "composer",
+        "isaapi"
+      ]
+    },
+    {
+      "full_name": "ninjaquoter/import_files",
+      "description_current": "",
+      "description_proposed": "Data archive of dated life-insurance carrier rate CSV files (AIG, Banner, Lincoln, Sagicor, etc.) imported into Ninja Quoter.",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "Ruby",
+      "pushed_at": "2025-03-03T15:02:37Z",
+      "archived": true,
+      "local_path": null,
+      "keywords": [
+        "ninjaquoter",
+        "rate-files",
+        "csv",
+        "carriers",
+        "insurance-rates",
+        "import",
+        "corebridge"
+      ]
+    },
+    {
+      "full_name": "ninjaquoter/ninja_blog",
+      "description_current": "Ninjaquoter.com blog",
+      "description_proposed": "WordPress \"Bones\" theme customization used for the ninjaquoter.com blog.",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": "CSS",
+      "pushed_at": "2019-06-28T19:58:40Z",
+      "archived": true,
+      "local_path": null,
+      "keywords": [
+        "ninjaquoter",
+        "wordpress-theme",
+        "bones-theme",
+        "blog"
+      ]
+    },
+    {
+      "full_name": "ninjaquoter/ninjaquoter",
+      "description_current": "Ninja Quoter Marketing Site",
+      "description_proposed": "Ruby on Rails marketing and affiliate site for Ninja Quoter, the life-insurance quoting product.",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": "HTML",
+      "pushed_at": "2024-05-21T09:28:24Z",
+      "archived": true,
+      "local_path": null,
+      "keywords": [
+        "ninjaquoter",
+        "rails",
+        "marketing-site",
+        "affiliates",
+        "insurance",
+        "carriers",
+        "products"
+      ]
+    },
+    {
+      "full_name": "ninjaquoter/nq",
+      "description_current": "Ninja Quoter Dashboard",
+      "description_proposed": "Ninja Quoter's Rails dashboard app (Postgres/Redis) for the life-insurance quoting platform, deployed to AWS ECS.",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": "HTML",
+      "pushed_at": "2025-10-01T12:29:23Z",
+      "archived": true,
+      "local_path": null,
+      "keywords": [
+        "ninjaquoter",
+        "rails",
+        "dashboard",
+        "ecs",
+        "postgres",
+        "redis",
+        "life-insurance",
+        "quoting"
+      ]
+    },
+    {
+      "full_name": "ninjaquoter/nq_wordpress_plugin",
+      "description_current": "Wordpress plugin for accessing NQ widgets",
+      "description_proposed": "WordPress plugin that embeds Ninja Quoter insurance-quote widgets on a site via shortcode.",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": "PHP",
+      "pushed_at": "2019-08-26T18:46:39Z",
+      "archived": true,
+      "local_path": null,
+      "keywords": [
+        "ninjaquoter",
+        "wordpress-plugin",
+        "shortcode",
+        "widget",
+        "insurance-quote"
+      ]
+    },
+    {
+      "full_name": "zachbornheimer/ANUBIS",
+      "description_current": "The Autonomous Network Updater Broadcasting Installation Signals",
+      "description_proposed": "Perl-based dev-branch system (Autonomous Network Updater Broadcasting Installation Signals) with git-submodule cleanup/management scripts.",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": "Perl",
+      "pushed_at": "2013-03-22T20:42:08Z",
+      "archived": true,
+      "local_path": null,
+      "keywords": [
+        "anubis",
+        "perl",
+        "network",
+        "updater",
+        "broadcasting",
+        "installation"
+      ]
+    },
+    {
+      "full_name": "zachbornheimer/Download-Cleaner-OS-X",
+      "description_current": "Auto Delete and Create Downloads Directory in /tmp",
+      "description_proposed": "C program + Automator workflow that auto-deletes and recreates the macOS Downloads directory in /tmp.",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": "C",
+      "pushed_at": "2014-10-09T22:38:07Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Developer/Personal/scripts/Download-Cleaner-OS-X",
+      "keywords": [
+        "download-cleaner",
+        "macos",
+        "automator",
+        "downloads",
+        "c",
+        "cleanup"
+      ]
+    },
+    {
+      "full_name": "zachbornheimer/agentmux",
+      "description_current": null,
+      "description_proposed": "Local-first orchestrator that runs Grok/Claude Code/Codex CLIs in supervised tmux, with an optional multi-device control plane.",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "Go",
+      "pushed_at": "2026-09-23T15:46:42Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Developer/Personal/agentmux",
+      "keywords": [
+        "agentmux",
+        "orchestrator",
+        "tmux",
+        "grok",
+        "claude-code",
+        "codex",
+        "control-plane",
+        "job",
+        "handoff"
+      ]
+    },
+    {
+      "full_name": "zachbornheimer/ai-articles",
+      "description_current": "Self-describing archive of AI engineering articles (Anthropic blog, provenance-tracked Markdown)",
+      "description_proposed": "Private provenance-tracked Markdown archive of AI engineering articles, starting with Anthropic's claude.com/blog.",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": "Python",
+      "pushed_at": "2026-07-01T13:37:58Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Developer/Personal/ai-articles",
+      "keywords": [
+        "ai-articles",
+        "anthropic",
+        "claude",
+        "archive",
+        "markdown",
+        "provenance",
+        "python"
+      ]
+    },
+    {
+      "full_name": "zachbornheimer/anonymizer",
+      "description_current": null,
+      "description_proposed": "Go CLI/server (Cobra + OpenAPI) that strips sensitive metadata from PDF, image, and audio files, with pluggable detectors.",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "Go",
+      "pushed_at": "2025-09-27T19:43:03Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Developer/Personal/anonymizer",
+      "keywords": [
+        "anonymizer",
+        "metadata",
+        "pdf",
+        "image",
+        "audio",
+        "exif",
+        "id3",
+        "cobra",
+        "openapi",
+        "go"
+      ]
+    },
+    {
+      "full_name": "zachbornheimer/artistmetadata.com",
+      "description_current": null,
+      "description_proposed": "Laravel-based ZachStacks/artist-metadata API applying and syncing music/artist metadata (tags, guides, conversion).",
+      "description_current_accurate": null,
+      "confidence": "low",
+      "language": "Blade",
+      "pushed_at": "2026-09-19T20:07:58Z",
+      "archived": false,
+      "local_path": null,
+      "keywords": [
+        "artistmetadata",
+        "laravel",
+        "php",
+        "metadata",
+        "music",
+        "api"
+      ]
+    },
+    {
+      "full_name": "zachbornheimer/attention-mail",
+      "description_current": "Local-first, read-only research instrument for understanding how email captures attention — before any taxonomy or automation.",
+      "description_proposed": "Local-first, read-only Python research instrument for studying how email captures attention before building any taxonomy or automation.",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": "Python",
+      "pushed_at": "2026-06-26T16:54:41Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Developer/Personal/attention-mail",
+      "keywords": [
+        "attention-mail",
+        "email",
+        "gmail",
+        "maildir",
+        "research",
+        "attention",
+        "python",
+        "adr"
+      ]
+    },
+    {
+      "full_name": "zachbornheimer/auditfix",
+      "description_current": null,
+      "description_proposed": "Go MCP-driven audit/fix engine that runs step-by-step code-quality audits (facades, testability, findings) via templated prompts.",
+      "description_current_accurate": null,
+      "confidence": "medium",
+      "language": "Go",
+      "pushed_at": "2026-04-13T23:16:12Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Developer/Personal/auditfix",
+      "keywords": [
+        "auditfix",
+        "audit",
+        "mcp",
+        "go",
+        "facade",
+        "code-review",
+        "findings",
+        "sqlite"
+      ]
+    },
+    {
+      "full_name": "zachbornheimer/bakmiup",
+      "description_current": "Localized git-based backup software.  (Server + bakmiup) + (your computer + bakmiup) = version controlled, distributed (as in the server can fail and you don't lose your history) backup",
+      "description_proposed": "Git-based local/remote backup engine with a PHP web UI, designed to be white-label branded.",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": "PHP",
+      "pushed_at": "2015-05-19T20:56:22Z",
+      "archived": true,
+      "local_path": null,
+      "keywords": [
+        "bakmiup",
+        "backup",
+        "git",
+        "php",
+        "restore",
+        "versioned"
+      ]
+    },
+    {
+      "full_name": "zachbornheimer/beaconhomelibrary",
+      "description_current": null,
+      "description_proposed": "Laravel app for cataloging and managing a personal home book library.",
+      "description_current_accurate": null,
+      "confidence": "medium",
+      "language": "Blade",
+      "pushed_at": "2025-06-21T12:27:46Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Developer/Personal/scripts/homelib",
+      "keywords": [
+        "beaconhomelibrary",
+        "laravel",
+        "library",
+        "books",
+        "php"
+      ]
+    },
+    {
+      "full_name": "zachbornheimer/carve-reconcile",
+      "description_current": null,
+      "description_proposed": "Go tool reconciling PhotoRec-carved anonymous files against a SQLite deleted-file ledger to reconstruct original folder structure.",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "Go",
+      "pushed_at": "2026-07-31T14:04:51Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Developer/Personal/carve-reconcile",
+      "keywords": [
+        "carve-reconcile",
+        "photorec",
+        "nas-recovery",
+        "sqlite",
+        "ledger",
+        "forensics",
+        "mcp",
+        "go"
+      ]
+    },
+    {
+      "full_name": "zachbornheimer/compress-wordpress",
+      "description_current": "Allows for the compression of wordpress",
+      "description_proposed": "Perl/shell tool that compresses a WordPress install's assets and database in place.",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": "Perl",
+      "pushed_at": "2018-03-27T18:26:55Z",
+      "archived": false,
+      "local_path": null,
+      "keywords": [
+        "compress-wordpress",
+        "wordpress",
+        "compression",
+        "perl",
+        "shell"
+      ]
+    },
+    {
+      "full_name": "zachbornheimer/contactctl",
+      "description_current": null,
+      "description_proposed": "Native Swift CLI for bulk-editing macOS Contacts (tags, photos, custom dates) with an AppleScript fallback for iCloud-locked records.",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "Swift",
+      "pushed_at": "2026-06-21T19:52:50Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Dropbox/Zysys/Software/contactctl",
+      "keywords": [
+        "contactctl",
+        "macos",
+        "contacts",
+        "cncontactstore",
+        "applescript",
+        "swift",
+        "chrome-bridge"
+      ]
+    },
+    {
+      "full_name": "zachbornheimer/df",
+      "description_current": "My dotfiles",
+      "description_proposed": "Personal dotfiles (predecessor to the current chezmoi-managed dotfiles repo): vim, zsh, mutt configs.",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "Vim Script",
+      "pushed_at": "2018-09-30T02:44:47Z",
+      "archived": false,
+      "local_path": null,
+      "keywords": [
+        "df",
+        "dotfiles",
+        "vim",
+        "zsh",
+        "mutt",
+        "legacy"
+      ]
+    },
+    {
+      "full_name": "zachbornheimer/dotfiles",
+      "description_current": "Personal macOS dotfiles + Brewfile manifest. Declarative machine config; secrets excluded by design.",
+      "description_proposed": "Chezmoi-managed macOS dotfiles and Brewfile; anything not declared here is cruft, fresh machine is one apply away.",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": "Shell",
+      "pushed_at": "2026-09-23T18:35:27Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Developer/Personal/dotfiles",
+      "keywords": [
+        "dotfiles",
+        "chezmoi",
+        "brewfile",
+        "macos",
+        "mise",
+        "zsh"
+      ]
+    },
+    {
+      "full_name": "zachbornheimer/evident-output",
+      "description_current": "Go CLI presentation library: items, tasks, progress, evidence, plans, conclusions — evo owns output, your app owns execution",
+      "description_proposed": "Go CLI presentation library (evo): items, progress, evidence, plans, conclusions, so terminal and log output stay consistent.",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": "Go",
+      "pushed_at": "2026-09-23T20:08:20Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Developer/Personal/evident-output",
+      "keywords": [
+        "evo",
+        "evident-output",
+        "cli",
+        "presentation",
+        "go",
+        "progress",
+        "evidence"
+      ]
+    },
+    {
+      "full_name": "zachbornheimer/fast-state-abbreviation-maker",
+      "description_current": "Quickly translate State Abbreviations to State Names",
+      "description_proposed": "Static JS page that converts US state abbreviations to full state names.",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": "JavaScript",
+      "pushed_at": "2022-01-28T19:01:34Z",
+      "archived": false,
+      "local_path": null,
+      "keywords": [
+        "fast-state-abbreviation-maker",
+        "state-abbreviation",
+        "javascript",
+        "jekyll"
+      ]
+    },
+    {
+      "full_name": "zachbornheimer/food",
+      "description_current": "Analyze the finances of your diet...with ease!",
+      "description_proposed": "Python script/tool to track and analyze a food/grocery budget from receipt data (food.xml).",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": "Python",
+      "pushed_at": "2018-06-24T21:24:51Z",
+      "archived": false,
+      "local_path": null,
+      "keywords": [
+        "food",
+        "budget",
+        "groceries",
+        "python",
+        "zysys",
+        "diet"
+      ]
+    },
+    {
+      "full_name": "zachbornheimer/ghx",
+      "description_current": null,
+      "description_proposed": "Rate-limit-aware wrapper around the GitHub CLI (gh) that routes calls across separate REST/GraphQL/search rate-limit pools.",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "Go",
+      "pushed_at": "2026-09-12T16:03:41Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Developer/Personal/ghx",
+      "keywords": [
+        "ghx",
+        "github-cli",
+        "gh",
+        "rate-limit",
+        "wrapper",
+        "go"
+      ]
+    },
+    {
+      "full_name": "zachbornheimer/gsuite-filestore",
+      "description_current": null,
+      "description_proposed": "PHP OAuth2 credential helper and API wrapper for reading/writing Google Drive and Sheets (file storage over Google APIs).",
+      "description_current_accurate": null,
+      "confidence": "low",
+      "language": "PHP",
+      "pushed_at": "2026-08-15T18:10:28Z",
+      "archived": false,
+      "local_path": null,
+      "keywords": [
+        "gsuite-filestore",
+        "google-drive",
+        "google-sheets",
+        "oauth2",
+        "php",
+        "credentials"
+      ]
+    },
+    {
+      "full_name": "zachbornheimer/hevc-archive",
+      "description_current": null,
+      "description_proposed": "Go CLI wrapping HandBrake/ffprobe to transparently re-encode home videos to HEVC and reclaim originals only after verification.",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "Go",
+      "pushed_at": "2026-09-05T00:09:44Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Developer/Personal/hevc-archive",
+      "keywords": [
+        "hevc-archive",
+        "handbrake",
+        "ffprobe",
+        "hevc",
+        "x265",
+        "video",
+        "encode",
+        "archive"
+      ]
+    },
+    {
+      "full_name": "zachbornheimer/home.zachandaj.com",
+      "description_current": null,
+      "description_proposed": "Laravel/Jetstream app for zachandaj.com's home portal, using Authentik SSO for auth.",
+      "description_current_accurate": null,
+      "confidence": "medium",
+      "language": "Blade",
+      "pushed_at": "2026-06-25T18:45:45Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Dropbox/Zysys/Software/home.zachandaj.com",
+      "keywords": [
+        "home.zachandaj.com",
+        "laravel",
+        "jetstream",
+        "authentik",
+        "sso",
+        "php"
+      ]
+    },
+    {
+      "full_name": "zachbornheimer/homelab",
+      "description_current": null,
+      "description_proposed": "CUE-declared home network/media-stack config; homelabctl asserts Docker/launchd reality against homelab.cue.",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "Go",
+      "pushed_at": "2026-09-24T00:27:24Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Developer/Personal/homelab",
+      "keywords": [
+        "homelab",
+        "cue",
+        "docker",
+        "compose",
+        "launchd",
+        "nas",
+        "media-stack",
+        "mise"
+      ]
+    },
+    {
+      "full_name": "zachbornheimer/ics.js",
+      "description_current": "A browser firendly VCS file generator written entirely in javascript!!!!!!",
+      "description_proposed": "Browser-friendly JavaScript library for generating .ics/.vcs calendar files client-side.",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": "JavaScript",
+      "pushed_at": "2019-12-15T15:15:06Z",
+      "archived": false,
+      "local_path": null,
+      "keywords": [
+        "ics.js",
+        "ics",
+        "vcs",
+        "calendar",
+        "javascript",
+        "browser"
+      ]
+    },
+    {
+      "full_name": "zachbornheimer/improve-codebase",
+      "description_current": "Observe a file, decide recommendations, return structured ImproveResult without mutating the target tree.",
+      "description_proposed": "TypeScript library that observes a file, produces deterministic + model-merged improvement recommendations, without mutating the target tree.",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": "TypeScript",
+      "pushed_at": "2026-09-07T12:46:53Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Developer/Personal/improve-codebase",
+      "keywords": [
+        "improve-codebase",
+        "improver",
+        "code-review",
+        "typescript",
+        "grok",
+        "recommendations",
+        "cache"
+      ]
+    },
+    {
+      "full_name": "zachbornheimer/invest-portal",
+      "description_current": null,
+      "description_proposed": "Zach's personal Laravel-based investment tracking portal, deployed to invest-portal.services.zachandaj.com.",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "Blade",
+      "pushed_at": "2024-07-24T18:17:54Z",
+      "archived": false,
+      "local_path": null,
+      "keywords": [
+        "invest-portal",
+        "laravel",
+        "investment",
+        "portfolio",
+        "php",
+        "personal-finance"
+      ]
+    },
+    {
+      "full_name": "zachbornheimer/librarian",
+      "description_current": "Manifest-driven file-routing broker: the only cross-zone writer (clone, never overwrite vault)",
+      "description_proposed": "Manifest-driven Go file-routing broker; the sole cross-zone writer moving files between NAS trust zones (vault/media/library/backup).",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": "Go",
+      "pushed_at": "2026-09-12T18:50:39Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Developer/Personal/librarian",
+      "keywords": [
+        "librarian",
+        "nas",
+        "file-routing",
+        "manifest",
+        "broker",
+        "vault",
+        "hardlink",
+        "go"
+      ]
+    },
+    {
+      "full_name": "zachbornheimer/lickbook",
+      "description_current": null,
+      "description_proposed": "ToneScript: a Go/SvelteKit app with a musical-notation DSL for quickly notating melodies (auto measures, beaming, MusicXML export).",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "Go",
+      "pushed_at": "2026-09-19T18:43:10Z",
+      "archived": false,
+      "local_path": null,
+      "keywords": [
+        "lickbook",
+        "tonescript",
+        "musicxml",
+        "music-notation",
+        "dsl",
+        "sveltekit",
+        "go"
+      ]
+    },
+    {
+      "full_name": "zachbornheimer/mail-automation",
+      "description_current": "Superhuman-replacement automation for Apple Mail: unsubscribe/trash, per-alias signatures, notification auto-delete, keyboard shortcuts",
+      "description_proposed": "AppleScript + launchd tooling replicating Superhuman features (unsubscribe/trash, notification auto-delete) in Apple Mail on macOS.",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": "Swift",
+      "pushed_at": "2026-09-04T18:35:01Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Developer/Personal/mail-automation",
+      "keywords": [
+        "mail-automation",
+        "applescript",
+        "apple-mail",
+        "launchd",
+        "superhuman",
+        "unsubscribe",
+        "hammerspoon"
+      ]
+    },
+    {
+      "full_name": "zachbornheimer/mantra-typing-app",
+      "description_current": null,
+      "description_proposed": "Small JS/HTML page that displays a mantra for the user to type, with mantras passable via URL query parameter.",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "JavaScript",
+      "pushed_at": "2023-04-16T21:56:01Z",
+      "archived": false,
+      "local_path": null,
+      "keywords": [
+        "mantra-typing-app",
+        "mantra",
+        "typing",
+        "javascript",
+        "meditation"
+      ]
+    },
+    {
+      "full_name": "zachbornheimer/moo-dispo-proxy",
+      "description_current": "GHL → Mutual of Omaha LCH disposition auth proxy (Cloudflare Worker)",
+      "description_proposed": "Stateless Cloudflare Worker proxying GoHighLevel lead-disposition webhooks into Mutual of Omaha's OAuth-protected tracking API.",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": "TypeScript",
+      "pushed_at": "2026-09-12T23:34:57Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Developer/Personal/moo-dispo-proxy",
+      "keywords": [
+        "moo-dispo-proxy",
+        "gohighlevel",
+        "ghl",
+        "mutual-of-omaha",
+        "cloudflare-worker",
+        "oauth",
+        "lch",
+        "insurance"
+      ]
+    },
+    {
+      "full_name": "zachbornheimer/morpheme-extraction",
+      "description_current": "Zach Bornheimer's Morpheme Extraction Mechanism",
+      "description_proposed": "C program (OpenMP) that programmatically extracts morpheme candidates from a text corpus into a morpheme list.",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": "C",
+      "pushed_at": "2015-03-21T13:49:00Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Dropbox/Zysys/Software/morpheme-extraction",
+      "keywords": [
+        "morpheme-extraction",
+        "morpheme",
+        "nlp",
+        "c",
+        "openmp",
+        "linguistics",
+        "corpus"
+      ]
+    },
+    {
+      "full_name": "zachbornheimer/nas-recovery",
+      "description_current": null,
+      "description_proposed": "Private forensic toolkit (Python/btrfs) built to recover files after a mass deletion incident on the gorillabank Synology NAS.",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "Go",
+      "pushed_at": "2026-07-18T23:58:14Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Developer/Personal/nas-recovery",
+      "keywords": [
+        "nas-recovery",
+        "gorillabank",
+        "synology",
+        "btrfs",
+        "forensics",
+        "data-recovery",
+        "photorec"
+      ]
+    },
+    {
+      "full_name": "zachbornheimer/nlp-corpus",
+      "description_current": "A sequence of nlp-copera developed for the morpheme extraction repo",
+      "description_proposed": "Text corpus data and normalization scripts used by the morpheme-extraction project.",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": "Perl",
+      "pushed_at": "2015-01-18T14:58:59Z",
+      "archived": false,
+      "local_path": null,
+      "keywords": [
+        "nlp-corpus",
+        "corpus",
+        "nlp",
+        "normalization",
+        "text-processing",
+        "perl"
+      ]
+    },
+    {
+      "full_name": "zachbornheimer/pennyGameApp",
+      "description_current": null,
+      "description_proposed": "Expo/React Native mobile app implementing the classic Penny Game (lean/kanban simulation exercise).",
+      "description_current_accurate": null,
+      "confidence": "medium",
+      "language": "JavaScript",
+      "pushed_at": "2025-12-06T23:49:45Z",
+      "archived": false,
+      "local_path": null,
+      "keywords": [
+        "pennygameapp",
+        "expo",
+        "react-native",
+        "penny-game",
+        "lean",
+        "kanban",
+        "javascript"
+      ]
+    },
+    {
+      "full_name": "zachbornheimer/portal-builder",
+      "description_current": null,
+      "description_proposed": "DragonGate Portals: a WordPress plugin for public application forms whose submissions land in Google Sheets and Drive.",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "PHP",
+      "pushed_at": "2026-08-17T19:42:01Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Developer/Personal/portal-builder",
+      "keywords": [
+        "portal-builder",
+        "dragongate",
+        "wordpress",
+        "plugin",
+        "google-sheets",
+        "google-drive",
+        "forms",
+        "allintersections"
+      ]
+    },
+    {
+      "full_name": "zachbornheimer/pr-merger",
+      "description_current": null,
+      "description_proposed": "Go CLI that inspects a GitHub pull request via the gh CLI and reports whether it's ready to merge (with autofix/autorebase).",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "Go",
+      "pushed_at": "2026-05-28T12:48:01Z",
+      "archived": false,
+      "local_path": null,
+      "keywords": [
+        "pr-merger",
+        "github",
+        "pull-request",
+        "gh-cli",
+        "autofix",
+        "autorebase",
+        "go"
+      ]
+    },
+    {
+      "full_name": "zachbornheimer/programming-exercises",
+      "description_current": "Different Programming Exercises from Different Programming Books",
+      "description_proposed": "Solutions to programming exercises from textbooks (K&R C, Lisp/Winston-Horn).",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": "C",
+      "pushed_at": "2014-01-19T18:49:26Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Developer/Personal/scripts/programming-exercises",
+      "keywords": [
+        "programming-exercises",
+        "c",
+        "lisp",
+        "kernighan-ritchie",
+        "textbook",
+        "exercises"
+      ]
+    },
+    {
+      "full_name": "zachbornheimer/quality-guard",
+      "description_current": null,
+      "description_proposed": "Zero-config Go code-quality linter combining LSP, AST, regex, and LLM judgment to enforce FAANG-level standards on every edit.",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "Go",
+      "pushed_at": "2026-07-15T13:37:11Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Dropbox/Zysys/Software/quality-guard",
+      "keywords": [
+        "quality-guard",
+        "linter",
+        "lsp",
+        "llm",
+        "code-quality",
+        "hook",
+        "rules",
+        "go",
+        "opencode"
+      ]
+    },
+    {
+      "full_name": "zachbornheimer/ragnarok",
+      "description_current": "The Ragnarok Encryption Algorithm",
+      "description_proposed": "The Ragnarok Encryption Algorithm implemented as a Perl module.",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": "Perl",
+      "pushed_at": "2020-01-22T20:46:58Z",
+      "archived": false,
+      "local_path": null,
+      "keywords": [
+        "ragnarok",
+        "encryption",
+        "perl",
+        "cryptography",
+        "algorithm"
+      ]
+    },
+    {
+      "full_name": "zachbornheimer/repo-retire",
+      "description_current": "Retire local git clones from disk when nothing unique remains",
+      "description_proposed": "Go CLI to safely retire a local git clone (check for unpushed work, then trash via macOS trash, never rm -rf).",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": "Go",
+      "pushed_at": "2026-09-12T13:49:32Z",
+      "archived": true,
+      "local_path": "/Users/zbornheimer/Developer/Personal/repo-retire",
+      "keywords": [
+        "repo-retire",
+        "git",
+        "clone",
+        "worktree",
+        "trash",
+        "offboard",
+        "cleanup"
+      ]
+    },
+    {
+      "full_name": "zachbornheimer/server-report",
+      "description_current": null,
+      "description_proposed": "Perl-based server health/diagnostics reporting toolkit — the core of the Zysys Infrastructure Automation System.",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "Perl",
+      "pushed_at": "2020-04-07T14:45:50Z",
+      "archived": false,
+      "local_path": null,
+      "keywords": [
+        "server-report",
+        "perl",
+        "zysys",
+        "infrastructure",
+        "monitoring",
+        "diagnostics"
+      ]
+    },
+    {
+      "full_name": "zachbornheimer/vk",
+      "description_current": "Virus Killer",
+      "description_proposed": "Alpha 'Virus Killer' Windows toolkit (AutoIt/Perl scripts) that walks a user through manual malware removal steps.",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": "AutoIt",
+      "pushed_at": "2012-05-07T03:27:30Z",
+      "archived": true,
+      "local_path": null,
+      "keywords": [
+        "vk",
+        "virus-killer",
+        "malware",
+        "autoit",
+        "windows",
+        "ccleaner",
+        "malwarebytes"
+      ]
+    },
+    {
+      "full_name": "zachbornheimer/volatile-downloads",
+      "description_current": null,
+      "description_proposed": "Redirects ~/Downloads to /tmp/Downloads at login via launchd so browser downloads stay disposable.",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "Go",
+      "pushed_at": "2026-09-11T15:59:57Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Developer/Personal/volatile-downloads",
+      "keywords": [
+        "volatile-downloads",
+        "downloads",
+        "launchd",
+        "chezmoi",
+        "macos",
+        "tmp"
+      ]
+    },
+    {
+      "full_name": "zachbornheimer/zab-ai-site",
+      "description_current": null,
+      "description_proposed": "Next.js marketing/portfolio site for ZAB AI, bootstrapped from create-next-app.",
+      "description_current_accurate": false,
+      "confidence": "medium",
+      "language": "TypeScript",
+      "pushed_at": "2026-08-15T15:33:56Z",
+      "archived": false,
+      "local_path": null,
+      "keywords": [
+        "zab-ai",
+        "next.js",
+        "typescript",
+        "marketing-site",
+        "portfolio"
+      ]
+    },
+    {
+      "full_name": "zachbornheimer/zachbornheimer",
+      "description_current": null,
+      "description_proposed": "GitHub profile README for Zachary Bornheimer.",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": null,
+      "pushed_at": "2025-03-31T13:49:01Z",
+      "archived": false,
+      "local_path": null,
+      "keywords": [
+        "zachbornheimer",
+        "profile",
+        "readme",
+        "bio"
+      ]
+    },
+    {
+      "full_name": "zachbornheimer/zbm-metric-screenshotter",
+      "description_current": null,
+      "description_proposed": "Python script that scrapes and screenshots media metrics (YouTube/streaming counts) on a schedule.",
+      "description_current_accurate": null,
+      "confidence": "medium",
+      "language": "Python",
+      "pushed_at": "2025-08-08T23:13:31Z",
+      "archived": false,
+      "local_path": null,
+      "keywords": [
+        "zbm-metric-screenshotter",
+        "screenshotter",
+        "metrics",
+        "youtube",
+        "python",
+        "media"
+      ]
+    },
+    {
+      "full_name": "zachbornheimer/zedram",
+      "description_current": "The Zedram Language",
+      "description_proposed": "The Zedram Language: a pre-alpha Perl 6 data-representation/modeling language with its own grammar and parser.",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": "Perl 6",
+      "pushed_at": "2013-09-20T16:37:50Z",
+      "archived": true,
+      "local_path": null,
+      "keywords": [
+        "zedram",
+        "language",
+        "perl6",
+        "grammar",
+        "parser",
+        "data-modeling",
+        "zysys"
+      ]
+    },
+    {
+      "full_name": "zachbornheimer/zq",
+      "description_current": null,
+      "description_proposed": "Single Go binary that replaces mise+lefthook+trunk: activates on cd, converges hooks/tools/deps, prunes worktree waste.",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "Go",
+      "pushed_at": "2026-09-23T20:50:26Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Developer/Personal/zq",
+      "keywords": [
+        "zq",
+        "worktree",
+        "lefthook",
+        "trunk",
+        "mise",
+        "hooks",
+        "tooling-substrate",
+        "go"
+      ]
+    },
+    {
+      "full_name": "zachbornheimer/zvoice",
+      "description_current": "Write in your own voice — a local, tunable voice-matching CLI",
+      "description_proposed": "Local Go CLI that learns your writing voice from your own text (email/iMessage/docs) and drafts messages in that voice, no network calls.",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": "Go",
+      "pushed_at": "2026-06-22T14:05:41Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Developer/Personal/zvoice",
+      "keywords": [
+        "zvoice",
+        "voice-matching",
+        "writing",
+        "cli",
+        "go",
+        "claude",
+        "sqlite",
+        "corpus"
+      ]
+    },
+    {
+      "full_name": "zachbornheimer/zyscripts-wp",
+      "description_current": "Zyscripts Optimizations - Wordpress Plugin",
+      "description_proposed": "WordPress plugin (Zyscripts Optimizations) that minifies/combines a site's JavaScript and CSS.",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": "PHP",
+      "pushed_at": "2014-01-12T14:39:50Z",
+      "archived": false,
+      "local_path": null,
+      "keywords": [
+        "zyscripts-wp",
+        "wordpress",
+        "plugin",
+        "minify",
+        "javascript",
+        "css",
+        "optimization"
+      ]
+    },
+    {
+      "full_name": "zachbornheimer/zytrack",
+      "description_current": null,
+      "description_proposed": "Laravel app for tracking (project/time/asset tracking) under the Zysys umbrella.",
+      "description_current_accurate": null,
+      "confidence": "low",
+      "language": "PHP",
+      "pushed_at": "2021-11-03T18:46:44Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Dropbox/Zysys/Software/zytrack",
+      "keywords": [
+        "zytrack",
+        "laravel",
+        "tracking",
+        "php",
+        "zysys"
+      ]
+    },
+    {
+      "full_name": "zysys/ansible-infra",
+      "description_current": "",
+      "description_proposed": "Ansible playbooks and roles that provision and harden the Zysys hosting infrastructure (Apache/Nginx/HAProxy, MariaDB, Plesk, cron mail routing).",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "Perl",
+      "pushed_at": "2026-09-21T13:27:59Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Developer/Software-Automation-Holdings/zysys-hosting-terraform",
+      "keywords": [
+        "ansible",
+        "plesk",
+        "hosting",
+        "infrastructure",
+        "srv1",
+        "cronjobs",
+        "puppet-migration",
+        "zysyshosting"
+      ]
+    },
+    {
+      "full_name": "zysys/api-test-framework",
+      "description_current": "",
+      "description_proposed": "Parallel HTTP endpoint testing framework with a rich CLI for validating APIs, microservices, and Docker containers from YAML test definitions.",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "Python",
+      "pushed_at": "2025-07-31T15:31:34Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Dropbox/Zysys/Software/zysys-api-test-framework",
+      "keywords": [
+        "api-testing",
+        "http",
+        "cli",
+        "yaml",
+        "endpoints",
+        "parallel-testing",
+        "junit"
+      ]
+    },
+    {
+      "full_name": "zysys/flight",
+      "description_current": "Flight by Zysys — drives managed pull requests toward a safe, mergeable state",
+      "description_proposed": "Flight by Zysys — an automated agent that reconciles and merges managed GitHub pull requests via a Railway worker and GitHub App.",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": "TypeScript",
+      "pushed_at": "2026-09-12T21:22:37Z",
+      "archived": false,
+      "local_path": null,
+      "keywords": [
+        "flight",
+        "github-pr",
+        "automerge",
+        "railway",
+        "supabase",
+        "github-app",
+        "act",
+        "reconciliation"
+      ]
+    },
+    {
+      "full_name": "zysys/flight-live-test",
+      "description_current": "Dedicated Flight live-integration test repository",
+      "description_proposed": "Live-integration test fixture repo used to drive real PR proofs against the Flight automerge agent.",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": "JavaScript",
+      "pushed_at": "2026-09-12T20:03:35Z",
+      "archived": false,
+      "local_path": null,
+      "keywords": [
+        "flight",
+        "live-test",
+        "integration-test",
+        "proof",
+        "pull-request"
+      ]
+    },
+    {
+      "full_name": "zysys/signature_pad",
+      "description_current": "HTML5 canvas based smooth signature drawing",
+      "description_proposed": "JavaScript library (fork of szimek/signature_pad) for drawing smooth HTML5-canvas signatures using variable-width Bezier curves.",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": "TypeScript",
+      "pushed_at": "2018-10-10T10:27:45Z",
+      "archived": false,
+      "local_path": null,
+      "keywords": [
+        "signature-pad",
+        "canvas",
+        "bezier",
+        "javascript",
+        "fork",
+        "signing"
+      ]
+    },
+    {
+      "full_name": "zysys/toggle-bool",
+      "description_current": "vim plugin to toggle the boolean values",
+      "description_proposed": "Vim plugin that toggles boolean-like word pairs under the cursor (true/false, yes/no, on/off, 0/1, enabled/disabled).",
+      "description_current_accurate": true,
+      "confidence": "high",
+      "language": "Vim Script",
+      "pushed_at": "2026-06-27T19:41:10Z",
+      "archived": false,
+      "local_path": null,
+      "keywords": [
+        "vim-plugin",
+        "toggle",
+        "boolean",
+        "vimscript",
+        "editor"
+      ]
+    },
+    {
+      "full_name": "zysys/ui-kit",
+      "description_current": "",
+      "description_proposed": "Design-token-driven UI kit (components + WordPress Gutenberg blocks) that keeps brand-templated sites on-brand by construction.",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "JavaScript",
+      "pushed_at": "2026-09-22T14:02:12Z",
+      "archived": false,
+      "local_path": null,
+      "keywords": [
+        "ui-kit",
+        "design-tokens",
+        "gutenberg",
+        "wordpress",
+        "brand",
+        "storybook",
+        "style-contract",
+        "components"
+      ]
+    },
+    {
+      "full_name": "zysys/zysys-hosting-optimizations",
+      "description_current": "The holding location for the Wordpress Plugin: Zysys Hosting Optimizations",
+      "description_proposed": "WordPress plugin that automatically applies performance, caching, and security optimizations for sites on Zysys Hosting.",
+      "description_current_accurate": false,
+      "confidence": "high",
+      "language": "PHP",
+      "pushed_at": "2019-08-02T23:11:46Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Dropbox/Zysys/Software/zysys-hosting-optimizations",
+      "keywords": [
+        "wordpress-plugin",
+        "zysyshosting",
+        "zycache",
+        "optimization",
+        "security",
+        "wpforms",
+        "licensing"
+      ]
+    },
+    {
+      "full_name": "zysys/zysys-hosting-terraform",
+      "description_current": "",
+      "description_proposed": "Terraform infrastructure-as-code for Zysys Hosting's AWS-based web hosting platform (EC2, EBS backups, Route 53 DNS).",
+      "description_current_accurate": null,
+      "confidence": "high",
+      "language": "HCL",
+      "pushed_at": "2026-08-04T14:24:11Z",
+      "archived": false,
+      "local_path": "/Users/zbornheimer/Developer/Software-Automation-Holdings/zysys-hosting-terraform",
+      "keywords": [
+        "terraform",
+        "aws",
+        "ec2",
+        "route53",
+        "hosting",
+        "backups",
+        "disaster-recovery"
+      ]
+    },
+    {
+      "full_name": "zysys/zysys-toolkit",
+      "description_current": "",
+      "description_proposed": "C command-line toolkit with configurable multi-argument command execution, built via autoconf/Makefile.",
+      "description_current_accurate": null,
+      "confidence": "low",
+      "language": "C",
+      "pushed_at": "2018-10-05T21:12:38Z",
+      "archived": false,
+      "local_path": null,
+      "keywords": [
+        "c",
+        "cli",
+        "toolkit",
+        "autoconf",
+        "makefile",
+        "pthread"
+      ]
+    }
+  ]
+}

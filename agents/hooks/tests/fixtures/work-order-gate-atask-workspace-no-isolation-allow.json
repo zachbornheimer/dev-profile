@@ -1,0 +1,11 @@
+{
+  "session_id": "hgtest-wog-atask",
+  "tool_name": "Agent",
+  "cwd": "/Users/zbornheimer/Developer/Personal/zq",
+  "tool_input": {
+    "subagent_type": "implement",
+    "isolation": "",
+    "cwd": "/Users/zbornheimer/Developer/Personal/zq",
+    "prompt": "```yaml\nwork_order:\n  schema_version: 1\n  intent: \"Complete atask at-xxxxxx: add a clarify feedback field.\"\n  scope:\n    workspace: atask\n    primary_targets:\n      - README.md\n    allowed_writes:\n      - README.md\n  acceptance:\n    - id: t\n      kind: command\n      run: echo hi\n      expect:\n        exit_code: 0\n```\n\nClaim the task with atask claim and work in the worktree it prints."
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "effort": "BPP / zyins ops",
+  "summary": "SAH-9395 has not been reproduced live yet.",
+  "issues": [
+    {
+      "issueId": "SAH-9395",
+      "summary": "NQ Accidental Death quotes are still Ready for Dev.",
+      "checks": [
+        {
+          "name": "Issue replicated",
+          "status": "not_started",
+          "detail": "Agent Quoter has not been walked live, so the reported behavior is not yet reproduced.",
+          "evidence": ["Linear SAH-9395 status=Ready for Dev; no live Agent Quoter verification in this reporting window."]
+        }
+      ]
+    }
+  ]
+}

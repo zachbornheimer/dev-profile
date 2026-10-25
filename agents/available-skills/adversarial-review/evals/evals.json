@@ -1,0 +1,23 @@
+{
+  "skill_name": "adversarial-review",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "before I push this, run an adversarial review on my last commit — the auth flow in src/routes/login.ts changed and I want you to try to break it",
+      "expected_output": "Resolves the target to the last commit's diff, writes an attack manifest with the stated outcome (auth flow still works), spawns Saboteur, Security auditor, New maintainer, and Requirements adversary as parallel fresh-context read-only subagents, adjudicates with every citation re-read, promotes corroborated findings, renders a BLOCK/CONCERNS/CLEAN verdict, writes report.md, and opens a Zysys-themed lavish HTML report with the findings severity-ordered.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "we commit to this Monday, so red-team docs/plans/migration-plan.md first — poke holes in it",
+      "expected_output": "Maps roles to a plan artifact: Pre-mortem historian, Requirements adversary, Operator, New maintainer. Findings cite exact passages of the plan, the pre-mortem produces concrete failure stories, the verdict is stated without softening, and the lavish report marks every unproven suspicion as a fragile assumption rather than a confirmed finding.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "/adversarial-review --diff main...HEAD",
+      "expected_output": "Runs the full workflow on the diff without asking for confirmation: manifest, one parallel adversary batch, adjudication with citation verification and corroboration promotion, bounded to one round, report.md, and the lavish artifact opened with npx -y lavish-axi.",
+      "files": []
+    }
+  ]
+}

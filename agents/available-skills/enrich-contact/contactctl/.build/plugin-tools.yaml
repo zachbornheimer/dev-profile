@@ -1,0 +1,66 @@
+client:
+  name: basic
+  file-system: device-agnostic
+tools: {}
+targets:
+  "PackageStructure": ["<PackageStructure>"]
+  "contactctl-arm64-apple-macosx-release.exe": ["<contactctl-arm64-apple-macosx-release.exe>"]
+  "contactctl-arm64-apple-macosx-release.module": ["<contactctl-arm64-apple-macosx-release.module>"]
+  "main": ["<contactctl-arm64-apple-macosx-release.exe>","<contactctl-arm64-apple-macosx-release.module>"]
+  "test": ["<contactctl-arm64-apple-macosx-release.exe>","<contactctl-arm64-apple-macosx-release.module>"]
+default: "main"
+nodes:
+  "/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/Sources/contactctl/":
+    is-directory-structure: true
+    content-exclusion-patterns: [".git",".build"]
+commands:
+  "/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/.build/arm64-apple-macosx/release/contactctl.build/sources":
+    tool: write-auxiliary-file
+    inputs: ["<sources-file-list>","/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/Sources/contactctl/AppleScriptFallback.swift","/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/Sources/contactctl/ChromeBridge.swift","/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/Sources/contactctl/Commands.swift","/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/Sources/contactctl/ContactStore.swift","/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/Sources/contactctl/ImageHeader.swift","/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/Sources/contactctl/Output.swift","/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/Sources/contactctl/main.swift"]
+    outputs: ["/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/.build/arm64-apple-macosx/release/contactctl.build/sources"]
+    description: "Write auxiliary file /Users/zbornheimer/.claude/skills/enrich-contact/contactctl/.build/arm64-apple-macosx/release/contactctl.build/sources"
+
+  "/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/.build/arm64-apple-macosx/release/contactctl.product/Objects.LinkFileList":
+    tool: write-auxiliary-file
+    inputs: ["<link-file-list>","/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/.build/arm64-apple-macosx/release/contactctl.build/AppleScriptFallback.swift.o","/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/.build/arm64-apple-macosx/release/contactctl.build/ChromeBridge.swift.o","/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/.build/arm64-apple-macosx/release/contactctl.build/Commands.swift.o","/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/.build/arm64-apple-macosx/release/contactctl.build/ContactStore.swift.o","/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/.build/arm64-apple-macosx/release/contactctl.build/ImageHeader.swift.o","/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/.build/arm64-apple-macosx/release/contactctl.build/Output.swift.o","/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/.build/arm64-apple-macosx/release/contactctl.build/main.swift.o"]
+    outputs: ["/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/.build/arm64-apple-macosx/release/contactctl.product/Objects.LinkFileList"]
+    description: "Write auxiliary file /Users/zbornheimer/.claude/skills/enrich-contact/contactctl/.build/arm64-apple-macosx/release/contactctl.product/Objects.LinkFileList"
+
+  "/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/.build/arm64-apple-macosx/release/swift-version--58304C5D6DBC2206.txt":
+    tool: write-auxiliary-file
+    inputs: ["<swift-get-version>","/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc"]
+    outputs: ["/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/.build/arm64-apple-macosx/release/swift-version--58304C5D6DBC2206.txt"]
+    always-out-of-date: "true"
+    description: "Write auxiliary file /Users/zbornheimer/.claude/skills/enrich-contact/contactctl/.build/arm64-apple-macosx/release/swift-version--58304C5D6DBC2206.txt"
+
+  "<contactctl-arm64-apple-macosx-release.exe>":
+    tool: phony
+    inputs: ["/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/.build/arm64-apple-macosx/release/contactctl"]
+    outputs: ["<contactctl-arm64-apple-macosx-release.exe>"]
+
+  "<contactctl-arm64-apple-macosx-release.module>":
+    tool: phony
+    inputs: ["/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/.build/arm64-apple-macosx/release/contactctl.build/AppleScriptFallback.swift.o","/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/.build/arm64-apple-macosx/release/contactctl.build/ChromeBridge.swift.o","/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/.build/arm64-apple-macosx/release/contactctl.build/Commands.swift.o","/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/.build/arm64-apple-macosx/release/contactctl.build/ContactStore.swift.o","/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/.build/arm64-apple-macosx/release/contactctl.build/ImageHeader.swift.o","/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/.build/arm64-apple-macosx/release/contactctl.build/Output.swift.o","/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/.build/arm64-apple-macosx/release/contactctl.build/main.swift.o","/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/.build/arm64-apple-macosx/release/Modules/contactctl.swiftmodule"]
+    outputs: ["<contactctl-arm64-apple-macosx-release.module>"]
+
+  "C.contactctl-arm64-apple-macosx-release.exe":
+    tool: shell
+    inputs: ["/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/.build/arm64-apple-macosx/release/contactctl.build/AppleScriptFallback.swift.o","/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/.build/arm64-apple-macosx/release/contactctl.build/ChromeBridge.swift.o","/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/.build/arm64-apple-macosx/release/contactctl.build/Commands.swift.o","/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/.build/arm64-apple-macosx/release/contactctl.build/ContactStore.swift.o","/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/.build/arm64-apple-macosx/release/contactctl.build/ImageHeader.swift.o","/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/.build/arm64-apple-macosx/release/contactctl.build/Output.swift.o","/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/.build/arm64-apple-macosx/release/contactctl.build/main.swift.o","/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/.build/arm64-apple-macosx/release/contactctl.product/Objects.LinkFileList"]
+    outputs: ["/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/.build/arm64-apple-macosx/release/contactctl"]
+    description: "Linking ./.build/arm64-apple-macosx/release/contactctl"
+    args: ["/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc","-L","/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/.build/arm64-apple-macosx/release","-o","/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/.build/arm64-apple-macosx/release/contactctl","-module-name","contactctl","-Xlinker","-no_warn_duplicate_libraries","-emit-executable","-Xlinker","-dead_strip","-Xlinker","-alias","-Xlinker","_contactctl_main","-Xlinker","_main","-Xlinker","-rpath","-Xlinker","@loader_path","@/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/.build/arm64-apple-macosx/release/contactctl.product/Objects.LinkFileList","-Xlinker","-rpath","-Xlinker","/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-6.2/macosx","-target","arm64-apple-macosx12.0","-plugin-path","/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing","-sdk","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk","-F","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks","-I","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib","-L","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib","-g"]
+
+  "C.contactctl-arm64-apple-macosx-release.module":
+    tool: shell
+    inputs: ["/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/Sources/contactctl/AppleScriptFallback.swift","/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/Sources/contactctl/ChromeBridge.swift","/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/Sources/contactctl/Commands.swift","/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/Sources/contactctl/ContactStore.swift","/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/Sources/contactctl/ImageHeader.swift","/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/Sources/contactctl/Output.swift","/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/Sources/contactctl/main.swift","/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/.build/arm64-apple-macosx/release/swift-version--58304C5D6DBC2206.txt","/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/.build/arm64-apple-macosx/release/contactctl.build/sources"]
+    outputs: ["/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/.build/arm64-apple-macosx/release/contactctl.build/AppleScriptFallback.swift.o","/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/.build/arm64-apple-macosx/release/contactctl.build/ChromeBridge.swift.o","/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/.build/arm64-apple-macosx/release/contactctl.build/Commands.swift.o","/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/.build/arm64-apple-macosx/release/contactctl.build/ContactStore.swift.o","/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/.build/arm64-apple-macosx/release/contactctl.build/ImageHeader.swift.o","/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/.build/arm64-apple-macosx/release/contactctl.build/Output.swift.o","/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/.build/arm64-apple-macosx/release/contactctl.build/main.swift.o","/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/.build/arm64-apple-macosx/release/Modules/contactctl.swiftmodule"]
+    description: "Compiling Swift Module 'contactctl' (7 sources)"
+    args: ["/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc","-module-name","contactctl","-emit-dependencies","-emit-module","-emit-module-path","/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/.build/arm64-apple-macosx/release/Modules/contactctl.swiftmodule","-output-file-map","/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/.build/arm64-apple-macosx/release/contactctl.build/output-file-map.json","-whole-module-optimization","-num-threads","10","-c","@/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/.build/arm64-apple-macosx/release/contactctl.build/sources","-I","/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/.build/arm64-apple-macosx/release/Modules","-target","arm64-apple-macosx12.0","-whole-module-optimization","-num-threads","10","-serialize-diagnostics","-O","-j10","-DSWIFT_PACKAGE","-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE","-module-cache-path","/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/.build/arm64-apple-macosx/release/ModuleCache","-parseable-output","-Xfrontend","-entry-point-function-name","-Xfrontend","contactctl_main","-swift-version","5","-plugin-path","/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing","-sdk","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk","-F","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks","-I","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib","-L","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib","-g","-Xcc","-isysroot","-Xcc","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk","-Xcc","-F","-Xcc","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks","-Xcc","-fPIC","-Xcc","-g","-package-name","contactctl"]
+
+  "PackageStructure":
+    tool: package-structure-tool
+    inputs: ["/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/Sources/contactctl/","/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/Package.swift","/Users/zbornheimer/.claude/skills/enrich-contact/contactctl/Package.resolved"]
+    outputs: ["<PackageStructure>"]
+    description: "Planning build"
+    allow-missing-inputs: true
+

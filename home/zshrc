@@ -1,0 +1,16 @@
+# ~/.zshrc — all configuration lives in ~/.config/zsh; loader.zsh documents the layout.
+builtin source "$HOME/.config/zsh/loader.zsh"
+builtin source "$HOME/.config/ai/env.sh"
+
+# Hermes Agent command
+case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) export PATH="$HOME/.local/bin:$PATH" ;; esac
+
+. "$HOME/.turso/env"
+# oMLX: CLI shim path begin
+case ":$PATH:" in
+*":$HOME/.omlx/bin:"*) ;;
+*) export PATH="$HOME/.omlx/bin:$PATH" ;;
+esac
+# oMLX: CLI shim path end
+
+if command -v wt >/dev/null 2>&1; then eval "$(command wt config shell init zsh)"; fi

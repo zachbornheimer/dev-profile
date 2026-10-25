@@ -1,0 +1,3 @@
+aubx: global skills update confined to /Users/zbornheimer/.agents/available-skills (pass -p for a project install)
+proof_real_install_scope.sh: line 18: 93808 Killed: 9               aubx skills update -g
+installer failed

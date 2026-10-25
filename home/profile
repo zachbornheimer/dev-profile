@@ -1,0 +1,41 @@
+
+# Kiro CLI pre block. Keep at the top of this file.
+[[ -f "${HOME}/Library/Application Support/kiro-cli/shell/profile.pre.bash" ]] && builtin source "${HOME}/Library/Application Support/kiro-cli/shell/profile.pre.bash"
+
+# ~/.profile — bash/sh login installers that don't load zsh.
+# Same fence as zsh: uv-managed Python on PATH; never touch system Python via tools.
+
+export UV_PYTHON_PREFERENCE=only-managed
+export PIP_REQUIRE_VIRTUALENV=1
+
+# Move a directory to the front of PATH, dropping any later copy.
+# Presence is not enough: when the inherited PATH already lists the directory
+# late (mise activate prepends its own install bins after ~/.zshenv ran), a
+# "is it present?" check leaves the raw aubx in front. A raw `aubx skills add -g`
+# writes a copy into every detected harness instead of only
+# ~/.agents/available-skills, so the guard in ~/.agents/bin must be first.
+path_prepend_unique() {
+  _ppu_rest=""
+  _ppu_ifs=$IFS
+  IFS=:
+  for _ppu_dir in $PATH; do
+    [ "$_ppu_dir" = "$1" ] && continue
+    _ppu_rest="${_ppu_rest:+$_ppu_rest:}$_ppu_dir"
+  done
+  IFS=$_ppu_ifs
+  PATH="$1${_ppu_rest:+:$_ppu_rest}"
+  export PATH
+  unset _ppu_rest _ppu_ifs _ppu_dir
+}
+
+[ -d "$HOME/.agents/bin" ] && path_prepend_unique "$HOME/.agents/bin"
+[ -d "$HOME/.local/bin" ] && path_prepend_unique "$HOME/.local/bin"
+unset -f path_prepend_unique
+
+
+builtin source "$HOME/.config/ai/env.sh"
+
+# Kiro CLI post block. Keep at the bottom of this file.
+[[ -f "${HOME}/Library/Application Support/kiro-cli/shell/profile.post.bash" ]] && builtin source "${HOME}/Library/Application Support/kiro-cli/shell/profile.post.bash"
+
+. "$HOME/.turso/env"

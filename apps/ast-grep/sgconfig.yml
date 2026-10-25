@@ -1,0 +1,11 @@
+# ast-grep root configuration. Registers custom tree-sitter grammars that
+# are not bundled with upstream ast-grep. Managed by quality-guard setup.
+ruleDirs: []
+customLanguages:
+  perl:
+    libraryPath: /Users/zbornheimer/.local/share/quality-guard/grammars/perl.dylib
+    extensions:
+      - pl
+      - pm
+      - t
+    expandoChar: _

@@ -1,0 +1,8 @@
+{
+  "session_id": "hgtest-ssh-reap",
+  "hook_event_name": "PostToolUse",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "ssh-mini docker ps"
+  }
+}

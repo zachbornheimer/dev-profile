@@ -1,0 +1,108 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.10"
+# dependencies = []
+# ///
+"""Run the learn-from-transcript workflow on one session.
+
+Both /learn (the omp command) and the agent-hooks frustration-learn hook call
+this. The source is `<harness>:<id>` (omp, claude, codex, grok, cursor,
+copilot, opencode, pi, hermes, agentmux), a bare omp id, or a Mastra thread
+(`mastra:thread:<id>` or a Studio thread URL). The workflow resolves and
+annotates the transcript, runs its forensics passes in one thread, saves the
+thread, and files every ticket it names as an atask objective. With --dispatch
+it also starts one worker per objective atask will claim; the /learn command
+passes it, the frustration hook does not. This launcher only validates the
+source, runs the workflow, records the run, and prints its JSON result.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import subprocess
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+LEARNINGS_DIR = Path.home() / ".agents" / "learnings"
+LAUNCH_LOG = LEARNINGS_DIR / "launch.log"
+REF = re.compile(r"^([a-z][a-z0-9_-]*):([A-Za-z0-9._-]+)$")
+HARNESSES = frozenset(
+    {"omp", "claude", "codex", "grok", "cursor", "copilot", "opencode", "pi", "hermes", "agentmux"}
+)
+BARE_OMP_ID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+MASTRA_REF = re.compile(r"^mastra:thread:([^\s:]+)$")
+MASTRA_URL = re.compile(r"^https?://[^\s/?#]+/agents/[^\s/?#]+/threads/([^\s/?#:]+)/?(?:[?#]\S*)?$")
+RUN_TIMEOUT_SECS = 2 * 60 * 60
+
+
+def source_of(word: str) -> str | None:
+    """The source the workflow accepts: a harness id, a bare omp id, or a Mastra thread ref."""
+    text = word.strip()
+    if BARE_OMP_ID.match(text):
+        return f"omp:{text}"
+    match = REF.match(text)
+    if match and match.group(1) in HARNESSES:
+        return text
+    if MASTRA_REF.match(text):
+        return text
+    url = MASTRA_URL.match(text)
+    if url:
+        return f"mastra:thread:{url.group(1)}"
+    return None
+
+
+def fail(message: str) -> None:
+    print(f"learn-launch: {message}", file=sys.stderr)
+    raise SystemExit(1)
+
+
+def workflow_argv(source: str, dispatch: bool) -> list[str]:
+    payload = {"source": source, "dispatch": dispatch}
+    return ["capability", "run", "learn-from-transcript", "--input", json.dumps(payload)]
+
+
+def record(entry: dict) -> None:
+    LEARNINGS_DIR.mkdir(parents=True, exist_ok=True)
+    with LAUNCH_LOG.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(entry) + "\n")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Run learn-from-transcript on one session.")
+    parser.add_argument("ref", help="<harness>:<id>, a bare omp id, mastra:thread:<id>, or a Studio thread URL")
+    parser.add_argument("--reason", default="manual /learn", help="why the run started; recorded only")
+    parser.add_argument(
+        "--dispatch",
+        action="store_true",
+        help="start a start_atask_task worker for every objective atask will claim, after filing the tickets",
+    )
+    parser.add_argument("--dry-run", action="store_true", help="print the plan without running the workflow")
+    args = parser.parse_args()
+
+    source = source_of(args.ref)
+    if source is None:
+        fail(f"ref must be <harness>:<id> or a Mastra thread URL, got {args.ref!r}")
+    plan = {"source": source, "dispatch": args.dispatch, "command": workflow_argv(source, args.dispatch)}
+    if args.dry_run:
+        print(json.dumps(plan))
+        return
+
+    run = subprocess.run(plan["command"], capture_output=True, text=True, timeout=RUN_TIMEOUT_SECS)
+    if run.returncode != 0:
+        detail = (run.stderr or run.stdout or "").strip()
+        fail(f"learn-from-transcript failed ({run.returncode}): {detail[:400]}")
+    try:
+        results = json.loads(run.stdout)
+    except ValueError:
+        fail(f"learn-from-transcript printed non-JSON: {run.stdout[:200]!r}")
+    if not isinstance(results, list):
+        fail(f"learn-from-transcript returned a non-list result: {run.stdout[:200]!r}")
+    record({"at": datetime.now(timezone.utc).isoformat(), "reason": args.reason, **plan, "tickets": results})
+    print(run.stdout, end="")
+
+
+if __name__ == "__main__":
+    main()

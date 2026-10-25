@@ -1,0 +1,31 @@
+# 1Password SSH agent — which keys the agent offers to `ssh`.
+#
+# Entries are listed by VAULT, not by individual key. Consequence: any key you
+# add, rotate, or re-import into one of these vaults is served automatically —
+# no edit here is ever needed for a key change. The only future edit is adding a
+# brand-new vault.
+#
+# Order matters: keys are offered to a server top-to-bottom. Put the vaults you
+# connect from most often first, so the right key is tried early (see the
+# "too many authentication failures" note in chat).
+#
+# To stop using this list and fall back to the Personal-vault-only default,
+# delete this file.
+
+[[ssh-keys]]
+vault = "Personal"
+
+[[ssh-keys]]
+vault = "Zysys"
+
+[[ssh-keys]]
+vault = "SAH"
+
+[[ssh-keys]]
+vault = "IIP Group"
+
+[[ssh-keys]]
+vault = "Clients"
+
+[[ssh-keys]]
+vault = "ZAB Ai, LLC"

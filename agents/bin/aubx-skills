@@ -1,0 +1,877 @@
+#!/usr/bin/env bash
+# aubx-skills — install or update a skill globally so the only durable write on
+# this machine is inside $AGENTS_HOME/available-skills.
+#
+# `aubx skills add -g` (aube dlx of vercel-labs/skills) derives every path it
+# writes from $HOME: the skill folder under ~/.agents/skills, a link or copy per
+# targeted agent, and ~/.agents/.skill-lock.json. It has no output-directory
+# flag, so no argument can redirect it.
+#
+# So the installer runs under a throwaway HOME: everything it derives from $HOME
+# lands in a scratch tree that is deleted on exit. The skill folders are then
+# copied into available-skills, and its install record is merged into
+# available-skills/.skill-lock.json.
+#
+# `aubx-skills update` runs the same way, seeded with the record and the existing
+# skill folders, so an update also writes nowhere but available-skills.
+#
+# A before/after audit of ~/.agents and every harness skill root still runs as a
+# tripwire: anything new there is named and the run exits 3. That catches an
+# installer that reaches a real path without going through $HOME.
+#
+# Package-manager state (aube's own download cache and store, under
+# ~/.cache/aube and ~/.local/share/aube) is left alone: it is the same state any
+# aube invocation writes, and it is not skill content.
+#
+# Usage:
+#   aubx-skills skills add vercel-labs/agent-skills --skill deploy-to-vercel -g -y
+#   aubx-skills add <package> [aubx skills add flags...]
+#   aubx-skills update -g [skill...]
+#
+# Env:
+#   AGENTS_HOME  default $HOME/.agents
+#   AUBX         default: first `aubx` on PATH outside the guard directory
+#   AUBX_AGENT   default codex
+#   DRY_RUN=1    install into scratch, report, change nothing permanent
+set -uo pipefail
+
+# Resolve this script's real path before deriving its directory. Both wrappers
+# are also installed as symlinks (~/.local/bin/aubx-skills -> ~/.agents/bin/...),
+# and a dirname-only path points at the symlink's directory. That made the
+# "never resolve to our own guard" skip miss ~/.agents/bin, so the confiner
+# called the guard back and every global install died with
+# "confiner re-entered itself".
+_self="${BASH_SOURCE[0]}"
+while [ -L "$_self" ]; do
+  _self_dir="$(cd -- "$(dirname -- "$_self")" && pwd -P)"
+  _self="$(readlink "$_self")"
+  case "$_self" in /*) ;; *) _self="$_self_dir/$_self" ;; esac
+done
+SELF_DIR="$(cd -- "$(dirname -- "$_self")" && pwd -P)"
+AGENTS_HOME="${AGENTS_HOME:-$HOME/.agents}"
+AVAILABLE_DIR="$AGENTS_HOME/available-skills"
+RECORD_FILE="$AVAILABLE_DIR/.skill-lock.json"
+# One writer at a time on the roster record. Every record update is a
+# read-modify-write, and two installs overlapping in that window each read the
+# same base document and rename their own copy over it: the later rename wins
+# and the earlier skill is gone from the record even though its folder exists.
+# A directory is the lock because mkdir is atomic on every filesystem this runs
+# on, and macOS ships no flock(1). The temp name carries this run's pid, so one
+# run can never rename a file another run is still writing.
+RECORD_LOCK="$AVAILABLE_DIR/.skill-lock.lock"
+RECORD_TMP="$RECORD_FILE.tmp.$$"
+RECORD_LOCK_HELD=0
+
+# A merge is milliseconds, so a lock this old has no live holder: the run that
+# made it was killed. Reclaiming it matters because a stranded lock would stall
+# every later merge until the timeout, and then let them all write unlocked.
+RECORD_LOCK_STALE_SECONDS=120
+RECORD_LOCK_WAIT_ATTEMPTS=600
+
+record_lock_abandoned() {
+  local now lock_mtime
+  now="$(/bin/date +%s)" || return 1
+  lock_mtime="$(/usr/bin/stat -f %m "$RECORD_LOCK" 2>/dev/null)" || return 1
+  [ $((now - lock_mtime)) -gt "$RECORD_LOCK_STALE_SECONDS" ]
+}
+
+record_lock() {
+  local waits=0
+  mkdir -p "$AVAILABLE_DIR" || return 1
+  while ! mkdir "$RECORD_LOCK" 2>/dev/null; do
+    if record_lock_abandoned && rmdir "$RECORD_LOCK" 2>/dev/null; then
+      note "reclaimed abandoned $RECORD_LOCK"
+      continue
+    fi
+    waits=$((waits + 1))
+    if [ "$waits" -ge "$RECORD_LOCK_WAIT_ATTEMPTS" ]; then
+      # Never silently skip the merge: say the record is unprotected, so a
+      # dropped entry later is explainable instead of mysterious.
+      note "could not take $RECORD_LOCK; merging without the lock"
+      return 1
+    fi
+    sleep 0.05
+  done
+  RECORD_LOCK_HELD=1
+  return 0
+}
+
+# Release only a lock this run actually took. rmdir on a lock another run owns
+# would hand two writers the critical section at once, which is the bug itself.
+record_unlock() {
+  [ "$RECORD_LOCK_HELD" = "1" ] || return 0
+  RECORD_LOCK_HELD=0
+  rmdir "$RECORD_LOCK" 2>/dev/null || true
+}
+
+# Names of the skill folders in the roster, as a JSON array.
+roster_names() {
+  local d
+  for d in "$AVAILABLE_DIR"/*; do
+    [ -d "$d" ] && basename "$d"
+  done | jq -R . | jq -s .
+}
+
+# Drop record entries that name no folder in the roster. A proof or install run
+# that sourced a skill from a throwaway directory leaves its entry behind when
+# that source disappears: the entry names a dead path and no folder sits in
+# available-skills. Nothing removed it, so `aubx skills update -g` re-resolved
+# dead sources on every run and the record drifted from what is installed. The
+# folder is the authority on what the roster holds.
+prune_ghost_entries() {
+  [ -f "$RECORD_FILE" ] || return 0
+  if ! command -v jq >/dev/null 2>&1; then
+    note "jq not found; left record as written"
+    return 0
+  fi
+  local live ghosts d
+  live="$(roster_names 2>/dev/null)" || return 0
+  [ -n "$live" ] || return 0
+  ghosts="$(jq -r --argjson live "$live" '((.skills // {}) | keys) - $live | .[]' \
+              "$RECORD_FILE" 2>/dev/null)" || return 0
+  [ -n "$ghosts" ] || return 0
+  if [ "${DRY_RUN:-0}" = "1" ]; then
+    while IFS= read -r d; do [ -n "$d" ] && note "would drop record entry $d"; done <<<"$ghosts"
+    return 0
+  fi
+  record_lock
+  # Re-scan under the lock. A concurrent run can install a folder between
+  # this run's first scan and the lock; pruning with the pre-lock list would
+  # drop the entry that run just merged, leaving a folder in the roster with
+  # no record entry, so `aubx skills update -g` never sees that skill again.
+  live="$(roster_names 2>/dev/null)" || { record_unlock; return 0; }
+  ghosts="$(jq -r --argjson live "$live" '((.skills // {}) | keys) - $live | .[]' \
+              "$RECORD_FILE" 2>/dev/null)" || { record_unlock; return 0; }
+  if [ -z "$ghosts" ]; then
+    record_unlock
+    return 0
+  fi
+  # Re-read inside the lock: the prune builds on what the previous writer
+  # committed, never on the document this run saw on entry.
+  if jq --argjson live "$live" \
+       '.skills = ((.skills // {}) | with_entries(select(.key as $k | ($live | index($k)) != null)))' \
+       "$RECORD_FILE" >"$RECORD_TMP" 2>/dev/null; then
+    /bin/mv "$RECORD_TMP" "$RECORD_FILE" || /bin/rm -f "$RECORD_TMP"
+    while IFS= read -r d; do [ -n "$d" ] && note "dropped record entry $d (no folder in $AVAILABLE_DIR)"; done <<<"$ghosts"
+  else
+    /bin/rm -f "$RECORD_TMP"
+    note "kept existing $RECORD_FILE (ghost prune failed)"
+  fi
+  record_unlock
+}
+
+AUBX_NAME="${AUBX:-aubx}"
+AUBX_AGENT="${AUBX_AGENT:-codex}"
+REAL_HOME="$HOME"
+LINK_ROOTS=(
+  "$REAL_HOME/.claude/skills"
+  "$REAL_HOME/.codex/skills"
+  "$REAL_HOME/.grok/skills"
+  "$REAL_HOME/.cursor/skills"
+  "$REAL_HOME/.config/opencode/skills"
+  "$REAL_HOME/.gemini/skills"
+)
+
+die() { printf 'aubx-skills: %s\n' "$*" >&2; exit 2; }
+note() { printf 'aubx-skills: %s\n' "$*"; }
+
+# Resolve the real aubx, never this directory's guard shim: delegating back to
+# the shim recurses for as long as the shell survives.
+resolve_aubx() {
+  local d candidate
+  local IFS=:
+  for d in ${PATH:-}; do
+    [ -n "$d" ] || continue
+    [ -d "$d" ] || continue
+    [ "$(cd -- "$d" && pwd -P)" = "$SELF_DIR" ] && continue
+    candidate="$d/$AUBX_NAME"
+    [ -x "$candidate" ] || continue
+    # A mise shim re-dispatches by name through PATH and would land back in the
+    # guard, nesting another scratch HOME. Never resolve to one.
+    case "$candidate" in */mise/shims/*) continue ;; esac
+    case "$(basename -- "$(readlink "$candidate" 2>/dev/null || printf %s "$candidate")")" in
+      mise) continue ;;
+    esac
+    # The guard is installed under a second name too (~/.local/bin/aubx ->
+    # ~/.agents/bin/aubx) and that directory can come BEFORE this one on PATH.
+    # Same file, different directory: a directory-name skip misses it, the
+    # guard re-enters the confiner, and every global install dies with
+    # "confiner re-entered itself". Compare file identity.
+    [ "$candidate" -ef "$SELF_DIR/$AUBX_NAME" ] && continue
+    printf '%s\n' "$candidate"
+    return 0
+  done
+  # A shell that never sourced the rc files has no mise or Homebrew on PATH, so
+  # the scan above finds nothing. Fall back to the installer's own install roots
+  # rather than dying: the mise shim first (it follows the pinned version), then
+  # the mise installs, then Homebrew. An explicit AUBX is honoured as given.
+  if [ -n "${AUBX:-}" ]; then
+    [ -x "$AUBX" ] && { printf '%s\n' "$AUBX"; return 0; }
+  fi
+  # The newest mise install wins. A bare glob hands back lexical order, and
+  # 1.26.0 sorts before 2.7.0, so the oldest install ran the installer while a
+  # normal shell would have run the pinned one. Version names only: `latest` and
+  # other aliases are not versions and must not outrank a real one.
+  newest_install=""
+  newest_version=""
+  for install in "$HOME"/.local/share/mise/installs/aube/*/.mise-bins/"$AUBX_NAME"; do
+    [ -x "$install" ] || continue
+    version="${install#"$HOME"/.local/share/mise/installs/aube/}"
+    version="${version%%/*}"
+    case "$version" in ''|*[!0-9.]*) continue ;; esac
+    if [ -z "$newest_version" ] || \
+       [ "$(printf '%s\n%s\n' "$newest_version" "$version" | sort -V | tail -n1)" = "$version" ]; then
+      newest_version="$version"
+      newest_install="$install"
+    fi
+  done
+  for candidate in "$HOME/.local/share/mise/shims/$AUBX_NAME" \
+                   "$newest_install" \
+                   /opt/homebrew/bin/"$AUBX_NAME"; do
+    [ -x "$candidate" ] || continue
+    # A mise shim re-dispatches by name through PATH and would land back in the
+    # guard, nesting another scratch HOME. Never resolve to one.
+    case "$candidate" in */mise/shims/*) continue ;; esac
+    case "$(basename -- "$(readlink "$candidate" 2>/dev/null || printf %s "$candidate")")" in
+      mise) continue ;;
+    esac
+    printf '%s\n' "$candidate"
+    return 0
+  done
+  return 1
+}
+
+AUBX_SKILLS_VERSION="2026.10.22"
+
+usage() {
+  cat <<EOF
+aubx-skills $AUBX_SKILLS_VERSION — roster-confining wrapper around \`aubx skills\`.
+Every durable write lands in $AVAILABLE_DIR; the real installer runs under a
+throwaway HOME, and a write that reaches any other path aborts the run (exit 3).
+
+usage: aubx-skills [skills] add <package> [aubx skills add flags...]
+       aubx-skills [skills] update [-g] [skill...]
+       aubx-skills [skills] remove <skill> [-g] [-y]
+       aubx-skills [skills] list
+       aubx-skills --dry-run <subcommand...>   run in scratch, print each target, change nothing
+       aubx-skills --help | --version
+
+env: AGENTS_HOME=$AGENTS_HOME  AUBX (real aubx; default: first on PATH outside this dir)
+     AUBX_AGENT (default codex)  DRY_RUN=1 (same as --dry-run)
+EOF
+}
+
+case "${1:-}" in
+  -h|--help|help) usage; exit 0 ;;
+  -V|--version) printf 'aubx-skills %s\n' "$AUBX_SKILLS_VERSION"; exit 0 ;;
+esac
+# --dry-run anywhere in argv is this wrapper's flag, never the installer's.
+filtered=()
+for _a in "$@"; do
+  case "$_a" in --dry-run) DRY_RUN=1; export DRY_RUN ;; *) filtered+=("$_a") ;; esac
+done
+set -- ${filtered[@]+"${filtered[@]}"}
+
+[ "$#" -ge 1 ] || { usage >&2; exit 2; }
+REAL_AUBX="$(resolve_aubx)" || die "no $AUBX_NAME on PATH outside $SELF_DIR"
+
+# Accept `skills add ...`, `add ...`, `skills update ...`, `update ...`, and a
+# bare package (add implied).
+raw=("$@")
+[ "${raw[0]:-}" = "skills" ] && raw=("${raw[@]:1}")
+mode=add
+case "${raw[0]:-}" in
+  add) raw=("${raw[@]:1}") ;;
+  update|upgrade) mode=update; raw=("${raw[@]:1}") ;;
+  remove|rm) mode=remove; raw=("${raw[@]:1}") ;;
+  list|ls) mode=list; raw=("${raw[@]:1}") ;;
+esac
+# `list`/`ls` is read-only: print the roster. Without this branch a bare
+# `aubx-skills list` falls through as a package named "list" and asks the
+# installer to fetch it, which is a confusing way to fail.
+if [ "$mode" = list ]; then
+  if command -v jq >/dev/null 2>&1 && [ -f "$RECORD_FILE" ]; then
+    jq -r '.skills | keys[]' "$RECORD_FILE" 2>/dev/null | sort
+  elif [ -d "$AVAILABLE_DIR" ]; then
+    for _d in "$AVAILABLE_DIR"/*; do
+      [ -d "$_d" ] || continue
+      _b="$(basename -- "$_d")"
+      case "$_b" in .*) continue ;; esac
+      printf '%s\n' "$_b"
+    done | sort
+  fi
+  exit 0
+fi
+
+[ "${#raw[@]}" -ge 1 ] || die "usage: aubx-skills [skills] add <package> [flags...]"
+
+has_global=0; has_yes=0; has_agent=0
+for a in "${raw[@]}"; do
+  case "$a" in
+    -g|--global) has_global=1 ;;
+    -y|--yes) has_yes=1 ;;
+    -a|--agent|--agent=*) has_agent=1 ;;
+  esac
+done
+
+# The skills CLI parses `<source>` as the first positional, and a `-a` that
+# precedes it swallows it ("Missing required argument: source"), so defaults are
+# appended, never prepended.
+# The installer tokenizes `<source>` and the value lists for -s/-a/--subagent
+# the same way: a value list swallows every following word that is not a flag.
+# So `add -s '*' vercel-labs/agent-skills` reads the package as a skill name and
+# dies with the cryptic "Missing required argument: source". Detect it here and
+# name the fix instead of forwarding an argv that cannot work.
+if [ "$mode" = add ]; then
+  has_source=0
+  i=0
+  n=${#raw[@]}
+  while [ "$i" -lt "$n" ]; do
+    a="${raw[$i]}"
+    case "$a" in
+      -a|--agent|-s|--skill|--subagent)
+        i=$((i + 1))
+        while [ "$i" -lt "$n" ]; do
+          case "${raw[$i]}" in -*) break ;; esac
+          i=$((i + 1))
+        done
+        ;;
+      --metadata) i=$((i + 2)) ;;
+      -*) i=$((i + 1)) ;;
+      *) has_source=1; i=$((i + 1)) ;;
+    esac
+  done
+  if [ "$has_source" -eq 0 ]; then
+    die "no package source: -s/-a/--subagent swallow every following non-flag word, so put the package first (aubx skills add <package> -s <name>)"
+  fi
+fi
+
+args=("${raw[@]}")
+[ "$has_global" -eq 1 ] || args+=(-g)
+[ "$has_yes" -eq 1 ] || args+=(-y)
+if [ "$mode" = add ] && [ "$has_agent" -eq 0 ]; then
+  args+=(-a "$AUBX_AGENT")
+fi
+
+# Everything this wrapper may audit: entries in AGENTS_HOME except our own tree,
+# plus each harness skill root.
+audit_snapshot() {
+  local out="$1" root
+  : >"$out"
+  if [ -d "$AGENTS_HOME" ]; then
+    # Every comment about this expression lives ABOVE it, on purpose. A `#`
+    # comment inside a backslash-continued command is not a comment: bash joins
+    # the logical line first, so the comment swallowed the rest of it — the
+    # prune list became the whole expression, `-o -print` and the redirect never
+    # ran, $out stayed empty, a full tree dump went to stdout, and both `comm`
+    # diffs compared nothing. The "no writes outside available-skills" claim and
+    # the leak arm were therefore vacuous.
+    #
+    # Full depth, not depth 1: the escape targets sit below it (~/.agents/bin is
+    # on PATH, ~/.agents/hooks runs every turn). A depth-1 listing called a
+    # planted ~/.agents/bin/<file> clean while the file sat there.
+    #
+    # ~/.agents/bin is chezmoi-managed tooling; no skill installer derives that
+    # path, and agents legitimately create test files there mid-run. Counted,
+    # every unrelated write under it failed a correctly confined install with
+    # exit 3.
+    #
+    # ~/.agents/bin.tmp is the atask engine's scratch: `atask verify` runs its
+    # checks with TMPDIR=$AGENTS_HOME/bin.tmp, inside this audited root, so the
+    # engine's own bookkeeping (fslock, node-compile-cache) and this wrapper's
+    # throwaway HOME land there. No skill installer derives that path. Counted,
+    # every engine-run proof failed exit 3 despite a correctly confined install.
+    find "$AGENTS_HOME" -mindepth 1 \
+      \( -name available-skills -o -name __pycache__ -o -name .ruff_cache \
+         -o -name .patch -o -name .DS_Store -o -name '*.log' \) -prune \
+      -o -path "$AGENTS_HOME/bin" -prune \
+      -o -path "$AGENTS_HOME/hooks/state" -prune \
+      -o -path "$AGENTS_HOME/bin.tmp" -prune \
+      -o -print 2>/dev/null >>"$out"
+  fi
+  for root in "${LINK_ROOTS[@]}"; do
+    [ -d "$root" ] || continue
+    find "$root" -mindepth 1 -maxdepth 1 -print 2>/dev/null >>"$out"
+  done
+  sort -o "$out" "$out"
+}
+
+# TMPDIR is not trustworthy. atask verify, launchd and cron can hand this
+# script a temp root that does not exist or is not writable, and mktemp then
+# fails before any install begins. Probe the candidates and use the first
+# usable one, so a broken environment degrades to /tmp instead of a failed
+# install.
+tmp_root=""
+for _cand in "${TMPDIR:-}" /tmp; do
+  [ -n "$_cand" ] || continue
+  [ -d "$_cand" ] || continue
+  [ -w "$_cand" ] || continue
+  tmp_root="${_cand%/}"
+  break
+done
+[ -n "$tmp_root" ] || die "no writable temp directory (TMPDIR=${TMPDIR:-unset})"
+scratch="$(mktemp -d "$tmp_root/aubx-skills.XXXXXX")" || die "mktemp failed under $tmp_root"
+before="$(mktemp "$tmp_root/aubx-skills-before.XXXXXX")" || die "mktemp failed under $tmp_root"
+after="$(mktemp "$tmp_root/aubx-skills-after.XXXXXX")" || die "mktemp failed under $tmp_root"
+# The lock and the per-run temp must outlive no path: a die or failed install
+# that stranded either one would block or pollute every later merge.
+trap 'record_unlock; rm -f "$RECORD_TMP"; rm -rf "$scratch" "$before" "$after"' EXIT
+# Bash runs the EXIT trap on a normal exit, but a SIGTERM (timeout, launchd kill,
+# atask verify deadline) terminates the shell without it, stranding a scratch
+# HOME under the temp root on every interrupted run. Route the fatal signals
+# through exit so the same cleanup runs and no run leaks a directory.
+trap 'exit 143' TERM INT HUP
+
+
+mkdir -p "$scratch/.agents/skills"
+# Mirror the harness skill roots that exist for real, inside the scratch HOME.
+# An installer that writes one link per detected agent fails its whole run when
+# a link parent is missing; creating them here keeps that write in scratch
+# instead of turning a good install into a nonzero exit.
+for _root in "${LINK_ROOTS[@]}"; do
+  [ -d "$_root" ] || continue
+  mkdir -p "$scratch/${_root#"$REAL_HOME"/}" || true
+done
+
+# Warm the package store. A throwaway HOME starts with no aube cache, so every
+# install re-downloaded the installer's whole dependency tree — minutes of
+# network for one skill, and a crash mid-download left a half-written store
+# that the next run reported as a corrupt index. Package state is not skill
+# content (see the note at the top), so the scratch HOME borrows the real
+# cache and data trees instead of growing its own.
+mkdir -p "$scratch/.cache" "$scratch/.local/share"
+for _state in "$REAL_HOME/.cache/aube" "$REAL_HOME/.local/share/aube"; do
+  [ -d "$_state" ] || continue
+  ln -sfn "$_state" "$scratch/${_state#"$REAL_HOME"/}"
+done
+
+# Self-heal an install record an older installer wrote straight into
+# AGENTS_HOME: merge it into the roster record and remove it, so
+# available-skills stays the only durable skill state on the machine. Runs
+# before the audit snapshot, so a pre-existing leak is repaired instead of
+# being reported as this run's fault — and again after the installer, because
+# an installer that ignores $HOME can write that record during the run.
+heal_stray_record() {
+  local leaked="$AGENTS_HOME/.skill-lock.json"
+  [ -f "$leaked" ] || return 0
+  if [ "${DRY_RUN:-0}" = "1" ]; then
+    note "would merge $leaked into $RECORD_FILE and remove it"
+    return 0
+  fi
+  if ! command -v jq >/dev/null 2>&1; then
+    note "jq not found; kept stray $leaked"
+    return 0
+  fi
+  mkdir -p "$AVAILABLE_DIR" || die "cannot create $AVAILABLE_DIR"
+  record_lock
+  # Re-read under the lock: a concurrent run can fold and remove the stray while
+  # this one waits, and folding a file that is already gone would report failure
+  # for work another run completed.
+  if [ ! -f "$leaked" ]; then
+    record_unlock
+    return 0
+  fi
+  [ -f "$RECORD_FILE" ] || printf '{"version":3,"skills":{}}\n' >"$RECORD_FILE"
+  # The roster record wins on a conflicting entry: it is the canonical copy.
+  # Only entries that back a real skill folder are carried over: a record left
+  # by a run that installed nothing must not add a skill the roster does not
+  # have. The leaked file is removed either way, so a failed install cannot
+  # leave skill state outside available-skills.
+  heal_keep="$(mktemp "$tmp_root/aubx-skills-heal.XXXXXX")" || die "mktemp failed under $tmp_root"
+  jq -r '.skills // {} | keys[]' "$leaked" 2>/dev/null | while IFS= read -r k; do
+    [ -d "$AVAILABLE_DIR/$k" ] && printf '%s\n' "$k"
+  done >"$heal_keep"
+  if jq -s --rawfile keep "$heal_keep" '
+        ($keep | split("\n") | map(select(length > 0))) as $names
+        | .[0] as $leaked | .[1] as $roster
+        | {version: 3,
+           skills: (($leaked.skills // {})
+                    | with_entries(select(.key as $k | $names | index($k)))
+                    + ($roster.skills // {}))}' \
+       "$leaked" "$RECORD_FILE" >"$RECORD_TMP" 2>/dev/null; then
+    mv "$RECORD_TMP" "$RECORD_FILE"
+    # The fold is only complete once the outside copy is gone. Merging without
+    # removing left ~/.agents/.skill-lock.json on the machine, and the next
+    # run's pre-install heal reported it clean while the record still sat
+    # outside the roster. Remove after the merge lands, so a failed merge keeps
+    # the only copy of the data.
+    rm -f "$leaked"
+    note "folded stray $leaked into $RECORD_FILE and removed it"
+  else
+    rm -f "$RECORD_TMP" "$heal_keep"
+    note "kept stray $leaked (merge failed)"
+  fi
+  record_unlock
+}
+
+heal_stray_record
+
+audit_snapshot "$before"
+
+# Seed the scratch tree so an update sees what is installed.
+# Seed the scratch tree for update and remove: both need the current roster.
+if [ "$mode" = update ] || [ "$mode" = remove ]; then
+  [ -f "$RECORD_FILE" ] && /bin/cp "$RECORD_FILE" "$scratch/.agents/.skill-lock.json"
+fi
+
+# Update needs the roster seeded for the opposite reason remove does: the
+# installer rewrites what it finds, so a scratch tree holding only the record
+# makes every global update a silent no-op — it exits 0, reports nothing new,
+# and the installed skill never changes. Clone the folders (APFS copy-on-write,
+# so a 157-skill roster costs milliseconds rather than minutes) instead of
+# copying bytes; a file the installer rewrites gets its own inode, so the live
+# roster stays untouched until this wrapper swaps a validated copy in.
+if [ "$mode" = update ]; then
+  seeded=0
+  for d in "$AVAILABLE_DIR"/*; do
+    [ -d "$d" ] || continue
+    n="$(basename -- "$d")"
+    case "$n" in .*) continue ;; esac
+    mkdir -p "$scratch/.agents/skills/$n"
+    if /bin/cp -R -c "$d/." "$scratch/.agents/skills/$n/" 2>/dev/null; then
+      seeded=$((seeded + 1))
+    elif /bin/cp -R "$d/." "$scratch/.agents/skills/$n/" 2>/dev/null; then
+      seeded=$((seeded + 1))
+    else
+      note "warning: could not seed $n for update"
+    fi
+  done
+  note "seeded $seeded roster skill(s) so the installer has something to update"
+fi
+
+if [ "$mode" = remove ]; then
+  # Snapshot the roster so this run's deletions can be told from ours.
+  : >"$scratch/seed-names.txt"
+  # Seed one placeholder per roster skill carrying just its SKILL.md. The
+  # installer deletes what it removes inside the scratch tree, so that tree
+  # must contain the skill or no deletion is visible; copying the whole folder
+  # set made one removal take minutes. A single SKILL.md is enough to look
+  # installed and keeps the seed cheap.
+  for d in "$AVAILABLE_DIR"/*; do
+    [ -d "$d" ] || continue
+    [ -f "$d/SKILL.md" ] || continue
+    n="$(basename -- "$d")"
+    mkdir -p "$scratch/.agents/skills/$n"
+    /bin/cp "$d/SKILL.md" "$scratch/.agents/skills/$n/SKILL.md" 2>/dev/null || true
+    printf "%s\n" "$n" >>"$scratch/seed-names.txt"
+  done
+fi
+
+note "running $REAL_AUBX skills $mode ${args[*]} (isolated HOME=$scratch)"
+# AUBX_SKILLS_CONFINED stops the guard from confining this run a second time if
+# the installer re-dispatches by name (a mise shim) instead of running directly.
+# TMPDIR is pinned to the probed temp root: aube builds its dlx scratch under
+# $TMPDIR without creating the parent, so an inherited TMPDIR from atask verify,
+# launchd or cron that does not exist kills the install before it starts.
+( cd "$scratch" && HOME="$scratch" AGENTS_HOME="$scratch/.agents" TMPDIR="$tmp_root" AUBX_SKILLS_CONFINED=1 \
+    "$REAL_AUBX" skills "$mode" "${args[@]}" )
+rc=$?
+
+
+# Remove is the inverse of add and writes the same three places the installer
+# would: the skill folder under ~/.agents/skills (the roster), a link per agent,
+# and the install record. So it runs under the same throwaway HOME, seeded with
+# the roster, and this wrapper deletes only what it owns: folders inside
+# available-skills, harness links to them, and the matching record entries.
+# Anything else the installer deletes is named and the run exits 3.
+if [ "$mode" = remove ]; then
+  removed=()
+  if [ -f "$scratch/seed-names.txt" ]; then
+    while IFS= read -r n; do
+      [ -n "$n" ] || continue
+      [ -e "$scratch/.agents/skills/$n" ] || removed+=("$n")
+    done <"$scratch/seed-names.txt"
+  fi
+
+  prune_record() {
+    [ -f "$RECORD_FILE" ] || return 0
+    if ! command -v jq >/dev/null 2>&1; then
+      note "jq not found; left record entry $1"
+      return 0
+    fi
+    record_lock
+    if jq --arg n "$1" 'del(.skills[$n])' "$RECORD_FILE" >"$RECORD_TMP" 2>/dev/null; then
+      mv "$RECORD_TMP" "$RECORD_FILE"
+    else
+      rm -f "$RECORD_TMP"
+      note "kept existing $RECORD_FILE (record prune failed)"
+    fi
+    record_unlock
+  }
+
+  for n in ${removed[@]+"${removed[@]}"}; do
+    dest="$AVAILABLE_DIR/$n"
+    if [ "${DRY_RUN:-0}" = "1" ]; then
+      note "would remove $dest"
+    elif [ -L "$dest" ]; then
+      rm -f "$dest" && note "removed $dest"
+    elif [ -e "$dest" ]; then
+      rm -rf "$dest" && note "removed $dest"
+    fi
+    for root in "${LINK_ROOTS[@]}"; do
+      p="$root/$n"
+      [ -L "$p" ] || continue
+      # A link named after the skill that no longer resolves into the roster is
+      # left over from this removal. A link that still resolves elsewhere is
+      # another store's entry: name it, never delete it.
+      if [ ! -e "$p" ]; then
+        if [ "${DRY_RUN:-0}" = "1" ]; then
+          note "would drop harness link $p"
+        else
+          rm -f "$p" && note "dropped harness link $p"
+        fi
+      else
+        note "left $p -> $(readlink "$p") (still resolves outside the roster)"
+      fi
+    done
+    [ "${DRY_RUN:-0}" = "1" ] || prune_record "$n"
+  done
+
+  if [ "${DRY_RUN:-0}" != "1" ]; then
+    audit_snapshot "$after"
+    removals=()
+    while IFS= read -r p; do
+      [ -n "$p" ] || continue
+      case "$p" in
+        "$AVAILABLE_DIR"/*) continue ;;
+      esac
+      allowed=0
+      for n in ${removed[@]+"${removed[@]}"}; do
+        for root in "${LINK_ROOTS[@]}"; do
+          [ "$p" = "$root/$n" ] && allowed=1
+        done
+      done
+      [ "$allowed" -eq 1 ] || removals+=("$p")
+    done < <(comm -23 "$before" "$after" 2>/dev/null || true)
+    if [ "${#removals[@]}" -gt 0 ]; then
+      printf 'aubx-skills: WROTE OUTSIDE %s:\n' "$AVAILABLE_DIR" >&2
+      printf '  %s (removed)\n' "${removals[@]}" >&2
+      exit 3
+    fi
+  fi
+
+  if [ "${#removed[@]}" -eq 0 ]; then
+    note "nothing removed (no installed skill matched)"
+  else
+    note "${#removed[@]} skill(s) removed from $AVAILABLE_DIR"
+  fi
+  # A nonzero installer exit means the verb did not succeed. Return that status
+  # and say so; never append the clean-scope claim to a failed run, or a caller
+  # reads success where there was none.
+  if [ "$rc" -ne 0 ]; then
+    printf 'aubx-skills: installer exited %d; scope not claimed clean\n' "$rc" >&2
+    exit "$rc"
+  fi
+  note "no writes outside $AVAILABLE_DIR"
+  exit 0
+fi
+installed=()
+if [ -d "$scratch/.agents/skills" ]; then
+  for src in "$scratch/.agents/skills"/*; do
+    [ -d "$src" ] || continue
+    [ -f "$src/SKILL.md" ] || continue
+    installed+=("$(basename "$src")")
+  done
+fi
+
+if [ "${#installed[@]}" -eq 0 ]; then
+  heal_stray_record
+  prune_ghost_entries
+  audit_snapshot "$after"
+  # Nothing was installed, so no new link here is ours; only a real file or
+  # directory outside the roster is a leak. A link added during the window
+  # belongs to whoever made it, and dropping it would be a write we do not own.
+  leaks=()
+  while IFS= read -r p; do
+    [ -n "$p" ] || continue
+    [ -L "$p" ] && continue
+    leaks+=("$p")
+  done < <(comm -13 "$before" "$after" 2>/dev/null || true)
+  if [ "${#leaks[@]}" -gt 0 ]; then
+    printf 'aubx-skills: WROTE OUTSIDE %s:\n' "$AVAILABLE_DIR" >&2
+    printf '  %s\n' "${leaks[@]}" >&2
+    exit 3
+  fi
+  if [ "$rc" -ne 0 ]; then
+    printf 'aubx-skills: installer exited %d and nothing new landed\n' "$rc" >&2
+    exit "$rc"
+  fi
+  note "nothing new to install (already installed?)"
+  note "no writes outside $AVAILABLE_DIR"
+  exit 0
+fi
+
+for name in "${installed[@]}"; do
+  src="$scratch/.agents/skills/$name"
+  dest="$AVAILABLE_DIR/$name"
+  # Update seeds the scratch tree with the whole roster, so every
+  # folder is present and this loop would rewrite all of them: a
+  # one-skill update became a full-roster copy that ran for minutes
+  # and got killed mid-swap, leaving staged directories behind. Copy
+  # back only a folder the installer actually changed.
+  if [ "$mode" = update ] && [ -d "$dest" ] && /usr/bin/diff -r -q "$src" "$dest" >/dev/null 2>&1; then
+    continue
+  fi
+  if [ "${DRY_RUN:-0}" = "1" ]; then
+    note "would install $name -> $dest"
+    continue
+  fi
+  mkdir -p "$AVAILABLE_DIR" || die "cannot create $AVAILABLE_DIR"
+  # Never trust the `cp` PATH happens to resolve. This machine shadows /bin/cp
+  # with a reflink wrapper that always treats the destination as an existing
+  # directory (so `cp -R src dest` lands at dest/src) and that can abort with
+  # "Failed to preserve ownership", killing an install after some skills were
+  # already copied. Pin BSD cp, build the folder in a hidden sibling, and swap
+  # it in, so a failed copy leaves the previous folder intact rather than a
+  # half-written one.
+  stage="$AVAILABLE_DIR/.$name.incoming.$$"
+  /bin/rm -rf "$stage"
+  mkdir -p "$stage" || die "cannot stage $dest"
+  if ! /bin/cp -R "$src/." "$stage/"; then
+    /bin/rm -rf "$stage"
+    die "copy into $dest failed"
+  fi
+  # Some packages land one level too deep (<name>/<name>/SKILL.md), which no
+  # harness can load. Lift the inner copy onto its parent, repeatedly.
+  while [ ! -f "$stage/SKILL.md" ] && [ -f "$stage/$name/SKILL.md" ]; do
+    /bin/rm -rf "$stage.lift"
+    /bin/mv "$stage/$name" "$stage.lift" || break
+    /bin/rm -rf "$stage"
+    /bin/mv "$stage.lift" "$stage" || die "cannot lift $dest"
+  done
+  [ -f "$stage/SKILL.md" ] || note "warning: $name has no top-level SKILL.md"
+  if [ -L "$dest" ]; then /bin/rm -f "$dest"; fi
+  if [ -e "$dest" ]; then /bin/rm -rf "$dest"; fi
+  /bin/mv "$stage" "$dest" || die "cannot move staged copy into $dest"
+  note "installed $name -> $dest"
+done
+
+# Merge the scratch run's bookkeeping into a record kept inside available-skills.
+scratch_lock="$scratch/.agents/.skill-lock.json"
+if [ -f "$scratch_lock" ] && [ "${DRY_RUN:-0}" != "1" ]; then
+  if command -v jq >/dev/null 2>&1; then
+    record_lock
+    # Re-read the record inside the lock: the merge must build on what the
+    # previous writer committed, never on what was on disk when this run began.
+    [ -f "$RECORD_FILE" ] || printf '{"version":3,"skills":{}}\n' >"$RECORD_FILE"
+    if jq -s '.[0] as $old | .[1] as $new
+              | {version: 3, skills: (($old.skills // {}) + ($new.skills // {}))}' \
+       "$RECORD_FILE" "$scratch_lock" >"$RECORD_TMP" 2>/dev/null; then
+      mv "$RECORD_TMP" "$RECORD_FILE"
+    else
+      rm -f "$RECORD_TMP"
+      note "kept existing $RECORD_FILE (merge failed)"
+    fi
+    record_unlock
+  else
+    note "jq not found; skipping install record"
+  fi
+fi
+
+# Second heal: a record written straight into AGENTS_HOME during the run is
+# merged and removed here, before the snapshot, so the audit judges a repaired
+# state instead of reporting the installer's own bookkeeping as this run's leak.
+# The audit keeps its own fold as a last resort.
+heal_stray_record
+prune_ghost_entries
+
+# Tripwire: anything new outside available-skills is a violation. A link into
+# available-skills is harmless noise; a real file or dir is a leak.
+audit_snapshot "$after"
+# Resolve a link to the canonical path it names. Spelling is not evidence: a
+# stray link often reaches available-skills through ~/.agents/skills, which is
+# itself a symlink to available-skills, so a prefix match on the raw target
+# would report a harmless link as a leak.
+resolve_link_target() {
+  local link="$1" raw base dir
+  raw="$(readlink "$link")" || return 1
+  case "$raw" in
+    /*) : ;;
+    *) raw="$(dirname -- "$link")/$raw" ;;
+  esac
+  base="$(basename -- "$raw")"
+  dir="$(cd -- "$(dirname -- "$raw")" 2>/dev/null && pwd -P)" || return 1
+  printf '%s/%s\n' "$dir" "$base"
+}
+available_canon="$(cd -- "$AVAILABLE_DIR" 2>/dev/null && pwd -P)"
+[ -n "$available_canon" ] || available_canon="$AVAILABLE_DIR"
+# Declared before use: bash 3.2 treats ${#arr[@]} on an undeclared name as
+# an unbound variable under set -u, which would abort the audit on the
+# clean path and leave the run reporting success it never checked.
+violations=()
+while IFS= read -r p; do
+  [ -n "$p" ] || continue
+  if [ -L "$p" ]; then
+    target="$(readlink "$p")"
+    resolved="$(resolve_link_target "$p")"
+
+    # A path absent before the run is not automatically this run's write: a
+    # concurrent installer, or anything else sharing these roots, can add a
+    # link during the window. Deleting is itself a write outside
+    # $AVAILABLE_DIR, so only a link named after a skill THIS run installed is
+    # ours to drop. Any other new link is left alone and named.
+    ours=0
+    for n in ${installed[@]+"${installed[@]}"}; do
+      for root in "${LINK_ROOTS[@]}"; do
+        [ "$p" = "$root/$n" ] && ours=1
+      done
+    done
+    if [ "$ours" -eq 0 ]; then
+      note "left $p -> $target (new during this run, not installed by it)"
+      continue
+    fi
+    # Ours: a link that resolves into the roster is a pointer rather than skill
+    # content, but the link inode still sits outside $AVAILABLE_DIR: remove it,
+    # so "only available-skills" is literally true.
+    case "$resolved" in
+      "$available_canon"|"$available_canon"/*)
+        if [ "${DRY_RUN:-0}" = "1" ]; then
+          note "would remove $p -> $target (created by this run, points into $AVAILABLE_DIR)"
+        elif /bin/rm -f "$p" 2>/dev/null; then
+          note "removed $p -> $target (created by this run, points into $AVAILABLE_DIR)"
+        else
+          violations+=("$p -> $target (could not remove)")
+        fi
+        ;;
+      *) violations+=("$p -> $target") ;;
+    esac
+  elif [ -e "$p" ]; then
+    # A real file reached through a symlinked root (~/.grok/skills -> the
+    # roster) is still inside available-skills. Spelling is not evidence:
+    # resolve the parent before judging it a leak.
+    parent_canon="$(cd -- "$(dirname -- "$p")" 2>/dev/null && pwd -P)" || parent_canon=""
+    case "$parent_canon" in
+      "$available_canon"|"$available_canon"/*) : ;;
+      *)
+        # The install record is the installer's own bookkeeping. An installer
+        # that ignores $HOME writes ~/.agents/.skill-lock.json during the run;
+        # fold it into the roster record and remove it. A repair, not a leak.
+        if [ "$p" = "$AGENTS_HOME/.skill-lock.json" ]; then
+          heal_stray_record
+          if [ ! -e "$p" ]; then
+            note "folded $p into $RECORD_FILE"
+          elif [ "${DRY_RUN:-0}" = "1" ]; then
+            note "would fold $p into $RECORD_FILE"
+          else
+            violations+=("$p (stray install record)")
+          fi
+        else
+          violations+=("$p (real file/dir)")
+        fi
+        ;;
+    esac
+  fi
+done < <(comm -13 "$before" "$after" 2>/dev/null || true)
+
+if [ "${#violations[@]}" -gt 0 ]; then
+  printf 'aubx-skills: WROTE OUTSIDE %s:\n' "$AVAILABLE_DIR" >&2
+  printf '  %s\n' "${violations[@]}" >&2
+  exit 3
+fi
+
+if [ "$rc" -ne 0 ]; then
+  printf 'aubx-skills: installer exited %d after installing; installed %d skill(s)\n' "$rc" "${#installed[@]}" >&2
+fi
+note "${#installed[@]} skill(s) now live in $AVAILABLE_DIR"
+note "no writes outside $AVAILABLE_DIR"
+exit 0

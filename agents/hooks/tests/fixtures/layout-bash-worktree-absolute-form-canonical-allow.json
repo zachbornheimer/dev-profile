@@ -1,0 +1,8 @@
+{
+  "session_id": "hgtest-t1",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "git worktree add /Users/zbornheimer/Developer/Personal/.worktrees/zq-feature-x"
+  }
+}

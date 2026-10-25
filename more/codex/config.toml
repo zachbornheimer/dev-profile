@@ -1,0 +1,326 @@
+approval_policy = "on-request"
+approvals_reviewer = "user"
+model = "gpt-6-luna"
+model_reasoning_effort = "medium"
+notify = [
+  "/Users/zbornheimer/.codex/computer-use/Codex Computer Use.app/Contents/SharedSupport/SkyComputerUseClient.app/Contents/MacOS/SkyComputerUseClient",
+  "turn-ended",
+]
+sandbox_mode = "workspace-write"
+service_tier = "default"
+model_catalog_json = "/Users/zbornheimer/.codex/capability-cutover-models.json"
+web_search = "disabled"
+
+openai_base_url = "http://127.0.0.1:11434/api/codex/v1"
+
+[desktop]
+ambient-suggestions-enabled = false
+conversationDetailMode = "STEPS_PROSE"
+dock-icon-preference = "codex-system"
+followUpQueueMode = "queue"
+keepRemoteControlAwakeWhilePluggedIn = true
+preventSleepWhileRunning = true
+enabled-reasoning-efforts = ["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"]
+[desktop.open-in-target-preferences]
+global = "systemDefault"
+[features]
+js_repl = false
+hooks = true
+shell_tool = false
+unified_exec = false
+[skills]
+include_instructions = false
+[hooks]
+[hooks.state]
+[hooks.state."/Users/zbornheimer/.codex/hooks.json:permission_request:0:0"]
+trusted_hash = "sha256:ac45193719e925dff919d43dc24d5426975e6d6f19cc4431c852a7b5d24eaa7c"
+[hooks.state."/Users/zbornheimer/.codex/hooks.json:post_tool_use:0:0"]
+trusted_hash = "sha256:ee5446f3a9967375e431896c4464460f03588e5b2c13b2331dc99fa2c9493a01"
+[hooks.state."/Users/zbornheimer/.codex/hooks.json:pre_compact:0:0"]
+trusted_hash = "sha256:f5ce2ac93204d7e569a5f88c474db87d1f621c59a8e5c673608641e195203342"
+[hooks.state."/Users/zbornheimer/.codex/hooks.json:pre_tool_use:0:0"]
+trusted_hash = "sha256:54762db7c884673304529c41f5843b0ec4f284a48195f37b0d9f700307fe6205"
+enabled = true
+[hooks.state."/Users/zbornheimer/.codex/hooks.json:pre_tool_use:1:0"]
+trusted_hash = "sha256:dc37df4c2245acebc7f38e5faae83ba5cc9c7e471c594ec3e00995231cf92e85"
+[hooks.state."/Users/zbornheimer/.codex/hooks.json:session_start:0:0"]
+trusted_hash = "sha256:8911eba53cf95d741c47d7b33c4becf77c945a305993a172c8342d0918087aa0"
+[hooks.state."/Users/zbornheimer/.codex/hooks.json:session_start:0:1"]
+trusted_hash = "sha256:25514e7b351cabf4843ba8a6d7c9b37ae1571c37991a262df7d09fdbc23e0151"
+[hooks.state."/Users/zbornheimer/.codex/hooks.json:session_start:0:2"]
+trusted_hash = "sha256:6f2fc321e7b68877a34f36f96b99888ba07fb9ece663386e3fb6ffc04e3e63a1"
+[hooks.state."/Users/zbornheimer/.codex/hooks.json:session_start:1:0"]
+trusted_hash = "sha256:8467881dbf9cce3c8a22735a84036b4953b90ab7ad016b7819c3ea32f05f0257"
+[hooks.state."/Users/zbornheimer/.codex/hooks.json:session_start:1:1"]
+trusted_hash = "sha256:0d994a171cb1955917a8b1a78facf5a515f85a421c4f1dcf0f3c9cb3d4630b09"
+[hooks.state."/Users/zbornheimer/.codex/hooks.json:stop:0:0"]
+trusted_hash = "sha256:3d337568fb314331f8d22378a480bde8f6794d7fc6cfae56dd34973996bfa160"
+[hooks.state."/Users/zbornheimer/.codex/hooks.json:user_prompt_submit:0:0"]
+trusted_hash = "sha256:84b03ceadccc6db7d3f6d035133a796f8ba601a19bb46c7e1b402955bdb2fa29"
+[hooks.state."/Users/zbornheimer/.codex/hooks.json:user_prompt_submit:0:1"]
+trusted_hash = "sha256:3ba46434df572a81b8ec5141f2853523a443ebcac6462aeb15597f8ba766f9dd"
+[hooks.state."/Users/zbornheimer/.codex/hooks.json:user_prompt_submit:0:2"]
+trusted_hash = "sha256:bba6996f32ad7a5d5b578c0d64f4a7f0f0f1dfccb1d3f4881e79b9e8a4a8cf5d"
+[hooks.state."/Users/zbornheimer/.codex/hooks.json:user_prompt_submit:1:0"]
+trusted_hash = "sha256:ce0ffdcc519572dfd71140fb9d5a108dec07cb1baf782758880090cf894bae83"
+[hooks.state."/Users/zbornheimer/Developer/zach-factory/.codex/hooks.json:pre_compact:0:0"]
+trusted_hash = "sha256:bee211b62b8da88e328988459beb14de6916eaa426323994d9a7ea9a25d8e386"
+[hooks.state."/Users/zbornheimer/Developer/zach-factory/.codex/hooks.json:session_start:0:0"]
+trusted_hash = "sha256:10ff376f8efe2e535077b7600c0cda5dea8539e872fa2ca1f0e8a5455c50fdf6"
+[hooks.state."/Users/zbornheimer/Developer/zach-factory/.codex/hooks.json:user_prompt_submit:0:0"]
+trusted_hash = "sha256:4fa9de4c2dfb3774df70354a095e680c079f451e46074894b0b53b8a7fcd708e"
+[hooks.state."/Users/zbornheimer/Developer/zach-factory/.codex/hooks.json:user_prompt_submit:0:1"]
+trusted_hash = "sha256:e6c6f7c552feb7aaf44febe3d3bbe447407537db3f88ea318606025328b184d3"
+[hooks.state."worktrunk@worktrunk:plugin.json#hooks[0]:permission_request:0:0"]
+trusted_hash = "sha256:b5f6112154fd814298da679652ea096e11434b7f2876d471eb00c790a68045d0"
+[hooks.state."worktrunk@worktrunk:plugin.json#hooks[0]:session_end:0:0"]
+trusted_hash = "sha256:09b9fff83447c926af5f61010bc3dd3c8f2e6194c7c06b08f8acbf808a51710d"
+[hooks.state."worktrunk@worktrunk:plugin.json#hooks[0]:stop:0:0"]
+trusted_hash = "sha256:350c210fba4996f546f4d0483fc29286d73880ca5ef01fda3583ea2ce676945d"
+[hooks.state."worktrunk@worktrunk:plugin.json#hooks[0]:user_prompt_submit:0:0"]
+trusted_hash = "sha256:e2ffec558188fd0988ad51768594f675801fd2a1ba2895b5df2aca2650d70c2a"
+[hooks.state."/Users/zbornheimer/.codex/hooks.json:session_start:2:0"]
+trusted_hash = "sha256:3cb65c20c0fe73c8c7d3e2abfdf221c8456e02b5869470ca770698776a764813"
+[hooks.state."/Users/zbornheimer/.codex/hooks.json:pre_tool_use:2:0"]
+trusted_hash = "sha256:af44d9be38d9d0561d38ec1dad97c68a2f4cf7c12c6429bf34e91f4b66870d04"
+
+[hooks.state."/Users/zbornheimer/.codex/hooks.json:pre_tool_use:3:0"]
+trusted_hash = "sha256:89353540103d18934f6410dcd87e6005696acbe38f5342ea043a8a1e5dcb2483"
+
+[hooks.state."/Users/zbornheimer/.codex/hooks.json:post_tool_use:1:0"]
+trusted_hash = "sha256:028844309c28a0a07e88395b3fd08c0ffd8536ca382f0303736cc7b9f38162c6"
+
+[hooks.state."/Users/zbornheimer/.codex/hooks.json:pre_compact:1:0"]
+trusted_hash = "sha256:1f647821c1b2d16b397ca09bb1c76c71f74b04e8e13abf4abcd044a1ae82e0f7"
+
+[hooks.state."/Users/zbornheimer/.codex/hooks.json:post_compact:0:0"]
+trusted_hash = "sha256:53280fbd74d122ef0607f320dacf407b21cba0e448f2cf5982c6d5b1074933c8"
+
+[hooks.state."/Users/zbornheimer/.codex/hooks.json:session_start:2:1"]
+trusted_hash = "sha256:0d994a171cb1955917a8b1a78facf5a515f85a421c4f1dcf0f3c9cb3d4630b09"
+
+[hooks.state."/Users/zbornheimer/.codex/hooks.json:session_start:3:0"]
+trusted_hash = "sha256:15b6c613d5b1c1035b9f60aa00813d3ec68879966cef09718f4d60aaa720fadf"
+
+[hooks.state."/Users/zbornheimer/.codex/hooks.json:session_start:4:0"]
+trusted_hash = "sha256:05e6d8b7a037032726008b8c9d46f0398e327ae18bd9ea826745ab2de0beb96b"
+
+[hooks.state."/Users/zbornheimer/.codex/hooks.json:session_end:0:0"]
+trusted_hash = "sha256:2f4d1b11de5833b2c410eec7769542e936b99920620ef1337108f9fa6e3a44bd"
+
+[hooks.state."/Users/zbornheimer/.codex/hooks.json:user_prompt_submit:2:0"]
+trusted_hash = "sha256:c2a053e40ec352bd32caab3599f26e6d88a35c44c691d5959e8011842346cded"
+
+[hooks.state."/Users/zbornheimer/.codex/hooks.json:user_prompt_submit:3:0"]
+trusted_hash = "sha256:ff4c98b3095aaba47057475efe3594fd7b03851788941df8ff5f3e2e2c321c19"
+
+[hooks.state."/Users/zbornheimer/.codex/hooks.json:subagent_start:0:0"]
+trusted_hash = "sha256:f476c8ac56cfbaeb442a8608793925ade6ba05ef35aa8eae76aef3c324c0cd36"
+
+[hooks.state."/Users/zbornheimer/.codex/hooks.json:subagent_stop:0:0"]
+trusted_hash = "sha256:4892f4759a8367c75bcf468a3fac93c91f4c3ee8ec6189816c3dd91514ed54f5"
+
+[hooks.state."/Users/zbornheimer/.codex/hooks.json:stop:1:0"]
+trusted_hash = "sha256:3fed11426ed21f163a502a739d766b88d6f71dd0b596bad2b668899d35321d7e"
+
+[hooks.state."/Users/zbornheimer/.codex/hooks.json:interrupt:0:0"]
+trusted_hash = "sha256:3321c4e8bd20dfe46dff6362e467cd648982b6dea825af82253cf8f30a980c46"
+
+[hooks.state."/Users/zbornheimer/.codex/hooks.json:session_start:3:1"]
+trusted_hash = "sha256:0d994a171cb1955917a8b1a78facf5a515f85a421c4f1dcf0f3c9cb3d4630b09"
+
+[hooks.state."postman@postman:hooks/codex-hooks.json:session_start:0:0"]
+trusted_hash = "sha256:b67ddd1ece328f5a6f9103ce011bb58adb8411daea644f284732cff85d15cbb3"
+[marketplaces]
+
+[marketplaces.openai-bundled]
+source_type = "local"
+source = "/Users/zbornheimer/.codex/.tmp/bundled-marketplaces/openai-bundled"
+
+[marketplaces.openai-primary-runtime]
+source_type = "local"
+source = "/Users/zbornheimer/.cache/codex-runtimes/codex-primary-runtime/plugins/openai-primary-runtime"
+[marketplaces.worktrunk]
+source = "https://github.com/max-sixty/worktrunk.git"
+source_type = "git"
+
+[marketplaces.postman]
+source_type = "git"
+source = "https://github.com/postmanlabs/postman-plugin.git"
+[mcp_servers]
+
+[mcp_servers.MCP_DOCKER]
+command = "docker"
+args = ["mcp", "gateway", "run", "--profile", "zach"]
+
+[mcp_servers.MCP_DOCKER.env]
+DOCKER_HOST = "unix:///Users/zbornheimer/.docker/run/docker.sock"
+
+[mcp_servers.agentmux]
+command = "agentmux"
+args = ["mcp", "--harness", "codex"]
+
+[mcp_servers.agentmux.tools.agentmux_board_focus]
+approval_mode = "approve"
+
+[mcp_servers.agentmux.tools.agentmux_board_post]
+approval_mode = "approve"
+
+[mcp_servers.agentmux.tools.agentmux_board_read]
+approval_mode = "approve"
+
+[mcp_servers.agentmux.tools.agentmux_board_subscribe]
+approval_mode = "approve"
+
+[mcp_servers.agentmux.tools.agentmux_board_unsubscribe]
+approval_mode = "approve"
+
+[mcp_servers.agentmux.tools.agentmux_goals]
+approval_mode = "approve"
+
+[mcp_servers.agentmux.tools.agentmux_inbox_ack]
+approval_mode = "approve"
+
+[mcp_servers.agentmux.tools.agentmux_inbox_read]
+approval_mode = "approve"
+
+[mcp_servers.agentmux.tools.agentmux_list_agents]
+approval_mode = "approve"
+
+[mcp_servers.agentmux.tools.agentmux_progress]
+approval_mode = "approve"
+
+[mcp_servers.agentmux.tools.agentmux_run]
+approval_mode = "approve"
+
+[mcp_servers.agentmux.tools.agentmux_send_to_agent]
+approval_mode = "approve"
+
+[mcp_servers.agentmux.tools.agentmux_session]
+approval_mode = "approve"
+
+[mcp_servers.agentmux.tools.agentmux_session_overview]
+approval_mode = "approve"
+
+[mcp_servers.agentmux.tools.list_agents]
+approval_mode = "approve"
+
+[mcp_servers.agentmux.tools.send_to_agent]
+approval_mode = "approve"
+
+[mcp_servers.node_repl]
+command = "/Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node_repl"
+startup_timeout_sec = 120.0
+
+[mcp_servers.node_repl.env]
+BROWSER_USE_AVAILABLE_BACKENDS = "chrome,iab,mcpapps"
+BROWSER_USE_CODEX_APP_BUILD_FLAVOR = "prod"
+BROWSER_USE_CODEX_APP_VERSION = "26.1013.40934"
+BROWSER_USE_TINYSKY_ENABLED = "1"
+CODEX_CLI_PATH = "/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex"
+CODEX_HOME = "/Users/zbornheimer/.codex"
+NODE_REPL_INSTRUCTIONS_USE_CASE_BROWSER = ""
+NODE_REPL_INSTRUCTIONS_USE_CASE_CHROME = ""
+NODE_REPL_INSTRUCTIONS_USE_CASE_COMPUTER_USE = ""
+NODE_REPL_NATIVE_PIPE_CONNECT_TIMEOUT_MS = "1000"
+NODE_REPL_NODE_MODULE_DIRS = "/Applications/ChatGPT.app/Contents/Resources/cua_node/lib/node_modules"
+NODE_REPL_NODE_PATH = "/Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node"
+NODE_REPL_TRUSTED_CODE_PATHS = "/Users/zbornheimer/.codex:/Applications/ChatGPT.app/Contents/Resources/cua_node/lib/node_modules"
+NODE_REPL_TRUSTED_SERVICES = '{"browser":"/Users/zbornheimer/.codex/plugins/cache/openai-bundled/browser/26.1013.40934/scripts/browser-service.mjs","sky":"@oai/sky/service"}'
+SKY_CUA_SERVICE_PATH = "/Users/zbornheimer/.codex/computer-use/Codex Computer Use.app"
+
+[mcp_servers.hindsight]
+command = "node"
+args = ["/Users/zbornheimer/.hindsight/coding-agents/dist/mcp-server.js"]
+
+[mcp_servers.hindsight.env]
+HINDSIGHT_MCP_HARNESS = "codex"
+
+[mcp_servers.capability]
+command = "/bin/zsh"
+args = ["-lc", "source ~/.config/zsh/ai-keys.zsh; ai-keys::exec capability mcp"]
+tool_timeout_sec = 900
+[model_providers]
+[model_providers.sakana]
+base_url = "https://api.sakana.ai/v1"
+env_key = "SAKANA_API_KEY"
+name = "Sakana API"
+request_max_retries = 4
+stream_idle_timeout_ms = 7200000
+stream_max_retries = 5
+wire_api = "responses"
+[notice]
+[notice.model_migrations]
+'gpt-5.4' = "gpt-5.5"
+'gpt-5.5' = "gpt-6.1-sol"
+[plugins]
+[plugins.'browser@openai-bundled']
+enabled = true
+[plugins.'chrome@openai-bundled']
+enabled = true
+[plugins.'code-review@openai-bundled']
+enabled = true
+[plugins.'codex-app-tools@openai-bundled']
+enabled = true
+[plugins.'computer-use@openai-bundled']
+enabled = true
+[plugins.'documents@openai-primary-runtime']
+enabled = true
+[plugins.'pdf@openai-primary-runtime']
+enabled = true
+[plugins.'presentations@openai-primary-runtime']
+enabled = true
+[plugins.'spreadsheets@openai-primary-runtime']
+enabled = true
+[plugins.'template-creator@openai-primary-runtime']
+enabled = true
+[plugins.'unified-computer-use@openai-bundled']
+enabled = true
+[plugins.'visualize@openai-bundled']
+enabled = true
+[plugins.'worktrunk@worktrunk']
+enabled = true
+
+[plugins."postman@postman"]
+enabled = true
+[projects]
+[projects.'/Users/zbornheimer']
+trust_level = "trusted"
+
+[projects."/Users/zbornheimer/Developer/Personal/dev-profile"]
+trust_level = "trusted"
+
+[projects."/Users/zbornheimer/Developer/Software-Automation-Holdings/infra"]
+trust_level = "trusted"
+
+[projects."/Users/zbornheimer/Developer/Personal/capability-replicas"]
+trust_level = "trusted"
+
+[projects."/Users/zbornheimer/Developer/Personal/cli-proxy-multi"]
+trust_level = "trusted"
+
+[projects."/Users/zbornheimer/.config/nvim"]
+trust_level = "trusted"
+[shell_environment_policy]
+[shell_environment_policy.set]
+NODE_REPL_TRUSTED_BROWSER_CLIENT_SHA256S = "7fe0e1c59da4bc68f9d6ab81ae8d349b53fee44b074f49be0effbc1105a5f1d3"
+[tui]
+screen_reader_detection_done = true
+[tui.model_availability_nux]
+'gpt-5.5' = 4
+'gpt-5.6-sol' = 4
+gpt-6-astra = 4
+'gpt-6.1-sol' = 4
+
+# ==========================================
+# TEMPORARY: Full Automated Access Override
+# ==========================================
+[core]
+approval_policy = "never"
+default_permissions = ":unrestricted"
+
+[permissions.default.workspace_roots]
+"." = true
+
+[permissions.default.filesystem.":workspace_roots"]
+"." = "write"

@@ -1,0 +1,6 @@
+--theme=base16
+--italic-text=always
+--map-syntax '*.tmpl:bash'
+--map-syntax '*.env:bash'
+--map-syntax '*.envrc:bash'
+--map-syntax 'Brewfile:Ruby'

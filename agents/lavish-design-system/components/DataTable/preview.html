@@ -1,0 +1,36 @@
+<!-- @dsCard group="Data" -->
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DataTable</title>
+<link rel="stylesheet" href="../../colors_and_type.css">
+<style>
+*{box-sizing:border-box}body{margin:0;background:var(--color-bg-page);font-family:var(--font-sans);font-size:var(--text-body);color:var(--color-text);-webkit-font-smoothing:antialiased}
+.preview{padding:var(--space-24);display:flex;flex-direction:column;gap:var(--space-20)}
+.row{display:flex;gap:var(--space-20);flex-wrap:wrap;align-items:flex-start}
+.cell{display:flex;flex-direction:column;gap:var(--space-6);align-items:flex-start}
+.lbl{font-size:var(--text-meta);color:var(--color-text-muted)}
+.mono{font-family:var(--font-mono);font-size:var(--text-mono)}
+.card{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-card);padding:var(--space-20);display:flex;flex-direction:column;gap:var(--space-12)}
+.card h2{margin:0;font-size:var(--text-section-title);font-weight:var(--weight-semibold)}
+.card p{margin:0;font-size:var(--text-body);line-height:var(--leading-prose);color:var(--color-text-secondary)}
+.tbl{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-card);overflow:hidden;width:100%}
+.th,.trow{display:grid;grid-template-columns:minmax(220px,1.4fr) 80px 80px 80px minmax(200px,1.6fr);gap:var(--space-16);align-items:center;padding:var(--space-10) var(--space-20);font-size:var(--text-meta);color:var(--color-text-muted);border-bottom:1px solid var(--color-divider)}
+.th button{all:unset;cursor:pointer}.th .r,.trow .r{text-align:right}
+.trow{padding:9px var(--space-20);font-size:var(--text-body);color:var(--color-text);border-bottom:1px solid var(--color-row-divider)}
+.trow.hover,.trow:hover{background:var(--color-surface-subtle)}
+.trow .route{display:flex;align-items:center;gap:var(--space-8);min-width:0}
+.trow .num{text-align:right;font-variant-numeric:tabular-nums}.trow .num.mute{color:var(--color-text-secondary)}.trow .num.strong{font-weight:var(--weight-semibold)}.trow .num.hot{color:var(--color-error-text)}
+.type{font-size:var(--text-badge);font-weight:var(--weight-semibold);text-transform:uppercase;letter-spacing:var(--tracking-badge);color:var(--color-text-secondary);background:var(--color-bg-page);border-radius:var(--radius-badge);padding:2px var(--space-6);display:inline-block;min-width:48px;text-align:center}
+.tag{font-size:var(--text-badge);font-weight:var(--weight-semibold);border-radius:var(--radius-badge);padding:2px var(--space-6);display:inline-block}
+.tag.warn{color:var(--color-warning-text);background:var(--color-warning-bg)}.tag.ok{color:var(--color-success-text);background:var(--color-success-bg)}
+.tag.outline{color:var(--color-text-secondary);background:var(--color-surface);border:1px solid var(--color-border);padding:1px var(--space-6)}
+.ratio{font-size:var(--text-meta);font-weight:var(--weight-semibold);font-variant-numeric:tabular-nums;padding:2px var(--space-8);border-radius:var(--radius-pill);display:inline-block}
+.ratio.warn{background:var(--color-warning-bg);color:var(--color-warning-text)}.ratio.hot{background:var(--color-error-bg);color:var(--color-error-text)}
+.track{position:relative;height:10px;background:var(--color-surface-subtle);border-radius:var(--radius-bar);width:100%}
+.track div{position:absolute;left:0;top:0;bottom:0;border-radius:var(--radius-bar)}
+.track .tick{left:auto;top:-3px;bottom:-3px;width:2px;border-radius:0;background:var(--color-text)}
+.warn-solid{background:var(--color-warning)}.warn-light{background:var(--color-warning-border)}
+.hot-solid{background:var(--color-error)}.hot-light{background:var(--color-error-border)}
+</style></head>
+<body><div class="preview">
+<div class="tbl"><div class="th"><button>Route</button><button class="r">Samples</button><button class="r">p50</button><button class="r">p95 ↓</button><span>Distribution <span style="color:var(--color-text-faint)">0 – 14 s</span></span></div><div class="trow "><div class="route"><span class="type">ajax</span><span class="mono">as_async_request_queue_runner</span></div><span class="num mute">10</span><span class="num">6.73 s</span><span class="num strong hot">13.29 s</span><div class="track"><div class="hot-light" style="width:94.9%"></div><div class="hot-solid" style="width:48.1%"></div><div class="tick" style="left:14.29%"></div></div></div><div class="trow hover"><div class="route"><span class="type">admin</span><span class="mono">index.php</span></div><span class="num mute">15</span><span class="num">2.60 s</span><span class="num strong hot">5.71 s</span><div class="track"><div class="hot-light" style="width:40.8%"></div><div class="hot-solid" style="width:18.6%"></div><div class="tick" style="left:14.29%"></div></div></div><div class="trow "><div class="route"><span class="type">rest</span><span class="mono">/wp/v2/pages/25544</span></div><span class="num mute">1</span><span class="num">2.80 s</span><span class="num strong hot">2.80 s</span><div class="track"><div class="hot-light" style="width:20%"></div><div class="hot-solid" style="width:20%"></div><div class="tick" style="left:5.71%"></div></div></div></div><span class="lbl">Sortable headers show an arrow on the active column only. Second row shows hover.</span>
+</div></body></html>

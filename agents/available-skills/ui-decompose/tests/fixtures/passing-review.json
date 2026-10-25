@@ -1,0 +1,95 @@
+{
+  "schemaVersion": "1.1",
+  "reviewPass": 1,
+  "reviewedArtifacts": {
+    "requestSha256": "d5471a2730677f018b4cfbab3c2fc107359af4b3e4af30206eb7f9eeece8e111",
+    "decompositionSha256": "e869b0302cb01042c38aabe148ae4ffa3445672189902180692ce6cb720c5a73"
+  },
+  "changeRequested": false,
+  "certification": "complete",
+  "summary": "Independent source inspection found no omissions or unsupported claims.",
+  "sourceFilesInspected": ["example.html"],
+  "surfaceAudits": [
+    {
+      "auditKey": "audit.main",
+      "observedName": "Main",
+      "observedType": "page",
+      "matchedSurfaceId": "surface.main",
+      "evidence": [
+        {
+          "kind": "selector",
+          "source": "example.html",
+          "locator": "body"
+        }
+      ],
+      "nodeAudits": [
+        {
+          "auditKey": "audit.node.root",
+          "observedName": "MainPage",
+          "matchedId": "node.root",
+          "evidence": [
+            {
+              "kind": "selector",
+              "source": "example.html",
+              "locator": "body"
+            }
+          ]
+        },
+        {
+          "auditKey": "audit.node.heading",
+          "observedName": "Heading",
+          "matchedId": "node.heading",
+          "evidence": [
+            {
+              "kind": "selector",
+              "source": "example.html",
+              "locator": "h1"
+            }
+          ]
+        },
+        {
+          "auditKey": "audit.node.button",
+          "observedName": "ActionButton",
+          "matchedId": "node.button",
+          "evidence": [
+            {
+              "kind": "selector",
+              "source": "example.html",
+              "locator": "button"
+            }
+          ]
+        }
+      ],
+      "stateAudits": [
+        {
+          "auditKey": "audit.state.default",
+          "observedName": "Default",
+          "matchedId": "state.main.default",
+          "evidence": [
+            {
+              "kind": "selector",
+              "source": "example.html",
+              "locator": "body"
+            }
+          ]
+        }
+      ],
+      "interactionAudits": [
+        {
+          "auditKey": "audit.interaction.button",
+          "observedName": "Activate continue",
+          "matchedId": "interaction.button.click",
+          "evidence": [
+            {
+              "kind": "selector",
+              "source": "example.html",
+              "locator": "button"
+            }
+          ]
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "findings": []
+}

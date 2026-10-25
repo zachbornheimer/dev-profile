@@ -1,0 +1,16 @@
+{
+  "resource_changes": [
+    {
+      "address": "aws_instance.web",
+      "type": "aws_instance",
+      "name": "web",
+      "change": { "actions": ["update"] }
+    },
+    {
+      "address": "aws_iam_role.deploy",
+      "type": "aws_iam_role",
+      "name": "deploy",
+      "change": { "actions": ["delete"] }
+    }
+  ]
+}

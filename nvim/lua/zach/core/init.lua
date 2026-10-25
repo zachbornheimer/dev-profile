@@ -1,0 +1,6 @@
+require("zach.core.options")
+require("zach.core.filetype")
+require("zach.core.quit")
+require("zach.core.keymaps")
+require("zach.bpp")
+require("zach.core.contrast").setup()

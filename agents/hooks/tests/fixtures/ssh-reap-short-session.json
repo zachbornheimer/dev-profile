@@ -1,0 +1,5 @@
+{
+  "session_id": "hgtest",
+  "hook_event_name": "Stop",
+  "reason": "end_turn"
+}

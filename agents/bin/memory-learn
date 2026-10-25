@@ -1,0 +1,268 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.11"
+# dependencies = []
+# ///
+"""memory-learn — turn finished agent sessions into cass-memory playbook rules.
+
+Pipeline per session: capability `get_recent_turns` (any harness) -> `_llm` (cheap
+model, any installed CLI) -> `cm add --file -`. A ledger skips sessions already learned
+at the same size, so the nightly sweep is idempotent.
+
+    memory-learn --since -1d            # sweep sessions cass indexed recently
+    memory-learn --dry-run <path>...    # print proposed rules, add nothing
+
+Exit status: 0 when every attempted session succeeded or was skipped; 1 when
+any session failed (each failure is printed to stderr with its path).
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import subprocess
+import sys
+import time
+from collections.abc import Sequence
+from dataclasses import dataclass
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+
+from model_passes import extract_rules, fact_check, judge
+from rule_quality import (
+    BETTER_PRACTICE_MARK,
+    Rule,
+    evidence_found,
+    with_better_practice,
+)
+from sessions import (
+    CURSOR_PROJECTS,
+    Session,
+    Shell,
+    raw_session_text,
+    recent_cursor_sessions,
+    recent_sessions,
+    session_for_path,
+    since_cutoff,
+    transcript_text,
+)
+
+LEDGER = Path(
+    os.environ.get(
+        "MEMORY_LEARN_LEDGER", Path.home() / ".local/state/memory-learn/ledger.json"
+    )
+)
+# Extraction reads a long transcript (cheap tier); the judge is the quality gate.
+JUDGE_BATCH_RULES = (
+    40  # rules per Sonnet judge call; instructions are sent once per call
+)
+SWEEP_ERRORS = (RuntimeError, ValueError, TypeError, OSError, subprocess.TimeoutExpired)
+MIN_TRANSCRIPT_CHARS = 2000
+
+
+def save_rules(shell: Shell, session: Session, rules: list[Rule]) -> tuple[int, int]:
+    """Add via cm's strict validation (rejects near-duplicates and thin rules).
+
+    Returns (added, rejected).
+    """
+    payload = json.dumps(
+        [{"content": r.content, "category": r.category} for r in rules]
+    )
+    out = shell.run(
+        ["cm", "add", "--file", "-", "--check", "--strict"]
+        + ["--session", session.path, "--json"],
+        stdin=payload,
+    )
+    data = json.loads(out).get("data", {})
+    return len(data.get("added", [])), len(data.get("skipped", []))
+
+
+class Ledger:
+    """Sessions already learned, keyed by path, valued by the size learned at."""
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+        try:
+            self.seen: dict[str, int] = json.loads(path.read_text())
+        except (OSError, ValueError):
+            self.seen = {}
+
+    def is_done(self, session: Session) -> bool:
+        return self.seen.get(session.path) == session.size
+
+    def mark(self, session: Session) -> None:
+        self.seen[session.path] = session.size
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.path.write_text(json.dumps(self.seen, indent=1, sort_keys=True))
+
+
+@dataclass(frozen=True, slots=True)
+class Harvest:
+    """One session's candidate rules: what the model proposed and what its evidence proved."""
+
+    session: Session
+    proposed: list[Rule]
+    evidenced: list[Rule]
+
+
+def harvest(shell: Shell, session: Session, instructions: str) -> Harvest | str:
+    """Candidate rules from one session, or a skip reason."""
+    transcript = transcript_text(shell, session)
+    if len(transcript) < MIN_TRANSCRIPT_CHARS:
+        return f"skip: transcript too short ({len(transcript)} chars)"
+    proposed = extract_rules(shell, instructions, transcript)
+    recorded = raw_session_text(session)
+    return Harvest(
+        session, proposed, [r for r in proposed if evidence_found(r, recorded)]
+    )
+
+
+def settle(
+    shell: Shell, ledger: Ledger, batch: list[Harvest], *, dry_run: bool
+) -> list[str]:
+    """Judge, then fact-check, a batch of harvests (one call each); save keepers; mark done."""
+    candidates = [(h, r) for h in batch for r in h.evidenced]
+    verdicts = judge(shell, [r for _, r in candidates])
+    judged = [(h, r) for (h, r), (keep, _) in zip(candidates, verdicts) if keep]
+    checks = fact_check(shell, [r for _, r in judged])
+    lines = []
+    for h in batch:
+        mine = [(r, c) for (owner, r), c in zip(judged, checks) if owner is h]
+        final = [with_better_practice(r, c) for r, c in mine if c.keep]
+        if dry_run:
+            lines.append(f"{h.session.path}: dry-run")
+            lines += [
+                f"  NO-EVIDENCE {r.content}  -- quote: {r.evidence!r}"
+                for r in h.proposed
+                if r not in h.evidenced
+            ]
+            lines += [
+                f"  JUDGE-DROP {r.content}  -- {why}"
+                for (owner, r), (keep, why) in zip(candidates, verdicts)
+                if owner is h and not keep
+            ]
+            lines += [
+                f"  FACT-{c.verdict.upper()} {with_better_practice(r, c).content}  -- {c.source}"
+                for r, c in mine
+            ]
+            continue
+        added, rejected = save_rules(shell, h.session, final) if final else (0, 0)
+        ledger.mark(h.session)
+        lines.append(
+            f"{h.session.path}: proposed {len(h.proposed)}, evidenced {len(h.evidenced)}, "
+            f"judge kept {len(mine)}, fact-check kept {len(final)}, "
+            f"cm added {added}, cm rejected {rejected}"
+        )
+    return lines
+
+
+def rejudge_playbook(shell: Shell, *, dry_run: bool) -> list[str]:
+    """Re-apply judge + fact-check to the playbook (soft removes; cm undo restores).
+
+    False rules are removed; rules with a better practice are replaced by the
+    extended text, so the playbook never steers agents to the worse approach.
+    """
+    rows = json.loads(shell.run(["cm", "ls", "--json"])).get("data", [])
+    rows = rows.get("bullets", []) if isinstance(rows, dict) else rows
+    rules = [Rule(r["content"], r.get("category", "general")) for r in rows]
+    report, survivors = [], []
+    for row, rule, (keep, why) in zip(rows, rules, judge(shell, rules)):
+        if keep:
+            survivors.append((row, rule))
+        else:
+            report.append(f"{row['id']}: JUDGE-DROP {row['content'][:120]}  -- {why}")
+            if not dry_run:
+                retire(shell, row["id"], f"memory-learn judge: {why}")
+    checks = fact_check(shell, [rule for _, rule in survivors])
+    for (row, rule), check in zip(survivors, checks):
+        if not check.keep:
+            report.append(
+                f"{row['id']}: FACT-FALSE {row['content'][:120]}  -- {check.source}"
+            )
+            if not dry_run:
+                retire(
+                    shell, row["id"], f"memory-learn fact-check false: {check.source}"
+                )
+        elif check.better_practice and BETTER_PRACTICE_MARK not in rule.content:
+            better = with_better_practice(rule, check)
+            report.append(f"{row['id']}: EXTENDED {better.content[:200]}")
+            if not dry_run:
+                retire(shell, row["id"], "replaced with better-practice version")
+                payload = json.dumps(
+                    [{"content": better.content, "category": better.category}]
+                )
+                shell.run(["cm", "add", "--file", "-", "--json"], stdin=payload)
+    return report
+
+
+def retire(shell: Shell, rule_id: str, reason: str) -> None:
+    shell.run(["cm", "rm", rule_id, "--reason", reason])
+
+
+def main(argv: Sequence[str] | None = None, shell: Shell | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument("paths", nargs="*", help="session transcript paths")
+    parser.add_argument("--since", help="sweep cass sessions active since (e.g. -1d)")
+    parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--rejudge", action="store_true", help="judge existing playbook rules"
+    )
+    args = parser.parse_args(argv)
+    if args.rejudge:
+        print("\n".join(rejudge_playbook(shell or Shell(), dry_run=args.dry_run)))
+        return 0
+    if not args.paths and not args.since and not args.rejudge:
+        parser.error("give session paths or --since")
+
+    shell = shell or Shell()
+    sessions = [session_for_path(p) for p in args.paths]
+    if args.since:
+        cutoff = since_cutoff(args.since, time.time())
+        sessions += recent_sessions(shell, args.since)
+        sessions += recent_cursor_sessions(CURSOR_PROJECTS, cutoff)
+    instructions = shell.run(["cm", "onboard", "prompt"])
+    ledger = Ledger(LEDGER)
+    failures, batch = 0, []
+
+    def flush() -> None:
+        nonlocal failures
+        try:
+            for line in settle(shell, ledger, batch, dry_run=args.dry_run):
+                print(line)
+        except SWEEP_ERRORS as err:
+            failures += len(batch)
+            print(
+                f"judge batch of {len(batch)} sessions FAILED: {err}", file=sys.stderr
+            )
+        batch.clear()
+
+    for session in sessions:
+        if ledger.is_done(session):
+            continue
+        try:
+            found = harvest(shell, session, instructions)
+        except SWEEP_ERRORS as err:
+            failures += 1
+            print(f"{session.path}: FAILED: {err}", file=sys.stderr)
+            continue
+        if isinstance(found, str):
+            print(f"{session.path}: {found}")
+            if not args.dry_run:
+                ledger.mark(session)
+            continue
+        batch.append(found)
+        if sum(len(h.evidenced) for h in batch) >= JUDGE_BATCH_RULES:
+            flush()
+    if batch:
+        flush()
+    return 1 if failures else 0
+
+
+if __name__ == "__main__":
+    # One line per session even when an order runner captures stdout to a file.
+    sys.stdout.reconfigure(line_buffering=True)
+    sys.exit(main())

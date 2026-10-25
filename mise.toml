@@ -1,60 +1,85 @@
-# Dev Profile kernel. `mise bootstrap --from <this repo>` installs Pkl, then the
-# bootstrap task renders profile.pkl into DEV_PROFILE_OUT, backs up live configs,
-# and re-runs `mise bootstrap` on the generated config, which installs the tools
-# and links the live configs. `mise run rollback` restores the originals.
+# Files on this branch are the source. mise dot apply installs them.
+# hk/hk.pkl stays because hk reads Pkl. The generator does not.
 
 min_version = "2026.10.0"
 
-[tools]
-pkl = "0.32.1"
-
 [env]
-# The live profile at the default branch's tip, a scratch directory for every other
-# checkout (mise-tasks/out-dir): a branch running doctor, lint or fmt, which all
-# generate first, must never overwrite the live profile. Overridable so validation
-# can render somewhere else.
-DEV_PROFILE_OUT = "{% set picked = exec(command='bash ' ~ config_root ~ '/mise-tasks/out-dir') %}{{ get_env(name='DEV_PROFILE_OUT', default=picked) }}"
 DEV_PROFILE_BACKUPS = "{{env.HOME}}/.local/state/dev-profile/backups"
 
 [bootstrap.packages]
 "brew:git" = "latest"
 
 [tasks.setup]
-description = "Same as `mise bootstrap`"
-run = "mise bootstrap --yes"
+description = "Install the files on this branch"
+run = "mise dot apply --yes"
 
 [tasks.doctor]
-description = "Syntax-check every generated file with the tool that consumes it"
-depends = ["generate"]
+description = "Syntax-check the files this branch installs"
 run = "bash tests/doctor.sh"
 
 [tasks.fmt]
-description = "Format this repo with the generated dprint config"
-depends = ["generate"]
-run = 'dprint fmt --config "$DEV_PROFILE_OUT/dprint.jsonc" "**/*"'
+description = "Format this repo with the branch dprint config"
+run = 'dprint fmt --config config/dprint.jsonc "**/*"'
 
 [tasks.lint]
 description = "Check formatting"
-depends = ["generate"]
-run = 'dprint check --config "$DEV_PROFILE_OUT/dprint.jsonc" "**/*"'
+run = 'dprint check --config config/dprint.jsonc "**/*"'
 
 [tasks.build]
-description = "Render the profile (this repo's artifact)"
-run = "mise run generate"
+description = "Nothing to render"
+run = "mise run doctor"
 
 [tasks.test]
-description = "Validate generated configs and run the contract fixtures (temp render)"
-run = """
-#!/usr/bin/env bash
-set -euo pipefail
-# Render into a throwaway dir: a push must never redeploy the live profile.
-# Resolved path: macOS mktemp returns /var/…, a symlink pkl rejects as outside the output dir.
-DEV_PROFILE_OUT="$(cd "$(mktemp -d)" && pwd -P)"
-export DEV_PROFILE_OUT
-trap 'rm -rf "$DEV_PROFILE_OUT"' EXIT
-mise run doctor
-"""
+description = "Check the installed files"
+run = "mise run doctor"
 
 [tasks.ci]
-description = "lint, test, scan (sequential: lint and test both regenerate DEV_PROFILE_OUT)"
-run = ["mise run lint", "mise run test", "mise run scan"]
+description = "lint, then the file check"
+run = ["mise run lint", "mise run test"]
+
+# Installed by `mise dot apply`. .gitconfig and ~/.config/mise/config.toml stay real files.
+[dotfiles]
+"~/.config/hk/config.pkl" = { source = "hk/hk.pkl", mode = "symlink" }
+"~/.config/dprint/dprint.jsonc" = { source = "config/dprint.jsonc", mode = "symlink" }
+"~/.config/worktrunk/config.toml" = { source = "config/worktrunk.toml", mode = "symlink" }
+"~/.config/yamllint/config" = { source = "config/yamllint.yaml", mode = "symlink" }
+"~/.markdownlintrc" = { source = "config/markdownlintrc.json", mode = "symlink" }
+"~/Developer/Personal/dprint.jsonc" = { source = "config/dprint.jsonc", mode = "symlink" }
+"~/Developer/Personal/.golangci.yml" = { source = "config/golangci.yml", mode = "symlink" }
+"~/Developer/Personal/.editorconfig" = { source = "config/editorconfig", mode = "symlink" }
+"~/Developer/Personal/deny.toml" = { source = "config/deny.toml", mode = "symlink" }
+"~/.config/nvim" = { source = "nvim", mode = "symlink" }
+"~/.config/zsh" = { source = "shell/zsh", mode = "symlink" }
+"~/.local/share/dev-profile/shell.zsh" = { source = "shell/shell.zsh", mode = "symlink" }
+"~/.config/kitty" = { source = "kitty", mode = "symlink" }
+"~/.agents" = { source = "agents", mode = "symlink" }
+"~/.local/share/dev-profile/bin" = { source = "bin", mode = "symlink" }
+"~/Developer/Personal/mise.toml" = { source = "config/personal-overlay.toml", mode = "symlink" }
+"~/.gitconfig" = { source = "home/gitconfig", mode = "symlink" }
+"~/.zshrc" = { source = "home/zshrc", mode = "symlink" }
+"~/.zshenv" = { source = "home/zshenv", mode = "symlink" }
+"~/.zprofile" = { source = "home/zprofile", mode = "symlink" }
+"~/.zlogin" = { source = "home/zlogin", mode = "symlink" }
+"~/.zshrc.local" = { source = "home/zshrc.local", mode = "symlink" }
+"~/.tmux.conf" = { source = "home/tmux.conf", mode = "symlink" }
+"~/.vimrc" = { source = "home/vimrc", mode = "symlink" }
+"~/.editorconfig" = { source = "home/editorconfig", mode = "symlink" }
+"~/.profile" = { source = "home/profile", mode = "symlink" }
+"~/.config/zed" = { source = "apps/zed", mode = "symlink" }
+"~/.config/git" = { source = "apps/git", mode = "symlink" }
+"~/.config/bat" = { source = "apps/bat", mode = "symlink" }
+"~/.config/atuin" = { source = "apps/atuin", mode = "symlink" }
+"~/.config/direnv" = { source = "apps/direnv", mode = "symlink" }
+"~/.config/lazygit" = { source = "apps/lazygit", mode = "symlink" }
+"~/.config/htop" = { source = "apps/htop", mode = "symlink" }
+"~/.config/btop" = { source = "apps/btop", mode = "symlink" }
+"~/.config/ripgrep" = { source = "apps/ripgrep", mode = "symlink" }
+"~/.config/opencode" = { source = "apps/opencode", mode = "symlink" }
+"~/.config/php-cs-fixer" = { source = "apps/php-cs-fixer", mode = "symlink" }
+"~/.config/ast-grep" = { source = "apps/ast-grep", mode = "symlink" }
+"~/.config/ai" = { source = "apps/ai", mode = "symlink" }
+"~/.config/agent-hooks" = { source = "apps/agent-hooks", mode = "symlink" }
+"~/.config/zab_ai" = { source = "apps/zab_ai", mode = "symlink" }
+"~/.config/zsh-preview" = { source = "apps/zsh-preview", mode = "symlink" }
+"~/.config/1Password" = { source = "apps/1Password", mode = "symlink" }
+"~/.vim" = { source = "vim", mode = "symlink" }

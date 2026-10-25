@@ -1,0 +1,163 @@
+{
+  "checked_at": "2026-09-18",
+  "ttl_days": 7,
+  "harnesses": {
+    "claude-code": {
+      "sources": [
+        {
+          "url": "https://code.claude.com/docs/en/features-overview",
+          "date_checked": "2026-09-18",
+          "note": "Features overview"
+        },
+        {
+          "url": "https://code.claude.com/docs/en/skills",
+          "date_checked": "2026-09-18",
+          "note": "Skills progressive disclosure"
+        },
+        {
+          "url": "https://claude.com/blog/steering-claude-code-skills-hooks-rules-subagents-and-more",
+          "date_checked": "2026-09-18",
+          "note": "2026-06-18 steering post: skills, hooks, rules, subagents"
+        },
+        {
+          "url": "https://code.claude.com/docs/en/sub-agents.md",
+          "date_checked": "2026-09-18",
+          "note": "Subagent isolated context"
+        }
+      ],
+      "findings": [
+        "CLAUDE.md is always-on, high context cost, and is re-read after compaction. Keep facts and never-do-X only.",
+        "Skills: name+description at start; body on invoke; progressive disclosure; they share the token budget.",
+        "Subagents: isolated context; return summaries. Use when a dump would flood the parent. Explore/Plan skip CLAUDE.md.",
+        "Hooks (PreToolUse/PostToolUse/Stop/SessionStart) are mandatory and cost zero model tokens.",
+        "Slash commands are user-typed; skills are model-invoked.",
+        "Compaction clears older tool outputs first; conversation instructions may be lost; project-root CLAUDE.md survives."
+      ],
+      "version_hint": null
+    },
+    "codex": {
+      "sources": [
+        {
+          "url": "https://developers.openai.com/codex/skills",
+          "date_checked": "2026-09-18",
+          "note": "Skills"
+        },
+        {
+          "url": "https://developers.openai.com/codex/concepts/customization",
+          "date_checked": "2026-09-18",
+          "note": "Customization"
+        },
+        {
+          "url": "https://developers.openai.com/codex/guides/agents-md/",
+          "date_checked": "2026-09-18",
+          "note": "AGENTS.md chain"
+        }
+      ],
+      "findings": [
+        "AGENTS.md is always-on. Load order: ~/.codex/AGENTS.md then the repo chain; AGENTS.override.md wins per level.",
+        "Skills use progressive disclosure from ~/.agents/skills and repo .agents/skills.",
+        "MCP, subagents, and plugins are complementary, not substitutes for AGENTS.md facts."
+      ],
+      "version_hint": null
+    },
+    "cursor": {
+      "sources": [
+        {
+          "url": "https://cursor.com/docs/context/skills",
+          "date_checked": "2026-09-18",
+          "note": "Skills"
+        },
+        {
+          "url": "https://docs.cursor.com/context/rules",
+          "date_checked": "2026-09-18",
+          "note": "Rules always/glob/agent-requested"
+        }
+      ],
+      "findings": [
+        "Rules: always / glob / agent-requested. Always-on rules cost every turn.",
+        "Skills are on demand; .cursor/skills plus Claude/Codex compatibility paths.",
+        "AGENTS.md is read. CLAUDE.md is not Cursor-native.",
+        "MCP tools load on demand (2.4+)."
+      ],
+      "version_hint": null
+    },
+    "opencode": {
+      "sources": [
+        {
+          "url": "https://opencode.ai/docs/rules/",
+          "date_checked": "2026-09-18",
+          "note": "Rules"
+        },
+        {
+          "url": "https://opencode.ai/v2/docs/instructions/",
+          "date_checked": "2026-09-18",
+          "note": "Instructions / AGENTS.md"
+        },
+        {
+          "url": "https://open-code.ai/en/docs/skills",
+          "date_checked": "2026-09-18",
+          "note": "Skills tool"
+        }
+      ],
+      "findings": [
+        "AGENTS.md is global at ~/.config/opencode/AGENTS.md plus nested project files. CLAUDE.md is a fallback if no AGENTS.md.",
+        "Skills via the skill tool; .opencode/skills and ~/.config/opencode/skills."
+      ],
+      "version_hint": null
+    },
+    "grok": {
+      "sources": [
+        {
+          "url": "file://~/.grok/docs/user-guide/08-skills.md",
+          "date_checked": "2026-09-18",
+          "note": "Local user-guide skills"
+        },
+        {
+          "url": "file://~/.grok/docs/user-guide/10-hooks.md",
+          "date_checked": "2026-09-18",
+          "note": "Hooks"
+        },
+        {
+          "url": "file://~/.grok/docs/user-guide/12-project-rules.md",
+          "date_checked": "2026-09-18",
+          "note": "Project rules"
+        },
+        {
+          "url": "file://~/.grok/docs/user-guide/16-subagents.md",
+          "date_checked": "2026-09-18",
+          "note": "Subagents"
+        },
+        {
+          "url": "file://~/.grok/docs/user-guide/17-sessions.md",
+          "date_checked": "2026-09-18",
+          "note": "Sessions on disk"
+        },
+        {
+          "url": "file://~/.grok/docs/user-guide/24-monitoring-usage.md",
+          "date_checked": "2026-09-18",
+          "note": "Usage"
+        }
+      ],
+      "findings": [
+        "Skills: ~/.grok/skills, ~/.agents/skills, plus Claude/Cursor compat. Name+description is the trigger.",
+        "AGENTS.md / CLAUDE.md are always-on per directory. Hooks block or correct. Subagents own context.",
+        "Sessions: ~/.grok/sessions/<encoded-cwd>/<id>/summary.json + chat_history.jsonl. Skip synthetic_reason."
+      ],
+      "version_hint": null
+    },
+    "observability": {
+      "sources": [
+        {
+          "url": "file://~/.agents/skills/harness-efficiency/references/harnesses.md",
+          "date_checked": "2026-09-18",
+          "note": "Local session index is the observability surface"
+        }
+      ],
+      "findings": [
+        "A local session index plus evals beats loading transcripts into the model.",
+        "LangSmith-style tracing is out of scope for this skill."
+      ],
+      "version_hint": null
+    }
+  }
+}

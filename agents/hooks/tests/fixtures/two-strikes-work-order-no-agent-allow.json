@@ -1,0 +1,10 @@
+{
+  "session_id": "hgtest-ts-wo-main",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Agent",
+  "tool_input": {
+    "subagent_type": "implement",
+    "isolation": "worktree",
+    "prompt": "```yaml\nwork_order:\n  schema_version: 1\n  intent: \"orchestrator fan-out\"\n```\nspawn"
+  }
+}

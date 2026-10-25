@@ -1,0 +1,7 @@
+# ~/.zshrc.local — machine-local overrides.
+# Sourced last by ~/.config/zsh/loader.zsh.
+# The original prompt remains in ~/.config/zsh/30-prompt.zsh.
+# Start with ZSH_PROMPT_STYLE=classic to use it without the colorful overrides.
+if [[ ${ZSH_PROMPT_STYLE:-colorful} == colorful ]]; then
+	builtin source "$HOME/.config/zsh-preview/prompt.zsh"
+fi

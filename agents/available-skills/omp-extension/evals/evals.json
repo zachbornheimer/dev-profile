@@ -1,0 +1,23 @@
+{
+  "skill_name": "omp-extension",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Add an omp command /thinking off that hides thinking blocks already on screen. I don't want this in the omp repo.",
+      "expected_output": "An extension under ~/.config/omp/, listed in ~/.omp/agent/config.yml. No oh-my-pi edits.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Can we hide those short 'let me look at the file' lines in omp, like calm mode, but leave the real reply? Don't touch the working row.",
+      "expected_output": "Presentation-only extension. updateContent wrap. No working-row replacement. No omp source edit.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "The /usage command in omp prints the wrong token count. Fix it in oh-my-pi.",
+      "expected_output": "Skill should not apply. This is an omp source bugfix.",
+      "files": []
+    }
+  ]
+}

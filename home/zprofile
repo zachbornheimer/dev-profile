@@ -1,0 +1,20 @@
+
+# ~/.zprofile — login shells only, after /etc/zprofile (path_helper).
+# Re-assert user bins so PATH lookups never prefer /usr/bin/python3 or
+# Homebrew's python3 when a bare `python3` is invoked.
+# OS scripts that hardcode #!/usr/bin/python3 are unaffected.
+
+# ~/.agents/bin first: it holds the aubx scope guard, which must win over
+# mise's and Homebrew's aubx so global skill installs stay in available-skills.
+if [[ -d "$HOME/.agents/bin" ]]; then
+  path=("$HOME/.agents/bin" ${path:#$HOME/.agents/bin})
+  export PATH
+fi
+
+if [[ -d "$HOME/.local/bin" ]]; then
+  path=("$HOME/.local/bin" ${path:#$HOME/.local/bin})
+  export PATH
+fi
+
+# Hermes Agent command
+case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) export PATH="$HOME/.local/bin:$PATH" ;; esac

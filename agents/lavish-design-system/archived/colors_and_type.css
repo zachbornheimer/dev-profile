@@ -1,0 +1,112 @@
+/* Zysys wp-admin design tokens. Every value traces to SEO.dc.html or SitePerformance.dc.html. */
+:root {
+  /* Surfaces */
+  --color-bg-page: #f0f0f1;
+  --color-surface: #fff;
+  --color-surface-subtle: #f6f7f7;
+  --color-divider: var(--color-bg-page);
+  --color-row-divider: var(--color-surface-subtle);
+
+  /* Borders */
+  --color-border: #dcdcde;
+  --color-border-control: #c3c4c7;
+  --color-border-input: #8c8f94;
+  --color-border-danger: #f0c4c4;
+
+  /* Text */
+  --color-text: #1d2327;
+  --color-text-secondary: #50575e;
+  --color-text-muted: #646970;
+  --color-text-subtle: #8c8f94;
+  --color-text-faint: #a7aaad;
+  --color-on-accent: #fff;
+
+  /* Accent (WordPress blue) */
+  --color-accent: #2271b1;
+  --color-accent-hover: #135e96;
+  --color-accent-bg: #f0f6fc;
+  --color-accent-disabled: #9ec2e6;
+
+  /* Success / on / healthy */
+  --color-success: #00a32a;
+  --color-success-text: #006b1b;
+  --color-success-bg: #edfaef;
+
+  /* Warning / over budget */
+  --color-warning: #dba617;
+  --color-warning-text: #8a6100;
+  --color-warning-bg: #fcf9e8;
+  --color-warning-border: #f5e3a8;
+
+  /* Error / hot (3x budget or more) / destructive */
+  --color-error: #d63638;
+  --color-error-text: #b32d2e;
+  --color-error-bg: #fcf0f1;
+  --color-error-border: #f5c4c4;
+  --color-error-soft: #e5a9a9;
+
+  /* Search result preview (mimics Google) */
+  --color-serp-title: #1a0dab;
+  --color-serp-desc: #4d5156;
+
+  /* Switch */
+  --color-switch-off: var(--color-border-control);
+
+  /* Type families */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Type scale */
+  --text-page-title: 23px;
+  --text-heading-lg: 18px;
+  --text-stat: 22px;
+  --text-section-title: 15px;
+  --text-subsection-title: 14px;
+  --text-serp-title: 16px;
+  --text-body: 13px;
+  --text-meta: 12px;
+  --text-mono: 12.5px;
+  --text-mono-sm: 11.5px;
+  --text-badge: 11px;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --leading-tight: 1.3;
+  --leading-body: 1.5;
+  --leading-prose: 1.55;
+  --leading-relaxed: 1.6;
+  --tracking-title: -0.01em;
+  --tracking-badge: 0.04em;
+
+  /* Spacing */
+  --space-2: 2px;
+  --space-4: 4px;
+  --space-6: 6px;
+  --space-8: 8px;
+  --space-10: 10px;
+  --space-12: 12px;
+  --space-14: 14px;
+  --space-16: 16px;
+  --space-20: 20px;
+  --space-24: 24px;
+  --space-28: 28px;
+
+  /* Radii */
+  --radius-bar: 2px;
+  --radius-badge: 3px;
+  --radius-control: 4px;
+  --radius-card: 6px;
+  --radius-pill: 999px;
+
+  /* Shadow */
+  --shadow-segment: 0 1px 2px rgba(0, 0, 0, 0.08);
+
+  /* Layout */
+  --layout-max-width: 1180px;
+  --layout-gutter: 24px;
+  --layout-card-min: 320px;
+  --layout-stat-min: 200px;
+  --layout-table-min: 720px;
+  --layout-table-min-narrow: 680px;
+  --layout-control-height: 20px;
+}

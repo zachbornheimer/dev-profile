@@ -1,0 +1,174 @@
+#!/usr/bin/env bash
+# vercel-skill — install one skill from a Vercel repo with the standard Skills
+# CLI and keep it in the skills roster ($AGENTS_HOME/available-skills).
+#
+# The install is not reimplemented here. `npx skills add <repo> --skill <name>
+# -g -y` does the work, run through skills-add (the sibling wrapper) so whatever
+# the installer leaves in a harness auto-scan dir is moved into the roster and
+# the harness links it made are dropped. This script adds only what is Vercel
+# specific:
+#
+#   * which repo a skill comes from — vercel-cli ships from vercel/vercel, every
+#     other skill from vercel-labs/agent-skills;
+#   * the roster's vercel-* name for four upstream folders, so
+#     `vercel-skill react-best-practices` lands as vercel-react-best-practices.
+#
+# Env:
+#   AGENTS_HOME  default $HOME/.agents
+#   DRY_RUN=1    print the install that would run, change nothing
+set -uo pipefail
+
+AGENTS_HOME="${AGENTS_HOME:-$HOME/.agents}"
+AVAILABLE_DIR="$AGENTS_HOME/available-skills"
+DEFAULT_SKILL="vercel-react-best-practices"
+DEFAULT_REPO="vercel-labs/agent-skills"
+ATTEMPTS=5
+
+# roster name | upstream-folder alias | repo. One table feeds --list, the install and
+# the rename. A name missing from it still installs: the name is used as the
+# upstream folder against the default repo.
+MAP="
+deploy-to-vercel|deploy-to-vercel|vercel-labs/agent-skills
+vercel-cli|vercel-cli|vercel/vercel
+vercel-cli-with-tokens|vercel-cli-with-tokens|vercel-labs/agent-skills
+vercel-composition-patterns|composition-patterns|vercel-labs/agent-skills
+vercel-optimize|vercel-optimize|vercel-labs/agent-skills
+vercel-react-best-practices|react-best-practices|vercel-labs/agent-skills
+vercel-react-native-skills|react-native-skills|vercel-labs/agent-skills
+vercel-react-view-transitions|react-view-transitions|vercel-labs/agent-skills
+web-design-guidelines|web-design-guidelines|vercel-labs/agent-skills
+writing-guidelines|writing-guidelines|vercel-labs/agent-skills
+"
+
+die() {
+	printf 'vercel-skill: %s\n' "$*" >&2
+	exit 2
+}
+
+usage() {
+	cat <<'USAGE'
+vercel-skill — install a Vercel agent skill into the skills roster.
+
+Usage:
+  vercel-skill                        # vercel-react-best-practices
+  vercel-skill deploy-to-vercel
+  vercel-skill react-best-practices   # upstream folder name also works
+  vercel-skill --list                 # names this wrapper maps, offline
+USAGE
+}
+
+# The table row matching either spelling of a name, empty when unmapped.
+row() {
+	printf '%s\n' "$MAP" |
+		awk -F'|' -v want="$1" 'NF == 3 && ($1 == want || $2 == want) { print; exit }'
+}
+field() { printf '%s' "$1" | cut -d'|' -f"$2"; }
+
+case "${1:-}" in
+-h | --help)
+	usage
+	exit 0
+	;;
+--list)
+	printf '%s\n' "$MAP" | awk -F'|' 'NF == 3 { printf "%-32s %s\n", $1, $3 }'
+	exit 0
+	;;
+esac
+
+given="${1:-$DEFAULT_SKILL}"
+case "$given" in
+"") die "usage: vercel-skill [skill-name] | --list" ;;
+-*) die "unknown flag: $given (try: vercel-skill --help)" ;;
+*/*) die "pass a bare skill name (e.g. deploy-to-vercel), not a path: $given" ;;
+esac
+
+mapped="$(row "$given")"
+if [ -n "$mapped" ]; then
+	name="$(field "$mapped" 1)"
+	upstream="$(field "$mapped" 2)"
+	repo="$(field "$mapped" 3)"
+else
+	name="$given"
+	upstream="$given"
+	repo="$DEFAULT_REPO"
+fi
+
+# $0 may be a symlink in ~/.local/bin, so resolve the real directory before
+# looking for the sibling wrapper.
+self_dir="$(cd "$(dirname "$0")" && pwd -P)" || die "cannot resolve $0"
+skills_add="$self_dir/skills-add"
+[ -x "$skills_add" ] || skills_add="$(command -v skills-add 2>/dev/null || true)"
+[ -n "$skills_add" ] || die "skills-add not found next to $0 or on PATH"
+
+if [ "${DRY_RUN:-0}" = "1" ]; then
+	printf 'vercel-skill: would run: skills-add %s --skill %s -g -y\n' "$repo" "$name"
+	[ "$upstream" = "$name" ] ||
+		printf 'vercel-skill: would then move %s -> %s in %s\n' "$upstream" "$name" "$AVAILABLE_DIR"
+	exit 0
+fi
+
+printf 'vercel-skill: installing skills/%s from %s\n' "$name" "$repo" >&2
+"$skills_add" "$repo" --skill "$name" -g -y || die "install of $name failed"
+
+# skills-add moves the skill into the roster; the scan dir is only a fallback
+# for a layout where it is not a link to the roster and the move did not run.
+# The installer overwrites an existing skill folder in place, so for a moment
+# the directory exists with no SKILL.md yet. Resolve where it landed and that it
+# is loadable in one bounded wait, instead of reporting a failure the exit-0
+# install never caused.
+landed=""
+checks=10
+attempt=1
+while [ "$attempt" -le "$checks" ]; do
+	for candidate in "$AVAILABLE_DIR/$upstream" "$AVAILABLE_DIR/$name" "$AGENTS_HOME/skills/$upstream"; do
+		if [ -d "$candidate" ] && [ -f "$candidate/SKILL.md" ]; then
+			landed="$candidate"
+			break
+		fi
+	done
+	[ -n "$landed" ] && break
+	sleep 0.5
+	attempt=$((attempt + 1))
+done
+if [ -z "$landed" ]; then
+	# A folder the installer created but never finished is not a skill. Remove
+	# it so the roster never carries an entry no harness can load.
+	rm -rf "${AVAILABLE_DIR:?}/$upstream" "${AVAILABLE_DIR:?}/$name" \
+		"${AGENTS_HOME:?}/skills/$upstream" 2>/dev/null
+fi
+
+[ -n "$landed" ] ||
+	die "install of $upstream left nothing loadable in $AVAILABLE_DIR (no SKILL.md after $checks checks; see skills-add output above)"
+
+if [ "$upstream" = "$name" ] || [ "$landed" = "$AVAILABLE_DIR/$name" ]; then
+	printf 'vercel-skill: %s lives at %s\n' "$name" "$landed"
+	exit 0
+fi
+
+# Roster rename. Same-directory renames keep each step atomic; the aside name is
+# unique so two concurrent runs cannot clobber each other's backup.
+dest="$AVAILABLE_DIR/$name"
+mkdir -p "$AVAILABLE_DIR" || die "cannot create $AVAILABLE_DIR"
+aside="$AVAILABLE_DIR/.$name.out.$$"
+attempt=1
+while [ "$attempt" -le "$ATTEMPTS" ]; do
+	rm -rf "$aside" 2>/dev/null
+	if [ -e "$dest" ] || [ -L "$dest" ]; then
+		if ! mv "$dest" "$aside" 2>/dev/null; then
+			sleep 0.5
+			attempt=$((attempt + 1))
+			continue
+		fi
+	fi
+	if mv "$landed" "$dest" 2>/dev/null; then
+		rm -rf "$aside" 2>/dev/null
+		printf 'vercel-skill: %s now lives at %s (installed as %s)\n' "$name" "$dest" "$upstream"
+		exit 0
+	fi
+	# Another run recreated dest in the gap; restore ours and retry.
+	[ -e "$aside" ] && [ ! -e "$dest" ] && mv "$aside" "$dest" 2>/dev/null
+	sleep 0.5
+	attempt=$((attempt + 1))
+done
+
+die "could not move $landed to $dest after $ATTEMPTS attempts; another installer may be writing there"

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Code Construction"
+  short_description: "Build clear, safe, proven production code"
+  default_prompt: "Use $code-construction to implement this through one clear, verified production path."

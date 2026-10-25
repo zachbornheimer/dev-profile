@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "uuid": "12345678-1234-4abc-8def-1234567890ab",
+  "ticket": "EXAMPLE-123",
+  "operation": "targeted-repair",
+  "repo": "/Users/me/Developer/example",
+  "started_at": "2026-09-24T12:00:00+00:00",
+  "finished_at": "2026-09-24T12:04:17+00:00",
+  "outcome": "EXAMPLE-123-PROVED",
+  "acceptance_proved": true,
+  "changed_files": [
+    "internal/workspace/workspace.go"
+  ],
+  "unmet_acceptance": [],
+  "baseline_notes": [],
+  "deterministic": {
+    "focused_tests": 0,
+    "all_tests": 0,
+    "vet": 0,
+    "diff_check": 0
+  },
+  "error": null
+}

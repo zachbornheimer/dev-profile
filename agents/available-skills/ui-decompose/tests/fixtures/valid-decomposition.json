@@ -1,0 +1,156 @@
+{
+  "schemaVersion": "1.1",
+  "title": "Example UI Decomposition",
+  "requestSha256": "d5471a2730677f018b4cfbab3c2fc107359af4b3e4af30206eb7f9eeece8e111",
+  "scope": {
+    "requested": "Implement: example.html",
+    "rootSurfaceIds": ["surface.main"],
+    "exclusions": []
+  },
+  "source": {
+    "type": "local-files",
+    "entryFiles": ["example.html"],
+    "filesRead": [
+      {
+        "path": "example.html",
+        "role": "entry",
+        "inspected": true,
+        "notes": []
+      }
+    ],
+    "notes": []
+  },
+  "surfaces": [
+    {
+      "id": "surface.main",
+      "name": "Main",
+      "type": "page",
+      "parentSurfaceId": null,
+      "rootNodeId": "node.root",
+      "triggerInteractionIds": [],
+      "evidence": [
+        {
+          "kind": "selector",
+          "source": "example.html",
+          "locator": "body"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "nodes": [
+    {
+      "id": "node.root",
+      "surfaceId": "surface.main",
+      "parentId": null,
+      "childIds": ["node.heading", "node.button"],
+      "name": "MainPage",
+      "role": "Page root",
+      "kind": "layout",
+      "atomic": false,
+      "interactive": false,
+      "interactionIds": [],
+      "stateIds": [],
+      "visibleText": [],
+      "evidence": [
+        {
+          "kind": "selector",
+          "source": "example.html",
+          "locator": "body"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "id": "node.heading",
+      "surfaceId": "surface.main",
+      "parentId": "node.root",
+      "childIds": [],
+      "name": "Heading",
+      "role": "Primary heading",
+      "kind": "text",
+      "atomic": true,
+      "interactive": false,
+      "interactionIds": [],
+      "stateIds": [],
+      "visibleText": ["Example"],
+      "evidence": [
+        {
+          "kind": "selector",
+          "source": "example.html",
+          "locator": "h1"
+        }
+      ],
+      "notes": []
+    },
+    {
+      "id": "node.button",
+      "surfaceId": "surface.main",
+      "parentId": "node.root",
+      "childIds": [],
+      "name": "ActionButton",
+      "role": "Primary action",
+      "kind": "action",
+      "atomic": true,
+      "interactive": true,
+      "interactionIds": ["interaction.button.click"],
+      "stateIds": [],
+      "visibleText": ["Continue"],
+      "evidence": [
+        {
+          "kind": "selector",
+          "source": "example.html",
+          "locator": "button"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "states": [
+    {
+      "id": "state.main.default",
+      "ownerType": "surface",
+      "ownerId": "surface.main",
+      "name": "Default",
+      "kind": "default",
+      "changes": ["Baseline rendering"],
+      "evidence": [
+        {
+          "kind": "selector",
+          "source": "example.html",
+          "locator": "body"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "interactions": [
+    {
+      "id": "interaction.button.click",
+      "sourceNodeId": "node.button",
+      "name": "Activate continue",
+      "gesture": "click",
+      "result": "none",
+      "targetSurfaceId": null,
+      "targetStateId": null,
+      "description": "The example source does not expose another UI surface.",
+      "evidence": [
+        {
+          "kind": "selector",
+          "source": "example.html",
+          "locator": "button"
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "unresolved": [],
+  "coverage": {
+    "sourceFilesInspected": ["example.html"],
+    "surfaceIds": ["surface.main"],
+    "nodeIds": ["node.root", "node.heading", "node.button"],
+    "stateIds": ["state.main.default"],
+    "interactionIds": ["interaction.button.click"]
+  },
+  "notes": []
+}

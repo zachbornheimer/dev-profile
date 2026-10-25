@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "effort": "Sleepy Hollow",
+  "summary": "The fix is ready in testing and waiting on PR landing before production proof.",
+  "issues": [
+    {
+      "issueId": "ZYS-1540",
+      "summary": "Sleepy Hollow has a ~10 minute gap around 1:10; verify the library file and block a bad release.",
+      "checks": [
+        {
+          "name": "Issue hypothesis",
+          "status": "done",
+          "detail": "Disk corruption or invalid media should be detected by librarian before release.",
+          "evidence": ["Investigation isolated file verification as the missing guardrail."]
+        },
+        {
+          "name": "Issue replicated",
+          "status": "done",
+          "detail": "Corruption produced a clear encode error; segment removal reproduced the missing-verification path.",
+          "evidence": [
+            "librarian optimize rejected corrupted media and proposed replacement.",
+            "librarian optimize accepted media with a removed segment without an error."
+          ]
+        },
+        {
+          "name": "Fix verified in testing",
+          "status": "done",
+          "detail": "File verification is abstracted to Verify(); Video checks declared length against content.",
+          "evidence": ["Targeted verification tests pass."]
+        },
+        {
+          "name": "PR landed",
+          "status": "in_progress",
+          "detail": "The PR exists and is ready but has not merged yet.",
+          "evidence": ["GitHub PR remains open."]
+        },
+        {
+          "name": "Fix proven in prod",
+          "status": "not_started",
+          "detail": "Production verification starts after the PR lands.",
+          "evidence": ["Production does not contain the patch yet."]
+        }
+      ]
+    }
+  ]
+}

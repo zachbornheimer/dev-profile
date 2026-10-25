@@ -1,0 +1,8 @@
+layout_uv() {
+  if [[ ! -d .venv ]]; then
+    uv venv .venv
+  fi
+  VIRTUAL_ENV="$(pwd)/.venv"
+  PATH_add "$VIRTUAL_ENV/bin"
+  export VIRTUAL_ENV
+}

@@ -1,0 +1,163 @@
+/*
+ GENERATED FILE — do not hand-edit.
+ Source of truth: tokens.json
+ Regenerate: node src/build.mjs
+ */
+
+/*
+ * Load AFTER contract.gen.css (or contract.min.css).
+ *
+ * Preferred: `@import "brand.css" layer(whitelabel);` or wrap this
+ * file in `@layer whitelabel` at the host. Fallback: an unlayered
+ * `:root` copy sits at the bottom so hosts that never declare a
+ * layer order still win. DELETE that
+ * fallback if the host already wraps this file — two copies
+ * uncommented would let the unlayered block beat `@layer app`.
+ */
+
+@layer whitelabel {
+  :root {
+    /* ---------- Page ---------- */
+
+    /* The page behind everything. */
+    /* --color-page-background: #fafafa; */
+
+    /* Cards, fields, modals. */
+    /* --color-surface: #ffffff; */
+
+    /* Second page color: full-width bands, table headers. Solid or gradient. */
+    /* --color-page-accent: #ededed; */
+
+    /* Hairlines: card edges, field borders, dividers. */
+    /* --color-border: #d8d8d8; */
+
+    /* Body text and headings. */
+    /* --color-ink: #1a1a1a; */
+
+    /* ---------- Brand ---------- */
+
+    /* Links and focus rings. */
+    /* --color-brand: #5384aa; */
+
+    /* Primary button fill. Defaults to a darkened brand; set this if the button is a different color. */
+    /* --color-primary-action: #295a7e; */
+
+    /* ---------- Status ---------- */
+
+    /* Error state. */
+    /* --color-error: #b42318; */
+
+    /* Warning state. */
+    /* --color-warning: #b54708; */
+
+    /* Success state. */
+    /* --color-success: #067647; */
+
+    /* ---------- Shell ---------- */
+
+    /* Header bar. Defaults to the card surface. */
+    /* --header-background: #ffffff; */
+
+    /* Header text. Defaults to ink. */
+    /* --header-ink: #1a1a1a; */
+
+    /* Footer. Defaults to ink (dark bar). Set both footer tokens for a light footer. */
+    /* --footer-background: #1a1a1a; */
+
+    /* Footer text. Defaults to the card surface. */
+    /* --footer-ink: #ffffff; */
+
+    /* ---------- Type ---------- */
+
+    /* h1 through h3 and the hero. */
+    /* --font-family-heading: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; */
+
+    /* Everything else you read, including buttons and fields. */
+    /* --font-family-body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; */
+
+    /* Code, prices, and badges. */
+    /* --font-family-mono: ui-monospace, "SF Mono", Menlo, monospace; */
+
+    /* Size of a paragraph. Headings and small text follow from this. */
+    /* --font-size-body: 1rem; */
+
+    /* ---------- Geometry ---------- */
+
+    /* Space between sections. Tighter and looser gaps follow from this. */
+    /* --space: 1.5rem; */
+
+    /* Corners on buttons, cards, and fields. Tighter and rounder follow from this. */
+    /* --corner-radius: 8px; */
+
+    /* The content column. Narrower measures follow from this. */
+    /* --content-width: 1290px; */
+  }
+
+  /* Dark mode (optional): override the base colors; border, page-accent, */
+  /* header/footer, and primary-action follow from their derives. */
+  /* :root[data-theme="dark"] {
+    --color-page-background: #121212;
+    --color-surface: #1e1e1e;
+    --color-ink: #f2f2f2;
+  } */
+}
+
+/*
+ * Fallback: unlayered `:root`. DELETE this block if the host already
+ * wraps this file in `@layer whitelabel`.
+ */
+:root {
+  /* ---------- Page ---------- */
+
+  /* --color-page-background: #fafafa; */
+
+  /* --color-surface: #ffffff; */
+
+  /* --color-page-accent: #ededed; */
+
+  /* --color-border: #d8d8d8; */
+
+  /* --color-ink: #1a1a1a; */
+
+  /* ---------- Brand ---------- */
+
+  /* --color-brand: #5384aa; */
+
+  /* --color-primary-action: #295a7e; */
+
+  /* ---------- Status ---------- */
+
+  /* --color-error: #b42318; */
+
+  /* --color-warning: #b54708; */
+
+  /* --color-success: #067647; */
+
+  /* ---------- Shell ---------- */
+
+  /* --header-background: #ffffff; */
+
+  /* --header-ink: #1a1a1a; */
+
+  /* --footer-background: #1a1a1a; */
+
+  /* --footer-ink: #ffffff; */
+
+  /* ---------- Type ---------- */
+
+  /* --font-family-heading: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; */
+
+  /* --font-family-body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; */
+
+  /* --font-family-mono: ui-monospace, "SF Mono", Menlo, monospace; */
+
+  /* --font-size-body: 1rem; */
+
+  /* ---------- Geometry ---------- */
+
+  /* --space: 1.5rem; */
+
+  /* --corner-radius: 8px; */
+
+  /* --content-width: 1290px; */
+}

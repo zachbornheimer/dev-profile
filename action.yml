@@ -1,8 +1,8 @@
 name: dev-profile
 description: >-
   Give a CI runner the mise global config a developer Mac gets from
-  `mise bootstrap --from` this profile: the same pins and the same contract tasks
-  (`mise run ci`). A repo's own mise.toml still overrides. Tools only: no hooks.
+  $(mise bootstrap --from) this profile: the same pins and the same contract tasks
+  ($(mise run ci)). A repo's own mise.toml still overrides. Tools only: no hooks.
 author: zachbornheimer
 
 inputs:
@@ -18,10 +18,8 @@ runs:
         install: false
         cache: false
 
-    # Same code path as bootstrap: `mise run generate` renders profile.pkl. It
-    # lands at the profile's default path, so `extends: ~/.local/share/dev-profile/...`
-    # in a repo's dprint.jsonc resolves here as on a Mac.
-    - name: Render the profile
+    # Pins are committed. There is no generate step.
+    - name: Link the profile pins
       id: render
       shell: bash
       env:
@@ -29,15 +27,10 @@ runs:
         GITHUB_TOKEN: ${{ inputs.github-token }}
       run: |
         set -euo pipefail
-        out="${HOME}/.local/share/dev-profile"
-        cd "${ACTION_PATH}"
-        mise trust
-        mise install --yes
-        DEV_PROFILE_OUT="${out}" mise run generate
-        # Where bootstrap links it: mise's global conf.d, which every mise call reads.
-        # The same script a developer runs locally (README "Outside a code root").
-        "${out}/bin/dev-profile-env" --config-dir "${HOME}/.config/mise" --link-only
-        echo "key=dev-profile-${RUNNER_OS}-${RUNNER_ARCH}-$(shasum -a 256 "${out}/mise-profile.toml" | cut -c1-16)" >>"${GITHUB_OUTPUT}"
+        pins="${ACTION_PATH}/config/tools.toml"
+        mkdir -p "${HOME}/.config/mise/conf.d"
+        ln -sfn "${pins}" "${HOME}/.config/mise/conf.d/dev-profile.toml"
+        echo "key=dev-profile-${RUNNER_OS}-${RUNNER_ARCH}-$(shasum -a 256 "${pins}" | cut -c1-16)" >>"${GITHUB_OUTPUT}"
 
     - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:

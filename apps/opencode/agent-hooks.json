@@ -1,0 +1,130 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "AGENT_HOOKS_AGENT=opencode agent-hooks PostToolUse",
+            "env": {
+              "AGENT_HOOKS_AGENT": "opencode"
+            },
+            "timeout": 30,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "command": "AGENT_HOOKS_AGENT=opencode agent-hooks PreCompact",
+            "env": {
+              "AGENT_HOOKS_AGENT": "opencode"
+            },
+            "timeout": 30,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "AGENT_HOOKS_AGENT=opencode agent-hooks PreToolUse",
+            "env": {
+              "AGENT_HOOKS_AGENT": "opencode"
+            },
+            "timeout": 30,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "command": "AGENT_HOOKS_AGENT=opencode agent-hooks SessionEnd",
+            "env": {
+              "AGENT_HOOKS_AGENT": "opencode"
+            },
+            "timeout": 30,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "command": "AGENT_HOOKS_AGENT=opencode agent-hooks SessionStart",
+            "env": {
+              "AGENT_HOOKS_AGENT": "opencode"
+            },
+            "timeout": 30,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "command": "AGENT_HOOKS_AGENT=opencode agent-hooks Stop",
+            "env": {
+              "AGENT_HOOKS_AGENT": "opencode"
+            },
+            "timeout": 30,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "command": "AGENT_HOOKS_AGENT=opencode agent-hooks SubagentStart",
+            "env": {
+              "AGENT_HOOKS_AGENT": "opencode"
+            },
+            "timeout": 30,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "command": "AGENT_HOOKS_AGENT=opencode agent-hooks SubagentStop",
+            "env": {
+              "AGENT_HOOKS_AGENT": "opencode"
+            },
+            "timeout": 660,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "command": "AGENT_HOOKS_AGENT=opencode agent-hooks UserPromptSubmit",
+            "env": {
+              "AGENT_HOOKS_AGENT": "opencode"
+            },
+            "timeout": 30,
+            "type": "command"
+          }
+        ]
+      }
+    ]
+  }
+}

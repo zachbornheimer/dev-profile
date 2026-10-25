@@ -1,0 +1,10 @@
+{
+  "sessionId": "hgtest-ts-edit-grok",
+  "hookEventName": "pre_tool_use",
+  "toolName": "search_replace",
+  "toolInput": {
+    "target_file": "/tmp/stuck.go",
+    "old_string": "a",
+    "new_string": "b"
+  }
+}

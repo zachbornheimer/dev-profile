@@ -1,0 +1,46 @@
+# ~/.zshenv — runs for every zsh (interactive, scripts, non-interactive).
+# Keep this lean: policy env only. PATH is fixed later (path_helper reorders
+# PATH if set too early on macOS login shells).
+
+# Skip /etc/zprofile (path_helper) and /etc/zshrc. PATH is owned in ~/.zshrc.
+setopt NO_GLOBAL_RCS
+
+# zsh sets HISTFILE=~/.zsh_history for interactive shells even with -f.
+# Unset until line-init (10-history.defer.zsh) so login `exit` does not read it.
+unset HISTFILE
+
+# Startup profiler: ZPROF=1 zsh -lic zprof
+if [[ -n ${ZPROF:-} ]]; then
+  zmodload zsh/zprof
+fi
+
+# uv: never fall back to system or Homebrew Python
+export UV_PYTHON_PREFERENCE=only-managed
+
+# pip: refuse installs outside a virtualenv (protects system/Homebrew trees)
+export PIP_REQUIRE_VIRTUALENV=1
+
+# OpenCode: skip ~/.claude/skills (plugin synced/ included); leave ~/.agents/skills (typesafe-ai) intact
+export OPENCODE_DISABLE_CLAUDE_CODE_SKILLS=1
+
+# Local mbox (/var/mail/$USER) is not used as a notification channel.
+# Default MAILCHECK=60 makes zsh print "you have mail" for old Postfix bounces.
+# Root: failed local sendmail deliveries (garage SMS gateways, etc.) land there.
+MAILCHECK=0
+# Docker engine is Docker Desktop. Do not set DOCKER_HOST; the Desktop
+# context owns the socket. (Former ZYS-881 Colima pin removed 2026-10-15.)
+# aoe re-injects inline hooks that reference these; Grok skips a hook whose
+# referenced env var is unset. Empty-but-set satisfies Grok, and every aoe
+# hook already treats empty as a no-op. aoe's own sessions override these.
+export AOE_INSTANCE_ID="${AOE_INSTANCE_ID-}"
+export AOE_HOOK_BIN="${AOE_HOOK_BIN-}"
+
+# aubx scope guard: `aubx skills add/update -g` must resolve to
+# ~/.agents/bin/aubx, which routes the install into ~/.agents/available-skills
+# and nowhere else. A shell that inherits a PATH without ~/.agents/bin reaches
+# mise's raw aubx and writes outside available-skills, so assert presence here
+# for every zsh. ~/.zprofile re-asserts precedence after path_helper reorders.
+if [[ -d $HOME/.agents/bin ]]; then
+  path=("$HOME/.agents/bin" ${path:#$HOME/.agents/bin})
+  export PATH
+fi

@@ -1,0 +1,6 @@
+tool_result from go test ./internal/prune/classify/...
+--- FAIL: TestRepro_RealScheduleCleanHangsOnClassifyFailure (12.40s)
+FAIL
+--- PASS: TestRepro_RealScheduleCleanHangsOnClassifyFailure (0.41s)
+PASS
+ok  	github.com/zachbornheimer/zq/internal/prune/classify	0.41s

@@ -1,0 +1,10 @@
+{
+  "session_id": "hgtest-wog5",
+  "tool_name": "Agent",
+  "tool_input": {
+    "subagent_type": "implement",
+    "isolation": "worktree",
+    "cwd": "/Users/zbornheimer/Developer/Personal/zq",
+    "prompt": "Done when: tests pass.\nTurn cap: 10\nToken budget: ~50k tokens\nBlast-radius: only foo.go, nothing else."
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "session_id": "hgtest-t1",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Edit",
+  "tool_input": {
+    "file_path": "/tmp/x.ts",
+    "old_string": "const x = 1;",
+    "new_string": "const x = 2;"
+  }
+}

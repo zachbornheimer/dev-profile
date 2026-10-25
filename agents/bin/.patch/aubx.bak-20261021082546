@@ -1,0 +1,189 @@
+#!/usr/bin/env bash
+# aubx — scope guard in front of aube's `aubx`.
+#
+# Installed skills have exactly one durable home on this machine:
+#   ~/.agents/available-skills
+# `aubx skills add -g` normally writes a copy under ~/.agents/skills, a link or
+# copy into every detected harness (~/.claude/skills, ~/.grok/skills, ...), and
+# ~/.agents/.skill-lock.json.
+#
+# The installer also picks a scope by itself when no flag is given: with -y
+# outside a project it installs globally, and interactively it asks. So a
+# missing -g is not evidence of a project install — an earlier version of this
+# guard leaked that way, writing a harness link outside available-skills.
+#
+# Now every `skills add|update|upgrade|remove|rm` is routed to aubx-skills,
+# which runs the real installer under a throwaway HOME and applies the result to
+# available-skills. `-p`/`--project` asks for project scope explicitly and
+# passes through; global scope is the confined default. Every other aubx
+# invocation passes through untouched, except the verbs that write straight into
+# harness skill roots (`sync`, `experimental_sync`, `experimental_install`),
+# which are refused because nothing confines them.
+#
+# `dlx skills <verb>` reaches the same installer one level deeper, and a
+# shell-mode (`-c`) line can hide it behind quotes. Both shapes are normalized
+# to the same verb before the decision, so neither can smuggle a global write
+# past the roster; a shell-mode line that mentions a skills write verb is
+# refused because a joined command line cannot be confined.
+#
+# `remove` belongs on the confined path: it deletes the roster folder, the
+# harness links to it, and its install-record entry — the same three places an
+# install writes. Left to pass through, it deleted harness links and rewrote
+# ~/.agents/.skill-lock.json, both outside available-skills.
+set -uo pipefail
+
+# Resolve this script's real path before deriving its directory. Both wrappers
+# are also installed as symlinks (~/.local/bin/aubx-skills -> ~/.agents/bin/...),
+# and a dirname-only path points at the symlink's directory. That made the
+# "never resolve to our own guard" skip miss ~/.agents/bin, so the confiner
+# called the guard back and every global install died with
+# "confiner re-entered itself".
+_self="${BASH_SOURCE[0]}"
+while [ -L "$_self" ]; do
+  _self_dir="$(cd -- "$(dirname -- "$_self")" && pwd -P)"
+  _self="$(readlink "$_self")"
+  case "$_self" in /*) ;; *) _self="$_self_dir/$_self" ;; esac
+done
+self_dir="$(cd -- "$(dirname -- "$_self")" && pwd -P)"
+available_dir="${AGENTS_HOME:-$HOME/.agents}/available-skills"
+
+# Resolve the real aubx, skipping this shim's own directory.
+real_aubx=""
+IFS=':' read -r -a _path_dirs <<<"${PATH:-}"
+for d in "${_path_dirs[@]}"; do
+  [ -n "$d" ] || continue
+  [ -d "$d" ] || continue
+  [ "$(cd -- "$d" && pwd -P)" = "$self_dir" ] && continue
+  cand="$d/aubx"
+  [ -x "$cand" ] || continue
+  # A second path to this same file (a harness bin symlink) is not the
+  # installer: exec uses it to land back here and recurses until the OS kills
+  # the run. Compare the file identity, not just the directory.
+  [ "$cand" -ef "$_self" ] && continue
+  # A mise shim is not the installer: it re-dispatches by name through PATH and
+  # lands back in this guard, so confining it would nest a second scratch HOME
+  # inside the first and recurse until the OS kills the run.
+  case "$cand" in */mise/shims/*) continue ;; esac
+  case "$(basename -- "$(readlink "$cand" 2>/dev/null || printf %s "$cand")")" in
+    mise) continue ;;
+  esac
+  real_aubx="$cand"
+  break
+done
+# A shell that never sourced the rc files (launchd, cron, a hook runner, a bare
+# `sh -c`) has no mise or Homebrew on PATH, so the scan above finds no second
+# aubx and the guard fails closed with 127: nothing leaks, but no skill install
+# works there either. Fall back to the installer's own install roots — the mise
+# shim first, since it follows the pinned version, then the mise installs, then
+# Homebrew.
+if [ -z "$real_aubx" ]; then
+  for _cand in "$HOME/.local/share/mise/shims/aubx" \
+               "$HOME"/.local/share/mise/installs/aube/*/.mise-bins/aubx \
+               /opt/homebrew/bin/aubx; do
+    [ -x "$_cand" ] || continue
+    real_aubx="$_cand"
+    break
+  done
+fi
+if [ -z "$real_aubx" ]; then
+  printf 'aubx: no real aubx on PATH outside %s\n' "$self_dir" >&2
+  exit 127
+fi
+
+# Help and version requests must reach the real aubx. Without this, `aubx skills
+# add --help` was routed into the confiner, which demanded a package source and
+# made the subcommand's own help unreadable.
+for _a in "$@"; do
+  case "$_a" in
+    -h|--help|--version|-V) exec "$real_aubx" "$@" ;;
+  esac
+done
+
+# Re-entry: the confiner runs the installer under a throwaway HOME but leaves
+# this directory on PATH. An installer that re-dispatches by name (the mise
+# shim) comes back here. Nesting a second confiner would recurse until the OS
+# kills the run, so fail closed and name it instead.
+if [ -n "${AUBX_SKILLS_CONFINED:-}" ]; then
+  printf 'aubx: confiner re-entered itself; refusing to nest a second scratch HOME\n' >&2
+  exit 127
+fi
+
+refuse_shell_mode() {
+  local line="$*"
+  case "$line" in
+    *skills*)
+      case "$line" in
+        *"skills add"*|*"skills update"*|*"skills upgrade"*|*"skills remove"*|*"skills rm"*)
+          printf 'aubx: dlx shell-mode line mentions a skills write verb; %s\n' \
+            "a joined command line cannot be confined to $available_dir" >&2
+          printf 'aubx: install globally with `aubx skills add <package> -g`\n' >&2
+          exit 2
+          ;;
+      esac
+      ;;
+  esac
+  return 0
+}
+
+# Two argv shapes reach the same installer: `aubx skills <verb>` and
+# `aubx dlx [flags] skills <verb>`. Normalize to (shape, verb index) before
+# deciding. dlx flags that take a separate value are skipped so `-p <pkg>
+# skills add ...` cannot hide the command behind a flag value.
+argv=("$@")
+verb_index=0
+skills_form=0
+case "${argv[0]:-}" in
+  skills) skills_form=1; verb_index=1 ;;
+  dlx)
+    i=1
+    n=${#argv[@]}
+    while [ "$i" -lt "$n" ]; do
+      a="${argv[$i]}"
+      case "$a" in
+        -c|--shell-mode) refuse_shell_mode "${argv[@]}" ;;
+        -p|--package|--allow-build|--fetch-retries|--fetch-retry-factor|\
+        --fetch-retry-maxtimeout|--fetch-retry-mintimeout|--fetch-timeout)
+          i=$((i + 2)); continue ;;
+        --*=*) i=$((i + 1)); continue ;;
+        -*) i=$((i + 1)); continue ;;
+      esac
+      [ "$a" = "skills" ] && { skills_form=1; verb_index=$((i + 1)); }
+      break
+    done
+    ;;
+esac
+
+if [ "$skills_form" -eq 1 ]; then
+  verb="${argv[$verb_index]:-}"
+  case "$verb" in
+    add|update|upgrade|remove|rm)
+      project=0
+      # Only flags AFTER the verb belong to the skills subcommand; before it,
+      # -p is dlx --package and must not be read as --project.
+      for ((j = verb_index + 1; j < ${#argv[@]}; j++)); do
+        case "${argv[$j]}" in -p|--project) project=1 ;; esac
+      done
+      if [ "$project" -eq 1 ]; then
+        exec "$real_aubx" "${argv[@]}"
+      fi
+      printf 'aubx: global %s %s confined to %s (pass -p for a project install)\n' \
+        "${argv[0]}" "$verb" "$available_dir" >&2
+      # Hand the whole invocation to the confining wrapper, which understands
+      # the `skills <verb>` prefix itself. The dlx shape is normalized away
+      # here so no write verb can arrive by a shape the wrapper does not parse.
+      exec "$self_dir/aubx-skills" skills "${argv[@]:verb_index}"
+      ;;
+    sync|experimental_sync|experimental_install)
+      # These copy skill files straight into the harness skill roots
+      # (~/.claude/skills, ~/.codex/skills, ...) with no output-directory flag,
+      # so there is no way to confine them. Refuse instead of leaving a hole
+      # beside the guard.
+      printf 'aubx: skills %s writes into harness skill roots, not %s\n' \
+        "$verb" "$available_dir" >&2
+      printf 'aubx: install globally with `aubx skills add <package> -g`\n' >&2
+      exit 2
+      ;;
+  esac
+fi
+
+exec "$real_aubx" "$@"

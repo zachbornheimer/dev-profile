@@ -1,9 +1,0 @@
-amends "../../lib/Tool.pkl"
-
-doc = "Secrets. At push, every commit about to leave the machine is scanned."
-pin { id = "aqua:gitleaks/gitleaks"; version = "8.30.1" }
-on {
-  ["pre-push"] {
-    check = "gitleaks git --redact --no-banner --log-opts=\"HEAD --not --remotes\""
-  }
-}

@@ -1,0 +1,6 @@
+{
+  "session_id": "hgtest-cg1",
+  "hook_event_name": "Stop",
+  "reason": "end_turn",
+  "last_assistant_message": "Done.\n\n```evidence\n{\"claim\": \"tests pass\", \"type\": \"test\", \"ref\": \"go test ./models/...\", \"scope\": \"unit\"}\n```\n"
+}

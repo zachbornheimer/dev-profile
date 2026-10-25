@@ -1,0 +1,6 @@
+{
+  "session_id": "hgtest-f13b",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Bash",
+  "tool_input": { "command": "git -ccore.hooksPath=/tmp/evil commit -m wip" }
+}

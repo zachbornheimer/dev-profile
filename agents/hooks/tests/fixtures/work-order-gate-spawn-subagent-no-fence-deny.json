@@ -1,0 +1,10 @@
+{
+  "session_id": "hgtest-wog-spawn-nofence",
+  "tool_name": "spawn_subagent",
+  "tool_input": {
+    "subagent_type": "implement",
+    "isolation": "worktree",
+    "cwd": "/Users/zbornheimer/Developer/Personal/zq",
+    "prompt": "Add a clarify feedback field. No work_order fence, no legacy markers."
+  }
+}

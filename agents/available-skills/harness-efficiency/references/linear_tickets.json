@@ -1,0 +1,18 @@
+[
+  { "id": "ZYS-734", "title": "Session budget" },
+  { "id": "ZYS-790", "title": "Gates vs edits" },
+  { "id": "ZYS-742", "title": "Bash compound commands" },
+  { "id": "ZYS-748", "title": "Isolation verifier" },
+  { "id": "ZYS-731", "title": "Work-order gate" },
+  { "id": "ZYS-737", "title": "Work-order gate" },
+  { "id": "ZYS-736", "title": "Work-order gate" },
+  { "id": "ZYS-729", "title": "Stop-hook cap" },
+  { "id": "ZYS-740", "title": "Worktree vs ~/.agents" },
+  { "id": "ZYS-753", "title": "Worktree vs ~/.agents" },
+  { "id": "ZYS-751", "title": "zq" },
+  { "id": "ZYS-752", "title": "zq" },
+  { "id": "ZYS-788", "title": "golangci-lint module root" },
+  { "id": "ZYS-803", "title": "Explore dumps" },
+  { "id": "ZYS-804", "title": "Skill reread" },
+  { "id": "ZYS-805", "title": "AGENTS.md trim" }
+]

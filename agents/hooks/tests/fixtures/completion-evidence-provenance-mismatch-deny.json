@@ -1,0 +1,7 @@
+{
+  "session_id": "hgtest-cg4",
+  "hook_event_name": "Stop",
+  "reason": "end_turn",
+  "transcript_path": "/Users/zbornheimer/.claude/hooks/tests/fixtures/completion-transcript-no-evidence.txt",
+  "last_assistant_message": "Done.\n\n```evidence\n{\"claim\": \"tests pass\", \"type\": \"test\", \"ref\": \"go test ./nonexistent/...\", \"scope\": \"unit\"}\n```\n"
+}

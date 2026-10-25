@@ -1,0 +1,15 @@
+```yaml
+work_order:
+  schema_version: 1
+  scope:
+    primary_targets:
+      - "~/.agents/foo.md"
+    allowed_writes:
+      - "~/.agents/foo.md"
+  acceptance:
+    - id: t
+      kind: command
+      run: "true"
+      expect:
+        exit_code: 0
+```

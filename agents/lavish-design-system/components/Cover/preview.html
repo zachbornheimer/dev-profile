@@ -1,0 +1,73 @@
+<!-- @dsCard height=288 -->
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Cover</title>
+<style>
+html,body{margin:0}
+body{background:var(--color-bg-page);width:960px;height:288px;position:relative;overflow:hidden;font-family:var(--font-sans)}
+svg{position:absolute;left:0;top:0;display:block}
+.slab{rx:var(--radius-card);ry:var(--radius-card)}
+.u{rx:var(--radius-card);ry:var(--radius-card)}
+.a{fill:var(--color-accent)}
+.d{fill:var(--color-accent-disabled)}
+.t{fill:var(--color-text)}
+.s{fill:var(--color-success)}
+.w{fill:var(--color-warning)}
+h1{position:absolute;left:28px;top:140px;margin:0;font-size:64px;line-height:.95;font-weight:var(--weight-medium);letter-spacing:var(--tracking-title);color:var(--color-text);white-space:nowrap}
+p{position:absolute;left:28px;top:212px;margin:0;font-size:14px;line-height:1.3;color:var(--color-text-muted);max-width:440px}
+</style></head>
+<body>
+<svg width="960" height="108" viewBox="0 0 960 108" role="img" aria-label="Zysys wp-admin colour blocks">
+  <!-- blocks: color-accent 320x108 (tile pitch space-28 x 11 + space-4 gaps), color-text 112x108, color-success and color-warning 24x24 satellites; tiles in accent, accent-disabled, text -->
+  <!-- arrangement: top band, flush strip of two slabs then a modular grid of 24px tiles on a space-28 pitch, bleeding off the right edge -->
+  <!-- pattern: geometric, modular, dense UI (the README: data-dense but calm, white cards, no decoration) -> tiles cut by radius-card, some merged two-wide like the table cells -->
+  <!-- steps and radii: space-4 gaps, space-28 pitch, radius-card on every block -->
+  <rect class="slab a" x="0" y="0" width="320" height="108"/>
+  <rect class="slab t" x="324" y="0" width="112" height="108"/>
+  <rect class="u s" x="440" y="0" width="24" height="24"/>
+  <rect class="u w" x="440" y="28" width="24" height="24"/>
+  <g>
+    <rect class="u a" x="524" y="0" width="24" height="24"/>
+    <rect class="u t" x="580" y="0" width="24" height="24"/>
+    <rect class="u a" x="636" y="0" width="52" height="24"/>
+    <rect class="u d" x="664" y="0" width="24" height="24"/>
+    <rect class="u a" x="692" y="0" width="24" height="24"/>
+    <rect class="u t" x="720" y="0" width="24" height="24"/>
+    <rect class="u a" x="804" y="0" width="24" height="24"/>
+    <rect class="u a" x="916" y="0" width="52" height="24"/>
+    <rect class="u a" x="944" y="0" width="24" height="24"/>
+    <rect class="u a" x="468" y="28" width="24" height="24"/>
+    <rect class="u d" x="496" y="28" width="24" height="24"/>
+    <rect class="u d" x="524" y="28" width="24" height="24"/>
+    <rect class="u d" x="552" y="28" width="24" height="24"/>
+    <rect class="u a" x="580" y="28" width="24" height="24"/>
+    <rect class="u d" x="664" y="28" width="24" height="24"/>
+    <rect class="u a" x="720" y="28" width="24" height="24"/>
+    <rect class="u d" x="804" y="28" width="52" height="24"/>
+    <rect class="u d" x="832" y="28" width="24" height="24"/>
+    <rect class="u d" x="860" y="28" width="24" height="24"/>
+    <rect class="u t" x="888" y="28" width="24" height="24"/>
+    <rect class="u a" x="916" y="28" width="24" height="24"/>
+    <rect class="u d" x="944" y="28" width="24" height="24"/>
+    <rect class="u d" x="496" y="56" width="24" height="24"/>
+    <rect class="u d" x="524" y="56" width="24" height="24"/>
+    <rect class="u a" x="552" y="56" width="24" height="24"/>
+    <rect class="u d" x="580" y="56" width="52" height="24"/>
+    <rect class="u a" x="664" y="56" width="24" height="24"/>
+    <rect class="u d" x="692" y="56" width="24" height="24"/>
+    <rect class="u d" x="748" y="56" width="24" height="24"/>
+    <rect class="u d" x="776" y="56" width="24" height="24"/>
+    <rect class="u d" x="804" y="56" width="24" height="24"/>
+    <rect class="u a" x="832" y="56" width="52" height="24"/>
+    <rect class="u t" x="944" y="56" width="24" height="24"/>
+    <rect class="u t" x="524" y="84" width="24" height="24"/>
+    <rect class="u a" x="552" y="84" width="24" height="24"/>
+    <rect class="u a" x="580" y="84" width="24" height="24"/>
+    <rect class="u d" x="636" y="84" width="24" height="24"/>
+    <rect class="u t" x="664" y="84" width="24" height="24"/>
+    <rect class="u a" x="692" y="84" width="24" height="24"/>
+    <rect class="u a" x="720" y="84" width="52" height="24"/>
+  </g>
+</svg>
+<h1>Zysys wp-admin</h1>
+<p>Quieter than WP core: data-dense but calm.</p>
+</body></html>

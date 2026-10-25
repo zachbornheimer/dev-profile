@@ -1,0 +1,15 @@
+{
+  "version": 3,
+  "skills": {
+    "writing-guidelines": {
+      "source": "vercel-labs/agent-skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/vercel-labs/agent-skills.git",
+      "skillPath": "skills/writing-guidelines/SKILL.md",
+      "skillFolderHash": "17d954cadfb8dec50bf0c707c9e7634be9ae9fe8",
+      "installedAt": "2026-10-22T23:12:37.526Z",
+      "updatedAt": "2026-10-22T23:12:37.526Z"
+    }
+  },
+  "dismissed": {}
+}

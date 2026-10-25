@@ -1,0 +1,19 @@
+# A saved layout for the obsidian-backup project. Launch it with:
+#   kitty --session ~/.config/kitty/sessions/obsidian.session
+# (or bind that command in Raycast). Copy this file per project and edit the cwd.
+# Panes within a tab are "windows"; cmd+alt+arrows move between them.
+
+new_tab obsidian
+cd ~/Dropbox/Zysys/Software/obsidian-backup
+layout splits
+
+# Left ~60%: an editor.
+launch --title edit nvim
+
+# Right: a shell, split vertically off the editor.
+launch --location=vsplit --title shell
+
+# A second tab for git / logs.
+new_tab git
+cd ~/Dropbox/Zysys/Software/obsidian-backup
+launch --title lazygit lazygit

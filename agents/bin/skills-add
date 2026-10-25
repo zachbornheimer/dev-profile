@@ -1,0 +1,284 @@
+#!/usr/bin/env bash
+# skills-add — install with the Skills CLI, then make sure the result lives in
+# the skills roster ($AGENTS_HOME/available-skills), never only in a harness
+# auto-scan dir.
+#
+# `npx skills add` writes each skill into $AGENTS_HOME/skills and symlinks it
+# into ~/.claude/skills and friends. Harnesses auto-scan that dir, so anything
+# left there loads on every turn; only typesafe-ai (and synced) may stay. This
+# wrapper runs the real installer, then relocates every non-kept skill into
+# available-skills — including one the installer only *updated*, which a plain
+# before/after directory diff cannot see.
+#
+# Harness links are judged by what this run created, not by whether they dangle.
+# The wrapper snapshots every link root before installing, then removes only the
+# links that appeared during the run and point into the roster. Links that were
+# already there are the user's own and are left alone, so a unified layout (where
+# they resolve rather than dangle) is handled the same way as a move layout.
+#
+# Unified layout: when $AGENTS_HOME/skills is a symlink to available-skills, the
+# installer already writes into the roster. The wrapper detects that, reports
+# where the skill landed, and moves nothing — moving a folder onto itself
+# deletes it.
+#
+# Usage:
+#   skills-add vercel-labs/agent-skills --skill deploy-to-vercel -y
+#   skills-add <package> [any flags the skills CLI accepts]
+#
+# Global by default: the install runs from $HOME and lands in the roster no
+# matter which directory the wrapper is called from. -g is accepted but
+# redundant; -p/--project is refused because a project-scoped install writes
+# <project>/.agents/skills, which this wrapper never relocates into the
+# roster. -y is injected when the caller omits it so automation never stops
+# on the scope prompt.
+#
+# Env:
+#   AGENTS_HOME  default $HOME/.agents
+#   DRY_RUN=1    print moves/removals without doing them
+set -uo pipefail
+
+AGENTS_HOME="${AGENTS_HOME:-$HOME/.agents}"
+SCAN_DIR="$AGENTS_HOME/skills"
+AVAILABLE_DIR="$AGENTS_HOME/available-skills"
+# Skills allowed to stay in the auto-scan dir.
+KEEP="typesafe-ai synced"
+LINK_ROOTS=(
+	"$HOME/.claude/skills"
+	"$HOME/.codex/skills"
+	"$HOME/.grok/skills"
+	"$HOME/.cursor/skills"
+	"$HOME/.config/opencode/skills"
+	"$HOME/.gemini/skills"
+)
+
+die() {
+	printf 'skills-add: %s\n' "$*" >&2
+	exit 2
+}
+
+[ "$#" -ge 1 ] || die "usage: skills-add <package> [skills add flags...]"
+command -v npx >/dev/null 2>&1 || die "npx not found on PATH"
+
+# npx exits 1 with no output inside a project whose package.json pins a
+# non-npm packageManager (e.g. "aube@2.7.0"), and the caller's cwd only
+# matters for project-scoped installs. Run global installs from $HOME so
+# whatever repo the wrapper is invoked from cannot break the install — and
+# so an add from inside a repo cannot quietly become a project-scoped
+# install that parks skills in <repo>/.agents/skills, outside the roster
+# (the Oct 21 mastra public/.agents debris did exactly that).
+install_dir="$HOME"
+for a in "$@"; do
+	case "$a" in
+	-p | --project)
+		die "skills-add is roster-only (global). For a project-scoped install run: npx skills@latest add -p <package>"
+		;;
+	esac
+done
+case " $* " in
+*" -y "* | *" --yes "*) ;;
+*) set -- "$@" -y ;;
+esac
+
+# Physical path of a directory, empty when it does not exist. Two paths that
+# resolve equal are the same directory, whatever the symlinks say.
+real_dir() { (cd "$1" 2>/dev/null && pwd -P) || true; }
+
+# -H follows a symlinked scan dir. Without it `find` reports the link itself and
+# -mindepth 1 drops it, so a unified layout looks empty and nothing relocates.
+list_scan_dirs() {
+	[ -d "$SCAN_DIR" ] || return 0
+	find -H "$SCAN_DIR" -mindepth 1 -maxdepth 1 \( -type d -o -type l \) -print 2>/dev/null |
+		while IFS= read -r p; do basename "$p"; done | sort
+}
+
+# Every harness link that exists right now, one physical path per line.
+list_root_links() {
+	for root in "${LINK_ROOTS[@]}"; do
+		[ -d "$root" ] || continue
+		find "$root" -mindepth 1 -maxdepth 1 -type l -print 2>/dev/null
+	done | sort
+}
+
+# Physical path a link points at, resolved lexically so a dangling link still
+# reports where it was aiming.
+link_target() {
+	local link="$1" target dir base
+	target="$(readlink "$link")"
+	case "$target" in
+	/*) ;;
+	*) target="$(dirname "$link")/$target" ;;
+	esac
+	dir="$(cd "$(dirname "$target")" 2>/dev/null && pwd -P)" || {
+		printf '%s' "$target"
+		return
+	}
+	base="$(basename "$target")"
+	printf '%s/%s' "${dir%/}" "$base"
+}
+
+kept() {
+	for k in $KEEP; do [ "$1" = "$k" ] && return 0; done
+	return 1
+}
+
+avail_real="$(real_dir "$AVAILABLE_DIR")"
+
+# Identity of the scan dir and the roster. When they are the same directory
+# (the unified layout this machine uses: ~/.agents/skills -> available-skills),
+# every entry the installer leaves in the scan dir is already the roster entry.
+scan_real="$(real_dir "$SCAN_DIR")"
+unified=0
+[ -n "$scan_real" ] && [ "$scan_real" = "$avail_real" ] && unified=1
+
+listing_file="$(mktemp)"
+links_before="$(mktemp)"
+links_after="$(mktemp)"
+trap 'rm -f "$listing_file" "$links_before" "$links_after"' EXIT
+
+list_root_links >"$links_before"
+
+printf 'skills-add: installing %s\n' "$*"
+(cd "$install_dir" && npx -y skills@latest add "$@")
+rc=$?
+
+list_scan_dirs >"$listing_file"
+
+moved_names=()
+relocated=0
+in_place=0
+
+for name in $(cat "$listing_file"); do
+	kept "$name" && continue
+	src="$SCAN_DIR/$name"
+	dest="$AVAILABLE_DIR/$name"
+
+	# A dangling entry names no skill: it has no content to keep, and moving it
+	# into the roster would leave junk there that a later unified-layout run then
+	# tries to move onto itself.
+	if [ -L "$src" ] && [ ! -e "$src" ]; then
+		if [ "${DRY_RUN:-0}" = "1" ]; then
+			printf 'skills-add: would drop dangling entry %s\n' "$src"
+		else
+			rm -f "$src" && printf 'skills-add: dropped dangling entry %s\n' "$src"
+		fi
+		continue
+	fi
+
+	src_real="$(real_dir "$src")"
+	dest_real="$(real_dir "$dest")"
+
+	# Unified layout is decided once, by directory identity, not per entry by
+	# resolved path: an entry that is a link, or an empty dir, resolves to nothing
+	# and would otherwise fall through to the move below and be moved onto itself
+	# (which silently deletes it).
+	if [ "$unified" -eq 1 ] || { [ -n "$src_real" ] && [ "$src_real" = "$dest_real" ]; }; then
+		in_place=$((in_place + 1))
+		printf 'skills-add: %s already lives in %s (auto-scan dir is the roster)\n' \
+			"$name" "$dest"
+		moved_names+=("$name")
+		continue
+	fi
+
+	if [ "${DRY_RUN:-0}" = "1" ]; then
+		printf 'skills-add: would move %s -> %s\n' "$src" "$dest"
+		moved_names+=("$name")
+		continue
+	fi
+	mkdir -p "$AVAILABLE_DIR"
+	# The installer may have left a symlink here pointing at the scan dir; drop it
+	# so the real folder can take its place.
+	if [ -L "$dest" ]; then rm -f "$dest"; fi
+	if [ -e "$dest" ]; then
+		cp -R "$src/." "$dest/" || die "copy into $dest failed"
+		rm -rf "$src"
+	else
+		mv "$src" "$dest" || die "move to $dest failed"
+	fi
+	printf 'skills-add: moved %s -> %s\n' "$src" "$dest"
+	moved_names+=("$name")
+	relocated=$((relocated + 1))
+done
+
+# Remove the harness links this run created. Anything already pointing into the
+# roster before the install was put there on purpose and is not touched.
+list_root_links >"$links_after"
+while IFS= read -r link; do
+	[ -n "$link" ] || continue
+	raw_target="$(readlink "$link")"
+	name="$(basename "$link")"
+	kept "$name" && continue
+	target="$(link_target "$link")"
+	case "$target" in
+	"${avail_real%/}"/* | "$(real_dir "$SCAN_DIR")"/*) ;;
+	*) continue ;;
+	esac
+	if [ "${DRY_RUN:-0}" = "1" ]; then
+		printf 'skills-add: would remove harness link %s -> %s\n' "$link" "$raw_target"
+	else
+		rm -f "$link" && printf 'skills-add: removed harness link %s -> %s\n' "$link" "$raw_target"
+	fi
+done < <(comm -13 "$links_before" "$links_after")
+# A real copy of a roster skill left in a harness skill root is a leak even when
+# an earlier run created it: it is a second home for content the roster already
+# owns, and the installer keeps overwriting it in place on every later run, so a
+# diff against "before this run" would never remove it. Sweep every such copy so
+# a leak heals itself. A link is left to the block above (a pre-existing link
+# that points into the roster dereferences to the roster and is harmless); a root
+# that resolves to the roster itself is skipped, because sweeping it would delete
+# the roster.
+for root in "${LINK_ROOTS[@]}"; do
+	[ -d "$root" ] || continue
+	[ -L "$root" ] && continue
+	[ "$(real_dir "$root")" = "$avail_real" ] && continue
+	for entry in "$root"/*; do
+		[ -d "$entry" ] && [ ! -L "$entry" ] || continue
+		name="$(basename "$entry")"
+		kept "$name" && continue
+		[ -f "$AVAILABLE_DIR/$name/SKILL.md" ] || continue
+		if [ "${DRY_RUN:-0}" = "1" ]; then
+			printf 'skills-add: would remove harness copy %s (roster owns %s)\n' "$entry" "$name"
+		else
+			rm -rf "$entry" &&
+				printf 'skills-add: removed harness copy %s (roster owns %s)\n' "$entry" "$name"
+		fi
+	done
+done
+
+# The installer records the install in $AGENTS_HOME/.skill-lock.json, a file
+# outside the roster. Merge that record into the roster's own and drop the
+# outside copy, so a global install writes nothing durable outside
+# available-skills. A rosters that already has entries keeps them: the merge is
+# by skill name, new wins.
+record_outside="$AGENTS_HOME/.skill-lock.json"
+record_inside="$AVAILABLE_DIR/.skill-lock.json"
+if [ -f "$record_outside" ]; then
+	if [ "${DRY_RUN:-0}" = "1" ]; then
+		printf 'skills-add: would merge %s into %s\n' "$record_outside" "$record_inside"
+	elif ! command -v jq >/dev/null 2>&1; then
+		printf 'skills-add: warning: jq not found; left %s in place\n' "$record_outside" >&2
+	else
+		mkdir -p "$AVAILABLE_DIR"
+		[ -f "$record_inside" ] || printf '{"version":3,"skills":{}}\n' >"$record_inside"
+		if jq -s '.[0] as $old | .[1] as $new
+              | $old + {version: 3, skills: (($old.skills // {}) + ($new.skills // {}))}' \
+			"$record_inside" "$record_outside" >"$record_inside.tmp" 2>/dev/null; then
+			mv "$record_inside.tmp" "$record_inside"
+			rm -f "$record_outside"
+			printf 'skills-add: install record merged into %s\n' "$record_inside"
+		else
+			rm -f "$record_inside.tmp"
+			printf 'skills-add: warning: kept existing %s (merge failed)\n' "$record_inside" >&2
+		fi
+	fi
+fi
+
+if [ "$rc" -ne 0 ]; then
+	printf 'skills-add: installer exited %d after installing (PromptScript rejects global installs);\n' "$rc" >&2
+	printf 'skills-add: %d skill(s) relocated, %d already in the roster\n' \
+		"$relocated" "$in_place" >&2
+	exit 0
+fi
+
+printf 'skills-add: %d skill(s) relocated, %d already in the roster\n' \
+	"$relocated" "$in_place"
+exit 0

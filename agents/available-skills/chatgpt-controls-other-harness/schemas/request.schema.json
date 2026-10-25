@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/chatgpt-control-claude/request.schema.json",
+  "title": "Claude Local Run Request",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "run_id",
+    "operation",
+    "goal",
+    "acceptance",
+    "constraints"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "run_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "ticket": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "operation": {
+      "type": "string",
+      "minLength": 1
+    },
+    "repo": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "base_sha": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "maturity_target": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        null,
+        "prototype",
+        "structurally_hardened",
+        "production_verified"
+      ]
+    },
+    "goal": {
+      "type": "string",
+      "minLength": 1
+    },
+    "acceptance": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "constraints": {
+      "type": "object",
+      "required": [
+        "preserve_uncommitted_work",
+        "allow_commit",
+        "allow_push",
+        "allow_merge",
+        "allow_reset",
+        "allow_clean"
+      ],
+      "properties": {
+        "preserve_uncommitted_work": {
+          "type": "boolean"
+        },
+        "allow_commit": {
+          "type": "boolean"
+        },
+        "allow_push": {
+          "type": "boolean"
+        },
+        "allow_merge": {
+          "type": "boolean"
+        },
+        "allow_reset": {
+          "type": "boolean"
+        },
+        "allow_clean": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true
+    },
+    "known_baseline_failures": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "prior_evidence": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,15 @@
+name: repo_shape_change
+sources:
+    - diff
+question: Does this change imply the repository layout should change?
+output: choice
+categories:
+    - id: unchanged
+      criteria: Fits existing packages and owners
+    - id: extend_existing
+      criteria: Adds files to an existing owner package
+    - id: new_owner
+      criteria: Introduces a concept that needs a new package
+    - id: obsolete_owner
+      criteria: Makes an existing package or owner obsolete
+when_unsure: unchanged

@@ -1,0 +1,480 @@
+{
+  "syncClaudeAiSkills": false,
+  "env": {
+    "AWS_PROFILE": "sah",
+    "AWS_REGION": "us-east-1",
+    "CLAUDE_CODE_SUBAGENT_MODEL": "sonnet",
+    "CLAUDE_CODE_THRIFTY_SONIC": "0",
+    "CLAUDE_CODE_USE_BEDROCK": "0",
+    "QUALITY_GUARD_LOG_FILE": "/tmp/qg-pretool.log",
+    "QUALITY_GUARD_LOG_LEVEL": "debug"
+  },
+  "attribution": {
+    "commit": "",
+    "pr": ""
+  },
+  "permissions": {
+    "allow": [
+      "mcp__agentmux",
+      "Bash(agentmux gateway:*)",
+      "Bash(agentmux approve:*)",
+      "Bash(agentmux deny:*)",
+      "Bash(mkdir:*)",
+      "Bash(go:*)",
+      "Write(*)",
+      "Bash(ls:*)",
+      "Bash(git:*)",
+      "Update(*:*)",
+      "Bash(mv:*)",
+      "Bash(echo:*)",
+      "Bash(sed:*)",
+      "Bash(source:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(npm:*)",
+      "Bash(npx:*)",
+      "Bash(pkill:*)",
+      "Bash(touch:*)",
+      "Bash(grep:*)",
+      "Bash(deadcode:*)",
+      "Bash(sqlite3:*)",
+      "Bash(curl:*)",
+      "Bash(rg:*)",
+      "Bash(chmod:*)",
+      "Bash(lsof:*)",
+      "Bash(make:*)",
+      "Bash(PORT=:*)",
+      "Bash(find:*)",
+      "Bash(docker:*)",
+      "Bash(poetry:*)",
+      "Bash(python:*)",
+      "Bash(python3:*)",
+      "Update(*)",
+      "Bash(timeout 10 ./bin/obsidian start:*)",
+      "Bash(tee:*)",
+      "Bash(timeout 20 ./bin/obsidian:*)",
+      "Bash(golangci-lint run:*)",
+      "mcp__linear-sah__list_issues",
+      "mcp__linear-sah__get_issue",
+      "mcp__linear-sah__update_issue",
+      "Bash(/Users/zbornheimer/.agents/hooks/post-edit-lint.py)",
+      "Bash(/Users/zbornheimer/.agents/hooks/subagent-model-guard.py)",
+      "Bash(/Users/zbornheimer/.agents/hooks/work-order-gate.py)",
+      "Bash(command -v golangci-lint)",
+      "Bash(golangci-lint --version)",
+      "Bash(rm -f /tmp/obsidian-pprof/*)",
+      "Bash(./bin/obsidian start *)",
+      "Bash(gh run view*)",
+      "Bash(gh api*)",
+      "Bash(gh workflow*)",
+      "Bash(gh run view --log*)",
+      "Bash(gh run view --log*)"
+    ],
+    "deny": [
+      "Monitor",
+      "Bash(tmux kill-server:*)",
+      "Bash(git reset --hard)",
+      "Bash(git reset --hard:*)",
+      "Bash(rm -rf:*)",
+      "Bash(rm -rf)",
+      "Bash(rm -fr:*)",
+      "Bash(rm -fr)",
+      "Bash(rm -r -f:*)",
+      "Bash(rm -f -r:*)",
+      "Read",
+      "Write",
+      "Edit",
+      "Glob",
+      "Grep",
+      "Skill",
+      "WebSearch",
+      "TodoWrite",
+      "NotebookEdit",
+      "BashOutput",
+      "KillShell",
+      "Bash"
+    ],
+    "defaultMode": "auto"
+  },
+  "model": "sonnet",
+  "fallbackModel": [
+    "claude-opus-4-8",
+    "claude-sonnet-5",
+    "claude-haiku-4-5"
+  ],
+  "disabledMcpjsonServers": [
+    "agent-mail",
+    "auditfix",
+    "claude-design",
+    "context7",
+    "devin",
+    "evident-output",
+    "firefox-devtools",
+    "freshdesk-ninjaquoter",
+    "github",
+    "linear-server",
+    "node_repl",
+    "open-computer-use",
+    "pagerduty-sah",
+    "plesk",
+    "railway",
+    "sentry",
+    "stripe",
+    "svelte",
+    "zendesk-sah"
+  ],
+  "skillOverrides": {
+    "adopt-style-contract": "off",
+    "ai-history-ui": "off",
+    "api": "user-invocable-only",
+    "audit": "user-invocable-only",
+    "bar": "user-invocable-only",
+    "clean-up-prose": "off",
+    "codebase-upgrade": "user-invocable-only",
+    "cut-release": "user-invocable-only",
+    "deploy": "user-invocable-only",
+    "homelab-repo-cleanup": "off",
+    "isjac-daily-support-triage": "off",
+    "migrations": "user-invocable-only",
+    "new-service": "off",
+    "observability": "user-invocable-only",
+    "seo": "off",
+    "setup-makefile": "off",
+    "setup-precommit": "off",
+    "setup-readme": "off",
+    "split-to-prs": "user-invocable-only",
+    "standardize": "off",
+    "triage-lead": "user-invocable-only"
+  },
+  "hooks": {
+    "ElicitationResult": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "AGENT_HOOKS_AGENT=claude agent-hooks ElicitationResult",
+            "timeout": 32,
+            "statusMessage": "Running ElicitationResult hooks..."
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "AGENT_HOOKS_AGENT=claude agent-hooks Notification",
+            "timeout": 32,
+            "statusMessage": "Running Notification hooks..."
+          }
+        ]
+      }
+    ],
+    "PermissionDenied": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "AGENT_HOOKS_AGENT=claude agent-hooks PermissionDenied",
+            "timeout": 32,
+            "statusMessage": "Running PermissionDenied hooks..."
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "AGENT_HOOKS_AGENT=claude agent-hooks PostToolUse",
+            "timeout": 62,
+            "statusMessage": "Running PostToolUse hooks..."
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "AGENT_HOOKS_AGENT=claude agent-hooks PostToolUseFailure",
+            "timeout": 32,
+            "statusMessage": "Running PostToolUseFailure hooks..."
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "AGENT_HOOKS_AGENT=claude agent-hooks PreCompact",
+            "timeout": 32,
+            "statusMessage": "Running PreCompact hooks..."
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "AGENT_HOOKS_AGENT=claude agent-hooks PreToolUse",
+            "timeout": 32,
+            "statusMessage": "Running PreToolUse hooks..."
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "AGENT_HOOKS_AGENT=claude agent-hooks SessionEnd",
+            "timeout": 32,
+            "statusMessage": "Running SessionEnd hooks..."
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "AGENT_HOOKS_AGENT=claude agent-hooks SessionStart",
+            "timeout": 32,
+            "statusMessage": "Running SessionStart hooks..."
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c '[ -n \"$AOE_INSTANCE_ID\" ] || exit 0; [ -n \"$AOE_HOOK_BIN\" ] || exit 0; [ -x \"$AOE_HOOK_BIN\" ] || exit 0; \"$AOE_HOOK_BIN\" __extract-session-id --field session-id --agent claude 2>/dev/null; exit 0 # aoe-hooks'"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "AGENT_HOOKS_AGENT=claude agent-hooks Stop",
+            "timeout": 62,
+            "statusMessage": "Running Stop hooks..."
+          }
+        ]
+      }
+    ],
+    "StopFailure": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "AGENT_HOOKS_AGENT=claude agent-hooks StopFailure",
+            "timeout": 32,
+            "statusMessage": "Running StopFailure hooks..."
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "AGENT_HOOKS_AGENT=claude agent-hooks SubagentStart",
+            "timeout": 32,
+            "statusMessage": "Running SubagentStart hooks..."
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "AGENT_HOOKS_AGENT=claude agent-hooks SubagentStop",
+            "timeout": 302,
+            "statusMessage": "Running SubagentStop hooks..."
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "AGENT_HOOKS_AGENT=claude agent-hooks UserPromptSubmit",
+            "timeout": 62,
+            "statusMessage": "Running UserPromptSubmit hooks..."
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c '[ -n \"$AOE_INSTANCE_ID\" ] || exit 0; [ -n \"$AOE_HOOK_BIN\" ] || exit 0; [ -x \"$AOE_HOOK_BIN\" ] || exit 0; \"$AOE_HOOK_BIN\" __extract-session-id --field session-id --agent claude 2>/dev/null; exit 0 # aoe-hooks'"
+          }
+        ]
+      }
+    ],
+    "WorktreeCreate": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "AGENT_HOOKS_AGENT=claude agent-hooks WorktreeCreate",
+            "timeout": 302,
+            "statusMessage": "Running WorktreeCreate hooks..."
+          }
+        ]
+      }
+    ],
+    "WorktreeRemove": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "AGENT_HOOKS_AGENT=claude agent-hooks WorktreeRemove",
+            "timeout": 32,
+            "statusMessage": "Running WorktreeRemove hooks..."
+          }
+        ]
+      }
+    ]
+  },
+  "worktree": {
+    "baseRef": "fresh"
+  },
+  "enabledPlugins": {
+    "clangd-lsp@claude-plugins-official": true,
+    "cloudflare@claude-plugins-official": false,
+    "context7@claude-plugins-official": false,
+    "figma@claude-plugins-official": false,
+    "frontend-design@claude-plugins-official": true,
+    "github@claude-plugins-official": false,
+    "gopls-lsp@claude-plugins-official": true,
+    "grok-build@xai-grok-build": true,
+    "pagerduty@claude-plugins-official": false,
+    "pending-decisions@zach-mods": true,
+    "postman@claude-plugins-official": true,
+    "pyright-lsp@claude-plugins-official": true,
+    "railway@claude-plugins-official": false,
+    "sentry@claude-plugins-official": false,
+    "serena@claude-plugins-official": false,
+    "skill-creator@claude-plugins-official": true,
+    "skins@hellosverre-mods": true,
+    "stripe@claude-plugins-official": false,
+    "supabase@claude-plugins-official": false,
+    "superpowers@claude-plugins-official": true,
+    "swift-lsp@claude-plugins-official": true,
+    "typescript-lsp@claude-plugins-official": true,
+    "worktrunk@worktrunk": true
+  },
+  "extraKnownMarketplaces": {
+    "hellosverre-mods": {
+      "source": {
+        "source": "github",
+        "repo": "hellosverre/claude-skins"
+      }
+    },
+    "worktrunk": {
+      "source": {
+        "source": "github",
+        "repo": "max-sixty/worktrunk"
+      }
+    },
+    "xai-grok-build": {
+      "source": {
+        "source": "github",
+        "repo": "xai-org/grok-build-plugin-cc"
+      }
+    },
+    "zach-mods": {
+      "source": {
+        "source": "directory",
+        "path": "/Users/zbornheimer/Developer/Personal/claude-mods"
+      }
+    }
+  },
+  "outputStyle": "Zach Comms",
+  "feedbackDrafts": "off",
+  "effortLevel": "medium",
+  "modelSettings": {
+    "claude-fable-5-1": {
+      "effortLevel": "high"
+    },
+    "claude-opus-5-5": {
+      "effortLevel": "high"
+    },
+    "claude-sonnet-5": {
+      "effortLevel": "low"
+    },
+    "claude-sonnet-5-5": {
+      "effortLevel": "high"
+    }
+  },
+  "advisorModel": "opus",
+  "askUserQuestionTimeout": "5m",
+  "skipDangerousModePermissionPrompt": true,
+  "skipWorkflowUsageWarning": true,
+  "claudeMdExcludes": [
+    "**/.claude/rules/go.md",
+    "**/.claude/rules/typescript.md",
+    "**/.claude/rules/perl.md",
+    "**/.claude/rules/php.md",
+    "**/.claude/rules/python.md",
+    "**/.claude/rules/shell.md",
+    "**/.claude/rules/sql.md",
+    "**/.claude/rules/swift.md",
+    "**/.claude/rules/devops-standards.md",
+    "**/.claude/rules/infrastructure.md",
+    "**/.claude/rules/observability-standards.md"
+  ],
+  "theme": "auto",
+  "editorMode": "normal",
+  "switchModelsOnFlag": true,
+  "remoteControlAtStartup": true,
+  "inputNeededNotifEnabled": false,
+  "autoMode": {
+    "environment": [
+      "### Org-wide",
+      "**Organization**: None configured (no repo remotes present in this repo; do not infer from other checkouts on disk)",
+      "**Cloud provider(s)**: None configured",
+      "**Repository visibility**: assume private unless the remote host and repo name indicate otherwise, or a visibility check in the transcript shows public (this repo has no remotes at all — treat as local-only, private by default)",
+      "**Internal sharing / snippet hosting**: None configured — treat public paste/gist services as outside the trust boundary",
+      "**Secrets management**: None configured",
+      "**Default / protected branches**: not queryable (no remote configured for this repo)",
+      "**CI/CD deploy targets**: None configured",
+      "**Network posture**: None configured",
+      "**Source control**: The trusted repo only — this repo has no configured remote(s), so no push destination is trusted by default",
+      "**Trusted internal domains**: None configured",
+      "**Trusted cloud buckets**: None configured",
+      "**Key internal services**: None configured",
+      "**Internal package registry**: None configured",
+      "**Sensitive data locations & audiences**: any file or store holding personal data, confidential business data, credentials, regulated data, or similarly sensitive material; preserve exact handles when known and share only with audiences cleared at the [named+specifics] bar",
+      "**Data retention / declassification**: None configured",
+      "**Sensitive remote targets**: any namespace, host, or container whose name carries `prod` or `production` as a whole word or name segment (hyphen/underscore/dot-delimited — e.g. matches `prod-db`, not `producer`)",
+      "**Protected deployment namespaces / environments**: None configured — fall back to the Sensitive remote targets heuristic",
+      "**Protected IaC scopes**: IAM, RBAC, networking, quota, and node-pool resources; anything whose name or tag carries `prod` or `production` as a whole word or name segment",
+      "### User-specific",
+      "**Primary use of Claude Code**: software development",
+      "**Trusted repo**: /Users/zbornheimer/Archives/from-home-2026-07 — this repo has zero tracked files and no configured remotes; treat it as an empty local working directory, not a live project with established conventions",
+      "**Org-specific CLIs**: None configured — shell history shows frequent use of personal/org tooling (grok, cb2f, belt, aubr, cx, cxd, repo-retire) but none are corroborated as specific to this repo",
+      "routine under this repo's own path only — no remote or org scoping applies given the absence of remotes and tracked files"
+    ]
+  }
+}

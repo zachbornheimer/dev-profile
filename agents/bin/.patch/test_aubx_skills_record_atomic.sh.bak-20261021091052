@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# Proves concurrent global installs cannot corrupt the roster install record.
+#
+# Each run rewrote $RECORD_FILE through one fixed $RECORD_FILE.tmp. Two runs
+# overlapping in that window wrote the same temp file, and whichever rename
+# landed second installed a record spliced from both writers. The live machine's
+# record was left as two JSON documents concatenated, so every later merge
+# failed the parse and the stray ~/.agents/.skill-lock.json could never be
+# folded in.
+#
+# Fails when: the record stops parsing after N concurrent installs, an installed
+# skill is missing from the record, or a temp file is left beside it.
+set -uo pipefail
+
+BIN="$(cd "$(dirname "$0")/.." && pwd -P)"
+WRAPPER="$BIN/aubx-skills"
+TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
+fail=0
+assert() { if eval "$2"; then echo "ok   - $1"; else echo "FAIL - $1"; fail=1; fi; }
+
+FHOME="$TMP/home"
+mkdir -p "$FHOME/.agents/available-skills" "$TMP/bin"
+export HOME="$FHOME" AGENTS_HOME="$FHOME/.agents"
+
+# Stub installer: installs the named skill and its own record entry, but only
+# after the same delay, so every run reaches the wrapper's merge step together.
+cat >"$TMP/bin/aubx" <<'STUB'
+#!/usr/bin/env bash
+name=""; prev=""
+for a in "$@"; do [ "$prev" = "--skill" ] && name="$a"; prev="$a"; done
+[ -n "$name" ] || { echo "stub: no --skill" >&2; exit 1; }
+mkdir -p "$AGENTS_HOME/skills/$name"
+printf -- '---\nname: %s\n---\n' "$name" >"$AGENTS_HOME/skills/$name/SKILL.md"
+sleep 0.2
+printf '{"version":3,"skills":{"%s":{"source":"example/repo"}}}\n' "$name" >"$AGENTS_HOME/.skill-lock.json"
+STUB
+chmod +x "$TMP/bin/aubx"
+
+RECORD="$FHOME/.agents/available-skills/.skill-lock.json"
+printf '{"version":3,"skills":{}}\n' >"$RECORD"
+
+pids=()
+for i in $(seq 1 12); do
+  PATH="$TMP/bin:$PATH" "$WRAPPER" skills add example/repo --skill "s$i" -g -y >"$TMP/run.$i.log" 2>&1 &
+  pids+=("$!")
+done
+for p in "${pids[@]}"; do wait "$p"; done
+
+assert "record parses as one JSON document" "jq -e . '$RECORD' >/dev/null 2>&1"
+missing=0
+for i in $(seq 1 12); do
+  jq -e --arg n "s$i" '.skills[\$n]' "$RECORD" >/dev/null 2>&1 || missing=$((missing + 1))
+done
+assert "every installed skill reached the record" "[ $missing -eq 0 ]"
+assert "no temp file left beside the record" "! ls -a '$FHOME/.agents/available-skills' | grep -q 'skill-lock.tmp'"
+[ "$fail" -eq 0 ] || {
+  echo "--- record head:"; head -3 "$RECORD"
+  echo "--- merge failures:"; grep -h 'kept existing' "$TMP"/run.*.log | head -3
+}
+exit "$fail"

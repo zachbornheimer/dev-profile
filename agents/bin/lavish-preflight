@@ -1,0 +1,182 @@
+#!/bin/bash
+# shellcheck disable=SC2016  # jq programs are single-quoted on purpose: $k is a jq variable, not shell
+# lavish-preflight — the agent-side gate for lavish artifacts (MI-001 / at-51q2ph).
+#
+# Usage: lavish-preflight <html-file>
+#
+# This is the required entry point for handing a lavish artifact to a human.
+# It replaces a raw `npx -y lavish-axi <html-file>` open (the lavish skill and
+# ~/.agents/AGENTS.md name this gate). It fails the agent before the human can
+# open a broken page.
+#
+# Phase 1 — static checks on the artifact directory:
+#   * every <link rel="stylesheet"> href is relative (no leading /, no URL)
+#   * every linked stylesheet exists beside the HTML
+#   * the design-system trio (colors_and_type.css, tokens.css, components.css)
+#     is present beside the HTML or linked from it
+#   * no DaisyUI/Tailwind CDN references
+#   * no data-theme="luxury"
+#   * no raw hex colors in inline style attributes (design variables only)
+#
+# Phase 2 — render gate:
+#   * `npx -y lavish-axi <file>` opens (or reuses) the session
+#   * the session URL is loaded in headless Chrome with a virtual-time budget,
+#     which runs the editor's own in-page overlap detector. Verified
+#     2026-10-24: the detector fires headless and POSTs /layout-diagnostics,
+#     persisting severity=error warnings to ~/.lavish-axi/state.json.
+#   * the gate then reads state.json and fails with the rule + selector of
+#     every unresolved severity=error layout warning (the editor's active
+#     statuses: open, queued, recurring, unverified, reopened).
+#
+# Exit 0 prints one OK line (with the session URL to hand over). Exit 1 prints
+# the findings. The gate fails closed: if the render cannot be verified, that
+# is a failure, not a pass. Do not ship a gate bypass; fix the artifact.
+
+set -u
+
+STATE="$HOME/.lavish-axi/state.json"
+CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+
+if [ "$#" -ne 1 ] || [ -z "$1" ]; then
+	echo "usage: lavish-preflight <html-file>" >&2
+	exit 1
+fi
+FILE=$1
+if [ ! -f "$FILE" ]; then
+	echo "lavish-preflight: FAIL — no such file: $FILE"
+	exit 1
+fi
+FILE=$(realpath "$FILE")
+DIR=$(dirname "$FILE")
+
+fail() { echo "lavish-preflight: FAIL — $*"; }
+static_errors=0
+static() {
+	fail "$*"
+	static_errors=$((static_errors + 1))
+}
+
+# --- Phase 1: static checks ------------------------------------------------
+
+# Stylesheet links must be relative and resolve beside the HTML.
+while IFS= read -r href; do
+	[ -n "$href" ] || continue
+	case "$href" in
+	/*)
+		static "absolute stylesheet href '$href' — lavish resolves assets relative to the HTML; use a relative path"
+		;;
+	http://* | https://*)
+		static "remote stylesheet href '$href' — design-system files must be local and relative"
+		;;
+	*)
+		[ -e "$DIR/$href" ] || static "linked stylesheet missing beside the HTML: $href"
+		;;
+	esac
+done < <(grep -oi '<link[^>]*>' "$FILE" | grep -i 'rel="stylesheet"' | sed -n 's/.*href="\([^"]*\)".*/\1/p')
+
+# The design-system trio must be present beside the HTML or linked from it.
+for asset in colors_and_type.css tokens.css components.css; do
+	if [ ! -e "$DIR/$asset" ] && ! grep -q "href=\"$asset\"" "$FILE"; then
+		static "design-system file missing beside the HTML: $asset"
+	fi
+done
+
+# No DaisyUI / Tailwind CDN: the Zysys design system replaces the luxury fallback.
+if grep -Eqi 'https?://[^"'"'"' )]*(cdn\.tailwindcss\.com|daisyui|cdn\.jsdelivr\.net|unpkg\.com|cdnjs\.cloudflare\.com)' "$FILE"; then
+	static "DaisyUI/Tailwind CDN reference found — use the local design system (~/.agents/lavish-design-system/)"
+fi
+
+if grep -Eqi 'data-theme="luxury"' "$FILE"; then
+	static 'data-theme="luxury" found — the Zysys design system replaces DaisyUI luxury'
+fi
+
+# Inline styles use design variables only; raw hex colors are a defect.
+while IFS= read -r style; do
+	[ -n "$style" ] || continue
+	if grep -Eqi '#[0-9a-f]{3}([^0-9a-f]|$)|#[0-9a-f]{6}([^0-9a-f]|$)|#[0-9a-f]{8}([^0-9a-f]|$)' <<<"$style"; then
+		static "raw hex color in inline style — use design variables (var(--…)): $style"
+	fi
+done < <(grep -oi 'style="[^"]*"' "$FILE" | sed 's/url([^)]*)//g')
+
+if [ "$static_errors" -gt 0 ]; then
+	echo "lavish-preflight: $static_errors static problem(s) in $DIR — fix the artifact before opening a session."
+	exit 1
+fi
+
+# --- Phase 2: render gate ----------------------------------------------------
+
+if ! open_out=$(timeout 120 npx -y lavish-axi "$FILE" 2>&1); then
+	printf '%s\n' "$open_out" >&2
+	fail "lavish-axi could not open a session for $FILE"
+	exit 1
+fi
+URL=$(printf '%s\n' "$open_out" | sed -n 's/.*url: "\([^"]*\)".*/\1/p' | head -1)
+if [ -z "$URL" ]; then
+	# Fall back to a state.json lookup by resolved file path.
+	KEY=$(jq -r --arg f "$FILE" '.sessions | to_entries[] | select(.value.file == $f) | .key' "$STATE" 2>/dev/null | tail -1)
+	[ -n "$KEY" ] && URL="http://127.0.0.1:4387/session/$KEY"
+fi
+if [ -z "$URL" ]; then
+	fail "could not determine the session URL from lavish-axi output"
+	exit 1
+fi
+KEY=${URL##*/}
+
+read_state() { jq -c --arg k "$KEY" "$1" "$STATE" 2>/dev/null; }
+raw_state() { jq -r --arg k "$KEY" "$1" "$STATE" 2>/dev/null; }
+
+seq0=$(raw_state '.sessions[$k].artifact_load.request_sequence // 0')
+[ -n "$seq0" ] || seq0=0
+
+# Load the session URL headlessly so the editor's in-page detector runs.
+# Chrome's exit code is ignored on purpose: --dump-dom teardown can exit 2
+# (benign watchdog) after the page and its detector have already run.
+profile=$(mktemp -d)
+timeout 90 "$CHROME" --headless=new --disable-gpu --no-first-run \
+	--user-data-dir="$profile" --window-size=1356,900 --virtual-time-budget=20000 \
+	--dump-dom "$URL" >/dev/null 2>/dev/null || true
+rm -rf "$profile"
+
+# Poll state.json: fail on fresh or persisting error warnings; pass only once
+# the headless load registered (request_sequence bump) and the session's
+# warning state has settled.
+saw_load=0
+stable=0
+prev_sig=""
+i=0
+while [ "$i" -lt 30 ]; do
+	i=$((i + 1))
+	sleep 1
+	sig=$(read_state '{w: .sessions[$k].layout_warnings, l: .sessions[$k].artifact_load, f: (.sessions[$k].artifact_failures // []) | length}')
+	[ -n "$sig" ] || continue
+
+	open_ids=$(raw_state '[.sessions[$k].layout_warnings[]? | select(.severity == "error" and ((.status | IN("open","queued","recurring","unverified","reopened")))) | .id] | length')
+	if [ "$open_ids" -gt 0 ] 2>/dev/null; then
+		echo "lavish-preflight: FAIL — layout errors the human must never see first:"
+		jq -r --arg k "$KEY" '.sessions[$k].layout_warnings[]? | select(.severity == "error" and ((.status | IN("open","queued","recurring","unverified","reopened")))) | "  " + .rule + "  " + .selector + "  (" + .status + ", " + (.viewport_class // "?") + " viewport)"' "$STATE" 2>/dev/null
+		exit 1
+	fi
+
+	seqn=$(raw_state '.sessions[$k].artifact_load.request_sequence // 0')
+	[ -n "$seqn" ] || seqn=0
+	if [ "$seqn" -gt "$seq0" ] 2>/dev/null; then
+		saw_load=1
+	fi
+	if [ "$sig" = "$prev_sig" ]; then
+		stable=$((stable + 1))
+	else
+		stable=0
+		prev_sig=$sig
+	fi
+	if [ "$saw_load" = 1 ] && [ "$stable" -ge 5 ]; then
+		echo "lavish-preflight: OK — $FILE passed static and render checks; session open for handoff: $URL"
+		exit 0
+	fi
+done
+
+if [ "$saw_load" = 1 ]; then
+	fail "render state for session $KEY never settled; the editor's layout pass could not be confirmed — rerun the gate"
+else
+	fail "the headless editor load never registered for session $KEY — the render gate could not run"
+fi
+exit 1

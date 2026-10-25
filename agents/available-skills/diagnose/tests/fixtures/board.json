@@ -1,0 +1,31 @@
+{
+  "symptom": "qBittorrent WebUI 502",
+  "since": "2026-09-18T20:00Z",
+  "map": "browser → caddy → gluetun:8080 → qbit",
+  "snapshot": {
+    "facts": ["caddy 502", "authentik 302", "docker sock hung 5s"],
+    "hangs": ["docker ps"]
+  },
+  "ruled_out": [{ "id": "sso_down", "hypothesis": "Authentik down", "killed_by": "HTTP 302" }],
+  "open": [
+    { "id": "nfs_wedge", "hypothesis": "NAS NFS wedged dockerd", "layer": "disk_net" },
+    { "id": "qbit_dead", "hypothesis": "qbit process exited", "layer": "app" }
+  ],
+  "tests": [
+    {
+      "id": "sock_ping",
+      "command": "curl --max-time 5 --unix-socket $DOCKER_SOCK http://localhost/_ping",
+      "kills": "daemon-dead vs cli-hung",
+      "blast": "read-only",
+      "seconds": 5
+    },
+    {
+      "id": "qbit_ctr",
+      "command": "ctr task ls | grep qbit",
+      "kills": "qbit_dead",
+      "blast": "read-only",
+      "seconds": 5
+    }
+  ],
+  "mitigation": { "proposed": "colima stop -f && start", "why": "unproven" }
+}

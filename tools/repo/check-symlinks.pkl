@@ -1,6 +1,0 @@
-amends "../../lib/Tool.pkl"
-
-doc = "No symlinks that point nowhere. An hk builtin; no external tool."
-on {
-  ["pre-push"] = module.builtins.check_symlinks
-}

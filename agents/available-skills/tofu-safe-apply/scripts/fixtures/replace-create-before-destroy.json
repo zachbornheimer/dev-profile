@@ -1,0 +1,10 @@
+{
+  "resource_changes": [
+    {
+      "address": "aws_launch_template.app",
+      "type": "aws_launch_template",
+      "name": "app",
+      "change": { "actions": ["create", "delete"] }
+    }
+  ]
+}

@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zysys.org/schemas/work-order.schema.json",
+  "title": "work_order",
+  "description": "Shape of the fenced ```yaml work_order block a prompt-writer-compiled Agent/Task prompt must open with. Validated by work-order-gate.sh (via lib/work-order-compile.py) before a spawn is allowed. Semantic intent (what to do) is the model's job; this schema only enforces syntax — defaults, execution policy, path safety, and acceptance are supplied by the gate, never by the order itself.",
+  "type": "object",
+  "required": ["work_order"],
+  "additionalProperties": false,
+  "properties": {
+    "work_order": {
+      "type": "object",
+      "required": ["schema_version", "intent", "scope", "acceptance"],
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": 1,
+          "description": "Bumped only on a breaking shape change, so the gate can reject or migrate a stale order instead of silently misreading it."
+        },
+        "intent": {
+          "type": "string",
+          "minLength": 10,
+          "description": "One sentence: the outcome the order exists to produce."
+        },
+        "scope": {
+          "type": "object",
+          "required": ["primary_targets", "allowed_writes"],
+          "additionalProperties": false,
+          "properties": {
+            "workspace": {
+              "const": "atask",
+              "description": "The worker claims its worktree through atask (atask claim), so the spawn needs no harness worktree: the harness isolation guard would refuse the worker's only completion path, atask verify complete."
+            },
+            "primary_targets": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "minItems": 1,
+              "description": "Files/surfaces the order centers on."
+            },
+            "allowed_writes": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "minItems": 1,
+              "description": "Glob patterns of paths the worker may modify. Enforced against the worker's actual git diff by work-order-verify.sh, not merely declared."
+            },
+            "required_inputs": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "description": "Files the worker must read to understand the task. Optional: not every order has extra reading beyond the primary targets."
+            },
+            "given": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "description": "Facts, decisions, and finished artifacts (with paths) already established before this order. The worker reuses them and never re-derives, re-captures, or re-verifies them."
+            }
+          }
+        },
+        "acceptance": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["id", "kind", "run", "expect"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string", "minLength": 1 },
+              "kind": { "const": "command" },
+              "run": { "type": "string", "minLength": 1 },
+              "expect": {
+                "type": "object",
+                "minProperties": 1,
+                "additionalProperties": false,
+                "properties": {
+                  "exit_code": { "type": "integer", "minimum": 0 },
+                  "stdout_contains": {
+                    "type": "array",
+                    "items": { "type": "string", "minLength": 1 },
+                    "minItems": 1
+                  },
+                  "json_keys_absent": {
+                    "type": "array",
+                    "items": { "type": "string", "minLength": 1 },
+                    "minItems": 1
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

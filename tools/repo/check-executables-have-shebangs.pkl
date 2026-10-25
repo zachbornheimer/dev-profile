@@ -1,6 +1,0 @@
-amends "../../lib/Tool.pkl"
-
-doc = "Executable text files start with a shebang. An hk builtin; no external tool."
-on {
-  ["pre-push"] = module.builtins.check_executables_have_shebangs
-}

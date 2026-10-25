@@ -1,0 +1,12 @@
+let g:netrw_dirhistmax  =10
+let g:netrw_dirhistcnt =3
+let g:netrw_dirhist_3='/Users/zbornheimer/Dropbox/Zysys/Software/sah-developer-common/pre-commit-configs'
+let g:netrw_dirhist_2='/Users/zbornheimer/.config'
+let g:netrw_dirhist_1='/Users/zbornheimer/Dropbox/Zysys/Software/insurance/term-templates'
+let g:netrw_dirhist_0='/Users/zbornheimer/Dropbox/Zysys/Software/insurance/term-templates/american-amicable-home-protector-rop'
+let g:netrw_dirhist_9='/Users/zbornheimer/Dropbox/Zysys/Software/bpp-ui/.git/modules/bpp2.0'
+let g:netrw_dirhist_8='/Users/zbornheimer/Dropbox/Zysys/Software/insurance/plans'
+let g:netrw_dirhist_7='/Users/zbornheimer/Dropbox/Zysys/Software/insurance'
+let g:netrw_dirhist_6='/Users/zbornheimer/scripts/electron/zachstacks-pro/status.html'
+let g:netrw_dirhist_5='/Users/zbornheimer/Dropbox/Zysys/Software/insurance/term-templates/protective-life-classic-choice-term'
+let g:netrw_dirhist_4='/Users/zbornheimer/Dropbox/Zysys/Software/insurance/term-templates/american-amicable-home-protector-rop'

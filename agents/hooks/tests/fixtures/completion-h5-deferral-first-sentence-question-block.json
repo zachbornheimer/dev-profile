@@ -1,0 +1,6 @@
+{
+  "session_id": "hgtest-h5a",
+  "hook_event_name": "Stop",
+  "reason": "end_turn",
+  "last_assistant_message": "Want me to build that fix? It's a scoped dev-config platform change (not the live PR — I stay read-only on #455). I'd route it through prompt-writer → implement with a conformance test that fails on a self-referential check_run trigger, verify against the fleet callers, and ship it. Say the word and I'll take it end-to-end."
+}

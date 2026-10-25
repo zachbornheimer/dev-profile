@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "run_id": "12345678-1234-4abc-8def-1234567890ab",
+  "ticket": "EXAMPLE-123",
+  "operation": "targeted-repair",
+  "repo": "/Users/me/Developer/example",
+  "base_sha": null,
+  "maturity_target": "structurally_hardened",
+  "goal": "Move local workspace mechanics behind a consumer-owned port.",
+  "acceptance": [
+    "Product workflow imports no concrete workspace adapter",
+    "Cancellation reaches local subprocesses",
+    "Focused and full tests pass"
+  ],
+  "constraints": {
+    "preserve_uncommitted_work": true,
+    "allow_commit": false,
+    "allow_push": false,
+    "allow_merge": false,
+    "allow_reset": false,
+    "allow_clean": false
+  },
+  "known_baseline_failures": [],
+  "prior_evidence": "The happy path is already green; only the ownership boundary remains."
+}

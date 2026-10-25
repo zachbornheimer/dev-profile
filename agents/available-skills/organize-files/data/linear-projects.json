@@ -1,0 +1,27 @@
+{
+  "_note": "snapshot dictated by Zach 2026-09-23; ids assigned P-ZYS-24 down to P-ZYS-1 in list order, skipping P-ZYS-2. Linear also has a duplicate lowercase 'agentmux' project (P-ZYS-10) — fold it into the 'AgentMux' entry below rather than creating a second product:agentmux leaf.",
+  "projects": [
+    {"name": "AI Harness Code Efficiency", "id": "P-ZYS-24"},
+    {"name": "Evident Output", "id": "P-ZYS-23"},
+    {"name": "Flight", "id": "P-ZYS-22"},
+    {"name": "Homelab", "id": "P-ZYS-21"},
+    {"name": "AgentMux", "id": "P-ZYS-20", "duplicate_of": "agentmux (P-ZYS-10)"},
+    {"name": "ZQ", "id": "P-ZYS-19"},
+    {"name": "Hypeddit Exit — Music Landing + Meta Tracking", "id": "P-ZYS-18"},
+    {"name": "DragonGate Portals", "id": "P-ZYS-17"},
+    {"name": "librarian", "id": "P-ZYS-16"},
+    {"name": "ISJAC Summit 2027 launch", "id": "P-ZYS-15"},
+    {"name": "PPG — Ops & Ad-hoc Support", "id": "P-ZYS-14"},
+    {"name": "PPG — Phase 3: ACORD → AgencyBloc Feed", "id": "P-ZYS-13"},
+    {"name": "PPG — Phase 2: LCH Disposition Callback", "id": "P-ZYS-12"},
+    {"name": "PPG — Phase 1: GHL Inbound Lead Routing", "id": "P-ZYS-11"},
+    {"name": "ISJAC", "id": "P-ZYS-10"},
+    {"name": "Progress Library", "id": "P-ZYS-9"},
+    {"name": "Obsidian Backup", "id": "P-ZYS-8"},
+    {"name": "Site Status SaaS", "id": "P-ZYS-7"},
+    {"name": "Ansible for Zysys Hosting", "id": "P-ZYS-6"},
+    {"name": "ZachStacks Launch", "id": "P-ZYS-5"},
+    {"name": "PrepIQ", "id": "P-ZYS-4"},
+    {"name": "Book Bestie Launch", "id": "P-ZYS-3"}
+  ]
+}

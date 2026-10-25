@@ -1,0 +1,8 @@
+{
+  "session_id": "hgtest-t1",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "git worktree add -b feature/sah-4605 ~/Developer/Software-Automation-Holdings/.worktrees/eapp-system-sah-4605"
+  }
+}

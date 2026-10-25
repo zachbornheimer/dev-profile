@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/status-report.schema.json",
+  "title": "Status Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "effort", "summary", "issues"],
+  "properties": {
+    "version": {"const": 2},
+    "effort": {"type": "string", "minLength": 1, "maxLength": 120},
+    "summary": {"type": "string", "minLength": 1, "maxLength": 240},
+    "issues": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["issueId", "summary", "checks"],
+        "properties": {
+          "issueId": {"type": "string", "minLength": 1, "maxLength": 40},
+          "summary": {"type": "string", "minLength": 1, "maxLength": 280},
+          "checks": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["name", "status", "detail", "evidence"],
+              "properties": {
+                "name": {"type": "string", "minLength": 1, "maxLength": 80},
+                "status": {
+                  "type": "string",
+                  "enum": ["done", "in_progress", "not_started"]
+                },
+                "detail": {"type": "string", "minLength": 1, "maxLength": 400},
+                "evidence": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {"type": "string", "minLength": 1, "maxLength": 400}
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

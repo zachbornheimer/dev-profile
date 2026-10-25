@@ -1,0 +1,85 @@
+{
+  "_comment": "Canonical source for agentmux's REQ-047/REQ-050 retention-loop hooks (PreCompact save-transcript, SessionStart goals prose), one block per harness. This file documents what each harness's live hook config should contain; `agentmux hooks install --harness <name>` writes the matching entries into that harness's own config file (~/.claude/settings.json, ~/.codex/hooks.json, ~/.grok/hooks/agentmux-hooks.json) rather than reading this file directly. Regenerate this comment block by re-running `agentmux save-transcript --print-hooks --harness <name>` for each harness below after a hook-shape change, and `chezmoi re-add ~/.agents` to sync.",
+  "harnesses": {
+    "claude-code": {
+      "configPath": "~/.claude/settings.json",
+      "hooks": {
+        "PreCompact": [
+          {
+            "matcher": "manual|auto",
+            "hooks": [
+              {
+                "type": "command",
+                "command": "agentmux save-transcript --harness claude-code --hook-payload"
+              }
+            ]
+          }
+        ],
+        "SessionStart": [
+          {
+            "matcher": "startup|resume|compact|fork",
+            "hooks": [
+              {
+                "type": "command",
+                "command": "agentmux goals prose --harness claude-code --hook-payload --with-progress"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "codex": {
+      "configPath": "~/.codex/hooks.json",
+      "hooks": {
+        "PreCompact": [
+          {
+            "matcher": "manual|auto",
+            "hooks": [
+              {
+                "type": "command",
+                "command": "agentmux save-transcript --harness codex --hook-payload"
+              }
+            ]
+          }
+        ],
+        "SessionStart": [
+          {
+            "hooks": [
+              {
+                "type": "command",
+                "command": "agentmux goals prose --harness codex --hook-payload --with-progress"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "grok": {
+      "configPath": "~/.grok/hooks/agentmux-hooks.json",
+      "_note": "Grok Build also scans ~/.claude/settings.json globally ([compat.claude] hooks = true, verified in ~/.grok/docs/user-guide/10-hooks.md), so the claude-code block above fires in Grok too, tagged --harness claude-code. This dedicated file tags Grok-originated captures correctly as --harness grok.",
+      "hooks": {
+        "PreCompact": [
+          {
+            "matcher": "manual|auto",
+            "hooks": [
+              {
+                "type": "command",
+                "command": "agentmux save-transcript --harness grok --hook-payload"
+              }
+            ]
+          }
+        ],
+        "SessionStart": [
+          {
+            "hooks": [
+              {
+                "type": "command",
+                "command": "agentmux goals prose --harness grok --hook-payload --with-progress"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "session_id": "hgtest-t1",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "cd ~/Developer/Software-Automation-Holdings/zyins && git worktree add --detach ~/Developer/Software-Automation-Holdings/.worktrees/zyins-sah2969"
+  }
+}

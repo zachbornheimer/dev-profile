@@ -1,0 +1,23 @@
+<!-- @dsCard group="Data" -->
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DistributionBar</title>
+<link rel="stylesheet" href="../../colors_and_type.css">
+<style>
+*{box-sizing:border-box}body{margin:0;background:var(--color-bg-page);font-family:var(--font-sans);font-size:var(--text-body);color:var(--color-text);-webkit-font-smoothing:antialiased}
+.preview{padding:var(--space-24);display:flex;flex-direction:column;gap:var(--space-20)}
+.row{display:flex;gap:var(--space-20);flex-wrap:wrap;align-items:flex-start}
+.cell{display:flex;flex-direction:column;gap:var(--space-6);align-items:flex-start}
+.lbl{font-size:var(--text-meta);color:var(--color-text-muted)}
+.mono{font-family:var(--font-mono);font-size:var(--text-mono)}
+.card{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-card);padding:var(--space-20);display:flex;flex-direction:column;gap:var(--space-12)}
+.card h2{margin:0;font-size:var(--text-section-title);font-weight:var(--weight-semibold)}
+.card p{margin:0;font-size:var(--text-body);line-height:var(--leading-prose);color:var(--color-text-secondary)}
+.track{position:relative;height:10px;background:var(--color-surface-subtle);border-radius:var(--radius-bar);width:100%}
+.track div{position:absolute;left:0;top:0;bottom:0;border-radius:var(--radius-bar)}
+.track .tick{left:auto;top:-3px;bottom:-3px;width:2px;border-radius:0;background:var(--color-text)}
+.warn-solid{background:var(--color-warning)}.warn-light{background:var(--color-warning-border)}
+.hot-solid{background:var(--color-error)}.hot-light{background:var(--color-error-border)}
+</style></head>
+<body><div class="preview">
+<div style="max-width:420px;display:flex;flex-direction:column;gap:var(--space-20)"><div class="cell"><span class="lbl">Amber: over budget</span><div class="track"><div class="warn-light" style="width:42.5%"></div><div class="warn-solid" style="width:17.3%"></div><div class="tick" style="left:14.29%"></div></div></div><div class="cell"><span class="lbl">Red: p95 at 3x budget or more</span><div class="track"><div class="hot-light" style="width:94.9%"></div><div class="hot-solid" style="width:48.1%"></div><div class="tick" style="left:14.29%"></div></div></div><div class="cell"><span class="lbl">REST budget tick (800 ms)</span><div class="track"><div class="hot-light" style="width:29.4%"></div><div class="hot-solid" style="width:10.9%"></div><div class="tick" style="left:5.71%"></div></div></div></div><span class="lbl">Solid bar is p50. Light bar extends to p95. The dark tick marks the budget for that request type. Scale is 0 to 14 s.</span>
+</div></body></html>

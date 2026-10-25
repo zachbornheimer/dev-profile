@@ -1,0 +1,113 @@
+#!/usr/bin/env bash
+# aube — scope guard in front of aube's own `skills` subcommand.
+#
+# `aubx skills add` is already confined by the sibling `aubx` shim, but `aube
+# skills add` reaches the same installer without passing the `aubx` name at all:
+# aube runs the vercel `skills` package through dlx, which derives every path
+# from $HOME and writes ~/.agents/skills, a link per detected harness, and
+# ~/.agents/.skill-lock.json. Same install, same leak.
+#
+# Two argv shapes reach that installer — `aube skills <verb>` and
+# `aube dlx skills <verb>` — so both are normalized to (form, verb index) before
+# any decision is made. Write verbs are routed to aubx-skills, which runs the
+# installer under a throwaway HOME and applies the result to
+# $AGENTS_HOME/available-skills. An explicit -p/--project passes through, the
+# harness-root verbs (`sync`, `experimental_sync`, `experimental_install`) are
+# refused because nothing confines them, and every other aube invocation
+# (install, run, exec, dlx <other>, ...) passes through untouched.
+set -uo pipefail
+
+# Resolve this script's real path before deriving its directory. Both wrappers
+# are also installed as symlinks (~/.local/bin/aubx-skills -> ~/.agents/bin/...),
+# and a dirname-only path points at the symlink's directory. That made the
+# "never resolve to our own guard" skip miss ~/.agents/bin, so the confiner
+# called the guard back and every global install died with
+# "confiner re-entered itself".
+# The file a path finally names, with every symlink followed and the directory
+# canonicalized, so two names for one file compare equal.
+real_path() {
+  local p="$1" dir
+  while [ -L "$p" ]; do
+    dir="$(cd -- "$(dirname -- "$p")" && pwd -P)"
+    p="$(readlink "$p")"
+    case "$p" in /*) ;; *) p="$dir/$p" ;; esac
+  done
+  printf '%s/%s\n' "$(cd -- "$(dirname -- "$p")" && pwd -P)" "$(basename -- "$p")"
+}
+_self="$(real_path "${BASH_SOURCE[0]}")"
+self_dir="$(dirname -- "$_self")"
+
+# Resolve the real aube, skipping every name for this guard. The guard is
+# linked from more than one PATH directory (~/.local/bin, /usr/local/bin), so a
+# directory check alone picked a link to itself and exec'd itself forever.
+real_aube=""
+IFS=':' read -r -a _path_dirs <<<"${PATH:-}"
+for d in "${_path_dirs[@]}"; do
+  [ -n "$d" ] || continue
+  [ -d "$d" ] || continue
+  cand="$d/aube"
+  [ -x "$cand" ] || continue
+  [ "$(real_path "$cand")" = "$_self" ] && continue
+  real_aube="$cand"
+  break
+done
+# A shell that never sourced the rc files (launchd, cron, a hook runner, a bare
+# `sh -c`) has no mise or Homebrew on PATH, so the scan above finds no second
+# aube and the guard fails closed with 127: nothing leaks, but no skill install
+# works there either. Fall back to the installer's own install roots — the mise
+# shim first, since it follows the pinned version, then the mise installs, then
+# Homebrew.
+if [ -z "$real_aube" ]; then
+  for _cand in "$HOME/.local/share/mise/shims/aube" \
+               "$HOME"/.local/share/mise/installs/aube/*/.mise-bins/aube \
+               /opt/homebrew/bin/aube; do
+    [ -x "$_cand" ] || continue
+    [ "$(real_path "$_cand")" = "$_self" ] && continue
+    real_aube="$_cand"
+    break
+  done
+fi
+if [ -z "$real_aube" ]; then
+  printf 'aube: no real aube on PATH outside %s\n' "$self_dir" >&2
+  exit 127
+fi
+
+available_dir="${AGENTS_HOME:-$HOME/.agents}/available-skills"
+
+argv=("$@")
+verb_index=0
+skills_form=0
+case "${argv[0]:-}" in
+  skills) skills_form=1; verb_index=1 ;;
+  dlx) if [ "${argv[1]:-}" = "skills" ]; then skills_form=1; verb_index=2; fi ;;
+esac
+
+if [ "$skills_form" -eq 1 ]; then
+  verb="${argv[$verb_index]:-}"
+  case "$verb" in
+    add|update|upgrade|remove|rm)
+      project=0
+      for a in "${argv[@]}"; do
+        case "$a" in -p|--project) project=1 ;; esac
+      done
+      if [ "$project" -eq 1 ]; then
+        exec "$real_aube" "${argv[@]}"
+      fi
+      printf 'aube: global %s %s confined to %s (pass -p for a project install)\n' \
+        "${argv[0]}" "$verb" "$available_dir" >&2
+      # aubx-skills understands the `skills <verb>` prefix itself; hand it the
+      # normalized form so the dlx shape needs no special case there.
+      exec "$self_dir/aubx-skills" skills "${argv[@]:verb_index}"
+      ;;
+    sync|experimental_sync|experimental_install)
+      # These copy skill files straight into the harness skill roots with no
+      # output-directory flag, so there is no way to confine them. Refuse.
+      printf 'aube: %s %s writes into harness skill roots, not %s\n' \
+        "${argv[0]}" "$verb" "$available_dir" >&2
+      printf 'aube: install globally with `aubx skills add <package> -g`\n' >&2
+      exit 2
+      ;;
+  esac
+fi
+
+exec "$real_aube" "$@"

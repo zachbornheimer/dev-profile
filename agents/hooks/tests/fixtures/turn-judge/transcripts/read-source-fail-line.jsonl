@@ -1,0 +1,7 @@
+{"type": "user", "message": {"role": "user", "content": "Fix the classify hang and prove it."}}
+{"type": "assistant", "message": {"role": "assistant", "content": [{"type": "tool_use", "id": "t1", "name": "Read", "input": {"file_path": "/x/completion_gate_test_failures.py"}}]}}
+{"type": "user", "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "t1", "content": "\"\"\"ZYS-791 docstring.\"\"\"\nEXAMPLE = \"--- FAIL: TestFoo (12.40s)\"\n"}]}}
+{"type": "assistant", "message": {"role": "assistant", "content": [{"type": "tool_use", "id": "t2", "name": "Bash", "input": {"command": "cat lib/completion_gate_test_failures.py"}}]}}
+{"type": "user", "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "t2", "content": "\"\"\"ZYS-791 docstring.\"\"\"\nEXAMPLE = \"--- FAIL: TestFoo (12.40s)\"\n"}]}}
+{"type": "assistant", "message": {"role": "assistant", "content": [{"type": "tool_use", "id": "t3", "name": "Bash", "input": {"command": "go test ./internal/prune/classify/..."}}]}}
+{"type": "user", "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "t3", "content": "ok  \tgithub.com/x/classify\t0.41s"}]}}

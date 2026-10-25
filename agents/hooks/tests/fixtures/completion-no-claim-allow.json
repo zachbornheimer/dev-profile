@@ -1,0 +1,7 @@
+{
+ "session_id": "hgtest-cg5",
+ "hook_event_name": "Stop",
+ "reason": "end_turn",
+ "last_assistant_message": "Here is a summary of the plan going forward.",
+ "transcript_path": "/Users/zbornheimer/.agents/hooks/tests/fixtures/turn-judge/transcripts/unproven-claim-with-ask.jsonl"
+}

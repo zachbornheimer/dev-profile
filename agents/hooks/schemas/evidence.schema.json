@@ -1,0 +1,33 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "completion-gate evidence block",
+  "description": "Shape of the fenced ```evidence JSON block completion-gate.sh validates (Level 1) before checking provenance (Level 2). Documentation artifact for humans/tests — completion-gate.sh itself validates inline with jq, not by loading this file.",
+  "type": "object",
+  "required": ["claim", "type", "ref", "scope"],
+  "properties": {
+    "claim": {
+      "type": "string",
+      "minLength": 1,
+      "description": "What is being claimed as done/fixed/verified."
+    },
+    "type": {
+      "type": "string",
+      "enum": ["test", "command", "commit", "http", "file", "render"],
+      "description": "What kind of artifact `ref` names, which determines the Level 2 provenance check."
+    },
+    "ref": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The command run, test name, commit sha, URL, or file path this claim points at."
+    },
+    "scope": {
+      "type": "string",
+      "enum": ["unit", "live"],
+      "description": "Whether the evidence proves the logic (unit) or the deployed/live effect (live)."
+    },
+    "result": {
+      "type": "string",
+      "description": "Optional short summary of the observed outcome."
+    }
+  }
+}

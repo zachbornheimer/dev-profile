@@ -1,0 +1,168 @@
+/*
+ GENERATED FILE — do not hand-edit.
+ Source of truth: tokens.json
+ Regenerate: node src/build.mjs
+ */
+
+@property --color-page-background {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #fafafa;
+}
+
+@property --color-surface {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #ffffff;
+}
+
+@property --color-page-accent {
+  syntax: "<color> | <image>";
+  inherits: true;
+  initial-value: #ededed;
+}
+
+@property --color-border {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #d8d8d8;
+}
+
+@property --color-ink {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #1a1a1a;
+}
+
+@property --color-brand {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #5384aa;
+}
+
+@property --color-primary-action {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #295a7e;
+}
+
+@property --color-error {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #b42318;
+}
+
+@property --color-warning {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #b54708;
+}
+
+@property --color-success {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #067647;
+}
+
+@property --header-background {
+  syntax: "<color> | <image>";
+  inherits: true;
+  initial-value: #ffffff;
+}
+
+@property --header-ink {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #1a1a1a;
+}
+
+@property --footer-background {
+  syntax: "<color> | <image>";
+  inherits: true;
+  initial-value: #1a1a1a;
+}
+
+@property --footer-ink {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #ffffff;
+}
+
+@property --font-family-heading {
+  syntax: "*";
+  inherits: true;
+  initial-value: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+@property --font-family-body {
+  syntax: "*";
+  inherits: true;
+  initial-value: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+@property --font-family-mono {
+  syntax: "*";
+  inherits: true;
+  initial-value: ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+@property --font-size-body {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 16px;
+}
+
+@property --space {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 24px;
+}
+
+@property --corner-radius {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 8px;
+}
+
+@property --content-width {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 1290px;
+}
+
+:root {
+  --color-page-background: #fafafa;
+  --color-surface: #ffffff;
+  --color-page-accent: color-mix(
+    in srgb,
+    var(--color-page-background),
+    var(--color-ink) 6%
+  );
+  --color-border: color-mix(
+    in srgb,
+    var(--color-page-background),
+    var(--color-ink) 15%
+  );
+  --color-ink: #1a1a1a;
+  --color-brand: #5384aa;
+  --color-primary-action: oklch(from var(--color-brand) min(l, 0.45) c h);
+  --color-error: #b42318;
+  --color-warning: #b54708;
+  --color-success: #067647;
+  --header-background: var(--color-surface);
+  --header-ink: var(--color-ink);
+  --footer-background: var(--color-ink);
+  --footer-ink: var(--color-surface);
+  --font-family-heading:
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+  --font-family-body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-family-mono: ui-monospace, "SF Mono", Menlo, monospace;
+  --font-size-body: 1rem;
+  --space: 1.5rem;
+  --corner-radius: 8px;
+  --content-width: 1290px;
+}

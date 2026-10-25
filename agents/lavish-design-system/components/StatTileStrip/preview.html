@@ -1,0 +1,21 @@
+<!-- @dsCard group="Data" -->
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>StatTileStrip</title>
+<link rel="stylesheet" href="../../colors_and_type.css">
+<style>
+*{box-sizing:border-box}body{margin:0;background:var(--color-bg-page);font-family:var(--font-sans);font-size:var(--text-body);color:var(--color-text);-webkit-font-smoothing:antialiased}
+.preview{padding:var(--space-24);display:flex;flex-direction:column;gap:var(--space-20)}
+.row{display:flex;gap:var(--space-20);flex-wrap:wrap;align-items:flex-start}
+.cell{display:flex;flex-direction:column;gap:var(--space-6);align-items:flex-start}
+.lbl{font-size:var(--text-meta);color:var(--color-text-muted)}
+.mono{font-family:var(--font-mono);font-size:var(--text-mono)}
+.card{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-card);padding:var(--space-20);display:flex;flex-direction:column;gap:var(--space-12)}
+.card h2{margin:0;font-size:var(--text-section-title);font-weight:var(--weight-semibold)}
+.card p{margin:0;font-size:var(--text-body);line-height:var(--leading-prose);color:var(--color-text-secondary)}
+.stats{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-card);display:grid;grid-template-columns:repeat(auto-fit,minmax(var(--layout-stat-min),1fr))}
+.stats>div{padding:var(--space-20);display:flex;flex-direction:column;gap:var(--space-4);border-right:1px solid var(--color-divider)}.stats>div:last-child{border-right:0}
+.stats .k{font-size:var(--text-meta);color:var(--color-text-muted)}.stats .v{font-size:var(--text-stat);font-weight:var(--weight-medium);font-variant-numeric:tabular-nums}.stats .v.ok{color:var(--color-success-text)}
+</style></head>
+<body><div class="preview">
+<div class="stats"><div><span class="k">Automatic SEO</span><span class="v ok">On</span><span class="k">Customizations on a page are kept</span></div><div><span class="k">Pages optimized</span><span class="v">374</span><span class="k">All public pages</span></div><div><span class="k">Needs attention</span><span class="v">Nothing</span><span class="k">Looks good. There's nothing you need to do.</span></div></div>
+</div></body></html>

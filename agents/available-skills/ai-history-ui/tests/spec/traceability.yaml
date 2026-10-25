@@ -1,0 +1,107 @@
+spec: ../../SPEC.md
+version: 0.1.0
+requirements:
+  - id: REQ-001
+    summary: Immediate working chrome within 100ms of send
+    conformance_class: renderer
+    test: TestTurn_OnSend_ShowsThinkingShimmerAndStop
+    status: pending
+  - id: REQ-002
+    summary: Skeleton shimmer through glyphs, not a spinner or percent
+    conformance_class: renderer
+    test: TestShimmer_WorkingLabel_SweepsLuminanceWithoutSpinner
+    status: pending
+  - id: REQ-003
+    summary: Named action rows append under the status in emit order
+    conformance_class: renderer
+    test: TestActionTree_OnEvents_AppendsInEmitOrderWithRails
+    status: pending
+  - id: REQ-004
+    summary: Only the in-progress row shimmers and it is not tappable
+    conformance_class: renderer
+    test: TestActionRow_InProgress_ShimmersWithoutChevron
+    status: pending
+  - id: REQ-005
+    summary: Completing a row stops shimmer and adds chevron if inspectable
+    conformance_class: renderer
+    test: TestActionRow_OnCompleted_BecomesStaticAndInspectable
+    status: pending
+  - id: REQ-006
+    summary: Inspectable row opens a dismissible payload sheet
+    conformance_class: inspector
+    test: TestInspector_OnActivateCompletedRow_OpensPayloadSheet
+    status: pending
+  - id: REQ-007
+    summary: Header collapse hides the tree without destroying identity
+    conformance_class: renderer
+    test: TestThinkingHeader_CollapseExpand_PreservesActionIdentity
+    status: pending
+  - id: REQ-008
+    summary: Terminal label is duration sentence; shimmer stops
+    conformance_class: renderer
+    test: TestTurn_OnDone_ShowsThoughtForNSecondsWithoutShimmer
+    status: pending
+  - id: REQ-009
+    summary: Terminal turns collapse the tree unless the user had it open
+    conformance_class: renderer
+    test: TestTurn_OnDone_CollapsesTreeUnlessUserExpanded
+    status: pending
+  - id: REQ-010
+    summary: Answer renders below the thinking block and may stream
+    conformance_class: renderer
+    test: TestAnswer_StreamsBelowThinkingBlock
+    status: pending
+  - id: REQ-011
+    summary: Overflow shows a jump-to-end control when not pinned
+    conformance_class: renderer
+    test: TestAnswer_WhenOverflowUnpinned_ShowsJumpChip
+    status: pending
+  - id: REQ-012
+    summary: Producer emits a reconstructable event log with one in-progress action
+    conformance_class: producer
+    test: TestProducer_EventLog_ReconstructsTreeWithSingleInProgress
+    status: pending
+  - id: REQ-013
+    summary: Stop cancels work and terminals the turn as stopped
+    conformance_class: renderer
+    test: TestTurn_OnStop_ShowsStoppedAfterNAndKeepsPartialAnswer
+    status: pending
+  - id: REQ-014
+    summary: Live region, keyboard, 44pt targets, reduced motion
+    conformance_class: renderer
+    test: TestA11y_ReducedMotion_DisablesSweepAndAnnouncesActions
+    status: pending
+  - id: REQ-015
+    summary: Collapsed terminal header should show a step count
+    conformance_class: renderer
+    test: TestCollapsedHeader_ShowsStepCount
+    status: pending
+invariants:
+  - id: INV-001
+    summary: A turn is waiting, working, done, stopped, or failed
+    test: TestInvariant_TurnHasExactlyOneStatus
+    status: pending
+  - id: INV-002
+    summary: At most one in-progress action per turn
+    test: TestInvariant_AtMostOneInProgressAction
+    status: pending
+  - id: INV-003
+    summary: Shimmer only on working status and the in-progress title
+    test: TestInvariant_ShimmerOnlyOnLiveText
+    status: pending
+  - id: INV-004
+    summary: Action rows are append-only
+    test: TestInvariant_ActionOrderAppendOnly
+    status: pending
+  - id: INV-005
+    summary: Historical turns never replay the shimmer
+    test: TestInvariant_HistoricalTurnHasNoShimmer
+    status: pending
+  - id: INV-006
+    summary: Collapse does not destroy action identity
+    test: TestInvariant_CollapsePreservesIdentity
+    status: pending
+  - id: INV-007
+    summary: Color is never the only in-progress signal
+    test: TestInvariant_InProgressNotColorOnly
+    status: pending

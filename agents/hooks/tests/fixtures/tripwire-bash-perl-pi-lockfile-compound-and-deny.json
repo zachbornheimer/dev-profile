@@ -1,0 +1,6 @@
+{
+  "session_id": "hgtest-f9d",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Bash",
+  "tool_input": { "command": "cd repo && perl -pi -e 's/a/b/' package-lock.json" }
+}

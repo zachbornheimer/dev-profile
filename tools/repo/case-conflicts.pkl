@@ -1,6 +1,0 @@
-amends "../../lib/Tool.pkl"
-
-doc = "No file names that differ only by case in pushed files."
-on {
-  ["pre-push"] = module.builtins.check_case_conflict
-}

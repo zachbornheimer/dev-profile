@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+# aubx-skills-selftest — prove the aubx skills confinement end-to-end.
+#
+# proof mode (default): creates a throwaway local skill, installs it through
+# the real `aubx skills add` entrypoint with NO scope flags (the guard must
+# inject -g/-y/-a codex itself), asserts the skill landed as a real folder in
+# available-skills with a record entry, asserts no guarded root changed, then
+# removes it through the same entrypoint and asserts a clean restore.
+#
+# The proof skill's name is unique per run: parallel workers run this selftest
+# routinely, and a fixed name let two concurrent proofs delete each other's
+# installed folder.
+#
+# regress mode: checks the standing setup without installing anything —
+# roster intact, structural symlinks intact, record present, sync refused.
+#
+# Exit 0 only when every assertion held. Snapshots are name-level listings so
+# background mtime churn cannot false-fail them; the confiner's own tripwire
+# (exit 3) remains the full-depth audit.
+# ~/.agents/.skill-lock.json is excluded from the ~/.agents snapshot: the
+# confiner folds that stray installer record into the roster record and removes
+# it by design (heal_stray_record) before and after the install. Its movement
+# is the documented heal, not this run's write; the confiner's exit-3 tripwire
+# still audits at full depth everything the run itself creates.
+set -uo pipefail
+AVAILABLE="${AGENTS_HOME:-$HOME/.agents}/available-skills"
+
+snap() {
+  local d
+  for d in "$HOME/.agents" "$HOME/.claude/skills" "$HOME/.codex/skills" \
+           "$HOME/.cursor/skills" "$HOME/.config/opencode/skills" \
+           "$HOME/.gemini/skills" "$HOME/.local/state/skills"; do
+    if [ "$d" = "$HOME/.agents" ]; then
+      # Only this one name is filtered: it is heal_stray_record's documented
+      # target in aubx-skills, folded into the roster record and removed. Its
+      # presence or absence is not this run's write; every other entry in
+      # every root still counts, and the exit-3 tripwire stays the full-depth
+      # audit for anything the run itself creates.
+      /bin/ls -A "$d" 2>/dev/null | /usr/bin/grep -vx '.skill-lock.json' || true
+    else
+      /bin/ls -A "$d" 2>/dev/null
+    fi
+    echo --
+  done
+}
+
+case "${1:-proof}" in
+regress)
+  fail=0
+  test -f "$AVAILABLE/vercel-optimize/SKILL.md" || { echo "regress: vercel-optimize missing from roster"; fail=1; }
+  test -L "$HOME/.agents/skills"      || { echo "regress: ~/.agents/skills is not a symlink"; fail=1; }
+  test -L "$HOME/.grok/skills"        || { echo "regress: ~/.grok/skills is not a symlink"; fail=1; }
+  test -f "$AVAILABLE/.skill-lock.json" || { echo "regress: .skill-lock.json missing"; fail=1; }
+  n="$(/bin/ls -A "$AVAILABLE" | wc -l | tr -d ' ')"
+  [ "$n" -ge 150 ] || { echo "regress: roster shrank to $n entries"; fail=1; }
+  aubx skills sync < /dev/null > /dev/null 2>&1
+  [ $? -eq 2 ] || { echo "regress: sync was not refused with exit 2"; fail=1; }
+  if [ "$fail" -eq 0 ]; then echo "regress: OK"; fi
+  exit "$fail"
+  ;;
+proof)
+  T="$(mktemp -d "${TMPDIR:-/tmp}/aubx-selftest.XXXXXX")" || exit 1
+  trap 'rm -rf "$T"' EXIT
+  PROOF_SKILL="confinement-proof-$$-$(date +%s)"
+  mkdir -p "$T/$PROOF_SKILL"
+  { printf -- '---\n'
+    printf 'name: %s\n' "$PROOF_SKILL"
+    printf 'description: Throwaway skill proving aubx skills writes stay confined\n'
+    printf -- '---\n\nProof body; deleted by aubx-skills-selftest.\n'
+  } > "$T/$PROOF_SKILL/SKILL.md"
+  before="$(snap)"
+  if ! aubx skills add "$T/$PROOF_SKILL" < /dev/null > "$T/add.log" 2>&1; then
+    echo "selftest: add failed" >&2; cat "$T/add.log" >&2; exit 1
+  fi
+  test -f "$AVAILABLE/$PROOF_SKILL/SKILL.md" || { echo "selftest: skill not in $AVAILABLE" >&2; cat "$T/add.log" >&2; exit 1; }
+  [ -z "$(readlink "$AVAILABLE/$PROOF_SKILL" 2>/dev/null)" ] || { echo "selftest: roster entry is a symlink, not a real folder" >&2; exit 1; }
+  grep -q "$PROOF_SKILL" "$AVAILABLE/.skill-lock.json" || { echo "selftest: record entry missing" >&2; exit 1; }
+  after="$(snap)"
+  if [ "$before" != "$after" ]; then
+    echo "selftest: write landed outside $AVAILABLE" >&2
+    diff <(printf '%s\n' "$before") <(printf '%s\n' "$after") >&2 || true
+    exit 1
+  fi
+  if ! aubx skills remove "$PROOF_SKILL" -g -y < /dev/null > "$T/rm.log" 2>&1; then
+    echo "selftest: remove failed" >&2; cat "$T/rm.log" >&2; exit 1
+  fi
+  [ ! -e "$AVAILABLE/$PROOF_SKILL" ] || { echo "selftest: skill still present after remove" >&2; exit 1; }
+  if grep -qF "$PROOF_SKILL" "$AVAILABLE/.skill-lock.json" 2>/dev/null; then
+    echo "selftest: record entry still present after remove" >&2; exit 1
+  fi
+  final="$(snap)"
+  [ "$before" = "$final" ] || { echo "selftest: remove left state outside $AVAILABLE" >&2; exit 1; }
+  echo "selftest: OK - add and remove wrote only inside $AVAILABLE"
+  ;;
+*)
+  echo "usage: aubx-skills-selftest [proof|regress]" >&2
+  exit 64
+  ;;
+esac

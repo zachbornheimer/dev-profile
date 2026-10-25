@@ -1,0 +1,235 @@
+{
+  "tokens": [
+    {
+      "name": "color-page-background",
+      "type": "color",
+      "default": "#fafafa",
+      "initialValue": "#fafafa",
+      "derive": null,
+      "minimum": null,
+      "public": true,
+      "description": "The page behind everything.",
+      "uses": ["page background"]
+    },
+    {
+      "name": "color-surface",
+      "type": "color",
+      "default": "#ffffff",
+      "initialValue": "#ffffff",
+      "derive": null,
+      "minimum": null,
+      "public": true,
+      "description": "Cards, fields, modals.",
+      "uses": ["cards", "fields", "modals"]
+    },
+    {
+      "name": "color-page-accent",
+      "type": "surface",
+      "default": "#ededed",
+      "initialValue": "#ededed",
+      "derive": "color-mix(in srgb, var(--color-page-background), var(--color-ink) 6%)",
+      "minimum": null,
+      "public": true,
+      "description": "Second page color: full-width bands, table headers. Solid or gradient.",
+      "uses": ["full-width bands", "table headers"]
+    },
+    {
+      "name": "color-border",
+      "type": "color",
+      "default": "#d8d8d8",
+      "initialValue": "#d8d8d8",
+      "derive": "color-mix(in srgb, var(--color-page-background), var(--color-ink) 15%)",
+      "minimum": null,
+      "public": true,
+      "description": "Hairlines: card edges, field borders, dividers.",
+      "uses": ["card edges", "field borders", "dividers"]
+    },
+    {
+      "name": "color-ink",
+      "type": "color",
+      "default": "#1a1a1a",
+      "initialValue": "#1a1a1a",
+      "derive": null,
+      "minimum": null,
+      "public": true,
+      "description": "Body text and headings.",
+      "uses": ["body text", "headings"]
+    },
+    {
+      "name": "color-brand",
+      "type": "color",
+      "default": "#5384aa",
+      "initialValue": "#5384aa",
+      "derive": null,
+      "minimum": null,
+      "public": true,
+      "description": "Links and focus rings.",
+      "uses": ["links", "focus rings"]
+    },
+    {
+      "name": "color-primary-action",
+      "type": "color",
+      "default": "#295a7e",
+      "initialValue": "#295a7e",
+      "derive": "oklch(from var(--color-brand) min(l, 0.45) c h)",
+      "minimum": null,
+      "public": true,
+      "description": "Primary button fill. Defaults to a darkened brand; set this if the button is a different color.",
+      "uses": ["primary button fill"]
+    },
+    {
+      "name": "color-error",
+      "type": "color",
+      "default": "#b42318",
+      "initialValue": "#b42318",
+      "derive": null,
+      "minimum": null,
+      "public": true,
+      "description": "Error state.",
+      "uses": ["error state"]
+    },
+    {
+      "name": "color-warning",
+      "type": "color",
+      "default": "#b54708",
+      "initialValue": "#b54708",
+      "derive": null,
+      "minimum": null,
+      "public": true,
+      "description": "Warning state.",
+      "uses": ["warning state"]
+    },
+    {
+      "name": "color-success",
+      "type": "color",
+      "default": "#067647",
+      "initialValue": "#067647",
+      "derive": null,
+      "minimum": null,
+      "public": true,
+      "description": "Success state.",
+      "uses": ["success state"]
+    },
+    {
+      "name": "header-background",
+      "type": "surface",
+      "default": "#ffffff",
+      "initialValue": "#ffffff",
+      "derive": "var(--color-surface)",
+      "minimum": null,
+      "public": true,
+      "description": "Header bar. Defaults to the card surface.",
+      "uses": ["header background"]
+    },
+    {
+      "name": "header-ink",
+      "type": "color",
+      "default": "#1a1a1a",
+      "initialValue": "#1a1a1a",
+      "derive": "var(--color-ink)",
+      "minimum": null,
+      "public": true,
+      "description": "Header text. Defaults to ink.",
+      "uses": ["header text"]
+    },
+    {
+      "name": "footer-background",
+      "type": "surface",
+      "default": "#1a1a1a",
+      "initialValue": "#1a1a1a",
+      "derive": "var(--color-ink)",
+      "minimum": null,
+      "public": true,
+      "description": "Footer. Defaults to ink (dark bar). Set both footer tokens for a light footer.",
+      "uses": ["footer background"]
+    },
+    {
+      "name": "footer-ink",
+      "type": "color",
+      "default": "#ffffff",
+      "initialValue": "#ffffff",
+      "derive": "var(--color-surface)",
+      "minimum": null,
+      "public": true,
+      "description": "Footer text. Defaults to the card surface.",
+      "uses": ["footer text"]
+    },
+    {
+      "name": "font-family-heading",
+      "type": "fontFamily",
+      "default": "system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif",
+      "initialValue": "system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif",
+      "derive": null,
+      "minimum": null,
+      "public": true,
+      "description": "h1 through h3 and the hero.",
+      "uses": ["h1-h3", "hero"]
+    },
+    {
+      "name": "font-family-body",
+      "type": "fontFamily",
+      "default": "system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif",
+      "initialValue": "system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif",
+      "derive": null,
+      "minimum": null,
+      "public": true,
+      "description": "Everything else you read, including buttons and fields.",
+      "uses": ["body copy", "buttons", "fields"]
+    },
+    {
+      "name": "font-family-mono",
+      "type": "fontFamily",
+      "default": "ui-monospace, \"SF Mono\", Menlo, monospace",
+      "initialValue": "ui-monospace, \"SF Mono\", Menlo, monospace",
+      "derive": null,
+      "minimum": null,
+      "public": true,
+      "description": "Code, prices, and badges.",
+      "uses": ["code", "prices", "badges"]
+    },
+    {
+      "name": "font-size-body",
+      "type": "dimension",
+      "default": "1rem",
+      "initialValue": "16px",
+      "derive": null,
+      "minimum": null,
+      "public": true,
+      "description": "Size of a paragraph. Headings and small text follow from this.",
+      "uses": ["paragraph text", "type scale"]
+    },
+    {
+      "name": "space",
+      "type": "dimension",
+      "default": "1.5rem",
+      "initialValue": "24px",
+      "derive": null,
+      "minimum": null,
+      "public": true,
+      "description": "Space between sections. Tighter and looser gaps follow from this.",
+      "uses": ["section spacing"]
+    },
+    {
+      "name": "corner-radius",
+      "type": "dimension",
+      "default": "8px",
+      "initialValue": "8px",
+      "derive": null,
+      "minimum": null,
+      "public": true,
+      "description": "Corners on buttons, cards, and fields. Tighter and rounder follow from this.",
+      "uses": ["corner radius"]
+    },
+    {
+      "name": "content-width",
+      "type": "dimension",
+      "default": "1290px",
+      "initialValue": "1290px",
+      "derive": null,
+      "minimum": null,
+      "public": true,
+      "description": "The content column. Narrower measures follow from this.",
+      "uses": ["content column"]
+    }
+  ]
+}

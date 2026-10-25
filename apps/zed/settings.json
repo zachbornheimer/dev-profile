@@ -1,0 +1,74 @@
+// Zed settings
+//
+// For information on how to configure Zed, see the Zed
+// documentation: https://zed.dev/docs/configuring-zed
+//
+// To see all of Zed's default settings without changing your
+// custom settings, run `zed: open default settings` from the
+// command palette (cmd-shift-p / ctrl-shift-p)
+{
+  "project_panel": {
+    "dock": "left"
+  },
+  "outline_panel": {
+    "dock": "left"
+  },
+  "collaboration_panel": {
+    "dock": "left"
+  },
+  "git_panel": {
+    "dock": "left"
+  },
+  "language_models": {
+    "openai_compatible": {
+      
+    }
+  },
+  "indent_guides": {
+    "background_coloring": "disabled"
+  },
+  "agent": {
+    "dock": "right",
+    "default_model": {
+      "provider": "Cerebras",
+      "model": "llama3.1-8b",
+      "enable_thinking": false
+    },
+    "favorite_models": [],
+    "model_parameters": []
+  },
+  "agent_servers": {
+    "claude-acp": {
+      "type": "registry"
+    }
+  },
+  "session": {
+    "trust_all_worktrees": true
+  },
+  "vim_mode": true,
+  "base_keymap": "VSCode",
+  "minimap": {
+    "show": "never"
+  },
+  "autosave": {
+    "after_delay": {
+      "milliseconds": 1000
+    }
+  },
+  "buffer_font_fallbacks": [
+    "IBM Plex Mono",
+    "Menlo",
+    "Monaco",
+    "Courier New",
+    "monospace"
+  ],
+  "buffer_font_family": "Berkeley Mono Variable",
+  "show_edit_predictions": true,
+  "ui_font_size": 16,
+  "buffer_font_size": 14.0,
+  "theme": {
+    "mode": "system",
+    "light": "GitHub Light",
+    "dark": "One Dark",
+  },
+}

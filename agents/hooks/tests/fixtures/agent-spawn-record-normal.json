@@ -1,0 +1,8 @@
+{
+  "session_id": "hgtest-as1",
+  "hook_event_name": "PostToolUse",
+  "tool_name": "Agent",
+  "tool_input": {
+    "subagent_type": "reviewer"
+  }
+}

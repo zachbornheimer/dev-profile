@@ -1,0 +1,6 @@
+{
+  "session_id": "hgtest-f13c",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Bash",
+  "tool_input": { "command": "git -c user.email=x@y.com commit -m wip" }
+}

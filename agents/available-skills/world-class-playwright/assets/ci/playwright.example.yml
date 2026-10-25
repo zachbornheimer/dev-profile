@@ -1,0 +1,44 @@
+# CI gates. These enforce what no single spec can check.
+name: e2e
+
+on: [pull_request]
+
+jobs:
+  # The highest-value gate: catches flake at the moment of introduction, while
+  # the author still has context, instead of six weeks later in a triage queue.
+  changed-specs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - run: npm ci && npx playwright install --with-deps chromium
+      - run: npx eslint .
+      - run: npx tsc --noEmit
+      - run: node scripts/reject-characterization-tests.mjs tests
+      - run: npx playwright test --only-changed=origin/main --repeat-each=5 --forbid-only
+
+  full-suite:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci && npx playwright install --with-deps
+      - run: npx playwright test --shard=${{ matrix.shard }}/4 --forbid-only --fail-on-flaky-tests
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trace-shard-${{ matrix.shard }}
+          path: test-results/
+
+  # Non-blocking signals. Trends, not gates — see references/enforcement.md.
+  suite-health:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci
+      - run: node scripts/suite-health.mjs # locator ratios, escape hatches, budgets
+      - run: node scripts/quarantine-expiry.mjs
