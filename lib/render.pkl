@@ -286,7 +286,9 @@ worktrunk: Dynamic = new {
   ["post-remove"] { reap = "\(pr.bin("dev-profile-dev")) reap {{ worktree_path }}" }
   // Retire hook files that retired managers left in .git/hooks, wherever you land.
   ["post-switch"] { `retire-legacy-hooks` = pr.bin("dev-profile-retire-legacy-hooks") }
-  step { ["copy-ignored"] { exclude = List(".venv/", "**/.venv/") } }
+  // Backups are never worktree state, and a backup tree can hold files the user cannot read (a
+  // buildkit snapshot owned by root), which fails the copy and with it the whole worktree start.
+  step { ["copy-ignored"] { exclude = List(".venv/", "**/.venv/", "backups/", "**/backups/") } }
   commit {
     generation {
       command = profile.llmCommand
