@@ -9,7 +9,7 @@ fail() {
 HK_FILE="$out/hk-config.pkl" hk validate >/dev/null || fail hk-config.pkl
 dprint output-resolved-config --config "$out/dprint.jsonc" >/dev/null || fail dprint.jsonc
 wt --config "$out/worktrunk.toml" config show >/dev/null || fail worktrunk.toml
-for alias in up pr pr-draft pr-auto "done" prune commit-unstaged; do
+for alias in up pr pr-draft pr-auto "done" prune commit-unstaged commit-fix; do
 	wt --config "$out/worktrunk.toml" config alias show "$alias" >/dev/null || fail "worktrunk alias $alias"
 done
 wt --config "$out/worktrunk.toml" config alias dry-run pr -- @ >/dev/null || fail worktrunk alias dry-run pr
@@ -43,6 +43,7 @@ bash tests/deny-fixture.sh "$out" || fail "deny fixture"
 bash tests/lint-full-tree-fixture.sh "$out" || fail "lint-full-tree fixture"
 for gem_tool in bundle-audit brakeman; do command -v "$gem_tool" >/dev/null || echo "note: $gem_tool is not installed; run mise install (pinned in profile.pkl tools). Its push check is skipped until then."; done
 bash tests/pr-fixture.sh "$out" || fail "pr fixture"
+bash tests/commit-fix-fixture.sh "$out" || fail "commit-fix fixture"
 bash tests/escape-hatch-fixture.sh README.md "$out" || fail "escape-hatch fixture"
 bash tests/sync-fixture.sh "$out" || fail "sync fixture"
 bash tests/done-fixture.sh "$out" || fail "done fixture"

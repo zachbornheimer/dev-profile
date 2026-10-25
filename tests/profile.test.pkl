@@ -85,6 +85,16 @@ facts {
         && alias.contains("exit \"$status\"")
         && !alias.contains("wt switch --create chore/uncommited &&")
   }
+  ["commit-fix hands a failed wt step commit to omp"] {
+    render.worktrunk.aliases["commit-fix"]
+      == "\(profile.installPath)/bin/dev-profile-commit-fix step commit {{ args }}"
+    render.wrappers.containsKey("wt")
+    render.wrappers.containsKey("dev-profile-commit-fix")
+    render.wrappers["dev-profile-commit-fix"].contains("print -ru2")
+    render.wrappers["dev-profile-commit-fix"].contains(
+      "We were unable to run wt step commit due to errors. please fix, and then commit with wt step commit.",
+    )
+  }
   ["every pre-push step judges: a check, never only a fix"] {
     for (_, step in pushSteps) { hasCheck(step) }
   }
