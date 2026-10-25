@@ -28,7 +28,8 @@ jobs:
           # shares a 60/hour budget with every runner on the same address.
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          echo "MISE_GLOBAL_CONFIG_FILE=${GITHUB_WORKSPACE}/config/tools.toml" >>"$GITHUB_ENV"
+          export MISE_GLOBAL_CONFIG_FILE="${GITHUB_WORKSPACE}/config/tools.toml"
+          echo "MISE_GLOBAL_CONFIG_FILE=${MISE_GLOBAL_CONFIG_FILE}" >>"$GITHUB_ENV"
           mise install --yes
       - name: Test
         # Pins live in the repo. There is no generate step.
