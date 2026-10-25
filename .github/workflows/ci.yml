@@ -16,9 +16,15 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
+      # Not actions/checkout: its post step hangs on this job after the tests
+      # pass (actions/runner#2409) and the run never reports completion, so a
+      # green test cannot merge. A fetch has no post step.
+      - name: Checkout
+        run: |
+          git init -q
+          git remote add origin "https://github.com/${{ github.repository }}.git"
+          git fetch --depth 1 origin "${{ github.sha }}"
+          git checkout --detach FETCH_HEAD
       - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
       - name: System tools doctor needs
         run: sudo apt-get update -q && sudo apt-get install -y -q lua5.4 zsh ruby-full perltidy libperl-critic-perl
