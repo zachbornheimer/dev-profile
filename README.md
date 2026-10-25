@@ -168,8 +168,13 @@ wt done -- --drop
 ```
 
 `wt prune` deletes merged branches now (`wt step prune --min-age=0s`; the
-built-in wait is 1d). `wt commit-unstaged` stashes everything, commits it on
-`chore/uncommited`, and merges that branch back. Both are generated aliases,
+built-in wait is 1d). `wt land` commits, then merges when the origin is a
+personal `github.com/zachbornheimer` repo and opens an auto-merging PR
+otherwise. A clean tree skips the commit and still lands. `--landing=merge`
+or `--landing=pr` forces that choice. On the default branch it does not commit
+in place: `wt tree-for-changes` stashes
+the work onto a new uuid worktree, then `wt land --landing=merge` lands it.
+`wt commit-unstaged` is that same two-step path. These are generated aliases,
 not a hand edit of `worktrunk.toml`.
 
 ## Repo contract

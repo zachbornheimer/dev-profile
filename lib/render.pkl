@@ -315,32 +315,79 @@ worktrunk: Dynamic = new {
     ...done.aliases
     // Prune what is merged now; the built-in `--min-age` default is 1d.
     prune = "wt step prune --min-age=0s"
+    // Move staged, unstaged, and untracked changes into a new worktree whose
+    // branch is a uuid, then pop them there. The worktree directory is named
+    // from that branch. A command after `--` runs in the new worktree (`-x`):
     // `wt switch` cds the interactive shell only after the top-level wt
-    // returns, so a later `&&` still runs in the invoking worktree and the
-    // default-branch guard refuses the commit. `-x` runs pop, commit, and
-    // merge in the new worktree whether or not the shell follows. `--no-cd`
-    // keeps a successful merge from leaving the shell in the worktree it
-    // removes. Success then switches to the default branch; failure switches
-    // to the feature branch and exits non-zero. An existing branch is reused
-    // so a retry after that failure pops the stash there instead of dying
-    // on `--create`. The branch name is the one the hand alias already uses.
-    ["commit-unstaged"] =
+    // returns, so a later `&&` still runs in the invoking directory and the
+    // default-branch guard refuses the commit. With a command, success
+    // returns the shell to the default branch and failure switches to the
+    // uuid branch. Without one, the shell follows the new worktree. If the
+    // worktree is never created, the stash is popped back here.
+    ["tree-for-changes"] =
       """
       git stash push -u || exit 1
-      cmd='git stash pop && wt step commit && wt merge'
-      if git show-ref --verify --quiet refs/heads/chore/uncommited; then
-        wt switch chore/uncommited --no-cd -x sh -- -c "$cmd"
-      else
-        wt switch --create chore/uncommited --no-cd -x sh -- -c "$cmd"
-      fi
-      status=$?
-      if [ "$status" -eq 0 ]; then
+      id=$(uuidgen) || { git stash pop; exit 1; }
+      id=$(printf '%s' "$id" | tr '[:upper:]' '[:lower:]')
+      [ -n "$id" ] || { git stash pop; exit 1; }
+      {% if args %}
+      if wt switch --create "$id" --no-cd -x sh -- -c 'git stash pop && exec "$@"' tree-for-changes {{ args }}; then
         wt switch ^
       else
-        wt switch chore/uncommited
+        status=$?
+        if git show-ref --verify --quiet "refs/heads/$id"; then
+          wt switch "$id"
+        else
+          git stash pop || true
+        fi
         exit "$status"
       fi
+      {% else %}
+      if ! wt switch --create "$id" -x git -- stash pop; then
+        status=$?
+        git show-ref --verify --quiet "refs/heads/$id" || git stash pop || true
+        exit "$status"
+      fi
+      {% endif %}
       """
+    // Commit, then merge when the origin is a personal zachbornheimer repo
+    // (https or ssh), otherwise commit and open an auto-merging PR.
+    // `--landing=merge` or `--landing=pr` forces that path. A clean tree skips
+    // the commit: `wt step commit` exits 1 with "Nothing to commit", which
+    // would otherwise stop the landing. On the default branch the commit
+    // guard refuses a direct commit, so move the changes to a uuid worktree
+    // and merge from there.
+    land =
+      """
+      {% if branch | default("") == default_branch %}
+      wt tree-for-changes -- wt land --landing=merge
+      {% elif landing | default("") == "merge" %}
+      if ! git diff --quiet || ! git diff --cached --quiet || [ -n "$(git ls-files --others --exclude-standard)" ]; then
+        wt step commit || exit 1
+      fi
+      wt merge
+      {% elif landing | default("") == "pr" %}
+      if ! git diff --quiet || ! git diff --cached --quiet || [ -n "$(git ls-files --others --exclude-standard)" ]; then
+        wt step commit || exit 1
+      fi
+      wt pr-auto
+      {% elif landing | default("") != "" %}
+      echo "wt land: --landing must be merge or pr" >&2
+      exit 1
+      {% elif owner | default("") | lower == "zachbornheimer" or "github.com/zachbornheimer/" in remote_url | default("") | lower or "github.com:zachbornheimer/" in remote_url | default("") | lower %}
+      if ! git diff --quiet || ! git diff --cached --quiet || [ -n "$(git ls-files --others --exclude-standard)" ]; then
+        wt step commit || exit 1
+      fi
+      wt merge
+      {% else %}
+      if ! git diff --quiet || ! git diff --cached --quiet || [ -n "$(git ls-files --others --exclude-standard)" ]; then
+        wt step commit || exit 1
+      fi
+      wt pr-auto
+      {% endif %}
+      """
+    // Same path `wt land` takes on the default branch.
+    ["commit-unstaged"] = "wt tree-for-changes -- wt land --landing=merge"
   }
 }
 

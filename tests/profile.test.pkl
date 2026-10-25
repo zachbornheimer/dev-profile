@@ -77,13 +77,28 @@ facts {
     render.worktrunk["post-remove"].reap
       == "\(profile.installPath)/bin/dev-profile-dev reap {{ worktree_path }}"
   }
-  ["commit-unstaged commits in the new worktree, not the invoking shell"] {
-    render.worktrunk.aliases.prune == "wt step prune --min-age=0s"
-    let (alias = render.worktrunk.aliases["commit-unstaged"])
-      alias.contains("--no-cd -x sh -- -c")
-        && alias.contains("git stash pop && wt step commit && wt merge")
+  ["tree-for-changes runs the follow-up in the new worktree, not the invoking shell"] {
+    let (alias = render.worktrunk.aliases["tree-for-changes"])
+      alias.contains("uuidgen")
+        && alias.contains("--no-cd -x sh -- -c 'git stash pop && exec")
         && alias.contains("exit \"$status\"")
-        && !alias.contains("wt switch --create chore/uncommited &&")
+        && !alias.contains("chore/uncommited")
+  }
+  ["land merges a personal origin, opens a PR otherwise, and leaves the default branch"] {
+    let (alias = render.worktrunk.aliases.land)
+      alias.contains("wt tree-for-changes -- wt land --landing=merge")
+        && alias.contains("git diff --quiet")
+        && alias.contains("wt step commit || exit 1")
+        && alias.contains("wt merge")
+        && alias.contains("wt pr-auto")
+        && !alias.contains("wt step commit && wt merge")
+        && alias.contains("github.com/zachbornheimer/")
+        && alias.contains("github.com:zachbornheimer/")
+        && alias.contains("landing | default(\"\") == \"merge\"")
+        && alias.contains("landing | default(\"\") == \"pr\"")
+  }
+  ["commit-unstaged is tree-for-changes then a forced merge"] {
+    render.worktrunk.aliases["commit-unstaged"] == "wt tree-for-changes -- wt land --landing=merge"
   }
   ["every pre-push step judges: a check, never only a fix"] {
     for (_, step in pushSteps) { hasCheck(step) }
