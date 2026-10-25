@@ -273,6 +273,12 @@ worktrunk: Dynamic = new {
   // worktree, sharing one cargo target dir across them. `wt step copy-ignored`
   // reflinks instead (isolated dir, no extra disk), so post-remove has nothing
   // left to release.
+  // Bootstrap a new worktree's gitignored files (deps, caches) from the primary
+  // before anything else runs. Blocking pre-start, not background post-start:
+  // an agent landing in the worktree must never race the copy. The global git
+  // post-checkout hook runs this same entry (`wt hook pre-start user:bootstrap`)
+  // for worktrees wt itself did not create (Claude Code, herdr, plain git).
+  ["pre-start"] { bootstrap = "wt step copy-ignored" }
   // One entry, because post-start entries run concurrently: the copy lands before
   // the stack starts (tools/repo/worktree-start.pkl). It starts the stack through
   // `mise run dev`, so each code root's own profile picks the dispatcher.

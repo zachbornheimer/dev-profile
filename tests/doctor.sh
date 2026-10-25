@@ -19,7 +19,8 @@ luac -p "$out/conform.lua" || fail conform.lua
 zsh -n "$out/shell.zsh" || fail shell.zsh
 for f in "$out"/bin/*; do bash -n "$f" || fail "${f##*/}"; done
 # Same bar the profile sets for every repo's push: warnings block, info tips do not.
-shellcheck --severity=warning "$out"/bin/* tests/*.sh || fail shellcheck
+# -x follows `source`, so tests/contract/*.sh are judged with their world.sh.
+shellcheck -x --severity=warning "$out"/bin/* tests/*.sh tests/contract/*.sh tests/guards/*.sh || fail shellcheck
 "$out/bin/dev-profile-git-config-hooks" || fail "git 2.54+ (config-based hooks) does not resolve"
 # Every generated script runs under pipefail: a reader that stops early (head)
 # kills its writer with SIGPIPE and the script with exit 141.
@@ -27,42 +28,62 @@ if grep -nE '[|][[:space:]]*head([[:space:]]|$)' "$out"/bin/*; then fail "a gene
 golangci-lint config verify --config "$out/golangci.yml" || fail golangci.yml
 grep -F "allow-parallel-runners: true" "$out/golangci.yml" || fail "golangci allow-parallel-runners"
 grep -F "composer audit --locked" "$out/bin/dev-profile-contract-php" || fail "composer audit --locked"
-if pkl eval -x 'checks["oxlint"].check' profile.pkl | grep -F -- "--deny-warnings"; then fail "oxlint must not deny-warnings"; fi
+# The `--deny-warnings` bar is an invariant `pkl test` below already evaluates,
+# so it costs no second full evaluation of the profile here.
 while IFS= read -r cmd; do [[ -x "$out/bin/$cmd" ]] || fail "hk step command without a rendered bin script: $cmd"; done < <(grep -ohE "dev-profile-[a-z0-9-]+" "$out/src/profile.pkl" "$out"/src/tools/*/*.pkl | sort -u)
 pkl test tests/profile.test.pkl || fail "pkl test (regenerate the snapshot with: pkl test --overwrite tests/profile.test.pkl)"
-bash tests/contract-fixtures.sh "$out" || fail "contract fixtures"
-bash tests/go-fix-fixture.sh "$out" || fail "go-fix fixture"
-bash tests/gosec-fixture.sh "$out" || fail "gosec fixture"
-bash tests/go-mod-tidy-fixture.sh "$out" || fail "go-mod-tidy fixture"
-bash tests/bump-fixture.sh "$out" || fail "bump fixture"
-bash tests/modernizer-fixture.sh "$out" || fail "modernizer fixture"
-bash tests/perl-profile-fixture.sh "$out" || fail "perl-profile fixture"
-bash tests/guards-fixture.sh "$out" || fail "guards fixture"
-bash tests/deny-fixture.sh "$out" || fail "deny fixture"
-bash tests/lint-full-tree-fixture.sh "$out" || fail "lint-full-tree fixture"
+bash tests/fixture-runner-test.sh || fail "fixture runner"
 for gem_tool in bundle-audit brakeman; do command -v "$gem_tool" >/dev/null || echo "note: $gem_tool is not installed; run mise install (pinned in profile.pkl tools). Its push check is skipped until then."; done
-bash tests/pr-fixture.sh "$out" || fail "pr fixture"
-bash tests/escape-hatch-fixture.sh README.md "$out" || fail "escape-hatch fixture"
-bash tests/sync-fixture.sh "$out" || fail "sync fixture"
-bash tests/done-fixture.sh "$out" || fail "done fixture"
-bash tests/retire-fixture.sh "$out" || fail "retire fixture"
-bash tests/shellcheck-fix-fixture.sh "$out" || fail "shellcheck-fix fixture"
-bash tests/shellcheck-severity-fixture.sh "$out" || fail "shellcheck-severity fixture"
-bash tests/tool-path-fixture.sh "$out" || fail "tool-path fixture"
-bash tests/shell-init-fixture.sh "$out" || fail "shell-init fixture"
-bash tests/dev-family-fixture.sh "$out" || fail "dev-family fixture"
-bash tests/worktree-copy-fixture.sh "$out" || fail "worktree-copy fixture"
-bash tests/worktree-start-fixture.sh "$out" || fail "worktree-start fixture"
-bash tests/identity-guard-fixture.sh "$out" || fail "identity-guard fixture"
-bash tests/hardcoded-dev-port-fixture.sh "$out" || fail "hardcoded-dev-port fixture"
-bash tests/formatter-linter-agreement-fixture.sh "$out" || fail "formatter-linter-agreement fixture"
-bash tests/swift-format-fixture.sh "$out" || fail "swift-format fixture"
-bash tests/owned-files-fixture.sh "$out" || fail "owned-files fixture"
-bash tests/kernel-pins-fixture.sh "$out" || fail "kernel-pins fixture"
-bash tests/retire-legacy-hooks-fixture.sh "$out" || fail "retire-legacy-hooks fixture"
-bash tests/ci-action-fixture.sh "$out" || fail "ci-action fixture"
-bash tests/out-dir-fixture.sh || fail "out-dir fixture"
-bash tests/conform-resolve-fixture.sh "$out" || fail "conform-resolve fixture"
-bash tests/lint-binding-fixture.sh "$out" || fail "lint-binding fixture"
-bash tests/land-alias-fixture.sh "$out" || fail "land-alias fixture"
+# Every fixture builds its own repos under mktemp -d and reads this render
+# read-only, so they run as a pool. The worker count is the core count, capped
+# (tests/run-fixtures.sh); each failure is named with its own log.
+fixtures=(
+	tests/contract/go.sh
+	tests/contract/hooks.sh
+	tests/contract/dotnet.sh
+	tests/contract/node.sh
+	tests/contract/pnpm.sh
+	tests/contract/composer.sh
+	tests/contract/overrides.sh
+	tests/contract/runners.sh
+	tests/contract/tasks.sh
+	tests/contract/suppressions.sh
+	tests/go-fix-fixture.sh
+	tests/gosec-fixture.sh
+	tests/go-mod-tidy-fixture.sh
+	tests/bump-fixture.sh
+	tests/modernizer-fixture.sh
+	tests/perl-profile-fixture.sh
+	tests/guards/commit.sh
+	tests/guards/push.sh
+	tests/guards/skip.sh
+	tests/guards/util.sh
+	tests/deny-fixture.sh
+	tests/lint-full-tree-fixture.sh
+	tests/pr-fixture.sh
+	tests/escape-hatch-fixture.sh
+	tests/sync-fixture.sh
+	tests/done-fixture.sh
+	tests/retire-fixture.sh
+	tests/shellcheck-fix-fixture.sh
+	tests/shellcheck-severity-fixture.sh
+	tests/tool-path-fixture.sh
+	tests/shell-init-fixture.sh
+	tests/dev-family-fixture.sh
+	tests/worktree-copy-fixture.sh
+	tests/worktree-start-fixture.sh
+	tests/identity-guard-fixture.sh
+	tests/hardcoded-dev-port-fixture.sh
+	tests/formatter-linter-agreement-fixture.sh
+	tests/swift-format-fixture.sh
+	tests/owned-files-fixture.sh
+	tests/kernel-pins-fixture.sh
+	tests/retire-legacy-hooks-fixture.sh
+	tests/ci-action-fixture.sh
+	tests/out-dir-fixture.sh
+	tests/conform-resolve-fixture.sh
+	tests/lint-binding-fixture.sh
+	tests/land-alias-fixture.sh
+)
+bash tests/run-fixtures.sh "$out" "${fixtures[@]}" || fail "fixtures"
 echo "doctor ok"

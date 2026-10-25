@@ -1,17 +1,19 @@
 amends "../../lib/Tool.pkl"
 
 doc =
-  "One checkout's local dev stack behind portless: `mise run dev` prints the state, starts it detached when it is down and prints the state again; `dev:status` is the only probe (it reads a pidfile, never a port or `ps`), `dev:start` is idempotent and never kills, `dev:restart` is the only verb that stops, and `dev:attach` runs it in the foreground. When worktrunk is available the stack runs under its tether (`wt step tether`), which kills the whole process group when the worktree is removed; otherwise it is a plain detached spawn. Every process a stack starts carries `DEV_PROFILE_DEV_STACK=<checkout>`, so what leaves the group (`op run` leads one of its own) is still stopped by `dev:restart` and by `dev-profile-dev reap <worktree-path>`, which worktrunk's post-remove hook runs. A repo declares its own serve command by shipping an executable `mise-tasks/dev-serve`."
+  "One checkout's local dev stack behind portless: `mise run dev` prints the state, starts it detached when it is down and prints the state again; `dev:status` reads the pidfile and does not probe the URL; bare `dev` probes the route after a grace window and restarts a portless 404 or a 502, but not a gateway that is still holding; `dev:start` is idempotent and never kills, `dev:restart` is the only verb that stops, and `dev:attach` runs it in the foreground. When worktrunk is available the stack runs under its tether (`wt step tether`), which kills the whole process group when the worktree is removed; otherwise it is a plain detached spawn. Every process a stack starts carries `DEV_PROFILE_DEV_STACK=<checkout>`, so what leaves the group (`op run` leads one of its own) is still stopped by `dev:restart` and by `dev-profile-dev reap <worktree-path>`, which worktrunk's post-remove hook runs. A repo declares its own serve command by shipping an executable `mise-tasks/dev-serve`."
 
 local dev =
   #"""
   \#(bash)
-  # One checkout's dev stack. `dev:status` is the only probe: it reads the
-  # recorded pid, so nothing has to scan ports or grep `ps`. `dev:start` starts
+  # One checkout's dev stack. `dev:status` reads the recorded pid and does not
+  # probe the URL. Bare `dev` probes the route after the grace window: a
+  # portless 404 or a 502 restarts, a gateway hold does not. `dev:start` starts
   # the stack detached under an exclusive lock and is idempotent, under
   # worktrunk's tether when it is available. `dev:restart` is the only verb that
   # signals a process. `dev:attach` runs it in the foreground. Bare `dev` is
-  # status -> start when down -> status.
+  # status, then restart when the route does not serve, else start when down,
+  # then status.
   verb="${1:-}"
 
   # A DNS label: lowercase, anything else folded to single dashes.
@@ -187,6 +189,54 @@ local dev =
     portless_here get "${name}" 2>/dev/null || echo "https://${name}.localhost"
   }
 
+  # A recorded pid can be alive while the URL serves nothing. Bare `dev` probes
+  # after the grace window; `dev:status` does not. A curl timeout with no status
+  # is the gateway holding the request while the app binds, for up to
+  # DEV_PROFILE_DEV_HOLD_SECONDS (default 180, the dev-gateway hold). That is
+  # still booting. A portless 404 is JSON {"error":"not_found",...}; a client
+  # whose Accept includes text/html gets the HTML page ("No app registered for")
+  # instead. An application 404 is the app answering.
+  portless_not_found() {
+    [[ "$1" == *'"error":"not_found"'* || "$1" == *'"error": "not_found"'* || "$1" == *'No app registered for'* ]]
+  }
+
+  route_serves() {
+    local code written age grace hold body_file header_file payload curl_status
+    grace="${DEV_PROFILE_DEV_PROBE_GRACE:-60}"
+    hold="${DEV_PROFILE_DEV_HOLD_SECONDS:-180}"
+    written="$(date -r "${pidfile}" +%s 2>/dev/null)" || return 0
+    age=$(($(date +%s) - written))
+    ((age >= grace)) || return 0
+    command -v curl >/dev/null 2>&1 || return 0
+    body_file="$(mktemp)"
+    header_file="$(mktemp)"
+    curl_status=0
+    # Accept excludes text/html so portless returns its JSON error. -D/-o keep
+    # the status and the body; the exit code is what distinguishes a hold.
+    curl -sk --max-time "${DEV_PROFILE_DEV_PROBE_TIMEOUT:-3}" \
+      -H 'Accept: application/json' \
+      -D "${header_file}" -o "${body_file}" "$(route_url)/" >/dev/null 2>&1 || curl_status=$?
+    code="$(awk 'NR==1 { gsub(/\r/, "", $2); print $2 }' "${header_file}")"
+    payload="$(cat "${body_file}" 2>/dev/null || true)"
+    rm -f "${body_file}" "${header_file}"
+    if [[ "${curl_status}" -eq 28 && -z "${code}" ]]; then
+      if ((age >= hold)); then
+        return 1
+      fi
+      return 0
+    fi
+    case "${code}" in
+      502 | 503 | 504) return 1 ;;
+      404)
+        if portless_not_found "${payload}"; then
+          return 1
+        fi
+        return 0
+        ;;
+      "" | 000) return 1 ;;
+      *) return 0 ;;
+    esac
+  }
   # The pid portless reports as serving this checkout's route, if any. `get`
   # answers the URL only, so the route table is read; a holder that predates the
   # pidfile is invisible here only when nothing holds the route at all.
@@ -276,6 +326,10 @@ local dev =
     fi
     if has_dev_script; then
       echo "exec $(package_manager) run dev -- --port \$PORT"
+      return 0
+    fi
+    if [[ -f Caddyfile ]]; then
+      echo 'exec caddy run --config Caddyfile --adapter caddyfile'
       return 0
     fi
     return 1
@@ -499,18 +553,22 @@ local dev =
 
   case "${verb}" in
     "" | dev)
-      # Safe on every `cd`: a cheap no-op with one clear line when nothing is
-      # configured, an immediate status line when the stack already serves, never
-      # a second stack when two shells enter at once, and always a final status
-      # line so an on-cd hook's log carries the checkout's URL.
+      # Safe on every `cd`: nothing configured is one line; a URL that answers
+      # is left alone; a portless 404 or a 502 is restarted. A curl timeout
+      # younger than the gateway hold is the app still binding, not a restart.
       if ! serve_command >/dev/null; then
         unconfigured
         exit 1
       fi
-      if status; then
+      if status && route_serves; then
         exit 0
       fi
-      start || exit $?
+      if status; then
+        echo "dev: stack is recorded running but $(route_url) does not answer; restarting" >&2
+        restart || exit $?
+      else
+        start || exit $?
+      fi
       status
       ;;
     status) status ;;

@@ -42,7 +42,7 @@ mise run rollback    # restore the backed-up originals
 | `lib/Tool.pkl`           | the template every tool file amends                           |
 | `lib/hk.pkl`             | the hk config, assembled from the tools                       |
 | `lib/script.pkl`         | bash fragments the tool scripts share                         |
-| `lib/render.pkl`         | one renderer per generated file                               |
+| `lib/render.pkl`         | one renderer per generated file; `wt up`, `wt prune` inline   |
 | `lib/contract.pkl`       | the repo task contract (`mise run lint`, `test`, `scan`...)   |
 | `lib/pr.pkl`             | `wt pr`, `wt pr-draft`, `wt pr-auto`                          |
 | `lib/done.pkl`           | `wt done`: restack, push, pull requests, prune, drop          |

@@ -92,6 +92,60 @@ done
 chmod +x "${work}/bin/portless"
 export PATH="${work}/bin:${PATH}"
 
+# curl is what route_serves calls, by name. The default answers 200 with an
+# empty body so a probe, even after the grace window, never touches the network.
+cat >"${work}/bin/curl" <<'STUB'
+#!/usr/bin/env bash
+# DEV_FIXTURE_CURL_STATUS (default 200), DEV_FIXTURE_CURL_BODY, DEV_FIXTURE_CURL_EXIT (default 0).
+set -euo pipefail
+status="${DEV_FIXTURE_CURL_STATUS-200}"
+body="${DEV_FIXTURE_CURL_BODY-}"
+exit_code="${DEV_FIXTURE_CURL_EXIT-0}"
+dest_headers="-"
+dest_body=""
+while [[ $# -gt 0 ]]; do
+	case "$1" in
+	-D)
+		dest_headers="${2:-}"
+		shift 2
+		;;
+	-o)
+		dest_body="${2:-}"
+		shift 2
+		;;
+	-D*)
+		dest_headers="${1#-D}"
+		shift
+		;;
+	-o*)
+		dest_body="${1#-o}"
+		shift
+		;;
+	*)
+		shift
+		;;
+	esac
+done
+line=""
+if [[ -n "${status}" && "${status}" != 000 ]]; then
+	line="HTTP/1.1 ${status} stub"
+fi
+if [[ -n "${dest_headers}" && "${dest_headers}" != "-" ]]; then
+	if [[ -n "${line}" ]]; then
+		printf '%s\n' "${line}" >"${dest_headers}"
+	else
+		: >"${dest_headers}"
+	fi
+elif [[ -n "${line}" ]]; then
+	printf '%s\n' "${line}"
+fi
+if [[ -n "${dest_body}" && "${dest_body}" != /dev/null ]]; then
+	printf '%s' "${body}" >"${dest_body}"
+fi
+exit "${exit_code}"
+STUB
+chmod +x "${work}/bin/curl"
+
 sleeper_serve() {
 	printf '#!/usr/bin/env bash\nset -euo pipefail\nexec sleep 300\n' >"$1"
 	chmod +x "$1"
@@ -440,5 +494,93 @@ expect '^https://repo[.]localhost$'
 kill -TERM "${unrelated}" 2>/dev/null || :
 wait "${unrelated}" 2>/dev/null || :
 : >"${DEV_FIXTURE_ROUTES}"
+
+# --- bare dev probes the route. A proxy 404 or 502 restarts once. An
+# application 404, and a curl timeout younger than the gateway hold, do not.
+
+export DEV_PROFILE_DEV_PROBE_GRACE=0
+portless_404='{"error":"not_found","upstream":"repo.localhost","message":"No app registered for repo.localhost"}'
+
+reset_curl() {
+	export DEV_FIXTURE_CURL_STATUS=200 DEV_FIXTURE_CURL_BODY="" DEV_FIXTURE_CURL_EXIT=0
+	unset DEV_PROFILE_DEV_HOLD_SECONDS
+}
+
+# Age the recorded pidfile, then the next bare dev probes it. `now` is younger
+# than the 180s hold; a number is seconds ago.
+arm_probe() {
+	export DEV_FIXTURE_CURL_STATUS="$1" DEV_FIXTURE_CURL_BODY="$2" DEV_FIXTURE_CURL_EXIT="$3"
+	if [[ "$4" == now ]]; then
+		touch "${cache}/repo.pid"
+	else
+		touch -t "$(date -v-"$4"S +%Y%m%d%H%M.%S)" "${cache}/repo.pid"
+	fi
+}
+
+probe_failures=()
+
+assert_restarts_once() {
+	local before_spawns before_pid
+	before_spawns="$(spawns)"
+	before_pid="$(sed -n 1p "${cache}/repo.pid")"
+	if ! run_dev; then
+		probe_failures+=("bare dev exited non-zero for a route that should restart: ${1}")
+		return 0
+	fi
+	if ! grep -q 'does not answer' "${work}/output.txt"; then
+		probe_failures+=("bare dev did not restart ${1} (no 'does not answer')")
+	fi
+	if [[ "$(spawns)" -ne $((before_spawns + 1)) ]]; then
+		probe_failures+=("bare dev did not restart ${1} once (spawns $(spawns), was ${before_spawns})")
+	fi
+	if [[ "$(sed -n 1p "${cache}/repo.pid")" == "${before_pid}" ]]; then
+		probe_failures+=("bare dev kept the pid for ${1}")
+	fi
+}
+
+assert_does_not_restart() {
+	local before_spawns before_pid
+	before_spawns="$(spawns)"
+	before_pid="$(sed -n 1p "${cache}/repo.pid")"
+	if ! run_dev; then
+		probe_failures+=("bare dev exited non-zero for a route that should be left alone: ${1}")
+		return 0
+	fi
+	if grep -q 'does not answer' "${work}/output.txt"; then
+		probe_failures+=("bare dev restarted ${1}")
+	fi
+	if [[ "$(spawns)" -ne "${before_spawns}" ]]; then
+		probe_failures+=("bare dev spawned for ${1} (spawns $(spawns), was ${before_spawns})")
+	fi
+	if [[ "$(sed -n 1p "${cache}/repo.pid")" != "${before_pid}" ]]; then
+		probe_failures+=("bare dev replaced the pid for ${1}")
+	fi
+}
+
+run_dev status || run_dev || fail "the probe cases need a running stack"
+reset_curl
+
+arm_probe 502 "" 0 400
+assert_restarts_once "a 502"
+
+arm_probe 404 "${portless_404}" 0 400
+assert_restarts_once "a portless 404"
+
+arm_probe 404 missing 0 400
+assert_does_not_restart "an application 404"
+
+arm_probe "" "" 28 now
+assert_does_not_restart "a timeout younger than the hold"
+
+export DEV_PROFILE_DEV_HOLD_SECONDS=0
+arm_probe "" "" 28 now
+assert_restarts_once "a timeout older than the hold"
+reset_curl
+unset DEV_PROFILE_DEV_PROBE_GRACE
+
+if ((${#probe_failures[@]} > 0)); then
+	printf 'probe: %s\n' "${probe_failures[@]}" >&2
+	fail "route probe: ${probe_failures[*]}"
+fi
 
 echo "dev-family fixture ok"
