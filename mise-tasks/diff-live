@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
-#MISE description="Show what install-live would change in live configs"
+#MISE description="Show what mise dot apply would change"
 set -euo pipefail
-MISE_GLOBAL_CONFIG_FILE="$DEV_PROFILE_OUT/mise-profile.toml" mise bootstrap dotfiles diff
+mise dot apply --dry-run
