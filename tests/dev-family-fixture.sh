@@ -552,4 +552,41 @@ expect '^state=running url=https://idle\.localhost pid=[0-9]+$'
 run_dev stop || fail "dev:stop must stop the restarted stack"
 unset DEV_PROFILE_DEV_IDLE_SECONDS
 
+# --- recorded running, but the URL does not answer: cd restarts it
+#
+# A pid being alive is not the URL working. Once the stack is past its boot
+# grace, a gateway error or no response is restarted; an answer from the app is
+# left alone, since restarting would not fix the app's own status.
+
+dead="${work}/deadurl"
+git init -q -b main "${dead}"
+cd "${dead}"
+mkdir -p mise-tasks
+sleeper_serve mise-tasks/dev-serve
+git add -A
+git commit -qm serve
+export DEV_PROFILE_DEV_PROBE_GRACE=0
+run_dev || fail "dev must start the dead-url stack"
+leader="$(sed -n 1p "${cache}/deadurl.pid")"
+cat >"${work}/bin/curl" <<'STUB'
+#!/usr/bin/env bash
+printf '%s' "${DEV_FIXTURE_CURL_CODE:-200}"
+STUB
+chmod +x "${work}/bin/curl"
+export DEV_FIXTURE_CURL_CODE=502
+before="$(spawns)"
+run_dev || fail "dev must restart a stack whose URL answers 502"
+expect 'does not answer; restarting'
+[[ "$(sed -n 1p "${cache}/deadurl.pid")" != "${leader}" ]] || fail "a URL that does not answer must get a new stack"
+[[ "$(spawns)" -gt "${before}" ]] || fail "restarting a dead URL must start a stack"
+leader="$(sed -n 1p "${cache}/deadurl.pid")"
+before="$(spawns)"
+export DEV_FIXTURE_CURL_CODE=200
+run_dev || fail "dev must leave a stack whose URL answers"
+[[ "$(sed -n 1p "${cache}/deadurl.pid")" == "${leader}" ]] || fail "a URL that answers must not be restarted"
+[[ "$(spawns)" == "${before}" ]] || fail "a URL that answers must not start a stack"
+run_dev stop || fail "dev:stop must stop the dead-url stack"
+rm -f "${work}/bin/curl"
+unset DEV_FIXTURE_CURL_CODE DEV_PROFILE_DEV_PROBE_GRACE
+
 echo "dev-family fixture ok"

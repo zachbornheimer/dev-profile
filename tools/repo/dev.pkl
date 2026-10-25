@@ -192,6 +192,25 @@ local dev =
     portless_here get "${name}" 2>/dev/null || echo "https://${name}.localhost"
   }
 
+  # A recorded pid can be alive while the URL serves nothing: the proxy's 502,
+  # a route aimed at a port nobody listens on, an app that exited under a parent
+  # that did not. `cd` must not report that as serving. A stack younger than the
+  # grace window is still booting, so it is left alone; an older one whose URL
+  # answers a gateway error or nothing is not serving. Any other response is the
+  # app's own, and restarting would not fix it.
+  route_serves() {
+    local code written grace="${DEV_PROFILE_DEV_PROBE_GRACE:-60}"
+    written="$(date -r "${pidfile}" +%s 2>/dev/null)" || return 0
+    (($(date +%s) - written >= grace)) || return 0
+    command -v curl >/dev/null 2>&1 || return 0
+    code="$(curl -sk -o /dev/null -w '%{http_code}' --max-time "${DEV_PROFILE_DEV_PROBE_TIMEOUT:-3}" "$(route_url)/" 2>/dev/null || true)"
+    code="${code//[$'\r\n']/}"
+    case "${code}" in
+      "" | 000 | 502 | 503 | 504) return 1 ;;
+      *) return 0 ;;
+    esac
+  }
+
   # The pid portless reports as serving this checkout's route, if any. `get`
   # answers the URL only, so the route table is read; a holder that predates the
   # pidfile is invisible here only when nothing holds the route at all.
@@ -578,7 +597,8 @@ local dev =
   case "${verb}" in
     "" | dev)
       # Safe on every `cd`: a cheap no-op with one clear line when nothing is
-      # configured, an immediate status line when the stack already serves, never
+      # configured, an immediate status line when the stack already serves, a
+      # restart when it is recorded running but its URL does not answer, never
       # a second stack when two shells enter at once, and always a final status
       # line so an on-cd hook's log carries the checkout's URL.
       if ! serve_command >/dev/null; then
@@ -586,7 +606,13 @@ local dev =
         exit 1
       fi
       if status; then
-        exit 0
+        if route_serves; then
+          exit 0
+        fi
+        echo "dev: stack is recorded running but $(route_url) does not answer; restarting" >&2
+        restart || exit $?
+        status
+        exit $?
       fi
       start || exit $?
       status
