@@ -1,7 +1,7 @@
 amends "../../lib/Tool.pkl"
 
 doc =
-  "One checkout's local dev stack behind portless: `mise run dev` prints the state, starts it detached when it is down and prints the state again; `dev:status` is the only probe (it reads a pidfile, never a port or `ps`), `dev:start` is idempotent and never kills, `dev:restart` is the only verb that stops, and `dev:attach` runs it in the foreground. When worktrunk is available the stack runs under its tether (`wt step tether`), which kills the whole process group when the worktree is removed; otherwise it is a plain detached spawn. Every process a stack starts carries `DEV_PROFILE_DEV_STACK=<checkout>`, so what leaves the group (`op run` leads one of its own) is still stopped by `dev:restart` and by `dev-profile-dev reap <worktree-path>`, which worktrunk's post-remove hook runs. A repo declares its own serve command by shipping an executable `mise-tasks/dev-serve`."
+  "One checkout's local dev stack behind portless: `mise run dev` prints the state, starts it detached when it is down and prints the state again; `dev:status` is the only probe (it reads a pidfile, never a port or `ps`), `dev:start` is idempotent and never kills, `dev:stop` and `dev:restart` are the only verbs that stop, and `dev:attach` runs it in the foreground. A recorded pid counts as the stack only while its process is at least as old as the pidfile, so a pid a reboot handed to another process never passes for a running stack. When worktrunk is available the stack runs under its tether (`wt step tether`), which kills the whole process group when the worktree is removed; otherwise it is a plain detached spawn. Every process a stack starts carries `DEV_PROFILE_DEV_STACK=<checkout>`, so what leaves the group (`op run` leads one of its own) is still stopped by `dev:restart` and by `dev-profile-dev reap <worktree-path>`, which worktrunk's post-remove hook runs. Between portless and the serve command sits `dev-relay.mjs`, which records the last request in `<checkout>.touched`, holds a request that arrives while the app is still booting, and runs `dev:stop` once no request has come for `DEV_PROFILE_DEV_IDLE_SECONDS` (default 24 hours); the next `cd` starts it again. A repo declares its own serve command by shipping an executable `mise-tasks/dev-serve`."
 
 local dev =
   #"""
@@ -9,9 +9,10 @@ local dev =
   # One checkout's dev stack. `dev:status` is the only probe: it reads the
   # recorded pid, so nothing has to scan ports or grep `ps`. `dev:start` starts
   # the stack detached under an exclusive lock and is idempotent, under
-  # worktrunk's tether when it is available. `dev:restart` is the only verb that
-  # signals a process. `dev:attach` runs it in the foreground. Bare `dev` is
-  # status -> start when down -> status.
+  # worktrunk's tether when it is available. `dev:stop` and `dev:restart` are
+  # the only verbs that signal a process; the relay runs `dev:stop` itself once
+  # the stack has gone a day without a request. `dev:attach` runs it in the
+  # foreground. Bare `dev` is status -> start when down -> status.
   verb="${1:-}"
 
   # A DNS label: lowercase, anything else folded to single dashes.
@@ -42,10 +43,14 @@ local dev =
     fi
   }
 
-  # The pids tagged with a checkout, never this process or its parent.
+  # The pids tagged with a checkout, never this process or its parent. The tag
+  # is assembled inside awk: macOS awk rewrites a `-v tag=<tag>` argument in
+  # place to `tag <tag>`, so awk would otherwise find itself and every reap
+  # would wait out stop_timeout on a process that is already gone.
   stack_pids() {
     process_table |
-      awk -v tag="DEV_PROFILE_DEV_STACK=$1" -v self="$$" -v parent="${PPID}" '
+      awk -v checkout="$1" -v self="$$" -v parent="${PPID}" '
+        BEGIN { tag = "DEV_PROFILE_DEV_STACK=" checkout }
         $1 == self || $1 == parent { next }
         { for (i = 2; i <= NF; i++) if ($i == tag) { print $1; next } }'
   }
@@ -199,17 +204,48 @@ local dev =
         '$1 == host && match($0, /\(pid [0-9]+\)/) { print substr($0, RSTART + 5, RLENGTH - 6) }'
   }
 
-  # One pidfile, one lockfile (and the daemon's log) per checkout.
+  # One pidfile, one lockfile (and the daemon's log) per checkout, and the time
+  # of the last request the relay passed to the stack.
   cache="${XDG_CACHE_HOME:-${HOME}/.cache}/dev-profile/dev"
   pidfile="${cache}/${checkout}.pid"
   lockfile="${cache}/${checkout}.lock"
   logfile="${cache}/${checkout}.log"
+  touchedfile="${cache}/${checkout}.touched"
 
   # Operational knobs, so a test or a fixture never waits the production time.
   ready_timeout="${DEV_PROFILE_DEV_READY_TIMEOUT:-60}" # seconds to wait for the stack
   settle="${DEV_PROFILE_DEV_SETTLE:-1}"                # seconds to catch an instant exit
 
+  # The relay between portless and the serve command, rendered beside bin/.
+  self="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/$(basename "${BASH_SOURCE[0]}")"
+  relay="$(dirname "$(dirname "${self}")")/dev-relay.mjs"
+
   alive() { kill -0 "$1" 2>/dev/null; }
+
+  # Seconds since a process started, from ps's etime ([[dd-]hh:]mm:ss), the one
+  # spelling macOS and procps share.
+  process_age() {
+    ps -o etime= -p "$1" 2>/dev/null | awk '
+      NF {
+        t = $1; d = 0
+        if ((i = index(t, "-")) > 0) { d = substr(t, 1, i - 1); t = substr(t, i + 1) }
+        n = split(t, p, ":"); s = 0
+        for (j = 1; j <= n; j++) s = s * 60 + p[j]
+        print d * 86400 + s
+      }'
+  }
+
+  # The recorded pid is this checkout's stack only when its process is at least
+  # as old as the pidfile: the stack writes the pidfile after it starts, while a
+  # reboot hands the same pid to a newer, unrelated process that kill -0 alone
+  # would call running. Two seconds absorb etime's rounding.
+  recorded_alive() {
+    local age written
+    alive "$1" || return 1
+    age="$(process_age "$1")"
+    written="$(date -r "${pidfile}" +%s 2>/dev/null)" || return 1
+    [[ -n "${age}" ]] && (($(date +%s) - age <= written + 2))
+  }
 
   recorded_pid() {
     [[ -s "${pidfile}" ]] || return 0
@@ -230,11 +266,12 @@ local dev =
     sed -n 3p "${pidfile}"
   }
 
-  # Read-only: true when this checkout's recorded stack process is alive.
+  # Read-only: true when this checkout's recorded stack process is alive and is
+  # the process the pidfile recorded.
   running() {
     local pid
     pid="$(recorded_pid)"
-    [[ -n "${pid}" ]] && alive "${pid}"
+    [[ -n "${pid}" ]] && recorded_alive "${pid}"
   }
 
   # --- the serve command
@@ -295,8 +332,9 @@ local dev =
 
   # What the tether runs. `$$` before the exec is the tether's own child, which
   # the tether made a process-group leader, so line 1 is the whole tree's pid;
-  # then portless assigns the route's port and runs the serve command.
-  tether_child="cd \"\${DEV_PROFILE_DEV_CACHE}\"; printf \"%s\n%s\n%s\n%s\n\" \"\$\$\" tether \"\${DEV_PROFILE_DEV_ROUTE}\" \"\${DEV_PROFILE_DEV_ROOT}\" >\"\${DEV_PROFILE_DEV_PIDFILE}\"; exec portless run --name \"\${DEV_PROFILE_DEV_ROUTE}\" sh -c \"\${DEV_PROFILE_DEV_CMD}\""
+  # then portless assigns the route's port and runs the relay, which runs the
+  # serve command behind it.
+  tether_child="cd \"\${DEV_PROFILE_DEV_CACHE}\"; printf \"%s\n%s\n%s\n%s\n\" \"\$\$\" tether \"\${DEV_PROFILE_DEV_ROUTE}\" \"\${DEV_PROFILE_DEV_ROOT}\" >\"\${DEV_PROFILE_DEV_PIDFILE}\"; exec portless run --name \"\${DEV_PROFILE_DEV_ROUTE}\" node \"\${DEV_PROFILE_DEV_RELAY}\" sh -c \"\${DEV_PROFILE_DEV_CMD}\""
 
   # --- verbs
 
@@ -328,22 +366,59 @@ local dev =
     return 1
   }
 
+  # portless trusts kill -0 too: after a reboot the route it kept for this
+  # checkout names a pid another process now owns, so it refuses every new
+  # registration as a conflict, and `--force` would SIGTERM that bystander. The
+  # route is dropped from portless's own table, under portless's own lock
+  # (mkdir routes.lock), only when its holder is the stale pid this checkout
+  # recorded; a live foreign holder is still dev:restart's to stop. Written in
+  # place: the proxy watches the file's inode.
+  drop_stale_route() {
+    local stale="$1" holder state routes host updated tries=0
+    holder="$(route_holder)"
+    [[ -n "${holder}" && "${holder}" == "${stale}" ]] || return 0
+    state="${PORTLESS_STATE_DIR:-${HOME}/.portless}"
+    routes="${state}/routes.json"
+    [[ -f "${routes}" ]] || return 0
+    host="$(recorded_route).localhost"
+    until mkdir "${state}/routes.lock" 2>/dev/null; do
+      if ((tries++ >= 50)); then
+        echo "dev: portless's route lock stayed held; ${host} may still name stale pid ${stale}" >&2
+        return 0
+      fi
+      sleep 0.1
+    done
+    if updated="$(jq --arg host "${host}" --argjson pid "${stale}" \
+      'map(select(.hostname != $host or .pid != $pid))' "${routes}")"; then
+      printf '%s\n' "${updated}" >"${routes}"
+      echo "dev: dropped portless's route ${host}, held by pid ${stale}, which is no longer this stack" >&2
+    fi
+    rmdir "${state}/routes.lock" 2>/dev/null || :
+  }
+
   # One spawn path for `dev:start` and `dev:restart`: under the tether when
   # worktrunk can own the process group, a plain detach otherwise. Records the
-  # pid and how to signal it, and prints the pid.
+  # pid and how to signal it, and prints the pid. Either way portless runs the
+  # relay, which runs the serve command and is told where to record requests
+  # and how to stop the stack once it sits idle.
   spawn() {
-    local cmd="$1" pid waited=0 route
+    local cmd="$1" pid waited=0 route stale
     route="$(route_name)"
     mkdir -p "${cache}"
+    stale="$(recorded_pid)"
+    if [[ -n "${stale}" ]]; then
+      drop_stale_route "${stale}" 2>>"${logfile}"
+    fi
     rm -f "${pidfile}"
     # A dead stack can leave children behind; a second stack beside them would
     # fight them for the route and the port.
     reap_stack "${checkout}"
+    export DEV_PROFILE_DEV_ROOT="${root}" DEV_PROFILE_DEV_TOUCHED="${touchedfile}" \
+      DEV_PROFILE_DEV_BIN="${self}"
     if tether_available; then
       DEV_PROFILE_DEV_CMD="$(in_root "${cmd}")" DEV_PROFILE_DEV_ROUTE="${route}" \
-        DEV_PROFILE_DEV_STACK="${checkout}" DEV_PROFILE_DEV_ROOT="${root}" \
-        DEV_PROFILE_DEV_CACHE="${cache}" \
-        DEV_PROFILE_DEV_PIDFILE="${pidfile}" \
+        DEV_PROFILE_DEV_STACK="${checkout}" DEV_PROFILE_DEV_CACHE="${cache}" \
+        DEV_PROFILE_DEV_PIDFILE="${pidfile}" DEV_PROFILE_DEV_RELAY="${relay}" \
         nohup wt step tether -- sh -c "${tether_child}" >>"${logfile}" 2>&1 </dev/null 9>&- &
       pid=$!
       disown
@@ -363,7 +438,7 @@ local dev =
       done
     else
       (cd "${cache}" && export DEV_PROFILE_DEV_STACK="${checkout}" &&
-        exec nohup portless run --name "${route}" sh -c "$(in_root "${cmd}")") \
+        exec nohup portless run --name "${route}" node "${relay}" sh -c "$(in_root "${cmd}")") \
         >>"${logfile}" 2>&1 </dev/null 9>&- &
       pid=$!
       disown
@@ -427,11 +502,14 @@ local dev =
   }
 
   # SIGTERM the recorded stack, then SIGKILL after stop_timeout, then reap what
-  # left its group. Never touches a process this checkout did not start.
+  # left its group. Never touches a process this checkout did not start: a
+  # recorded pid that is no longer the stack is dropped, never signalled, and
+  # so is the portless route it left behind.
   stop() {
     local pid waited=0
     pid="$(recorded_pid)"
-    if [[ -z "${pid}" ]] || ! alive "${pid}"; then
+    if [[ -z "${pid}" ]] || ! recorded_alive "${pid}"; then
+      [[ -z "${pid}" ]] || drop_stale_route "${pid}"
       reap_stack "${checkout}"
       rm -f "${pidfile}"
       return 0
@@ -515,10 +593,11 @@ local dev =
       ;;
     status) status ;;
     start) start ;;
+    stop) stop ;;
     restart) restart ;;
     attach) attach ;;
     *)
-      echo "dev: unknown verb '${verb}'; expected dev, dev:status, dev:start, dev:restart, dev:attach or reap" >&2
+      echo "dev: unknown verb '${verb}'; expected dev, dev:status, dev:start, dev:stop, dev:restart, dev:attach or reap" >&2
       exit 2
       ;;
   esac
@@ -580,6 +659,132 @@ local enterWork =
   command portless proxy start >/dev/null 2>&1 || true
   command mise run dev
   """#
+
+/// The relay portless runs in front of every stack's serve command. portless
+/// keeps no record of requests, so this is where "last used" comes from.
+local relay =
+  #"""
+  // Code generated by `mise run generate`. DO NOT EDIT.
+  // Source of truth: profile.pkl
+  //
+  // The dev stack's relay. portless routes https://<name>.localhost to PORT; the
+  // relay listens there, runs the serve command on a port of its own, and passes
+  // every connection through, so it knows three things portless does not:
+  //   - when the stack last received a request: DEV_PROFILE_DEV_TOUCHED holds
+  //     its epoch seconds, written at most once per check;
+  //   - that the app is still booting: a connection that arrives before the app
+  //     listens waits up to DEV_PROFILE_DEV_BOOT_SECONDS for it, not a 502;
+  //   - that nobody uses the stack: after DEV_PROFILE_DEV_IDLE_SECONDS (a day)
+  //     without a request it runs `dev-profile-dev stop` for the checkout, and
+  //     the next `cd` starts the stack again. An open connection that sends
+  //     nothing (a forgotten tab's event stream) is not use.
+  // Usage: node dev-relay.mjs <command> [args...]
+  import { spawn } from "node:child_process";
+  import { writeFileSync } from "node:fs";
+  import net from "node:net";
+  import { constants } from "node:os";
+  import { Transform } from "node:stream";
+
+  const env = process.env;
+  const host = env.HOST || "127.0.0.1";
+  const port = Number(env.PORT);
+  const idleMs = Number(env.DEV_PROFILE_DEV_IDLE_SECONDS || 86400) * 1000;
+  const bootMs = Number(env.DEV_PROFILE_DEV_BOOT_SECONDS || 60) * 1000;
+  const [command, ...args] = process.argv.slice(2);
+  if (!Number.isInteger(port) || port <= 0 || !command || !env.DEV_PROFILE_DEV_TOUCHED) {
+    console.error("dev-relay: needs PORT, DEV_PROFILE_DEV_TOUCHED and a command to run");
+    process.exit(64);
+  }
+
+  // The stack's start is its first use, so a fresh stack gets a full day.
+  let lastUse = Date.now();
+  let written = 0;
+  const record = () => {
+    if (written === lastUse) return;
+    try {
+      writeFileSync(env.DEV_PROFILE_DEV_TOUCHED, `${Math.floor(lastUse / 1000)}\n`);
+      written = lastUse;
+    } catch (err) {
+      console.error(`dev-relay: cannot record the last request: ${err.message}`);
+    }
+  };
+  record();
+
+  // A request is any byte a client sends; the connection itself counts too.
+  const used = () => new Transform({
+    transform(chunk, _encoding, done) {
+      lastUse = Date.now();
+      done(null, chunk);
+    },
+  });
+
+  const freePort = () =>
+    new Promise((resolve, reject) => {
+      const probe = net.createServer();
+      probe.once("error", reject);
+      probe.listen(0, host, () => {
+        const { port: free } = probe.address();
+        probe.close(() => resolve(free));
+      });
+    });
+  const appPort = await freePort();
+
+  const server = net.createServer({ allowHalfOpen: true }, (client) => {
+    lastUse = Date.now();
+    const deadline = lastUse + bootMs;
+    let app;
+    client.on("error", () => client.destroy());
+    client.on("close", () => app?.destroy());
+    const connect = () => {
+      app = net.connect({ port: appPort, host, allowHalfOpen: true });
+      app.once("connect", () => {
+        client.pipe(used()).pipe(app);
+        app.pipe(client);
+      });
+      app.on("error", (err) => {
+        if (err.code === "ECONNREFUSED" && !client.destroyed && Date.now() < deadline) {
+          setTimeout(connect, 200);
+          return;
+        }
+        client.destroy();
+      });
+    };
+    connect();
+  });
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(port, host, resolve);
+  });
+
+  const child = spawn(command, args, { stdio: "inherit", env: { ...env, PORT: String(appPort) } });
+  for (const signal of ["SIGTERM", "SIGINT", "SIGHUP"]) {
+    process.on(signal, () => child.kill(signal));
+  }
+  child.on("exit", (code, signal) => {
+    record();
+    process.exit(code ?? 128 + (constants.signals[signal] ?? 0));
+  });
+
+  const check = setInterval(() => {
+    record();
+    if (Date.now() - lastUse < idleMs) return;
+    clearInterval(check);
+    console.log(`dev-relay: no request since ${new Date(lastUse).toISOString()}; stopping the stack`);
+    // Outside the stack's process group and without its tag, so the stop
+    // outlives the stack it ends.
+    const { DEV_PROFILE_DEV_STACK: _tag, ...untagged } = env;
+    spawn(env.DEV_PROFILE_DEV_BIN, ["stop"], {
+      cwd: env.DEV_PROFILE_DEV_ROOT,
+      detached: true,
+      stdio: "ignore",
+      env: untagged,
+    }).unref();
+  }, Math.min(60_000, Math.max(250, idleMs / 4)));
+  """#
+
+files {
+  ["dev-relay.mjs"] = relay
+}
 
 scripts {
   ["dev-profile-dev"] = dev

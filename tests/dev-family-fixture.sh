@@ -42,8 +42,10 @@ trap cleanup EXIT
 
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@example.com GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@example.com
-# One throwaway cache, so the fixture never touches the machine's dev state.
-export XDG_CACHE_HOME="${work}/cache"
+# One throwaway cache and portless state dir, so the fixture never touches the
+# machine's dev state or its real route table.
+export XDG_CACHE_HOME="${work}/cache" PORTLESS_STATE_DIR="${work}/portless"
+mkdir -p "${PORTLESS_STATE_DIR}"
 export DEV_FIXTURE_SPAWNS="${work}/spawns" DEV_FIXTURE_PIDS="${work}/pids" DEV_FIXTURE_ROUTES="${work}/routes"
 : >"${DEV_FIXTURE_SPAWNS}"
 : >"${DEV_FIXTURE_PIDS}"
@@ -52,10 +54,12 @@ export DEV_FIXTURE_SPAWNS="${work}/spawns" DEV_FIXTURE_PIDS="${work}/pids" DEV_F
 export DEV_PROFILE_DEV_SETTLE=0 DEV_PROFILE_DEV_READY_TIMEOUT=5 DEV_PROFILE_DEV_STOP_TIMEOUT=2
 
 # The portless stub answers `get <name>` with the name as given, and for
-# `run --name <name> <cmd>` assigns PORT and runs the command, recording each
-# spawn. Real portless prefixes a git worktree's branch onto any name it is run
-# in, so the stub refuses to run inside a git repo: the script must hand portless
-# the whole host and keep portless out of the checkout.
+# `run --name <name> <cmd>` assigns a free PORT and runs the command, recording
+# each spawn and its port. Real portless prefixes a git worktree's branch onto
+# any name it is run in, so the stub refuses to run inside a git repo: the script
+# must hand portless the whole host and keep portless out of the checkout. Like
+# real portless, it trusts kill -0: a routes.json entry whose pid answers holds
+# the host, and `run` refuses to take it over.
 mkdir -p "${work}/bin"
 cat >"${work}/bin/portless" <<'STUB'
 #!/usr/bin/env bash
@@ -64,6 +68,7 @@ if git rev-parse --git-dir >/dev/null 2>&1; then
 	echo "portless stub: run inside a git repo, where real portless adds a worktree prefix" >&2
 	exit 65
 fi
+routes="${PORTLESS_STATE_DIR}/routes.json"
 if [[ "$1" == get ]]; then
 	echo "https://$2.localhost"
 	exit 0
@@ -71,12 +76,27 @@ fi
 # `list` reports route holders in portless's normal output shape.
 if [[ "$1" == list ]]; then
 	[[ -f "${DEV_FIXTURE_ROUTES:-}" ]] && cat "${DEV_FIXTURE_ROUTES}"
+	if [[ -f "${routes}" ]]; then
+		jq -r '.[] | "\(.pid) \(.hostname) \(.port)"' "${routes}" | while read -r pid host port; do
+			if kill -0 "${pid}" 2>/dev/null; then
+				printf '  https://%s  ->  localhost:%s  (pid %s)\n' "${host}" "${port}" "${pid}"
+			fi
+		done
+	fi
 	exit 0
 fi
 [[ "$1" == run && "$2" == --name ]] || { echo "portless stub: unexpected args: $*" >&2; exit 64; }
-printf '%s\t%s\n' "$3" "$*" >>"${DEV_FIXTURE_SPAWNS}"
+if [[ -f "${routes}" ]]; then
+	holder="$(jq -r --arg host "$3.localhost" '.[] | select(.hostname == $host) | .pid' "${routes}")"
+	if [[ -n "${holder}" ]] && kill -0 "${holder}" 2>/dev/null; then
+		echo "\"$3.localhost\" is already registered by a running process (PID ${holder}). Use --force to override." >&2
+		exit 1
+	fi
+fi
+PORT="$(node -e 'const s = require("net").createServer().listen(0, "127.0.0.1", () => { console.log(s.address().port); s.close(); })')"
+export PORT
+printf '%s\t%s\tport=%s\n' "$3" "$*" "${PORT}" >>"${DEV_FIXTURE_SPAWNS}"
 shift 3
-export PORT=4611
 exec "$@"
 STUB
 # php and aube stubs: an inferred command must "serve" without either tool.
@@ -109,8 +129,8 @@ expect_spawn_name() { cut -f1 "${DEV_FIXTURE_SPAWNS}" | grep -qxF "$1" || fail "
 
 lines() { awk 'END { print NR }' "$1"; }
 
-# dev:restart is the only verb that stops, so when the fixture needs a down
-# stack it signals the recorded pid itself.
+# The state-machine cases need a down stack without depending on dev:stop, so
+# the fixture signals the recorded pid itself.
 stop_stack() {
 	if [[ -f "${cache}/$1.pid" ]]; then
 		kill -TERM "$(sed -n 1p "${cache}/$1.pid")" 2>/dev/null || :
@@ -440,5 +460,96 @@ expect '^https://repo[.]localhost$'
 kill -TERM "${unrelated}" 2>/dev/null || :
 wait "${unrelated}" 2>/dev/null || :
 : >"${DEV_FIXTURE_ROUTES}"
+
+# --- a recorded pid that a reboot handed to another process
+#
+# kill -0 answers for the newer owner of the pid, and portless keeps the route
+# that names it. The stack is down, the bystander is never signalled, and the
+# stale route leaves portless's table so the new stack can claim its host.
+
+reboot="${work}/reboot"
+git init -q -b main "${reboot}"
+cd "${reboot}"
+mkdir -p mise-tasks
+sleeper_serve mise-tasks/dev-serve
+git add -A
+git commit -qm serve
+# A pidfile written before the process that now owns its pid started.
+stale_pidfile() { # <pid>
+	mkdir -p "${cache}"
+	printf '%s\n%s\n%s\n%s\n' "$1" tether reboot "${reboot}" >"${cache}/reboot.pid"
+	touch -t 202001010000 "${cache}/reboot.pid"
+}
+sleep 300 &
+bystander=$!
+printf '%s\n' "${bystander}" >>"${DEV_FIXTURE_PIDS}"
+stale_pidfile "${bystander}"
+printf '[{"hostname":"reboot.localhost","port":4999,"pid":%s},{"hostname":"other.localhost","port":4998,"pid":0}]\n' \
+	"${bystander}" >"${PORTLESS_STATE_DIR}/routes.json"
+if run_dev status; then fail "a recorded pid younger than its pidfile must not count as running"; fi
+expect '^state=down$'
+run_dev || fail "dev must start the stack over a pid a reboot reused, and free its portless route"
+expect '^state=running url=https://reboot\.localhost pid=[0-9]+$'
+[[ "$(sed -n 1p "${cache}/reboot.pid")" != "${bystander}" ]] || fail "dev must record the new stack, not the reused pid"
+kill -0 "${bystander}" 2>/dev/null || fail "dev must never signal the process that now owns a stale pid"
+jq -e --argjson pid "${bystander}" 'all(.[]; .pid != $pid) and any(.[]; .hostname == "other.localhost")' \
+	"${PORTLESS_STATE_DIR}/routes.json" >/dev/null ||
+	fail "only the stale route may leave portless's table"
+grep -q "dropped portless's route reboot.localhost" "${cache}/reboot.log" || fail "the stale route's removal must be logged"
+
+# dev:stop stops the recorded stack and drops its pidfile.
+leader="$(sed -n 1p "${cache}/reboot.pid")"
+run_dev stop || fail "dev:stop must exit 0"
+gone "${leader}" || fail "dev:stop must stop the recorded stack"
+[[ ! -e "${cache}/reboot.pid" ]] || fail "dev:stop must drop the pidfile"
+
+# dev:stop over a reused pid signals nothing and drops the stale state.
+stale_pidfile "${bystander}"
+printf '[{"hostname":"reboot.localhost","port":4999,"pid":%s}]\n' "${bystander}" >"${PORTLESS_STATE_DIR}/routes.json"
+run_dev stop || fail "dev:stop over a reused pid must exit 0"
+kill -0 "${bystander}" 2>/dev/null || fail "dev:stop must never signal the process that now owns a stale pid"
+[[ ! -e "${cache}/reboot.pid" ]] || fail "dev:stop must drop a stale pidfile"
+[[ "$(jq length "${PORTLESS_STATE_DIR}/routes.json")" == 0 ]] || fail "dev:stop must drop the stale route"
+kill -TERM "${bystander}" 2>/dev/null || :
+rm -f "${PORTLESS_STATE_DIR}/routes.json"
+
+# --- the relay: requests reach the app, are recorded, and an idle stack stops
+
+idle="${work}/idle"
+git init -q -b main "${idle}"
+cd "${idle}"
+mkdir -p mise-tasks
+cat >mise-tasks/dev-serve <<'SERVE'
+#!/usr/bin/env bash
+set -euo pipefail
+exec node -e 'require("http").createServer((_, res) => res.end("served")).listen(Number(process.env.PORT), "127.0.0.1")'
+SERVE
+chmod +x mise-tasks/dev-serve
+git add -A
+git commit -qm serve
+export DEV_PROFILE_DEV_IDLE_SECONDS=3
+run_dev || fail "dev must start a stack behind the relay"
+port="$(awk -F'\t' '$1 == "idle" { p = $NF } END { sub(/^port=/, "", p); print p }' "${DEV_FIXTURE_SPAWNS}")"
+leader="$(sed -n 1p "${cache}/idle.pid")"
+# The app is still booting: the relay holds the request until it listens.
+[[ "$(curl -fsS --max-time 10 "http://127.0.0.1:${port}/")" == served ]] ||
+	fail "a request through the relay must reach the app"
+started="$(cat "${cache}/idle.touched")"
+# Requests, each inside the idle window, keep the stack alive past it.
+for _ in 1 2 3 4 5 6; do
+	sleep 1
+	curl -fsS --max-time 5 "http://127.0.0.1:${port}/" >/dev/null || fail "the relay must keep serving a stack in use"
+done
+run_dev status || fail "a stack in use must outlive the idle window"
+expect "pid=${leader}\$"
+(($(cat "${cache}/idle.touched") > started)) || fail "the relay must record the time of the last request"
+# Left alone, the stack stops itself, and the next cd starts it again.
+stack_down() { [[ ! -e "${cache}/idle.pid" ]] && gone "${leader}"; }
+wait_for stack_down || fail "a stack with no request for DEV_PROFILE_DEV_IDLE_SECONDS must stop itself"
+grep -q '^dev-relay: no request since' "${cache}/idle.log" || fail "the relay must log why it stopped the stack"
+run_dev || fail "dev must start an idle-stopped stack again"
+expect '^state=running url=https://idle\.localhost pid=[0-9]+$'
+run_dev stop || fail "dev:stop must stop the restarted stack"
+unset DEV_PROFILE_DEV_IDLE_SECONDS
 
 echo "dev-family fixture ok"
