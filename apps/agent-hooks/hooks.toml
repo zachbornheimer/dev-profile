@@ -72,18 +72,6 @@ command = ["/Users/zbornheimer/.agents/hooks/aoe-status.sh running"]
 timeout = "2s"
 matcher = "AskUserQuestion"
 
-# Semgrep Guardian scans each file Claude writes. Findings come back as
-# PostToolUse `decision: "block"`, which agent-hooks hands to the model as
-# feedback (agent-hooks >= the fix-posttooluse-block-feedback change).
-# `-a claude` parses Claude's payload shape, so other harnesses are excluded.
-[[hooks]]
-name = "posttooluse-semgrep-guardian"
-events = ["tool.after"]
-command = ["/Users/zbornheimer/.local/bin/semgrep mcp -k post-tool-cli-scan -a claude"]
-timeout = "180s"
-matcher = "Write|Edit|MultiEdit"
-agents = ["claude"]
-
 [[hooks]]
 name = "precompact-goals-note-compaction-py"
 events = ["context.compact.before"]
