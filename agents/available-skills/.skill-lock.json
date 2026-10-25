@@ -16,8 +16,8 @@
       "sourceUrl": "https://github.com/cloudflare/security-audit-skill.git",
       "skillPath": "skills/security-audit/SKILL.md",
       "skillFolderHash": "ccbc33ed119b28c3ef7b44a7e2081ab191ad63af",
-      "installedAt": "2026-10-22T16:27:54.765Z",
-      "updatedAt": "2026-10-22T16:27:54.765Z"
+      "installedAt": "2026-10-25T22:03:21.538Z",
+      "updatedAt": "2026-10-25T22:03:21.538Z"
     },
     "find-skills": {
       "source": "vercel-labs/skills",
@@ -240,15 +240,6 @@
       "installedAt": "2026-10-21T16:33:35.026Z",
       "updatedAt": "2026-10-21T17:09:07.872Z"
     },
-    "gh-axi": {
-      "source": "kunchenguid/gh-axi",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/kunchenguid/gh-axi.git",
-      "skillPath": "skills/gh-axi/SKILL.md",
-      "skillFolderHash": "fb1513412c752b6642ec67295b1c484465eb4698",
-      "installedAt": "2026-10-21T16:36:05.156Z",
-      "updatedAt": "2026-10-21T17:09:10.884Z"
-    },
     "webapp-testing": {
       "source": "anthropics/skills",
       "sourceType": "github",
@@ -320,15 +311,6 @@
       "skillFolderHash": "317a22ee67a8d31eb4289f69b54f027222cdeb44",
       "installedAt": "2026-10-21T20:45:41.265Z",
       "updatedAt": "2026-10-21T20:45:41.265Z"
-    },
-    "quota-axi": {
-      "source": "kunchenguid/quota-axi",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/kunchenguid/quota-axi.git",
-      "skillPath": "skills/quota-axi/SKILL.md",
-      "skillFolderHash": "e997bfcd18773d6e43c42155e6388e560d2aa964",
-      "installedAt": "2026-10-21T20:45:41.266Z",
-      "updatedAt": "2026-10-21T20:45:41.266Z"
     },
     "quota-interpretation": {
       "source": "kunchenguid/quota-axi",
@@ -455,6 +437,105 @@
       "skillFolderHash": "419494960c95aa0c221dee1a619b0b92fd312403",
       "installedAt": "2026-10-25T01:41:23.810Z",
       "updatedAt": "2026-10-25T01:41:23.810Z"
+    },
+    "audit-context-building": {
+      "source": "trailofbits/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/trailofbits/skills.git",
+      "skillPath": "plugins/audit-context-building/skills/audit-context-building/SKILL.md",
+      "skillFolderHash": "98670d606bd22401e708372742f62c22d0e5596c",
+      "installedAt": "2026-10-25T22:10:30.356Z",
+      "updatedAt": "2026-10-25T22:10:30.356Z"
+    },
+    "differential-review": {
+      "source": "trailofbits/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/trailofbits/skills.git",
+      "skillPath": "plugins/differential-review/skills/differential-review/SKILL.md",
+      "skillFolderHash": "09ff02c96f84ad4b98184bcd5efae5b218caa910",
+      "installedAt": "2026-10-25T22:10:30.357Z",
+      "updatedAt": "2026-10-25T22:10:30.357Z"
+    },
+    "variant-analysis": {
+      "source": "trailofbits/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/trailofbits/skills.git",
+      "skillPath": "plugins/variant-analysis/skills/variant-analysis/SKILL.md",
+      "skillFolderHash": "583d7addbf5e04108cc5fece9c99a4d9c6db5ce9",
+      "installedAt": "2026-10-25T22:10:30.358Z",
+      "updatedAt": "2026-10-25T22:10:30.358Z"
+    },
+    "fp-check": {
+      "source": "trailofbits/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/trailofbits/skills.git",
+      "skillPath": "plugins/fp-check/skills/fp-check/SKILL.md",
+      "skillFolderHash": "f3f830417667dc3a202b1cb40948bc26ce26ddbf",
+      "installedAt": "2026-10-25T22:10:30.358Z",
+      "updatedAt": "2026-10-25T22:10:30.358Z"
+    },
+    "post-patch-validation": {
+      "source": "trailofbits/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/trailofbits/skills.git",
+      "skillPath": "plugins/post-patch-validation/skills/post-patch-validation/SKILL.md",
+      "skillFolderHash": "bbd47c23d60a5880dd6d3f50081fe24c273f8f08",
+      "installedAt": "2026-10-25T22:13:43.770Z",
+      "updatedAt": "2026-10-25T22:13:43.770Z"
+    },
+    "property-based-testing": {
+      "source": "trailofbits/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/trailofbits/skills.git",
+      "skillPath": "plugins/property-based-testing/skills/property-based-testing/SKILL.md",
+      "skillFolderHash": "cf5e77d684180c80a2f3aa228c53d04b1fa1ba77",
+      "installedAt": "2026-10-25T22:13:43.798Z",
+      "updatedAt": "2026-10-25T22:13:43.798Z"
+    },
+    "semgrep-rule-creator": {
+      "source": "trailofbits/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/trailofbits/skills.git",
+      "skillPath": "plugins/semgrep-rule-creator/skills/semgrep-rule-creator/SKILL.md",
+      "skillFolderHash": "480d8eb8e20d4b365fa49ae2c4694e2ef729de0b",
+      "installedAt": "2026-10-25T22:13:43.799Z",
+      "updatedAt": "2026-10-25T22:13:43.799Z"
+    },
+    "sharp-edges": {
+      "source": "trailofbits/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/trailofbits/skills.git",
+      "skillPath": "plugins/sharp-edges/skills/sharp-edges/SKILL.md",
+      "skillFolderHash": "20a6ad897a443d62c82c3a3e13e6185612fdfbf0",
+      "installedAt": "2026-10-25T22:13:43.799Z",
+      "updatedAt": "2026-10-25T22:13:43.799Z"
+    },
+    "supply-chain-risk-auditor": {
+      "source": "trailofbits/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/trailofbits/skills.git",
+      "skillPath": "plugins/supply-chain-risk-auditor/skills/supply-chain-risk-auditor/SKILL.md",
+      "skillFolderHash": "954cc68e05e24a2a14447b60d1e8946b53323b1b",
+      "installedAt": "2026-10-25T22:13:43.800Z",
+      "updatedAt": "2026-10-25T22:13:43.800Z"
+    },
+    "vulnerability-triage-brocards": {
+      "source": "trailofbits/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/trailofbits/skills.git",
+      "skillPath": "plugins/vulnerability-triage-brocards/skills/vulnerability-triage-brocards/SKILL.md",
+      "skillFolderHash": "4f452f4563c7dfec0d0ac71093f94021b93e9462",
+      "installedAt": "2026-10-25T22:13:43.800Z",
+      "updatedAt": "2026-10-25T22:13:43.800Z"
+    },
+    "semgrep": {
+      "source": "trailofbits/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/trailofbits/skills.git",
+      "skillPath": "plugins/static-analysis/skills/semgrep/SKILL.md",
+      "skillFolderHash": "86f1fde92213de2a2de7bddf2028ca4e5481b2a5",
+      "installedAt": "2026-10-25T22:13:58.741Z",
+      "updatedAt": "2026-10-25T22:13:58.741Z"
     }
   }
 }

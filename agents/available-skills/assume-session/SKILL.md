@@ -24,6 +24,15 @@ to actually do the work.
   `/tmp/assume-<tool>-<short-id>-goal.md`. No shell command, edit or verification
   may run until that file exists, in `--then continue` mode too. Narrating an
   intent ("I'll now check…") is not the block.
+- **Gate: the premise re-derivation comes before any inherited work.** No step
+  of the inherited plan runs until the step-6b premise gate passes — the
+  original user symptom restated verbatim, the plan's falsifiable premises
+  checked against current world state, the floor compared, and the owner's
+  config surface searched. Approval does not waive it: it applies in both
+  `--then continue` and `--then confirm` modes, and a user's
+  "yes"/confirmation lifts nothing. A plan whose premises survive is continued
+  as-is; a falsified premise is stated and the plan is fixed, not
+  abandoned.
 - Do not start a new project and do not treat this as a fresh chat.
 - Finish the work that was in flight. Do not rotate onto a side quest.
 - Before any risky edit: snapshot the tree (WIP-commit or stash). Do not discard dirty files.
@@ -62,8 +71,9 @@ The goal statement is **mandatory in both modes** and comes first. Reading the
 transcript and then going straight to commands, edits or verification is a
 defect — the user must be able to see what you took the goal to be before you act on it.
 
-`--then` only gates the start of the takeover. Step 6d (confirm before any
-irreversible action) applies in both modes.
+`--then` only gates the start of the takeover. The step-6b premise
+re-derivation gate and step 6d (confirm before any irreversible action) apply
+in both modes — a user's confirmation waives neither.
 
 ## Steps
 
@@ -187,6 +197,33 @@ irreversible action) applies in both modes.
    (is that PR still open? is that subagent still running? did that deploy
    land?). Never act on a stale assumption. Load the `investigate` skill if a
    check is non-trivial — one verified fact beats a plausible one.
+
+   Then pass the premise gate before the plan's first step — re-derive the
+   task from the transcript, not from the handoff's framing:
+
+   - **Symptom, verbatim.** Restate the original user symptom in the user's
+     own words from the transcript. The handoff's problem/solution framing
+     is a hypothesis to test, not the task.
+   - **Premises.** List the inherited plan's falsifiable premises and check
+     each against current world state before the first step — upstream PRs,
+     issues and releases included: does the premise still hold, did the
+     thing it depends on change, has the upstream PR already landed or died?
+   - **Floor.** State the achievable minimum for the symptom — the baseline
+     that would make it acceptable — in one line, then say whether the
+     inherited fix is bigger than that floor and why the floor is not
+     enough.
+   - **Owner-config lever search.** Grep the nouns of the failing symptom
+     (component, setting, error names) in the owner's public config/option
+     surface and docs — the owner being the project or tool the symptom
+     concerns — before proposing patches, forks, or upstream PRs.
+
+   Approval does not waive this gate: it applies in both `--then continue`
+   and `--then confirm` modes, and a user's "yes"/confirmation lifts
+   nothing — in `confirm` mode the check runs after that "yes", and a plan
+   the gate corrects is re-stated before the first step. Re-derivation
+   that confirms the premises means continue the plan as-is; a falsified
+   premise changes course — state it, fix the plan, keep the work. Do not
+   abandon the session and do not start a new project.
 
    c. **Adopt "What to do next" as your tracked plan** (your harness's todo/task tool) so the
    resumed work is visible, and surface "Side effects already done" so you
