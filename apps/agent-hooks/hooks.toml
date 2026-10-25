@@ -80,7 +80,7 @@ matcher = "AskUserQuestion"
 name = "posttooluse-semgrep-guardian"
 events = ["tool.after"]
 command = ["/Users/zbornheimer/.local/bin/semgrep mcp -k post-tool-cli-scan -a claude"]
-timeout = "60s"
+timeout = "180s"
 matcher = "Write|Edit|MultiEdit"
 agents = ["claude"]
 
