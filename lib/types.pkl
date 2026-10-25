@@ -87,10 +87,15 @@ class Settings {
   /// provider. Auto-install still runs it before `mise run`/`mise exec`, so the
   /// notice is noise: hide it rather than teach the user to run `mise deps`.
   showDepsStale: Boolean = false
-  /// Skip the prompt's hook-env when the directory has not changed: the env a
-  /// prompt needs only changes on cd, so every other prompt is a no-op. A
-  /// config edited in place takes effect on the next cd (or `mise install`).
-  chpwdOnly: Boolean = true
+  /// Skip the prompt's hook-env when the directory has not changed. Off: with
+  /// this on, mise 2026.10.19 fails every `cd` into a new directory with
+  /// "Error: cannot install provided ErrorHook, a hook has already been
+  /// installed" (src/main.rs:157). The fast-exit check loads Settings before
+  /// `main_` installs its eyre hook, and the full run that follows cannot
+  /// install it. The zsh guard in `miseZsh` already keeps unchanged prompts
+  /// from forking hook-env, so this setting adds nothing there. Re-enable only
+  /// after a mise release that fixes it.
+  chpwdOnly: Boolean = false
 }
 
 class DepProvider {
