@@ -40,6 +40,7 @@ run = ["mise run lint", "mise run test"]
 # Installed by `mise dot apply`. .gitconfig and ~/.config/mise/config.toml stay real files.
 [dotfiles]
 "~/.config/hk/config.pkl" = { source = "hk/hk.pkl", mode = "symlink" }
+"~/.config/mise/conf.d/dev-profile.toml" = { source = "config/tools.toml", mode = "symlink" }
 "~/.config/dprint/dprint.jsonc" = { source = "config/dprint.jsonc", mode = "symlink" }
 "~/.config/worktrunk/config.toml" = { source = "config/worktrunk.toml", mode = "symlink" }
 "~/.config/yamllint/config" = { source = "config/yamllint.yaml", mode = "symlink" }
