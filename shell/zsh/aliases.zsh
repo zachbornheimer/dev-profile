@@ -8,7 +8,7 @@ alias ..='cd ..'
 alias ...='cd ../..'
 alias ....='cd ../../..'
 alias -- -='cd -'
-mkcd() { mkdir -p -- "$1" && cd -- "$1" || exit; }
+mkcd() { mkdir -p -- "$1" && cd -- "$1" || return; }
 alias take=mkcd
 alias reload='exec zsh'
 alias myip='curl -s ifconfig.me'

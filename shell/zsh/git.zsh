@@ -57,7 +57,7 @@ repo-reports() {
 }
 
 gclone() {
-	git clone "$1" && cd "$(basename "$1" .git)" || exit
+	git clone "$1" && cd "$(basename "$1" .git)" || return
 }
 
 # ── git push --fix ──────────────────────────────────────────────────────────
