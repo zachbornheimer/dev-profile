@@ -1,10 +1,10 @@
 amends "../../lib/Tool.pkl"
 
 doc =
-  "Rails security scanner at push; a Ruby gem pinned here, installed by mise install, skipped until then."
+  "Rails security scanner at push. The gem is pinned here and skipped until mise installs it; it runs under Ruby 4, because brakeman 8 cannot parse on system Ruby 2.6. Builtin types stay ruby, so a JSON file is never handed to it."
 pin { id = "gem:brakeman"; version = "8.1.0" }
 on {
   ["pre-push"] = (module.builtins.brakeman) {
-    check = "dev-profile-if-installed brakeman brakeman -q -w2 {{files}}"
+    check = "dev-profile-if-installed brakeman mise exec ruby@4 -- brakeman -q -w2 {{files}}"
   }
 }
