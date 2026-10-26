@@ -5,7 +5,35 @@ banned_file='(^|/)(\.trunk/|\.prettierrc[^/]*$|prettier\.config\.[^/]*$|\.pretti
 # Added lines only: removing a dependency or tool line must pass.
 banned_package_line='^\+.*"(prettier|@prettier/[^"]*)"[[:space:]]*:'
 banned_mise_line='^\+[[:space:]]*"?[^=]*\b(prettier|trunk)\b[^=]*"?[[:space:]]*='
-base="$(git merge-base HEAD origin/HEAD 2>/dev/null || git hash-object -t tree /dev/null)"
+# The base is the newest commit the pushed commits share with remote history, so a
+# dependency the remote default branch already carries is not "added". Reused clones
+# often have no refs/remotes/origin/HEAD, so it is one candidate among several; the
+# empty tree is only for a repository with no remote history at all.
+remote_base() {
+	local ref remote_sha pushed_branch
+	# 1. The remote default branch.
+	git merge-base HEAD origin/HEAD 2>/dev/null && return 0
+	# 2. The remote tip of each pushed ref (pre-push stdin saved to SAH_PUSH_REFS).
+	if [[ -n "${SAH_PUSH_REFS:-}" && -r "${SAH_PUSH_REFS}" ]]; then
+		while read -r _ _ _ remote_sha; do
+			[[ "${remote_sha:-}" =~ ^0*$ ]] && continue
+			git cat-file -e "${remote_sha}^{commit}" 2>/dev/null || continue
+			git merge-base HEAD "${remote_sha}" 2>/dev/null && return 0
+		done <"${SAH_PUSH_REFS}"
+	fi
+	# 3. The same-named branch on a remote, the usual default branches, then any remote branch.
+	pushed_branch="$(git symbolic-ref -q --short HEAD 2>/dev/null || true)"
+	for ref in ${pushed_branch:+"origin/${pushed_branch}"} origin/main origin/master; do
+		git rev-parse -q --verify "refs/remotes/${ref}^{commit}" >/dev/null || continue
+		git merge-base HEAD "refs/remotes/${ref}" 2>/dev/null && return 0
+	done
+	while IFS= read -r ref; do
+		[[ "${ref}" == */HEAD ]] && continue
+		git merge-base HEAD "${ref}" 2>/dev/null && return 0
+	done < <(git for-each-ref --format='%(refname)' refs/remotes)
+	return 1
+}
+base="$(remote_base || git hash-object -t tree /dev/null)"
 failed=0
 while IFS= read -r path; do
 	[[ -n "${path}" ]] || continue
