@@ -12,8 +12,10 @@ the ``detect_frustration`` capability, which ``prompt-submit-capabilities.sh``
 asks of every prompt, and skips the scoring. Either way it starts
 ``~/.agents/bin/learn-launch`` detached, which runs the ``learn-from-transcript``
 workflow on the session, and lets the prompt through untouched.
-One launch per session: a marker file in the state dir enforces it, across both
-ways. The manual ``/learn`` command in omp is the way to ask for another.
+At most one launch per session every four hours: a stamp file per session in
+the state dir enforces it, across both ways. Set
+``FRUSTRATION_LEARN_COOLDOWN_SECONDS`` to change the window. The manual
+``/learn`` command in omp runs one at any time.
 
 A session with ``LEARNER=1`` never launches a learning run.
 
@@ -23,10 +25,12 @@ detached and its errors go to ``frustration-learn.err`` in the hook state dir.
 
 from __future__ import annotations
 
+import fcntl
 import os
 import re
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
@@ -39,6 +43,7 @@ HOOK_NAME = "frustration-learn"
 LAUNCHER = Path.home() / ".agents" / "bin" / "learn-launch"
 OMP_SESSION_NAME = re.compile(r"_([0-9a-f]{8}-[0-9a-f-]{27})\.jsonl$")
 SAFE = re.compile(r"[^A-Za-z0-9._-]")
+COOLDOWN_SECONDS = 4 * 60 * 60
 
 
 def session_identity(event: HookEvent, env: dict[str, str]) -> tuple[str, Path | None]:
@@ -57,15 +62,27 @@ def session_identity(event: HookEvent, env: dict[str, str]) -> tuple[str, Path |
     return (f"{harness}:{session_id}" if harness and session_id else ""), path
 
 
-def claim_launch(ref: str) -> bool:
-    """True exactly once per session ref, even when two prompts race."""
+def cooldown_seconds(env: dict[str, str]) -> float:
+    return float(env.get("FRUSTRATION_LEARN_COOLDOWN_SECONDS") or COOLDOWN_SECONDS)
+
+
+def claim_launch(ref: str, cooldown: float) -> bool:
+    """True when this session has not launched within ``cooldown`` seconds.
+
+    The stamp file holds one line per launch; its mtime is the last one. An
+    exclusive lock makes the check-and-stamp atomic, so two racing prompts
+    still launch once.
+    """
     directory = HookSettings.from_env().state_dir / HOOK_NAME
     directory.mkdir(parents=True, exist_ok=True)
-    try:
-        with (directory / SAFE.sub("_", ref)).open("x"):
-            return True
-    except FileExistsError:
-        return False
+    with (directory / SAFE.sub("_", ref)).open("a") as stamp:
+        fcntl.flock(stamp, fcntl.LOCK_EX)
+        last = os.fstat(stamp.fileno())
+        now = time.time()
+        if last.st_size and now - last.st_mtime < cooldown:
+            return False
+        stamp.write(f"{now:.0f}\n")
+        return True
 
 
 def launch(ref: str, reasons: str, env: dict[str, str]) -> None:
@@ -109,8 +126,10 @@ def decide(event: HookEvent, judged: float | None = None) -> Decision | None:
         reasons = f"{','.join(result.reasons)} score={result.total}"
     if not ref:
         return Decision.no_objection("unnamed-session", log_label="skip")
-    if not claim_launch(ref):
-        return Decision.no_objection(f"{ref} already launched", log_label="skip")
+    if not claim_launch(ref, cooldown_seconds(env)):
+        return Decision.no_objection(
+            f"{ref} launched within the cooldown", log_label="skip"
+        )
 
     launch(ref, reasons, env)
     return Decision.no_objection(f"{ref} {reasons}", log_label="launch")

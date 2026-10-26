@@ -1,4 +1,4 @@
-"""frustration-learn.py: launches a learner once per session, only on real signals."""
+"""frustration-learn.py: launches a learner at most once per session per cooldown, only on real signals."""
 
 from __future__ import annotations
 
@@ -152,7 +152,7 @@ def launched(record: Path) -> list[str]:
     return record.read_text().splitlines() if record.exists() else []
 
 
-def test_frustrated_prompt_launches_once_per_session(
+def test_frustrated_prompt_launches_once_per_cooldown(
     hooks: HookRunner, tmp_path: Path, launcher
 ) -> None:
     script, record = launcher
@@ -166,10 +166,30 @@ def test_frustrated_prompt_launches_once_per_session(
     second = session.run_payload(HOOK, payload)
     assert first.exit_code == second.exit_code == 0
     assert first.stdout == "" and "launch" in first.log
-    assert "already launched" in second.log
+    assert "within the cooldown" in second.log
     lines = launched(record)
     assert len(lines) == 1
     assert lines[0].startswith(f"omp:{SESSION_UUID} --reason frustration signals:")
+
+
+def test_a_session_launches_again_after_the_cooldown(
+    hooks: HookRunner, tmp_path: Path, launcher
+) -> None:
+    """A long session gets a new learner for frustration that comes after the window."""
+    script, record = launcher
+    payload = {"prompt": ANGRY, "transcript_path": str(omp_session(tmp_path))}
+    session = hooks.session(
+        HOOK, env_for(script, FRUSTRATION_LEARN_COOLDOWN_SECONDS="1")
+    )
+    session.run_payload(HOOK, payload)
+    assert len(launched(record)) == 1
+    time.sleep(1.2)
+    again = session.run_payload(HOOK, payload)
+    assert "launch" in again.log and "cooldown" not in again.log
+    deadline = time.monotonic() + 3
+    while time.monotonic() < deadline and len(launched(record)) < 2:
+        time.sleep(0.05)
+    assert len(launched(record)) == 2
 
 
 def test_session_comes_from_the_payload_not_an_inherited_env(
@@ -234,7 +254,7 @@ def test_a_judged_verdict_launches_where_the_lexical_score_does_not(
     assert line == f"omp:{SESSION_UUID} --reason frustration signals: judged(p=0.91)"
 
 
-def test_one_launch_per_session_across_the_lexical_and_judged_paths(
+def test_one_launch_per_cooldown_across_the_lexical_and_judged_paths(
     hooks: HookRunner, tmp_path: Path, launcher
 ) -> None:
     """Both hooks see the same angry prompt; the session still gets one learner."""
@@ -243,7 +263,7 @@ def test_one_launch_per_session_across_the_lexical_and_judged_paths(
     session = hooks.session(HOOK, env_for(script))
     session.run_payload(HOOK, payload)
     judged = session.run_payload(HOOK, payload, args=["--judged", "0.95"])
-    assert "already launched" in judged.log
+    assert "within the cooldown" in judged.log
     time.sleep(0.3)
     assert len(launched(record)) == 1
 
