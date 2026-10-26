@@ -41,4 +41,4 @@ run = ["mise run lint", "mise run test"]
 # The dotfile table lives in config/mise.toml, which this links as the global mise config.
 # A fresh machine runs `mise run setup` here once; after that, `mise dot apply` works anywhere.
 [dotfiles]
-"~/.config/mise/config.toml" = { source = "config/mise.toml", mode = "symlink" }
+"~/.config/mise/config.toml" = { source = "~/Developer/Personal/dev-profile/config/mise.toml", mode = "symlink" }
