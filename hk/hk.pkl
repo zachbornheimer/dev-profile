@@ -167,6 +167,7 @@ steps {
   }
   ["shellcheck-fix"] {
     fix = "dev-profile-shellcheck-fix {{files}}"
+    types = List("bash", "sh")
   }
   ["swift-format"] {
     fix = "dev-profile-swift-format {{files}}"
