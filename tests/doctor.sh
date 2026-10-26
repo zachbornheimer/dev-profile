@@ -13,6 +13,7 @@ for f in "$root"/shell/zsh/*.zsh; do
 	zsh -n "$f" || fail "shell/zsh/${f##*/}"
 done
 bash "$root/tests/output-fixture.sh" >/dev/null || fail "output fixture"
+bash "$root/tests/hook-path-free.sh" >/dev/null || fail "hook path fixture"
 for f in "$root"/bin/*; do
 	bash -n "$f" || fail "bin/${f##*/}"
 done

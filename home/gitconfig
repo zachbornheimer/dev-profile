@@ -24,10 +24,10 @@
 [coderabbit]
 	machineId = cli/a212caee3dfd41d0b0f8c1ea2009ea44
 [credential "https://github.com"]
-	helper = 
+	helper =
 	helper = !/opt/homebrew/bin/gh auth git-credential
 [credential "https://gist.github.com"]
-	helper = 
+	helper =
 	helper = !/opt/homebrew/bin/gh auth git-credential
 [tag]
 	gpgsign = true
@@ -74,17 +74,20 @@
 	gpgsign = true
 [beads]
 	role = maintainer
+# Git runs these from any process (agents, launchd, cron), so the PATH a login shell
+# builds is not guaranteed. hk steps call the dev-profile-* helpers by bare name; the
+# hook puts their directory on PATH itself, after the caller's dirs so nothing is shadowed.
 [hook "hk-commit-msg"]
-	command = test \"${HK:-1}\" = \"0\" || /opt/homebrew/bin/mise x hk -- hk run commit-msg
+	command = test \"${HK:-1}\" = \"0\" || PATH=\"${PATH}:${HOME}/.local/share/dev-profile/bin\" /opt/homebrew/bin/mise x hk -- hk run commit-msg
 	event = commit-msg
 [hook "hk-pre-commit"]
-	command = test \"${HK:-1}\" = \"0\" || /opt/homebrew/bin/mise x hk -- hk run pre-commit --staged
+	command = test \"${HK:-1}\" = \"0\" || PATH=\"${PATH}:${HOME}/.local/share/dev-profile/bin\" /opt/homebrew/bin/mise x hk -- hk run pre-commit --staged
 	event = pre-commit
 [hook "hk-pre-push"]
-	command = test \"${HK:-1}\" = \"0\" || /opt/homebrew/bin/mise x hk -- hk run pre-push
+	command = test \"${HK:-1}\" = \"0\" || PATH=\"${PATH}:${HOME}/.local/share/dev-profile/bin\" /opt/homebrew/bin/mise x hk -- hk run pre-push
 	event = pre-push
 [hook "hk-prepare-commit-msg"]
-	command = test \"${HK:-1}\" = \"0\" || /opt/homebrew/bin/mise x hk -- hk run prepare-commit-msg --from-hook
+	command = test \"${HK:-1}\" = \"0\" || PATH=\"${PATH}:${HOME}/.local/share/dev-profile/bin\" /opt/homebrew/bin/mise x hk -- hk run prepare-commit-msg --from-hook
 	event = prepare-commit-msg
 [rebase]
 	autoStash = true
