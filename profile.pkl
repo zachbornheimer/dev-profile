@@ -2,7 +2,7 @@
 /// Consumers (hk, dprint, mise, worktrunk, Conform) are generated from this file.
 module profile
 
-import "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pkl" as hk
+import "package://github.com/jdx/hk/releases/download/v2.8.1/hk@2.8.1#/Config.pkl" as hk
 
 import "lib/contract.pkl"
 import "lib/render.pkl"
@@ -70,16 +70,16 @@ dprintExcludes: Listing<String> = new {
 dprintPlugins: Listing<String> = new {
   "npm:@dprint/typescript@0.96.1"
   "npm:@dprint/json@0.25.2"
-  "npm:@dprint/markdown@0.26.0"
+  "npm:@dprint/markdown@0.28.0"
   "npm:@dprint/toml@0.9.0"
   "npm:@dprint/dockerfile@0.7.0"
   "npm:dprint-plugin-yaml@0.6.0"
-  "npm:@dprint/ruff@0.9.1"
-  "npm:@jakebailey/dprint-plugin-gofumpt@0.0.19"
+  "npm:@dprint/ruff@0.11.2"
+  "npm:@jakebailey/dprint-plugin-gofumpt@0.0.20"
   "npm:@dprint/exec@0.7.3/plugin.json@704701df449dd7e942a71144773778ac529d68c2e4657bfc236d393b898b9a67"
-  "npm:@kachick/dprint-plugin-sh@0.1.2"
+  "npm:@kachick/dprint-plugin-sh@0.1.3"
   // HTML/Vue/Svelte/Astro templates (markup_fmt) and CSS/SCSS/Less (malva).
-  "https://plugins.dprint.dev/g-plane/markup_fmt-v0.27.5.wasm"
+  "https://plugins.dprint.dev/g-plane/markup_fmt-v0.27.6.wasm"
   "https://plugins.dprint.dev/g-plane/malva-v0.16.0.wasm"
 }
 
@@ -443,31 +443,31 @@ deps: Listing<types.DepProvider> = new {
 
 /// Kernel tool required before generation. Also listed here so generated mise can reinstall it.
 kernelTools: Listing<types.Pin> = new {
-  new { id = "pkl"; version = "0.32.1" }
+  new { id = "pkl"; version = "0.32.2" }
 }
 
 /// Kernel and runtime pins. A tool's own pin lives in its `tools/` file.
 tools: Listing<types.Pin> = new {
-  new { id = "hk"; version = "2.5.0" }
+  new { id = "hk"; version = "2.8.1" }
   // 0.64.2 disables native unwind info for wasm plugins, which removed the macOS module
   // load/teardown lock contention (single-file fmt 72 ms with the old exit-patch fork,
   // 19 ms here). Older than 0.64.2 is slow on macOS.
   new { id = "dprint"; version = "0.64.3" }
-  new { id = "worktrunk"; version = "0.80.0" }
+  new { id = "worktrunk"; version = "0.81.0" }
   new { id = "go"; version = "1.27" }
   new { id = "node"; version = "24" }
-  new { id = "stylua"; version = "2.5.2" }
-  new { id = "aube"; version = "2.7.0" }
-  new { id = "uv"; version = "0.12.24" }
+  new { id = "stylua"; version = "2.6.0" }
+  new { id = "aube"; version = "2.8.3" }
+  new { id = "uv"; version = "0.13.5" }
   // Worktree env isolation (deps symlinks, ports, DB names); installed but not
   // hooked — its pre-start symlinks share build caches across worktrees (see
   // lib/render.pkl).
   new { id = "github:rohansx/workz"; version = "0.11.0" }
   // Contract adapters: OpenTofu lint and protobuf lint/breaking/generate.
-  new { id = "tflint"; version = "0.64.0" }
-  new { id = "buf"; version = "1.73.0" }
-  new { id = "npm:@agentclientprotocol/codex-acp"; version = "2.1.1" }
-  new { id = "npm:@agentclientprotocol/claude-agent-acp"; version = "0.88.0" }
+  new { id = "tflint"; version = "0.65.0" }
+  new { id = "buf"; version = "1.75.0" }
+  new { id = "npm:@agentclientprotocol/codex-acp"; version = "2.2.2" }
+  new { id = "npm:@agentclientprotocol/claude-agent-acp"; version = "0.95.0" }
 }
 
 brewPackages: Mapping<String, String> = new {
