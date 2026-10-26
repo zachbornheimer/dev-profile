@@ -1,0 +1,103 @@
+[tools]
+colima = "latest"
+gofumpt = "latest"
+
+[env._]
+# ~/.agents/bin holds the aubx scope guard; it must precede mise tool bins so
+# `aubx skills add -g` never reaches the raw installer in a mise-built PATH.
+path = ["~/.agents/bin"]
+
+[settings]
+# mise itself shells out to `git` (e.g. `git ls-remote golang/go` to list Go
+# versions). With a `git` shim on PATH that call re-enters mise, which resolves
+# the toolset again, which runs `git ls-remote` again: an unbounded fork loop
+# whenever mise has no warm cache (seen under aubx-skills' throwaway HOME).
+# conda:git (dev-profile) stays installed; these names just get no shim, so
+# `git` resolves to /opt/homebrew/bin/git (2.56, same as the pinned conda git).
+shims.exclude = [
+  "git",
+  "git-credential-osxkeychain",
+  "git-cvsserver",
+  "git-receive-pack",
+  "git-shell",
+  "git-upload-archive",
+  "git-upload-pack",
+  "gitk",
+]
+
+[tasks."learn:doctor"]
+# /learn is three files that `mise dot apply` installs together: the omp command, the launcher it
+# calls, and the capability CLI the launcher runs. A missing or stale one fails here, not at the prompt.
+description = "Check /learn wiring: the omp command, its launcher, the capability CLI, and the dispatch flag"
+run = """
+test -f "$HOME/.omp/agent/extensions/learn-command.ts"
+test -x "$HOME/.agents/bin/learn-launch"
+command -v capability >/dev/null
+"$HOME/.agents/bin/learn-launch" --dry-run --dispatch omp:00000000-0000-0000-0000-000000000000 >/dev/null
+"""
+
+[bootstrap.macos.launchd.agents.weekly-wt-prune]
+program = "/bin/sh"
+args = [
+  "-c",
+  '''
+export PATH="$HOME/.local/share/mise/shims:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+fd -H -t d '^\.git$' -x sh -c 'cd "$1" && wt step prune --min-age=0s' _ {//}
+''',
+]
+
+working_directory = "~/Developer"
+start_calendar_interval = { weekday = 0, hour = 9, minute = 0 }
+stdout_path = "~/Library/Logs/weekly-wt-prune.log"
+stderr_path = "~/Library/Logs/weekly-wt-prune.err.log"
+process_type = "Background"
+
+[dotfiles]
+# Everything the dev-profile checkout deploys. This is global config, so `mise dot status`
+# and `mise dot apply` see it from any directory. Sources are full paths: a relative
+# source resolves from ~/.config/mise (where this file is linked), not from the repo.
+"~/.config/hk/config.pkl" = { source = "~/Developer/Personal/dev-profile/hk/hk.pkl", mode = "symlink" }
+"~/.config/mise/conf.d/dev-profile.toml" = { source = "~/Developer/Personal/dev-profile/config/tools.toml", mode = "symlink" }
+"~/.config/dprint/dprint.jsonc" = { source = "~/Developer/Personal/dev-profile/config/dprint.jsonc", mode = "symlink" }
+"~/.config/worktrunk/config.toml" = { source = "~/Developer/Personal/dev-profile/config/worktrunk.toml", mode = "symlink" }
+"~/.config/yamllint/config" = { source = "~/Developer/Personal/dev-profile/config/yamllint.yaml", mode = "symlink" }
+"~/.markdownlintrc" = { source = "~/Developer/Personal/dev-profile/config/markdownlintrc.json", mode = "symlink" }
+"~/Developer/Personal/dprint.jsonc" = { source = "~/Developer/Personal/dev-profile/config/dprint.jsonc", mode = "symlink" }
+"~/Developer/Personal/.golangci.yml" = { source = "~/Developer/Personal/dev-profile/config/golangci.yml", mode = "symlink" }
+"~/Developer/Personal/.editorconfig" = { source = "~/Developer/Personal/dev-profile/config/editorconfig", mode = "symlink" }
+"~/Developer/Personal/deny.toml" = { source = "~/Developer/Personal/dev-profile/config/deny.toml", mode = "symlink" }
+"~/.config/nvim" = { source = "~/Developer/Personal/dev-profile/nvim", mode = "symlink" }
+"~/.config/zsh" = { source = "~/Developer/Personal/dev-profile/shell/zsh", mode = "symlink" }
+"~/.local/share/dev-profile/shell.zsh" = { source = "~/Developer/Personal/dev-profile/shell/shell.zsh", mode = "symlink" }
+"~/.config/kitty" = { source = "~/Developer/Personal/dev-profile/kitty", mode = "symlink" }
+"~/.agents" = { source = "~/Developer/Personal/dev-profile/agents", mode = "symlink" }
+"~/.local/share/dev-profile/bin" = { source = "~/Developer/Personal/dev-profile/bin", mode = "symlink" }
+"~/Developer/Personal/mise.toml" = { source = "~/Developer/Personal/dev-profile/config/personal-overlay.toml", mode = "symlink" }
+"~/.gitconfig" = { source = "~/Developer/Personal/dev-profile/home/gitconfig", mode = "symlink" }
+"~/.zshrc" = { source = "~/Developer/Personal/dev-profile/home/zshrc", mode = "symlink" }
+"~/.zshenv" = { source = "~/Developer/Personal/dev-profile/home/zshenv", mode = "symlink" }
+"~/.zprofile" = { source = "~/Developer/Personal/dev-profile/home/zprofile", mode = "symlink" }
+"~/.zlogin" = { source = "~/Developer/Personal/dev-profile/home/zlogin", mode = "symlink" }
+"~/.zshrc.local" = { source = "~/Developer/Personal/dev-profile/home/zshrc.local", mode = "symlink" }
+"~/.tmux.conf" = { source = "~/Developer/Personal/dev-profile/home/tmux.conf", mode = "symlink" }
+"~/.vimrc" = { source = "~/Developer/Personal/dev-profile/home/vimrc", mode = "symlink" }
+"~/.editorconfig" = { source = "~/Developer/Personal/dev-profile/home/editorconfig", mode = "symlink" }
+"~/.profile" = { source = "~/Developer/Personal/dev-profile/home/profile", mode = "symlink" }
+"~/.config/zed" = { source = "~/Developer/Personal/dev-profile/apps/zed", mode = "symlink" }
+"~/.config/git" = { source = "~/Developer/Personal/dev-profile/apps/git", mode = "symlink" }
+"~/.config/bat" = { source = "~/Developer/Personal/dev-profile/apps/bat", mode = "symlink" }
+"~/.config/atuin" = { source = "~/Developer/Personal/dev-profile/apps/atuin", mode = "symlink" }
+"~/.config/direnv" = { source = "~/Developer/Personal/dev-profile/apps/direnv", mode = "symlink" }
+"~/.config/lazygit" = { source = "~/Developer/Personal/dev-profile/apps/lazygit", mode = "symlink" }
+"~/.config/htop" = { source = "~/Developer/Personal/dev-profile/apps/htop", mode = "symlink" }
+"~/.config/btop" = { source = "~/Developer/Personal/dev-profile/apps/btop", mode = "symlink" }
+"~/.config/ripgrep" = { source = "~/Developer/Personal/dev-profile/apps/ripgrep", mode = "symlink" }
+"~/.config/opencode" = { source = "~/Developer/Personal/dev-profile/apps/opencode", mode = "symlink" }
+"~/.config/php-cs-fixer" = { source = "~/Developer/Personal/dev-profile/apps/php-cs-fixer", mode = "symlink" }
+"~/.config/ast-grep" = { source = "~/Developer/Personal/dev-profile/apps/ast-grep", mode = "symlink" }
+"~/.config/ai" = { source = "~/Developer/Personal/dev-profile/apps/ai", mode = "symlink" }
+"~/.config/agent-hooks" = { source = "~/Developer/Personal/dev-profile/apps/agent-hooks", mode = "symlink" }
+"~/.config/zab_ai" = { source = "~/Developer/Personal/dev-profile/apps/zab_ai", mode = "symlink" }
+"~/.config/zsh-preview" = { source = "~/Developer/Personal/dev-profile/apps/zsh-preview", mode = "symlink" }
+"~/.config/1Password" = { source = "~/Developer/Personal/dev-profile/apps/1Password", mode = "symlink" }
+"~/.vim" = { source = "~/Developer/Personal/dev-profile/vim", mode = "symlink" }

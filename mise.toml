@@ -10,8 +10,9 @@ DEV_PROFILE_BACKUPS = "{{env.HOME}}/.local/state/dev-profile/backups"
 "brew:git" = "latest"
 
 [tasks.setup]
-description = "Install the files on this branch"
-run = "mise dot apply --yes"
+description = "Link the global mise config, then apply the dotfiles it declares"
+# Two runs: the first links ~/.config/mise/config.toml; a fresh mise process then reads its table.
+run = ["mise dot apply --yes", "mise dot apply --yes"]
 
 [tasks.doctor]
 description = "Syntax-check the files this branch installs"
@@ -37,50 +38,7 @@ run = "mise run doctor"
 description = "lint, then the file check"
 run = ["mise run lint", "mise run test"]
 
-# Installed by `mise dot apply`. .gitconfig and ~/.config/mise/config.toml stay real files.
+# The dotfile table lives in config/mise.toml, which this links as the global mise config.
+# A fresh machine runs `mise run setup` here once; after that, `mise dot apply` works anywhere.
 [dotfiles]
-"~/.config/hk/config.pkl" = { source = "hk/hk.pkl", mode = "symlink" }
-"~/.config/mise/conf.d/dev-profile.toml" = { source = "config/tools.toml", mode = "symlink" }
-"~/.config/dprint/dprint.jsonc" = { source = "config/dprint.jsonc", mode = "symlink" }
-"~/.config/worktrunk/config.toml" = { source = "config/worktrunk.toml", mode = "symlink" }
-"~/.config/yamllint/config" = { source = "config/yamllint.yaml", mode = "symlink" }
-"~/.markdownlintrc" = { source = "config/markdownlintrc.json", mode = "symlink" }
-"~/Developer/Personal/dprint.jsonc" = { source = "config/dprint.jsonc", mode = "symlink" }
-"~/Developer/Personal/.golangci.yml" = { source = "config/golangci.yml", mode = "symlink" }
-"~/Developer/Personal/.editorconfig" = { source = "config/editorconfig", mode = "symlink" }
-"~/Developer/Personal/deny.toml" = { source = "config/deny.toml", mode = "symlink" }
-"~/.config/nvim" = { source = "nvim", mode = "symlink" }
-"~/.config/zsh" = { source = "shell/zsh", mode = "symlink" }
-"~/.local/share/dev-profile/shell.zsh" = { source = "shell/shell.zsh", mode = "symlink" }
-"~/.config/kitty" = { source = "kitty", mode = "symlink" }
-"~/.agents" = { source = "agents", mode = "symlink" }
-"~/.local/share/dev-profile/bin" = { source = "bin", mode = "symlink" }
-"~/Developer/Personal/mise.toml" = { source = "config/personal-overlay.toml", mode = "symlink" }
-"~/.gitconfig" = { source = "home/gitconfig", mode = "symlink" }
-"~/.zshrc" = { source = "home/zshrc", mode = "symlink" }
-"~/.zshenv" = { source = "home/zshenv", mode = "symlink" }
-"~/.zprofile" = { source = "home/zprofile", mode = "symlink" }
-"~/.zlogin" = { source = "home/zlogin", mode = "symlink" }
-"~/.zshrc.local" = { source = "home/zshrc.local", mode = "symlink" }
-"~/.tmux.conf" = { source = "home/tmux.conf", mode = "symlink" }
-"~/.vimrc" = { source = "home/vimrc", mode = "symlink" }
-"~/.editorconfig" = { source = "home/editorconfig", mode = "symlink" }
-"~/.profile" = { source = "home/profile", mode = "symlink" }
-"~/.config/zed" = { source = "apps/zed", mode = "symlink" }
-"~/.config/git" = { source = "apps/git", mode = "symlink" }
-"~/.config/bat" = { source = "apps/bat", mode = "symlink" }
-"~/.config/atuin" = { source = "apps/atuin", mode = "symlink" }
-"~/.config/direnv" = { source = "apps/direnv", mode = "symlink" }
-"~/.config/lazygit" = { source = "apps/lazygit", mode = "symlink" }
-"~/.config/htop" = { source = "apps/htop", mode = "symlink" }
-"~/.config/btop" = { source = "apps/btop", mode = "symlink" }
-"~/.config/ripgrep" = { source = "apps/ripgrep", mode = "symlink" }
-"~/.config/opencode" = { source = "apps/opencode", mode = "symlink" }
-"~/.config/php-cs-fixer" = { source = "apps/php-cs-fixer", mode = "symlink" }
-"~/.config/ast-grep" = { source = "apps/ast-grep", mode = "symlink" }
-"~/.config/ai" = { source = "apps/ai", mode = "symlink" }
-"~/.config/agent-hooks" = { source = "apps/agent-hooks", mode = "symlink" }
-"~/.config/zab_ai" = { source = "apps/zab_ai", mode = "symlink" }
-"~/.config/zsh-preview" = { source = "apps/zsh-preview", mode = "symlink" }
-"~/.config/1Password" = { source = "apps/1Password", mode = "symlink" }
-"~/.vim" = { source = "vim", mode = "symlink" }
+"~/.config/mise/config.toml" = { source = "config/mise.toml", mode = "symlink" }
