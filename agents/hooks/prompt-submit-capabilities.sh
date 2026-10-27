@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# UserPromptSubmit hook: runs the identify_intent, select_project and suggest_skills_tools_and_mcp capabilities.
+# UserPromptSubmit hook: batches prompt-level questions, then runs the intent, project and suggestion capabilities.
 # It returns intent/project text followed by the skill capability's XML context, so the agent receives
 # each selected skill's path and description. A repeat of the same suggestions in one session (or a block
 # over the size cap) is emitted as a names-only pointer instead of the full block. The per-session
 # skill-picks JSON is a fallback, not the injection path.
-# Prompt-level questions and the scripts they start live in prompt-respond.py, not here.
+# One prompt_submit_questions answer map is forwarded to the frustration and dictation consumers; they do not re-ask.
 # The capability runtime calls model APIs or the local proxy; this hook never starts a harness session.
 # Each capability declares the access it needs (tools, mcp, hooks) in its definition; the runtime grants only that.
 #
@@ -65,13 +65,18 @@ run_capability() {
 }
 
 run_all() {
-	local prompt="$1" cwd="$2" dir="$3" xml_input
-	# One suggest call: its XML carries every skill path, so the pick file is derived from it. The earlier
-	# JSON-then-cached-XML pair spent a second process start (about 2.7 s, serial) to re-read the same result.
+	local prompt="$1" cwd="$2" dir="$3" event_payload="$4" xml_input batch_input answers consumer_payload
+	batch_input="$(jq -nc --arg t "$prompt" '{text: $t, includeDictation: true}')"
+	run_capability "$dir/questions.json" "$cwd" prompt_submit_questions --input "$batch_input"
+	answers="$(jq -c '.output.answers // {} | if type == "object" then . else {} end' "$dir/questions.json" 2>/dev/null)"
+	if [[ -z "$answers" ]]; then answers='{}'; fi
+	consumer_payload="$(jq -c --argjson a "$answers" '. + {answers: $a}' <<<"$event_payload")"
 	xml_input="$(jq -nc --arg t "$prompt" '{text: $t, output: "xml"}')"
 	run_capability "$dir/intent.json" "$cwd" identify_intent --input "$(jq -nc --arg t "$prompt" '{text: $t}')" &
 	run_capability "$dir/project.json" "$cwd" select_project --text "$prompt" &
 	run_capability "$dir/skills.xml" "$cwd" suggest_skills_tools_and_mcp --input "$xml_input" &
+	printf '%s' "$consumer_payload" | timeout 35 "$HOME/.agents/hooks/prompt-respond.py" >"$dir/respond.json" 2>/dev/null &
+	printf '%s' "$consumer_payload" | timeout 60 "$HOME/.agents/hooks/dictation-rewrite.py" >"$dir/dictation.json" 2>/dev/null &
 	wait
 }
 
@@ -90,7 +95,6 @@ project_line() {
     | ((.Probabilities[$name] // 0) * 100 | round / 100) as $probability
     | "Project: \($name) (p=\($probability))"' "$1" 2>/dev/null
 }
-
 
 # Where the skill files are, for AGENTS.md's "read skill-picks/<session_id>.json" fallback. Read from the skill
 # XML; a prompt whose suggestion call failed leaves no file rather than the previous prompt's picks.
@@ -216,6 +220,11 @@ emit_context() {
 			fi
 		fi
 	fi
+	for line in "$dir/respond.json" "$dir/dictation.json"; do
+		local consumer_context
+		consumer_context="$(jq -r '.hookSpecificOutput.additionalContext // empty' "$line" 2>/dev/null)"
+		[[ -n "$consumer_context" ]] && lines+="${lines:+$'\n'}$consumer_context"
+	done
 	[[ -n "$lines" ]] || return 0
 	jq -nc --arg context "$lines" \
 		'{hookSpecificOutput: {hookEventName: "UserPromptSubmit", additionalContext: $context}}'
@@ -238,7 +247,7 @@ run_hook() {
 		set +a
 	}
 	dir="$(mktemp -d)" || return 0
-	run_all "$prompt" "${cwd:-$HOME}" "$dir"
+	run_all "$prompt" "${cwd:-$HOME}" "$dir" "$payload"
 	write_skill_pick "$session" "$dir/skills.xml"
 	emit_context "$dir" "$session"
 	rm -rf "$dir"

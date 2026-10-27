@@ -1,0 +1,281 @@
+#!/usr/bin/env python3
+"""Prove omp mounts each capability tool once and can still run commands.
+
+omp mounts ~/.omp/agent/mcp.json and also discovers ~/.claude.json, so the full
+`capability` stdio server and the standalone `capability-always-on` http server
+both served the same eight `agentmux_capability_*` tools. This check:
+
+1. runs the chezmoi modify script on a fixture and asserts it drops only
+   `capability-always-on`, keeps every other entry byte-for-byte, and is idempotent;
+2. asserts the live ~/.omp/agent/mcp.json no longer mounts `capability-always-on`
+   and still mounts `capability-meta`, and that the modify script is a fixed point on it;
+3. starts the full `capability` server from ~/.claude.json, asserts it serves every
+   always-on tool name (and the live standalone server's names when it is up), and
+   executes `agentmux_capability_run_command` end to end through it.
+
+The standalone always-on service and other harness configs are only read.
+"""
+
+import json
+import os
+import re
+import select
+import subprocess
+import sys
+import time
+import tomllib
+from http.client import HTTPConnection
+from pathlib import Path
+
+
+HOME = Path.home()
+LIVE_MCP = HOME / ".omp" / "agent" / "mcp.json"
+CLAUDE_JSON = HOME / ".claude.json"
+CHEZMOI_CONFIG = HOME / ".config" / "chezmoi" / "chezmoi.toml"
+AI_KEYS = HOME / ".config" / "zsh" / "ai-keys.zsh"
+MODIFY_SCRIPT = Path("home/dot_omp/private_agent/modify_private_mcp.json.tmpl")
+REDUNDANT = "capability-always-on"
+KEPT_SERVER = "capability-meta"
+ALWAYS_ON_HOST = "127.0.0.1"
+ALWAYS_ON_PORT = 4503
+ALWAYS_ON_PATH = "/mcp"
+ALWAYS_ON_TOOLS = {
+    "agentmux_capability_bash",
+    "agentmux_capability_bash_kill",
+    "agentmux_capability_bash_status",
+    "agentmux_capability_glob",
+    "agentmux_capability_grep",
+    "agentmux_capability_run_command",
+    "agentmux_capability_summarize",
+    "agentmux_capability_web_search",
+}
+EXEC_TOOL = "agentmux_capability_run_command"
+EXEC_MARKER = "omp-tool-dedupe-ok"
+RPC_TIMEOUT_SECONDS = 60
+PROTOCOL_VERSION = "2025-03-26"
+
+
+def fail(message: str) -> None:
+    print(f"FAIL: {message}", file=sys.stderr)
+    sys.exit(1)
+
+
+def ok(message: str) -> None:
+    print(f"ok: {message}")
+
+
+def modify_script_path() -> Path:
+    source_dir = tomllib.loads(CHEZMOI_CONFIG.read_text())["sourceDir"]
+    override = os.environ.get("DOTFILES_SOURCE_DIR", source_dir)
+    return Path(override) / MODIFY_SCRIPT
+
+
+def run_modify(script: Path, current: str) -> str:
+    result = subprocess.run(
+        [sys.executable, str(script)], input=current, capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        fail(
+            f"{script} exited {result.returncode} on its input: {result.stderr.strip()}"
+        )
+    return result.stdout
+
+
+def check_modify_script() -> Path | None:
+    script = modify_script_path()
+    if not script.is_file():
+        # Until this change lands in the chezmoi source dir nothing manages mcp.json, so
+        # apply leaves the live file alone; the live-config and server checks still run.
+        print(
+            f"warn: no modify script at {script}; skipped its fixture and fixed-point checks"
+        )
+        return None
+    fixture = {
+        "mcpServers": {
+            "capability-meta": {"type": "http", "url": "http://127.0.0.1:4502/mcp"},
+            REDUNDANT: {"type": "http", "url": "http://127.0.0.1:4503/mcp"},
+            "secret-holder": {
+                "type": "http",
+                "headers": {"Authorization": "Bearer fixture-secret"},
+            },
+        },
+        "disabledServers": ["secret-holder", REDUNDANT],
+    }
+    first = json.loads(run_modify(script, json.dumps(fixture)))
+    expected = {
+        "mcpServers": {
+            k: v for k, v in fixture["mcpServers"].items() if k != REDUNDANT
+        },
+        "disabledServers": ["secret-holder"],
+    }
+    if first != expected:
+        fail(f"modify script changed more than {REDUNDANT}: {first}")
+    if run_modify(script, json.dumps(first)) != json.dumps(first, indent=2) + "\n":
+        fail("modify script is not idempotent")
+    if REDUNDANT in run_modify(script, ""):
+        fail("modify script emits the redundant server for an empty target")
+    ok(f"modify script drops only {REDUNDANT} and is idempotent")
+    return script
+
+
+def check_live_config(script: Path | None) -> None:
+    live = json.loads(LIVE_MCP.read_text())
+    servers = live.get("mcpServers", {})
+    if REDUNDANT in servers:
+        fail(f"{LIVE_MCP} still mounts {REDUNDANT}")
+    if KEPT_SERVER not in servers or servers[KEPT_SERVER].get("enabled") is False:
+        fail(f"{LIVE_MCP} lost {KEPT_SERVER}")
+    if script and json.loads(run_modify(script, LIVE_MCP.read_text())) != live:
+        fail(f"{LIVE_MCP} differs from what chezmoi would write; run chezmoi apply")
+    ok(f"live mcp.json has no {REDUNDANT} and still mounts {KEPT_SERVER}")
+
+
+class StdioServer:
+    def __init__(self, command: list[str]) -> None:
+        self.proc = subprocess.Popen(
+            command,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+        )
+        self.next_id = 0
+
+    def send(self, message: dict) -> None:
+        self.proc.stdin.write(json.dumps(message) + "\n")
+        self.proc.stdin.flush()
+
+    def call(self, method: str, params: dict) -> dict:
+        self.next_id += 1
+        self.send(
+            {"jsonrpc": "2.0", "id": self.next_id, "method": method, "params": params}
+        )
+        deadline = time.monotonic() + RPC_TIMEOUT_SECONDS
+        while time.monotonic() < deadline:
+            ready, _, _ = select.select([self.proc.stdout], [], [], 1)
+            if not ready:
+                continue
+            line = self.proc.stdout.readline()
+            if not line:
+                fail(f"capability server exited before answering {method}")
+            message = json.loads(line)
+            if message.get("id") == self.next_id:
+                if "error" in message:
+                    fail(f"capability server rejected {method}: {message['error']}")
+                return message["result"]
+        fail(f"capability server did not answer {method} within {RPC_TIMEOUT_SECONDS}s")
+
+    def initialize(self) -> None:
+        self.call(
+            "initialize",
+            {
+                "protocolVersion": PROTOCOL_VERSION,
+                "capabilities": {},
+                "clientInfo": {"name": "omp-tool-dedupe", "version": "1"},
+            },
+        )
+        self.send({"jsonrpc": "2.0", "method": "notifications/initialized"})
+
+    def close(self) -> None:
+        self.proc.kill()
+
+
+def full_server_command() -> list[str]:
+    declared = (
+        json.loads(CLAUDE_JSON.read_text()).get("mcpServers", {}).get("capability")
+    )
+    if not declared or declared.get("type", "stdio") != "stdio":
+        fail(
+            f"{CLAUDE_JSON} does not mount the full `capability` stdio server omp discovers"
+        )
+    command = [declared["command"], *declared.get("args", [])]
+    if AI_KEYS.is_file():
+        return [
+            "/bin/zsh",
+            "-lc",
+            f"source {AI_KEYS}; ai-keys::exec {' '.join(command)}",
+        ]
+    return command
+
+
+def http_tool_names() -> set[str] | None:
+    connection = HTTPConnection(ALWAYS_ON_HOST, ALWAYS_ON_PORT, timeout=15)
+
+    def post(body: dict, session: str | None = None):
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "application/json, text/event-stream",
+        }
+        if session:
+            headers["mcp-session-id"] = session
+        connection.request("POST", ALWAYS_ON_PATH, json.dumps(body), headers)
+        response = connection.getresponse()
+        text = response.read().decode()
+        for line in text.splitlines():
+            if line.startswith("data:"):
+                text = line[5:]
+        return (json.loads(text) if text.strip() else None), response.getheader(
+            "mcp-session-id"
+        )
+
+    try:
+        _, session = post(
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": PROTOCOL_VERSION,
+                    "capabilities": {},
+                    "clientInfo": {"name": "omp-tool-dedupe", "version": "1"},
+                },
+            }
+        )
+        post({"jsonrpc": "2.0", "method": "notifications/initialized"}, session)
+        reply, _ = post({"jsonrpc": "2.0", "id": 2, "method": "tools/list"}, session)
+    except OSError:
+        return None
+    return {tool["name"] for tool in reply["result"]["tools"]}
+
+
+def check_full_server() -> None:
+    server = StdioServer(full_server_command())
+    try:
+        server.initialize()
+        served = {tool["name"] for tool in server.call("tools/list", {})["tools"]}
+        absent = ALWAYS_ON_TOOLS - served
+        if absent:
+            fail(
+                f"full capability server does not serve {sorted(absent)}; removing {REDUNDANT} would lose them"
+            )
+        standalone = http_tool_names()
+        if standalone is not None and standalone - served:
+            fail(
+                f"standalone always-on server serves {sorted(standalone - served)} the full server lacks"
+            )
+        ok(
+            f"full server serves all {len(ALWAYS_ON_TOOLS)} always-on tools ({len(served)} total)"
+        )
+
+        result = server.call(
+            "tools/call",
+            {"name": EXEC_TOOL, "arguments": {"command": f"echo {EXEC_MARKER}"}},
+        )
+        text = "".join(part.get("text", "") for part in result.get("content", []))
+        log_path = re.search(r'"log":\s*"([^"]+)"', text)
+        if EXEC_MARKER not in text and log_path:
+            text += Path(log_path.group(1)).read_text()
+        if EXEC_MARKER not in text:
+            fail(f"{EXEC_TOOL} ran but its output lacks {EXEC_MARKER!r}: {text[:300]}")
+        ok(f"{EXEC_TOOL} executed end to end through the full server")
+    finally:
+        server.close()
+
+
+def main() -> None:
+    script = check_modify_script()
+    check_live_config(script)
+    check_full_server()
+
+
+main()

@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Dev profile design</title>
+    <link rel="stylesheet" href="colors_and_type.css">
+    <link rel="stylesheet" href="components.css">
+    <style>
+    .page {
+      max-width: var(--layout-max-width);
+      margin: 0 auto;
+    }
+    .grid2 {
+      display: grid;
+      grid-template-columns:
+        repeat(auto-fit, minmax(min(100%, var(--layout-card-min)), 1fr));
+      gap: var(--space-16);
+    }
+    .wrap {
+      overflow-wrap: anywhere;
+    }
+    .tree {
+      font-family: var(--font-mono);
+      font-size: var(--text-mono);
+      line-height: var(--leading-prose);
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      margin: 0;
+      color: var(--color-text);
+    }
+    .files .th, .files .trow {
+      grid-template-columns:
+        minmax(0, 1.2fr) minmax(0, 1.4fr) minmax(72px, 0.4fr);
+    }
+    .steps-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+    .step-row {
+      display: grid;
+      grid-template-columns: 28px minmax(0, 1fr);
+      gap: var(--space-12);
+      padding: var(--space-12) 0;
+      border-bottom: 1px solid var(--color-row-divider);
+    }
+    .step-row:last-child {
+      border-bottom: 0;
+    }
+    .n {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-style: normal;
+      font-size: var(--text-meta);
+      font-weight: var(--weight-semibold);
+      background: var(--color-accent);
+      color: var(--color-on-accent);
+    }
+    .step-row h3 {
+      margin: 0 0 var(--space-4);
+      font-size: var(--text-body);
+      font-weight: var(--weight-semibold);
+    }
+    .step-row p {
+      margin: 0;
+      color: var(--color-text-secondary);
+    }
+    .proof {
+      margin-top: var(--space-6);
+      font-family: var(--font-mono);
+      font-size: var(--text-mono);
+      color: var(--color-text);
+      overflow-wrap: anywhere;
+    }
+    .health {
+      width: auto;
+      max-width: 100%;
+    }
+    h2 .sub {
+      display: block;
+      margin-top: var(--space-4);
+      font-size: var(--text-meta);
+      font-weight: var(--weight-regular);
+      color: var(--color-text-muted);
+    }
+    </style>
+  </head>
+  <body>
+    <main class="preview page">
+      <header class="hdr">
+        <div>
+          <h1>Personal profile, on feat/mise-manager</h1>
+          <p class="meta">
+            Revised 25 Oct 2026 · your files only · MIT and SAH still wait ·
+            chezmoi is replaced, not left beside this
+          </p>
+        </div>
+        <span class="pill on"><i></i>Building the layout</span>
+      </header>
+
+      <section class="card">
+        <h2>What you just decided</h2>
+        <p>
+          Every path the first tree marked "no" is in. That includes worktrunk,
+          conform, the Personal root configs, deny, markdownlint, yamllint,
+          shell init, the perl profiles, the git hook keys, and the hand-written
+          <span class="mono">~/.config/mise/config.toml</span> keys that must
+          survive.
+        </p>
+        <p>
+          Neovim is the whole config, not one plugin file. Chezmoi goes away:
+          mise deploys what chezmoi deploys now. The work happens on <span
+            class="mono"
+          >feat/mise-manager</span>, and the files that move get formatted.
+        </p>
+      </section>
+
+      <div class="grid2">
+        <section class="card">
+          <h2>
+            Neovim <span class="sub"
+            >44 tracked files · its own git repo at ~/.config/nvim</span>
+          </h2>
+          <p>
+            <span class="mono">init.lua</span>, <span class="mono"
+            >lua/zach/</span>,
+            <span class="mono">lazy-lock.json</span>, <span class="mono"
+            >scripts/</span>,
+            <span class="mono">test/</span>, <span class="mono">docs/</span>,
+            <span class="mono">LAYOUT.md</span>. The 27 paths chezmoi lists and
+            git does not are gone from disk. They are the old flat plugin
+            layout. The live file is <span class="mono"
+            >lua/zach/plugins/coding/conform.lua</span>. Git has four paths
+            chezmoi never managed. The generated
+            <span class="mono">config/conform.lua</span> is a different file and
+            is not deployed over the plugin.
+          </p>
+        </section>
+        <section class="card">
+          <h2>
+            Chezmoi <span class="sub"
+            >2,840 managed paths · source
+              ~/Developer/Personal/dotfiles/home</span>
+          </h2>
+          <p>
+            2,317 are under <span class="mono">.agents</span>. The rest that
+            matter here: zsh, <span class="mono">.gitconfig</span>, <span
+              class="mono"
+            >.tmux.conf</span>,
+            <span class="mono">.editorconfig</span>, and <span class="mono"
+            >.config</span>
+            for nvim, zsh, kitty, zed, plus smaller tool configs (mise,
+            worktrunk, git, bat, atuin, direnv).
+          </p>
+          <p>
+            Those are not copied into this repo as a second tree. mise deploys
+            the dotfiles checkout. Chezmoi stops being the installer once that
+            deploy matches <span class="mono">chezmoi managed</span>.
+          </p>
+        </section>
+      </div>
+
+      <section class="listcard">
+        <div class="bar">
+          <div>
+            <h2>Owned on this branch</h2>
+            <span class="sub"
+            >The earlier "no" rows are in. State files and agent transcripts
+              stay out.</span>
+          </div>
+        </div>
+        <div class="scroll">
+          <div>
+            <div class="tbl files">
+              <div class="th">
+                <span>Path</span><span>Source</span><span>On branch</span>
+              </div>
+              <div class="trow">
+                <span class="mono wrap">hk/hk.pkl</span><span>Current rendered
+                  hk config, then edited by hand</span><span class="tag ok"
+                >in</span>
+              </div>
+              <div class="trow">
+                <span class="mono wrap">config/</span><span>dprint, golangci,
+                  editorconfig, worktrunk, yamllint, markdownlint, deny,
+                  conform</span><span class="tag ok">in</span>
+              </div>
+              <div class="trow">
+                <span class="mono wrap">shell/shell.zsh</span><span>Rendered
+                  shell init. ~/.zshrc stays a chezmoi file that sources
+                  it</span><span class="tag ok">in</span>
+              </div>
+              <div class="trow">
+                <span class="mono wrap">nvim/</span><span>44 tracked files from
+                  ~/.config/nvim, no .git</span><span class="tag ok">in</span>
+              </div>
+              <div class="trow">
+                <span class="mono wrap">scripts/</span><span>uv scripts, ported
+                  after tests. Empty until the first port.</span><span
+                  class="tag outline"
+                >later</span>
+              </div>
+              <div class="trow">
+                <span class="mono wrap">dotfiles/home</span><span>Existing
+                  checkout. mise deploys it. Not copied.</span><span
+                  class="tag ok"
+                >linked</span>
+              </div>
+              <div class="trow">
+                <span class="mono wrap">~/.config/mise/config.toml</span><span
+                >Hand-written keys stay in that file. Profile fragment stays in
+                  conf.d.</span><span class="tag ok">kept</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="foot">
+          <span class="lbl"
+          >Still to find: anything chezmoi does not manage and this profile does
+            not already link. Sessions, caches, and ~/.codex or ~/.claude state
+            are not config.</span>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Branch layout</h2>
+        <pre class="tree">feat/mise-manager
+  hk/hk.pkl
+  config/          dprint, golangci, editorconfig, worktrunk, yamllint, markdownlint, deny, conform
+  shell/shell.zsh
+  shell/zsh/       47 files from ~/.config/zsh
+  nvim/            the 44 tracked files
+  scripts/         uv ports, after the tests move</pre>
+        <p>
+          Format with the profile dprint config as files land. Do not symlink a
+          file a tool rewrites. <span class="mono">~/.gitconfig</span> and <span
+            class="mono"
+          >~/.config/mise/config.toml</span> stay real files. The profile adds
+          hook keys and a conf.d fragment. It does not replace those files.
+        </p>
+      </section>
+
+      <section class="card">
+        <h2>Order of work</h2>
+        <div class="steps-list">
+          <div class="step-row">
+            <i class="n">1</i>
+            <div>
+              <h3>Layout on feat/mise-manager</h3>
+              <p>
+                Directories above, filled from the current render and the nvim
+                repo. Formatted. The generator still runs until each consumer
+                has moved.
+              </p>
+              <div class="proof">
+                git switch --show-current is feat/mise-manager, and the four
+                directories exist
+              </div>
+            </div>
+          </div>
+          <div class="step-row">
+            <i class="n">2</i>
+            <div>
+              <h3>Deploy map, not applied</h3>
+              <p>
+                <span class="mono">mise.toml</span> on the branch names the
+                owned paths. <span class="mono">mise dot apply --dry-run</span>
+                refuses to overwrite <span class="mono"
+                >~/.config/worktrunk/config.toml</span>,
+                <span class="mono">~/.config/zsh</span>, and
+                <span class="mono">shell.zsh</span>. The other links still point
+                at the generated output. Neovim waits: the generated conf.d
+                still declares a file inside that tree, and mise will not take
+                both. Nothing was applied. Applying now would point live files
+                at the feature worktree.
+              </p>
+              <div class="proof">mise dot status</div>
+            </div>
+          </div>
+          <div class="step-row">
+            <i class="n">3</i>
+            <div>
+              <h3>Move tests, then scripts</h3>
+              <p>
+                Short scripts first. <span class="mono">dev-profile-dev</span>
+                last. <span class="mono">mise run test</span> stays green.
+              </p>
+              <div class="proof">mise run test</div>
+            </div>
+          </div>
+          <div class="step-row">
+            <i class="n">4</i>
+            <div>
+              <h3>Prove a commit under ~/Developer/Personal</h3>
+              <p>
+                Hooks run. This repo's <span class="mono">mise run ci</span> is
+                green. Then, and only then, MIT and SAH.
+              </p>
+              <div class="proof">mise run ci</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2>Still true</h2>
+        <div class="grid2">
+          <article class="health">
+            <i class="a"></i>
+            <div>
+              <h2>Your skills stay where they are</h2>
+              <span>~/.agents has 2,317 files, mostly skills. They already live
+                in ~/Developer/Personal/dotfiles. Copying them into this repo
+                would make a second copy. An edit in one would not show up in
+                the other. mise will install that same checkout. One
+                copy.</span>
+            </div>
+          </article>
+          <article class="health">
+            <i class="g"></i>
+            <div>
+              <h2>uv is in the hook environment</h2>
+              <span>uv 0.12.24 resolved under <span class="mono"
+                >mise x hk</span> on this machine. A cached script started in
+                40–60 ms.</span>
+            </div>
+          </article>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

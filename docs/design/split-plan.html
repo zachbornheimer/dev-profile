@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Dev profile and dotfiles: first pass</title>
+    <link rel="stylesheet" href="colors_and_type.css">
+    <link rel="stylesheet" href="components.css">
+    <style>
+    .page {
+      max-width: var(--layout-max-width);
+      margin: 0 auto;
+    }
+    .grid2 {
+      display: grid;
+      grid-template-columns:
+        repeat(auto-fit, minmax(min(100%, var(--layout-card-min)), 1fr));
+      gap: var(--space-16);
+    }
+    .card ul, .card ol {
+      margin: 0;
+      padding-left: var(--space-20);
+      color: var(--color-text-secondary);
+      line-height: var(--leading-prose);
+    }
+    .card li {
+      margin-bottom: var(--space-4);
+    }
+    h2 .sub {
+      display: block;
+      margin-top: var(--space-4);
+      font-size: var(--text-meta);
+      font-weight: var(--weight-regular);
+      color: var(--color-text-muted);
+    }
+    .wrap {
+      overflow-wrap: anywhere;
+    }
+    .tasks .th, .tasks .trow {
+      display: grid;
+      grid-template-columns:
+        40px minmax(0, 1.3fr) minmax(0, 1.4fr) minmax(0, 1fr);
+      gap: var(--space-12);
+      align-items: start;
+    }
+    .tasks .inner {
+      min-width: 760px;
+    }
+    .flow {
+      display: flex;
+      flex-direction: column;
+    }
+    .flow .row {
+      display: grid;
+      grid-template-columns: 28px minmax(0, 1fr);
+      gap: var(--space-12);
+      padding: var(--space-10) 0;
+      border-bottom: 1px solid var(--color-row-divider);
+    }
+    .flow .row:last-child {
+      border-bottom: 0;
+    }
+    .n {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: var(--text-meta);
+      font-weight: var(--weight-semibold);
+      background: var(--color-accent);
+      color: var(--color-on-accent);
+    }
+    .flow p {
+      margin: 0;
+    }
+    .choices {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-12);
+    }
+    .choice {
+      cursor: pointer;
+      width: auto;
+      flex: 1 1 280px;
+    }
+    .choice input {
+      margin-top: 2px;
+      accent-color: var(--color-accent);
+    }
+    .choice:has(input:checked) {
+      border-color: var(--color-accent);
+      background: var(--color-accent-bg);
+    }
+    .choice .rec {
+      margin-left: var(--space-6);
+    }
+    textarea.note {
+      font: inherit;
+      font-size: var(--text-body);
+      width: 100%;
+      box-sizing: border-box;
+      min-height: 72px;
+      padding: var(--space-8) var(--space-10);
+      border: 1px solid var(--color-border-input);
+      border-radius: var(--radius-control);
+      background: var(--color-surface);
+      color: var(--color-text);
+    }
+    .actions {
+      display: flex;
+      gap: var(--space-12);
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .queued {
+      font-size: var(--text-meta);
+      color: var(--color-success-text);
+    }
+    </style>
+  </head>
+  <body>
+    <main class="preview page">
+      <header class="hdr">
+        <div>
+          <h1>Dev profile and dotfiles: first pass</h1>
+          <p class="meta">
+            26 Oct 2026 · 7 tasks · obvious items only · nothing has changed
+            on your Mac yet
+          </p>
+        </div>
+        <span class="pill off"><i></i>Waiting for your review</span>
+      </header>
+
+      <section class="card">
+        <h2>Goal</h2>
+        <p>
+          One repo got two jobs. This splits them. The dev profile holds
+          everything that changes how you develop. The dotfiles repo holds
+          everything else that makes this Mac this Mac. Secrets stay in
+          1Password and neither repo stores them.
+        </p>
+        <p>
+          Today both live in <span class="mono">dev-profile</span>, and <span
+            class="mono"
+          >~/.agents</span>
+          is one link into it. If you lost this Mac, nothing would rebuild it in
+          one step.
+        </p>
+      </section>
+
+      <div class="grid2">
+        <section class="card">
+          <h2>
+            Dev profile <span class="sub"
+            >public · ~/Developer/Personal/dev-profile</span>
+          </h2>
+          <ul>
+            <li>
+              Tool pins, one file per language: Go, Python, JS/TS, Rust, Docker,
+              Terraform, PHP, Swift, Perl
+            </li>
+            <li>
+              The task contract: <span class="mono"
+              >setup lint test scan ci</span> and the rest
+            </li>
+            <li>
+              hk hooks written by hand, with each tool's config passed
+              explicitly
+            </li>
+            <li>dprint, golangci, deny, yamllint, markdownlint, gitleaks</li>
+            <li>
+              Git hook keys, active only under <span class="mono"
+              >~/Developer/Personal</span>
+            </li>
+            <li>
+              worktrunk and its aliases, <span class="mono">wt-sync</span>,
+              workz, portless, the <span class="mono">dev:*</span> tasks
+            </li>
+            <li>
+              nvim's conform, and the hook that lets <span class="mono"
+              >wt switch</span> change directory
+            </li>
+            <li>
+              Agent coding rules, enforcement hooks, and 5 workflow skills
+            </li>
+          </ul>
+        </section>
+        <section class="card">
+          <h2>
+            Dotfiles <span class="sub"
+            >private · ~/Developer/Personal/dotfiles</span>
+          </h2>
+          <ul>
+            <li>The rest of zsh, nvim, and kitty</li>
+            <li>
+              App configs: zed, bat, atuin, lazygit, htop, btop, ripgrep,
+              direnv, 1Password, opencode
+            </li>
+            <li>
+              <span class="mono">~/.gitconfig</span> (name and aliases), tmux,
+              vim, profile
+            </li>
+            <li>
+              LaunchAgents, macOS setup scripts, personal Homebrew packages
+            </li>
+            <li>
+              Your agent setup: <span class="mono">AGENTS.md</span>, models,
+              advisors, MCP servers, personal skills and the skill lock file
+            </li>
+            <li>Agent state stays untracked</li>
+          </ul>
+          <p>No editorconfig in either repo.</p>
+        </section>
+      </div>
+
+      <section class="card">
+        <h2>
+          Rebuilding a Mac <span class="sub">what the plan makes true</span>
+        </h2>
+        <div class="flow">
+          <div class="row">
+            <span class="n">1</span><p>Install Homebrew and mise.</p>
+          </div>
+          <div class="row">
+            <span class="n">2</span><p>
+              Clone the dotfiles repo and link it as <span class="mono"
+              >~/.config/mise/conf.d/dotfiles</span>.
+            </p>
+          </div>
+          <div class="row">
+            <span class="n">3</span><p>
+              Run <span class="mono">mise bootstrap</span>. It clones <span
+                class="mono"
+              >dev-profile</span>, installs packages and LaunchAgents, and links
+              both repos' files into place.
+            </p>
+          </div>
+        </div>
+        <p>
+          <span class="mono">mise bootstrap --adopt</span> is not used yet.
+          Without a sync marker it would clone the repo into <span class="mono"
+          >~/.config/mise</span>. It comes back with automatic sync.
+        </p>
+      </section>
+
+      <section class="listcard">
+        <div class="bar">
+          <div>
+            <h2>The 7 tasks</h2>
+            <span class="sub"
+            >Each starts with a test that fails, then passes. Only task 7
+              touches your Mac.</span>
+          </div>
+        </div>
+        <div class="scroll">
+          <div class="inner">
+            <div class="tbl tasks">
+              <div class="th">
+                <span>#</span><span>What changes</span><span>Proof</span><span
+                >Where</span>
+              </div>
+              <div class="trow">
+                <span>1</span><span>Prove a linked conf.d folder deploys files,
+                  and survives a missing link</span><span class="mono wrap"
+                >tests/conf-d-fragment.sh</span><span>scratch home</span>
+              </div>
+              <div class="trow">
+                <span>2</span><span>Code-root config, per-language pins and
+                  hooks</span><span class="mono wrap"
+                >tests/profile-layout.sh, no-worktree-paths.sh</span><span
+                >dev-profile branch</span>
+              </div>
+              <div class="trow">
+                <span>3</span><span>Deploy the dev environment, hook keys scoped
+                  to ~/Developer/Personal</span><span class="mono wrap"
+                >tests/profile-deploy.sh</span><span>dev-profile branch</span>
+              </div>
+              <div class="trow">
+                <span>4</span><span>Rebuild the dotfiles repo on mise, move your
+                  personal files and agent tree</span><span class="mono wrap"
+                >tests/bootstrap.sh</span><span>dotfiles branch</span>
+              </div>
+              <div class="trow">
+                <span>5</span><span>Remove personal files from the public repo,
+                  tracked or not</span><span class="mono wrap"
+                >tests/public-only.sh + secret scan</span><span>dev-profile
+                  branch</span>
+              </div>
+              <div class="trow">
+                <span>6</span><span>Install 4 identical online skills from
+                  source, pin 11 trailofbits skills</span><span
+                  class="mono wrap"
+                >tests/skills-pinned.sh</span><span>dotfiles branch</span>
+              </div>
+              <div class="trow">
+                <span>7</span><span>Back up, then switch this Mac to both
+                  repos</span><span>backup manifest, then <span class="mono"
+                  >mise dot status</span>, clean shell, hk validate</span><span
+                >your Mac</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div class="grid2">
+        <section class="card">
+          <h2>
+            What could go wrong <span class="sub"
+            >each has a test in the plan</span>
+          </h2>
+          <ul>
+            <li>
+              A fresh Mac between cloning dotfiles and cloning dev-profile
+              breaks mise
+            </li>
+            <li>
+              Running apply from a worktree points live links at the worktree
+            </li>
+            <li>
+              Profile tasks or hooks leak into repos outside
+              ~/Developer/Personal
+            </li>
+            <li>A personal or untracked file stays in the public repo</li>
+            <li>A reinstall overwrites a skill you edited</li>
+          </ul>
+        </section>
+        <section class="card">
+          <h2>Second pass <span class="sub">not in this plan</span></h2>
+          <ol>
+            <li>claude-seo: which repo, pin at v1.8.1, then upgrade</li>
+            <li>Agent settings files that mix hooks with personal keys</li>
+            <li>Skills that differ from every upstream version</li>
+            <li>Low-confidence "no match" skills, and possibly derived ones</li>
+            <li>Remaining exact skill matches from batches 3 and 4</li>
+            <li>Tracked files inside a conf.d folder</li>
+            <li>The SAH work profile</li>
+            <li>Automatic backup and sync</li>
+          </ol>
+        </section>
+      </div>
+
+      <section class="card" id="decision">
+        <h2>
+          Your call <span class="sub">nothing runs until you send this</span>
+        </h2>
+        <form
+          data-lavish-question="plan"
+          onsubmit="event.preventDefault();
+const f = new FormData(event.currentTarget);
+const how = f.get('how');
+const note = (f.get('note') || '').trim();
+if (!how) return;
+const text = (how === 'Revise first'
+  ? 'Revise the plan before running it'
+  : 'Plan approved. Run it ' + how) + (note ? '. Notes: ' + note : '.');
+window.lavish.queuePrompt(text, {
+  tag: 'choice',
+  text: 'Plan: ' + how,
+  element: event.currentTarget,
+  data: { question: 'plan', answer: how, note: note },
+});
+document.getElementById('queued').textContent = 'Queued: ' + how"
+        >
+          <div class="choices">
+            <label class="choice"><input
+                type="radio"
+                name="how"
+                value="subagent-driven"
+              ><span><b>Approve, subagent-driven<span class="tag ok rec"
+                  >recommended</span></b><small>A fresh worker builds each task
+                  and a reviewer checks it before the next starts. Safer, since
+                  task 7 changes your Mac.</small></span></label>
+            <label class="choice"><input
+                type="radio"
+                name="how"
+                value="native"
+              ><span><b>Approve, native</b><small>I build all 7 tasks here, with
+                  one review at the end. Faster and
+                  cheaper.</small></span></label>
+            <label class="choice"><input
+                type="radio"
+                name="how"
+                value="Revise first"
+              ><span><b>Revise first</b><small>Tell me what to change below, or
+                  annotate the page.</small></span></label>
+          </div>
+          <textarea
+            class="note"
+            name="note"
+            placeholder="Anything to change or add (optional)"
+          ></textarea>
+          <div class="actions">
+            <button class="btn primary" type="submit">Send my answer</button>
+            <span class="queued" id="queued"></span>
+          </div>
+        </form>
+      </section>
+    </main>
+  </body>
+</html>

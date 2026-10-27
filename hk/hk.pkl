@@ -19,6 +19,25 @@ exclude =
     "**/.cache",
     "**/.beads",
   )
+
+// Shellcheck receives shell files only. A script in home/*/bin carries no
+// suffix, so the shebang is the second half of the rule (a shell interpreter
+// only: a Python or Node shebang is not shellcheck input); both are needed.
+// It is a function, not a prefix: a multi-line Pkl value cannot end in the
+// newline a caller needs between the filter and the shellcheck call.
+local shellFiles =
+  """
+  shell_files() {
+    for f in "$@"; do
+      case "$f" in
+        *.sh|*.bash|*.zsh|*.ksh|*.dash|*.bats) echo "$f" ;;
+        *)
+          if head -n 1 "$f" 2>/dev/null | grep -Eq '^#![[:space:]]*(/usr/bin/env[[:space:]]+(-S[[:space:]]+)?)?([^[:space:]]*/)?(sh|bash|zsh|ksh|dash|bats)([[:space:]]|$)'; then echo "$f"; fi
+          ;;
+      esac
+    done
+  }
+  """
 steps {
   ["dprint"] {
     check = "dprint check --allow-no-files {{files}}"
@@ -136,6 +155,7 @@ steps {
   ["ruff-fix"] {
     fix =
       "ruff check --force-exclude --fix-only --unsafe-fixes --extend-select UP,FURB,SIM,PERF,C4,PIE {{files}}"
+    glob = List("**/*.py", "**/*.pyi")
   }
   ["check-shebang-scripts-are-executable"] {
     fix = "dev-profile-shebang-scripts-executable {{files}}"
@@ -347,10 +367,12 @@ steps {
     fix = "ruff check --force-exclude --fix {{files}}"
     check_diff =
       "ruff check --force-exclude --diff --exit-non-zero-on-fix {{ files }} && ruff check --force-exclude {{ files }}"
+    glob = List("**/*.py", "**/*.pyi")
     profiles = List("slow")
   }
   ["ty"] {
     check = "dev-profile-ty {{files}}"
+    glob = List("**/*.py", "**/*.pyi")
     profiles = List("slow")
   }
   ["betterleaks"] {
@@ -469,7 +491,17 @@ steps {
     profiles = List("slow")
   }
   ["brakeman"] {
-    check = "dev-profile-if-installed brakeman brakeman -q -w2 {{files}}"
+    check = "dev-profile-if-installed brakeman mise exec ruby@4 -- brakeman -q -w2 {{files}}"
+    glob =
+      List(
+        "**/*.rb",
+        "**/*.rake",
+        "**/*.erb",
+        "**/*.ru",
+        "**/Gemfile",
+        "**/Gemfile.lock",
+        "**/Rakefile",
+      )
     profiles = List("slow")
   }
   ["bundle-audit"] {
@@ -571,8 +603,10 @@ steps {
     }
   }
   ["shellcheck"] {
-    check = "shellcheck --severity=warning {{files}}"
-    check_diff = "shellcheck --format=diff {{files}}"
+    check =
+      "\(shellFiles)\nFILES=$(shell_files {{files}})\n[ -n \"$FILES\" ] || exit 0\nshellcheck --severity=warning $FILES"
+    check_diff =
+      "\(shellFiles)\nFILES=$(shell_files {{files}})\n[ -n \"$FILES\" ] || exit 0\nshellcheck --format=diff $FILES"
     profiles = List("slow")
   }
   ["swiftlint"] {
@@ -763,9 +797,11 @@ hooks {
         fix = "ruff check --force-exclude --fix {{files}}"
         check_diff =
           "ruff check --force-exclude --diff --exit-non-zero-on-fix {{ files }} && ruff check --force-exclude {{ files }}"
+        glob = List("**/*.py", "**/*.pyi")
       }
       ["ty"] {
         check = "dev-profile-ty {{files}}"
+        glob = List("**/*.py", "**/*.pyi")
       }
       // A file step needs a glob: hk runs a glob-less step even when the push holds no
       // files, and an empty {{files}} makes `betterleaks dir` scan the process cwd and the
@@ -875,7 +911,17 @@ hooks {
         check = "dev-profile-suppressions --unpushed"
       }
       ["brakeman"] {
-        check = "dev-profile-if-installed brakeman brakeman -q -w2 {{files}}"
+        check = "dev-profile-if-installed brakeman mise exec ruby@4 -- brakeman -q -w2 {{files}}"
+        glob =
+          List(
+            "**/*.rb",
+            "**/*.rake",
+            "**/*.erb",
+            "**/*.ru",
+            "**/Gemfile",
+            "**/Gemfile.lock",
+            "**/Rakefile",
+          )
       }
       ["bundle-audit"] {
         check = "dev-profile-if-installed bundle-audit bundle-audit check {{files}}"
@@ -971,8 +1017,10 @@ hooks {
         }
       }
       ["shellcheck"] {
-        check = "shellcheck --severity=warning {{files}}"
-        check_diff = "shellcheck --format=diff {{files}}"
+        check =
+          "\(shellFiles)\nFILES=$(shell_files {{files}})\n[ -n \"$FILES\" ] || exit 0\nshellcheck --severity=warning $FILES"
+        check_diff =
+          "\(shellFiles)\nFILES=$(shell_files {{files}})\n[ -n \"$FILES\" ] || exit 0\nshellcheck --format=diff $FILES"
       }
       ["swiftlint"] {
         check = "swiftlint lint {{files}}"

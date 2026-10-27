@@ -44,7 +44,9 @@ ASK_TIMEOUT_SECONDS = 25
 ROUTE_TIMEOUT_SECONDS = 5
 PROMPT_MAX_CHARS = 4000
 KEY_LINE = re.compile(r"^\s*(?:export\s+)?([A-Z][A-Z0-9_]*)=(.*)$")
-TAG_WRAPPED = re.compile(r"\A\s*<([A-Za-z][\w:.-]*)(?:\s[^>]*)?>.*</\1>\s*\Z", re.DOTALL)
+TAG_WRAPPED = re.compile(
+    r"\A\s*<([A-Za-z][\w:.-]*)(?:\s[^>]*)?>.*</\1>\s*\Z", re.DOTALL
+)
 PROMPT_KEYS = ("prompt", "user_prompt", "text", "message")
 
 
@@ -87,13 +89,17 @@ def load_routes(path: Path) -> tuple[Route, ...]:
 def ask(prompt: str, env: dict[str, str]) -> dict[str, object]:
     """The amalgamated answers, or empty when the call cannot answer."""
     override = env.get("PROMPT_ANSWERS_CMD")
-    argv = [override] if override else [
-        str(CAPABILITY_BIN),
-        "run",
-        CAPABILITY,
-        "--input",
-        json.dumps({"text": prompt}),
-    ]
+    argv = (
+        [override]
+        if override
+        else [
+            str(CAPABILITY_BIN),
+            "run",
+            CAPABILITY,
+            "--input",
+            json.dumps({"text": prompt}),
+        ]
+    )
     child = dict(env)
     child["AGENTMUX_NESTED_RUN"] = "1"
     if not override:
@@ -140,7 +146,11 @@ def respond(event: HookEvent) -> Decision | None:
     if not prompt:
         return None
 
-    answers = ask(prompt, env)
+    if "answers" in event.payload:
+        answers = event.payload.get("answers")
+        answers = answers if isinstance(answers, dict) else {}
+    else:
+        answers = ask(prompt, env)
     routes = load_routes(Path(env.get("PROMPT_RESPOND_ROUTES", str(ROUTES_FILE))))
     plan = routes_for(answers, routes)
     payload = json.dumps(event.payload)

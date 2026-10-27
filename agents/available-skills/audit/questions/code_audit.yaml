@@ -1,0 +1,3097 @@
+# code_audit: score code and the work that produced it against every item of
+# the code-construction, agnostic-facades, and audit checklist (sections A-K)
+# plus code-style clarity, correctness, performance, and exterior (L-O),
+# so the orchestrator can see which areas are weak and spawn one fix worker
+# per weak area.
+# Three adversarial reviewers (one per skill: code-construction,
+# agnostic-facades, audit) walked every requirement of those skills against
+# this file; each gap they reported became one question here, one to one.
+#
+# State (one JSON object, sent once for the whole file):
+#   target:   {path, language, source}  the file or module under audit
+#   layout:   text of the LAYOUT.md beside the product entrypoint, or null
+#   callers:  [{path, excerpt}]         call sites of the target's public names, or []
+#   tests:    [{path, source}]          tests that exercise the target, or []
+#   repo:     {files: [{path, excerpt}]} task runner, manifests, lockfiles, lint
+#             and CI config, scanner config; or null
+#   work_log: {request, notes, commands: [{command, exit, output}], commits}
+#             the request and the record of the work that changed the target;
+#             null when auditing code with no work record
+#
+# Plan, Audit, and Evidence questions judge `work_log`. When `work_log` is null
+# they answer not_applicable, so a plain code audit scores only the code.
+#
+# Every question is the same three-way choice, so code can score them alike:
+#   meets           the code or work satisfies the rule
+#   violates        the code or work breaks the rule, or shows no evidence of it
+#   not_applicable  the rule has nothing to judge in this state
+#
+# Scoring (code owns this, not the model):
+#   applicable(q) = 1 - P(not_applicable)
+#   compliance(q) = P(meets) / (P(meets) + P(violates))
+#   area score    = sum(applicable * compliance) / sum(applicable)
+#   An area is weak when its score falls under a threshold you calibrate on
+#   known-good and known-bad targets. Every question with compliance under
+#   that threshold becomes a finding in the area's work order.
+#   Skip an area only when summed applicability is below 0.5, so an area with
+#   a single applicable question still scores.
+#
+# Areas are the field-name prefix; checklist section in brackets.
+# One weak area = one fix worker loading:
+#   Plan [A]          code-construction SKILL + 04, 05 acceptance ledger
+#   Audit [A, G]      audit
+#   Layout [B]        code-construction 01 + 02
+#   Workflow [C]      code-construction 01
+#   Domain [D]        code-construction 01, code-style
+#   Facade [E]        agnostic-facades + audit facade checklist
+#   Contract [F]      code-construction 05, 07 configuration
+#   Migration [G]     code-construction 02
+#   Security [H]      security-reviewer to confirm, then a fix worker with 06
+#   Concurrency, Resilience, Observability, Scale [H]  code-construction 06
+#   Tests [I]         testing-practices + code-construction 01 test section
+#   Evidence [J]      verification-before-completion + code-construction SKILL
+#   Language [K]      code-construction 07 for that language
+#   Clarity [L]       code-style
+#   Correctness [M]   systematic-debugging + testing-practices
+#   Performance [N]   code-construction 06 scale section
+#   Exterior [O]      ux
+
+# === A. Before writing code ================================================
+
+PlanReferencesLoaded:
+  instructions: >-
+    Does `work_log` show that all seven code-construction reference files were
+    read before the code was changed, including the language file even when
+    no language rule applied?
+  criteria:
+    meets: The work log shows every reference file read before the first edit.
+    violates: Some reference file was not read, or was read only after editing began.
+    not_applicable: "`work_log` is null."
+
+PlanAcceptanceLedger:
+  instructions: >-
+    Does `work_log` contain an acceptance ledger extracted from the request,
+    listing exact public names, invocation form, inputs, output shapes, status
+    or exit meanings, and side effects, and does the delivered interface keep
+    them unchanged unless the request authorized a change?
+  criteria:
+    meets: The ledger exists and the delivered interface matches it.
+    violates: There is no ledger, or the delivered interface substitutes a different name, shape, or meaning.
+    not_applicable: "`work_log` is null."
+
+PlanOwnersNamed:
+  instructions: >-
+    Does `work_log` name the affected product operation, the decision owner,
+    the mutation authority, and the version basis (or say the basis does not
+    apply) before implementation?
+  criteria:
+    meets: All four are named before implementation.
+    violates: One or more is missing or named only after the code was written.
+    not_applicable: "`work_log` is null."
+
+PlanBlastRadius:
+  instructions: >-
+    Does `work_log` state what is intentionally outside the change, and does
+    the change stay inside that boundary?
+  criteria:
+    meets: The excluded scope is stated and respected.
+    violates: No boundary is stated, or the change reaches past it.
+    not_applicable: "`work_log` is null."
+
+PlanSearchedBeforeCreating:
+  instructions: >-
+    Does `work_log` show a search for an existing owner of each behavior
+    before a new function, file, or abstraction was created for it?
+  criteria:
+    meets: Each new owner was preceded by a search showing none existed.
+    violates: New owners were created without a search, or one already existed.
+    not_applicable: "`work_log` is null, or nothing new was created."
+
+PlanRedTestFirst:
+  instructions: >-
+    If the work in `work_log` fixes a defect, was a test shown failing against
+    the defect before the fix and passing after it?
+  criteria:
+    meets: The log shows the test red before the fix and green after.
+    violates: The fix has no test, or the test was never shown failing first.
+    not_applicable: "`work_log` is null, or the work is not a defect fix."
+
+PlanTwoMotivesMax:
+  instructions: >-
+    Does the change recorded in `work_log` serve at most two motives, rather
+    than bundling several unrelated goals into one change?
+  criteria:
+    meets: The change pursues one or two motives.
+    violates: The change bundles three or more unrelated goals.
+    not_applicable: "`work_log` is null."
+
+PlanContractReferencedNotPasted:
+  instructions: >-
+    Does the request in `work_log` point the agent at the canonical
+    construction contract files, instead of pasting their full text into the
+    request?
+  criteria:
+    meets: The request names the files and does not paste the contract.
+    violates: The request pastes the full contract, or does not point to the canonical source.
+    not_applicable: "`work_log` is null."
+
+PlanIntentStated:
+  instructions: >-
+    Does the work order in `work_log.request` state the observable product
+    outcome in one sentence?
+  criteria:
+    meets: One sentence states the observable outcome.
+    violates: The intent is missing, is several sentences, or names an implementation, not an observable outcome.
+    not_applicable: "`work_log` is null."
+
+PlanTargetNamed:
+  instructions: >-
+    Does the work order in `work_log.request` name the exact repositories,
+    packages, product operations and files to inspect first?
+  criteria:
+    meets: The target lists each of those exactly.
+    violates: The target is missing or vague, such as "the backend".
+    not_applicable: "`work_log` is null."
+
+PlanConstructionClause:
+  instructions: >-
+    Does the work order in `work_log.request` require following the
+    construction contract, and the contract file (05) when the change affects
+    a contract boundary?
+  criteria:
+    meets: The work order has that construction clause.
+    violates: The construction clause is missing, or it omits the contract file for a change that affects a boundary.
+    not_applicable: "`work_log` is null."
+
+PlanInputsListed:
+  instructions: >-
+    Does the work order in `work_log.request` list the API contracts,
+    repository tasks, specifications, examples, fixtures and paths the task
+    needs?
+  criteria:
+    meets: Every input the task needs is listed.
+    violates: Inputs are missing, or the agent had to find them unaided.
+    not_applicable: "`work_log` is null."
+
+PlanQualityAttributesStated:
+  instructions: >-
+    Does the work order in `work_log.request` state the required security
+    properties, threat boundaries, reproducibility target, workload scale,
+    service-level objective, resource ceiling and resilience behavior, with a
+    reason for each one marked not applicable?
+  criteria:
+    meets: Each attribute is stated, or marked not applicable with a reason.
+    violates: An attribute is missing, or marked not applicable without a reason.
+    not_applicable: "`work_log` is null."
+
+PlanDoneWhenStated:
+  instructions: >-
+    Does the work order in `work_log.request` state a done-when with both a
+    behavioral end state and structural production-path conditions?
+  criteria:
+    meets: Both kinds of condition are stated.
+    violates: The done-when is missing, or gives only behavior or only structure.
+    not_applicable: "`work_log` is null."
+
+PlanVerifyHowStated:
+  instructions: >-
+    Does the work order in `work_log.request` name how to verify: exact
+    focused tests, the full gate, architecture checks, adversarial
+    falsification probes, clean-checkout reproduction and a real end-state
+    probe?
+  criteria:
+    meets: Each of those verification steps is named.
+    violates: The verify field is missing or omits any of them.
+    not_applicable: "`work_log` is null."
+
+PlanWorkOrderStatesOnce:
+  instructions: >-
+    Does the work order in `work_log.request` state the outcome, scope,
+    constraints, evidence and completion condition, each once and without
+    repetition or contradiction?
+  criteria:
+    meets: Each is stated exactly once.
+    violates: Any is missing, repeated or contradicted elsewhere in the request.
+    not_applicable: "`work_log` is null."
+
+PlanWorkOrderReferencesNotCopies:
+  instructions: >-
+    Does the work order in `work_log.request` reference loadable source files
+    by path instead of copying their contents into the request?
+  criteria:
+    meets: Files are referenced by path.
+    violates: The request copies in file contents the agent could have loaded.
+    not_applicable: "`work_log` is null."
+
+PlanExamplesOnlyWhenNeeded:
+  instructions: >-
+    Does each example in the work order in `work_log.request` either clarify a
+    boundary or correct a failure that was demonstrated?
+  criteria:
+    meets: Every example clarifies a boundary or corrects a demonstrated failure, or the request has none.
+    violates: An example is decorative or speculative.
+    not_applicable: "`work_log` is null, or the request has no examples."
+
+PlanPositiveInstructions:
+  instructions: >-
+    Does the work order in `work_log.request` give positive, concrete
+    instructions, and not repeated prohibitions?
+  criteria:
+    meets: Instructions say what to do, concretely.
+    violates: The request is mostly repeated "do not" lines or vague.
+    not_applicable: "`work_log` is null."
+
+PlanNoHiddenReasoningRequested:
+  instructions: >-
+    Does the work order in `work_log.request` require cited evidence and an
+    inspectable verdict, and not ask for hidden reasoning or chain-of-thought?
+  criteria:
+    meets: It requires cited evidence and a verdict, and does not ask for chain-of-thought.
+    violates: It asks for chain-of-thought or hidden reasoning, or does not require cited evidence.
+    not_applicable: "`work_log` is null."
+
+AuditLinterBaseline:
+  instructions: >-
+    If `work_log` is an audit, was the linter run and its full output recorded
+    before any fix was made?
+  criteria:
+    meets: The linter output was recorded before the first fix.
+    violates: The linter was not run first, or fixes began before its output was recorded.
+    not_applicable: "`work_log` is null, or the work is not an audit."
+
+AuditPatternInventory:
+  instructions: >-
+    If `work_log` is an audit, does its pattern inventory table have all four
+    columns (pattern, instance count, current form, correct form) for every
+    row, and was it built before any line was changed?
+  criteria:
+    meets: The inventory exists before editing and every row has a pattern, a count, a current form, and a correct form.
+    violates: There is no inventory, it was built after fixes began, or any row lacks its pattern, count, current form, or correct form.
+    not_applicable: "`work_log` is null, or the work is not an audit."
+
+AuditIndependentFindings:
+  instructions: >-
+    If `work_log` is an audit, does it report findings the linter could not
+    see, such as names that mismatch intent, unexplained magic values, tests
+    that pass for the wrong reason, or calls that skip a facade?
+  criteria:
+    meets: The audit reports findings beyond the linter output.
+    violates: The findings only restate linter output.
+    not_applicable: "`work_log` is null, or the work is not an audit."
+
+# === B. Layout and ownership ===============================================
+
+LayoutLedgerExists:
+  instructions: >-
+    Does `layout` list production files as `path: one purpose` lines, with an
+    entry for `target.path`, and if `work_log` is present, was it written
+    before the code?
+  criteria:
+    meets: The ledger exists, names `target.path`, and came before the code when a work log shows the order.
+    violates: There is no ledger, it omits `target.path`, or the work log shows it was written after the code.
+    not_applicable: The target is a leaf script or configuration file that needs no ledger.
+
+LayoutPurposesAreConcepts:
+  instructions: >-
+    Does each purpose in `layout` name one domain concept a reader can hold,
+    rather than a list of methods, a file per function, or two owners joined
+    in one line?
+  criteria:
+    meets: Each line names one holdable concept, and the ledger is short enough to hold in mind.
+    violates: The ledger is a method inventory, has a file per function, or a line names two owners.
+    not_applicable: "`layout` is null."
+
+LayoutFileMatchesPurpose:
+  instructions: >-
+    Does everything in `target.source` serve the single purpose that `layout`
+    gives for `target.path`?
+  criteria:
+    meets: Every part of the file serves its stated purpose.
+    violates: The file contains code that belongs to a different purpose than the ledger states.
+    not_applicable: The ledger is missing or does not mention this file.
+
+LayoutSingleOwner:
+  instructions: >-
+    Does `target.source` hold one cohesive concept with one primary reason to
+    change, rather than several unrelated owners in one file?
+  criteria:
+    meets: The file is one cohesive concept.
+    violates: The file mixes owners, such as policy with storage, or two unrelated features.
+    not_applicable: The file is too small to hold more than one concept.
+
+LayoutFileSizeCohesive:
+  instructions: >-
+    Is `target.source` at or below about 250 lines, or, if longer, is the
+    whole file clearly one indivisible concept rather than a mixed purpose?
+  criteria:
+    meets: The file is within about 250 lines, or its length is one indivisible concept.
+    violates: The file is long because it holds more than one purpose.
+    not_applicable: The file is generated.
+
+LayoutUnitsSmall:
+  instructions: >-
+    Is each function in `target.source` about 50 lines or fewer, with about
+    three parameters or fewer and shallow nesting, except where a longer unit
+    is clearly one indivisible concept?
+  criteria:
+    meets: Functions are short and shallow, or any long one is a single indivisible concept.
+    violates: Some function is long, deeply nested, or takes many parameters because it does several jobs.
+    not_applicable: The file has no functions.
+
+LayoutNoConcentratedOwner:
+  instructions: >-
+    Is `target.source` free of the pattern where a thin entrypoint delegates to
+    one oversized service, manager, helper, or adapter that holds most of the
+    responsibilities?
+  criteria:
+    meets: Responsibilities are spread across owners that each match one concept.
+    violates: One service, manager, helper, or adapter concentrates most of the work.
+    not_applicable: The target has no entrypoint or delegation structure.
+
+LayoutNoStateBag:
+  instructions: >-
+    Is `target.source` free of generic state bags, runtime objects, and
+    dynamically bound method maps that let many owners share hidden state?
+  criteria:
+    meets: State is owned by named types with clear owners.
+    violates: A generic context, runtime, or state bag, or a dynamic method map, is shared across owners.
+    not_applicable: The target holds no state.
+
+LayoutDependsOnContracts:
+  instructions: >-
+    Does high-level policy in `target.source` depend on domain contracts
+    rather than on framework, provider, storage, or transport details?
+  criteria:
+    meets: Policy imports and calls only domain contracts.
+    violates: Policy imports or calls a framework, provider, storage, or transport detail directly.
+    not_applicable: The target contains no high-level policy.
+
+LayoutExtendsWithoutEditing:
+  instructions: >-
+    Can a real new variation of the behavior in `target.source` be added by
+    extending an owned abstraction, without modifying unrelated callers?
+  criteria:
+    meets: A new variation is a new implementation or entry, with no edits to unrelated callers.
+    violates: Adding a variation requires editing a shared switch, unrelated callers, or the workflow.
+    not_applicable: The behavior has no credible variations.
+
+LayoutSurfaceOwnerSet:
+  instructions: >-
+    For a product surface, does `layout` name a composition root, a pure-
+    decisions owner, narrow ports, adapters, and a few views (or give a reason
+    a role is absent), rather than a flat list of mechanisms?
+  criteria:
+    meets: The ledger names each role the surface needs, or the roles that are missing do not apply to it.
+    violates: The ledger omits a role the surface needs, such as no composition root or no ports, or has no pure-decisions owner.
+    not_applicable: "`layout` is null, or the target is a leaf script with no product surface."
+
+LayoutNoUnlistedFiles:
+  instructions: >-
+    Is every production file created or changed in `work_log.commits` listed
+    in `layout`, and does `layout` list no file the work did not write?
+  criteria:
+    meets: The set of production files written matches the ledger exactly.
+    violates: A production file was added that `layout` does not name, or the ledger names a file that was never written.
+    not_applicable: "`work_log` or `layout` is null."
+
+LayoutFileAddedForNewConcept:
+  instructions: >-
+    Does each file the work added, per `work_log.commits` and `layout`,
+    introduce a concept no existing file owns, rather than splitting an
+    existing concept or adding a helper file?
+  criteria:
+    meets: Every added file owns a concept that was not owned before.
+    violates: A file was added for a helper, a function, or a slice of a concept an existing file already owns.
+    not_applicable: "`work_log` is null, or the work added no files."
+
+LayoutNoMechanicalSplit:
+  instructions: >-
+    Where the work split a large file or function, was each resulting piece
+    cut along a concept boundary, with the work log showing it was not cut to
+    fit a line count while each part kept the same mixed purpose?
+  criteria:
+    meets: Each split separates owners, and each piece has one purpose.
+    violates: A file or function was cut into parts by line count, or into numbered or chunked parts, with each part still mixing purposes.
+    not_applicable: Nothing was split, or `work_log` is null.
+
+LayoutNoTinyFileSwarm:
+  instructions: >-
+    Across `layout` and `target.source`, is the code free of a swarm of tiny
+    files where each file still mixes the same knowledge (policy, storage,
+    rendering) as the file they were split from?
+  criteria:
+    meets: Each file owns one concept, with no repeated mixed knowledge across files.
+    violates: Many small files each carry the same mixed knowledge as the original.
+    not_applicable: The target was not split into files, or `layout` is null.
+
+# === C. Workflow shape =====================================================
+
+WorkflowSingleEntrypoint:
+  instructions: >-
+    Does each product operation in `target.source` have one entrypoint that
+    routes, commands, jobs, and webhooks converge on, instead of each trigger
+    implementing the policy itself?
+  criteria:
+    meets: Every trigger adapts its input and calls one entrypoint per operation.
+    violates: Two or more triggers implement the same operation's policy separately.
+    not_applicable: The target exposes no product operation.
+
+WorkflowPhasesVisible:
+  instructions: >-
+    Does the entrypoint in `target.source` show, in order, gathering the facts,
+    deciding a plan from them, and executing that plan, with the value passed
+    between each step visible?
+  criteria:
+    meets: The entrypoint reads as observe, then decide, then execute.
+    violates: The phases are hidden inside one call, interleaved, or skipped.
+    not_applicable: The target performs no workflow that reads state and causes effects.
+
+WorkflowExecutionNamed:
+  instructions: >-
+    In `target.source`, do effects happen through one named execution operation
+    called from the entrypoint, rather than inside an inline loop, callback,
+    comprehension, constructor, or direct adapter call?
+  criteria:
+    meets: A named execution operation applies the plan.
+    violates: Effects happen inline in the entrypoint, a callback, a constructor, or a loop.
+    not_applicable: The target causes no effects.
+
+WorkflowSequenceNotDuplicated:
+  instructions: >-
+    Does the observe, decide, execute sequence in `target.source` and
+    `callers` live only in the composition root, rather than being rebuilt in
+    each handler?
+  criteria:
+    meets: One composition root owns the sequence, and handlers only adapt input.
+    violates: Several handlers each repeat the observe, decide, execute sequence.
+    not_applicable: The target has only one handler and no composition root is needed.
+
+WorkflowObservationFactsOnly:
+  instructions: >-
+    Does the code in `target.source` that gathers facts return only facts,
+    without deciding eligibility or the desired action?
+  criteria:
+    meets: Observation returns facts, and decisions happen elsewhere.
+    violates: The fact-gathering code also decides what should happen or applies effects.
+    not_applicable: The target has no observation step.
+
+WorkflowDecisionPure:
+  instructions: >-
+    Is the decision code in `target.source` free of network, filesystem,
+    database, clock, randomness, logging, queue, retry, callback, and
+    framework calls?
+  criteria:
+    meets: Decisions take domain values and return a plan with no effects.
+    violates: Decision code performs or triggers an effect, or reads the clock or environment.
+    not_applicable: The target contains no decision logic.
+
+WorkflowPlanClosedData:
+  instructions: >-
+    Do decisions in `target.source` return a closed data plan with the primary
+    decision, the independent effects, their ordering or concurrency and
+    dependencies, requirement level, preconditions, reasons, evidence and
+    observed basis where those matter, rather than callbacks, loose fields or
+    a list of records that execution must still interpret?
+  criteria:
+    meets: The plan is closed data that carries every one of those that matters, and execution can follow it without inventing actions.
+    violates: The plan is a callback, loose fields or raw records, or omits any decision, effect, ordering, concurrency, dependency, requirement level, precondition, reason, evidence or basis that matters.
+    not_applicable: The target produces no plan.
+
+WorkflowOutcomeStatesDistinct:
+  instructions: >-
+    Does `target.source` keep proposed, authorized, attempted, observed, and
+    verified outcomes distinct where they differ, never reporting an attempted
+    effect as a success?
+  criteria:
+    meets: Outcome states are distinct, and only verified ones count as success.
+    violates: An attempt, a sent request, or an unchecked effect is reported as success.
+    not_applicable: The target reports no outcomes.
+
+WorkflowPlanFieldsEnforced:
+  instructions: >-
+    Is every field the plan in `target.source` carries, such as a basis,
+    version, precondition, required flag, or authorization, actually checked
+    or used by execution?
+  criteria:
+    meets: Every plan field changes what execution does.
+    violates: Some plan field is carried but never enforced, which gives false confidence.
+    not_applicable: The target produces no plan.
+
+WorkflowExecutorAddsNoPolicy:
+  instructions: >-
+    Does the execution code in `target.source` follow the plan without making
+    its own product decisions?
+  criteria:
+    meets: Execution only applies the plan.
+    violates: Execution adds conditions, picks actions, or changes the plan's decision.
+    not_applicable: The target has no execution step.
+
+WorkflowBasisRevalidated:
+  instructions: >-
+    Before a consequential change, does `target.source` recheck that the state
+    still matches the version the decision was based on, and reject the whole
+    plan and re-observe when it does not?
+  criteria:
+    meets: The basis is checked at the mutation, and a mismatch rejects the plan and re-observes.
+    violates: The change is applied without rechecking the basis, or a mismatch is ignored or partly applied.
+    not_applicable: The target makes no change based on state that others can modify.
+
+WorkflowPlainControlFlow:
+  instructions: >-
+    Does policy in `target.source` read as plain if, switch, and early-return
+    flow in priority order, with every abstraction removing a concept, a
+    duplicated rule, or an unsafe state?
+  criteria:
+    meets: Policy is plain and ordered, and each abstraction earns its place.
+    violates: Policy is buried in layers, indirection, or abstractions that remove nothing.
+    not_applicable: The target contains no policy.
+
+WorkflowProductionUsesDesignedOwners:
+  instructions: >-
+    Is every owner the design names (composition root, decision function,
+    port, adapter, facade) called from production code in `callers` or
+    `target.source`, and not only from `tests` or from `layout`/`work_log`
+    prose?
+  criteria:
+    meets: Every named owner is on a production call path from the real entrypoint.
+    violates: Some named owner, facade or plan type exists only in a design document, in `layout`, or in `tests`, and no production path calls it.
+    not_applicable: The target defines no owners beyond a single function.
+
+WorkflowNoCeremonialPhases:
+  instructions: >-
+    Does every real trigger in `callers` (route, command, job, worker, hook)
+    actually pass through the observe, decide, execute phases, so that no
+    phase exists that the trigger bypasses?
+  criteria:
+    meets: Each real trigger calls the entrypoint and its data goes through every phase.
+    violates: A phased entrypoint exists, but a real trigger reaches the adapters, storage or mutation without going through it.
+    not_applicable: The target has no workflow that reads state and causes effects.
+
+WorkflowBehaviorBeforeInfrastructure:
+  instructions: >-
+    Can a reader tell from the entrypoint and the domain files in
+    `target.source` what can happen, in what priority order and who owns each
+    action, without reading framework, storage, queue or provider code?
+  criteria:
+    meets: Domain names, states, decisions, reasons and effects are readable before any adapter or mechanism.
+    violates: Understanding what can happen, its priority or its owner requires reading framework, storage, queue or provider code.
+    not_applicable: The target contains no product behavior.
+
+WorkflowObservationCoherent:
+  instructions: >-
+    Does the observation step in `target.source` gather every fact one
+    decision needs into one coherent, honestly named domain value taken
+    together, rather than loose facts fetched piecemeal or at different
+    moments?
+  criteria:
+    meets: One named observation value holds all facts for the decision and is what the decision receives.
+    violates: Facts arrive separately or at different moments, or the observation's name claims more coherence than it has.
+    not_applicable: The target has no observation step.
+
+WorkflowOperationObvious:
+  instructions: >-
+    Is the product operation in `target.source` obvious to a reader: a named
+    entrypoint in domain language, found where the ledger says, that a caller
+    would look for?
+  criteria:
+    meets: The operation has an obvious, domain-named entrypoint.
+    violates: The operation has to be found by tracing helpers, or its name does not say what the caller gets.
+    not_applicable: The target exposes no product operation.
+
+WorkflowFlowReadsAsDomainAlgorithm:
+  instructions: >-
+    Does the top-level flow of the entrypoint in `target.source` read as the
+    domain algorithm, with domain-language names for phases, states and
+    decisions, rather than generic or framework-flavored names?
+  criteria:
+    meets: The entrypoint reads as the product's algorithm in its own words.
+    violates: The top-level flow reads as generic plumbing or framework calls.
+    not_applicable: The target has no top-level flow.
+
+WorkflowPlanCarriesBasis:
+  instructions: >-
+    Does the plan that the decision in `target.source` returns carry the exact
+    version or revision basis the decision used, copied from the observation
+    and not recomputed or looked up again at execution?
+  criteria:
+    meets: The plan holds the same basis the decision read from the observation.
+    violates: The plan carries no basis, or execution re-reads a fresh basis instead of the decision's.
+    not_applicable: The target produces no plan, or its effects have no version basis.
+
+WorkflowPlanExhaustive:
+  instructions: >-
+    Does the decision in `target.source` return an explicit plan for every
+    possible observation, including no-action, wait and blocked outcomes with
+    reasons, and not a missing, null or implicit result for some states?
+  criteria:
+    meets: Every observation yields an explicit plan.
+    violates: Some observation yields nothing, null or an implicit fall-through.
+    not_applicable: The target has no decision logic.
+
+WorkflowPolicyChangeInOwnedPath:
+  instructions: >-
+    Where the work changed a policy, did the change land in the owned observe,
+    decide, execute path (the decision function), and not as a private
+    condition in a worker, handler or job?
+  criteria:
+    meets: The policy change lives in the owned decision and its plan.
+    violates: The policy change is a private condition in a worker, handler or job.
+    not_applicable: The work did not change a policy.
+
+# === D. Domain modeling ====================================================
+
+DomainClosedStates:
+  instructions: >-
+    Does `target.source` represent finite states and actions with closed unions
+    or enums and handle them exhaustively, rather than with loose booleans or
+    bare strings?
+  criteria:
+    meets: Finite states use closed types with exhaustive handling.
+    violates: Mutually exclusive states are loose booleans, bare strings, or non-exhaustive branches.
+    not_applicable: The target has no finite states.
+
+DomainCorrelatedFactsOneState:
+  instructions: >-
+    Does `target.source` make invalid or ambiguous state combinations hard to
+    represent, so that facts valid only together form one closed state, and
+    not separate optional fields, flag pairs, enum pairs or tuples that allow
+    impossible combinations?
+  criteria:
+    meets: Correlated facts form one type and impossible combinations cannot be built.
+    violates: Separate fields, flags or enums allow combinations the domain forbids or leave a combination ambiguous.
+    not_applicable: The target has no correlated facts.
+
+DomainSemanticValuesOwned:
+  instructions: >-
+    Does every string or number with domain meaning in `target.source` have
+    one named owner, such as a constant, type member, or configuration value,
+    without creating constants for incidental syntax?
+  criteria:
+    meets: Meaningful values are named once and referenced by name, and incidental syntax stays inline.
+    violates: A meaningful literal is repeated without an owner, or trivial syntax is wrapped in constants.
+    not_applicable: The target has no meaningful literals.
+
+DomainRawStringsAtBoundary:
+  instructions: >-
+    Do raw string values in `target.source` appear only at serialization
+    boundaries, with domain logic comparing named members instead?
+  criteria:
+    meets: Domain logic compares named members, and raw strings appear only where data is read or written.
+    violates: Domain logic compares or switches on raw string literals.
+    not_applicable: The target has no string-valued states or codes.
+
+DomainMagicValuesJustified:
+  instructions: >-
+    Does every override of a runtime or standard-library default in
+    `target.source` (concurrency limit, buffer size, pool depth, timeout,
+    retry count) carry a citation in the code that gives when it was measured,
+    where the benchmark or measurement lives, and what the result was, with
+    that benchmark present in `tests` or `repo`, and is every override without
+    such a citation removed rather than explained by a comment?
+  criteria:
+    meets: Each override cites date, location, and result of a measurement that exists, and no uncited override remains.
+    violates: An override has no citation, a vague one ("benchmarked", "tuned"), or one pointing at a benchmark that does not exist, or it is defended only by a comment.
+    not_applicable: The target overrides no runtime or standard-library default.
+
+DomainDerivedFromNorm:
+  instructions: >-
+    Do related values in `target.source` derive from one named base value,
+    with each deviation expressed as a visible change to that base rather than
+    a separate unexplained number?
+  criteria:
+    meets: Related values are computed from a named base, and deviations reference it.
+    violates: Related values are independent literals, or a deviation does not reference its base.
+    not_applicable: The target has no families of related values.
+
+DomainMessagesKeyed:
+  instructions: >-
+    Is user-facing text in `target.source` rendered at the boundary from
+    message keys and parameters, so that control flow never depends on the
+    wording?
+  criteria:
+    meets: User text comes from keys, and no logic branches on rendered prose.
+    violates: Logic compares or parses user-facing text, or prose is built deep in domain code.
+    not_applicable: The target produces no user-facing text.
+
+DomainNamesStateWhat:
+  instructions: >-
+    Do names in `target.source` describe what callers can rely on, rather than
+    the current mechanism, library, or provider?
+  criteria:
+    meets: Names would stay correct if the implementation changed.
+    violates: Names expose a mechanism or vendor, such as RedisCache or SqliteStore, in domain code.
+    not_applicable: The target defines no public names.
+
+DomainFieldsNotProviderShaped:
+  instructions: >-
+    Would every field on the shared domain records in `target.source` still
+    belong if the first provider disappeared?
+  criteria:
+    meets: Domain records hold only concepts the domain owns.
+    violates: Shared records carry fields that exist only because one provider exposes them.
+    not_applicable: The target defines no shared domain records.
+
+DomainCommentsExplainWhy:
+  instructions: >-
+    Does every comment in `target.source` earn its place, either as an
+    idiomatic doc comment on a public name or as an explanation of an
+    invariant, safety or ordering constraint, external quirk, or why a
+    simpler approach is unsafe, such that deleting it could lead a reader
+    to a wrong change? And where code has a non-obvious reason, is that
+    reason written down?
+  criteria:
+    meets: Each comment is idiomatic API documentation or a reason a reader needs, and no needed reason is missing.
+    violates: Some comment narrates the next line, restates a name, records history, or is stale, or a non-obvious reason is left unexplained.
+    not_applicable: The target has no comments and no non-obvious reasons.
+
+DomainPlainLanguage:
+  instructions: >-
+    Do names, comments, errors, and documentation in `target.source` use short
+    active sentences and one term for one meaning?
+  criteria:
+    meets: Wording is plain and each concept has one consistent term.
+    violates: Wording is dense or passive, or one concept goes by several names.
+    not_applicable: The target has no prose, errors, or comments.
+
+DomainValueOriginTraceable:
+  instructions: >-
+    Can a reader of `target.source` tell where every constant, threshold, and
+    magic number came from (a measurement, a spec or rule, or a derivation
+    from a named base), rather than finding a bare value whose origin is
+    unexplained?
+  criteria:
+    meets: Every constant, threshold, and magic number has an origin a reader can find in the code or its named source.
+    violates: At least one constant, threshold, or magic number has no origin a reader can find.
+    not_applicable: "`target.source` has no constants, thresholds, or magic numbers."
+
+DomainValueObjectsGuardInvariants:
+  instructions: >-
+    Do domain values in `target.source` that have an invariant (identifiers,
+    amounts, ranges, versions) use value objects or constrained constructors
+    that reject invalid values, rather than bare strings or numbers any caller
+    can build?
+  criteria:
+    meets: Values with invariants can be built only through a constructor that enforces them.
+    violates: A value with an invariant is a bare primitive, or is built without the check.
+    not_applicable: The target has no values with invariants.
+
+# === E. Ports, adapters, and facades =======================================
+
+FacadeRolesSeparate:
+  instructions: >-
+    Are the workflow (sequence and decisions), port (contract), adapter (one
+    concrete provider), and host (construction only) separate pieces in
+    `target.source` and `callers`?
+  criteria:
+    meets: Each role lives in its own piece, and none takes another's job.
+    violates: Roles are merged, such as a workflow that constructs adapters or an adapter that decides policy.
+    not_applicable: The target talks to no provider or mechanism.
+
+FacadeEffectsBehindPorts:
+  instructions: >-
+    Does `target.source` reach the filesystem, clock, randomness, processes,
+    environment, network and databases, and any other standard-library or
+    library capability that is hard to test, likely to change or carries
+    product meaning, only through ports it owns?
+  criteria:
+    meets: Every such capability goes through an owned port.
+    violates: Some such capability is called directly from domain or workflow code.
+    not_applicable: The target is itself an adapter, or uses no such capability.
+
+FacadeLibrariesBehindPorts:
+  instructions: >-
+    Does `target.source` reach third-party libraries and SDKs through ports or
+    facades its consumers own, so replacing the library would not reshape the
+    domain?
+  criteria:
+    meets: Libraries are reached through consumer-owned ports.
+    violates: Domain or workflow code calls a third-party library or SDK directly.
+    not_applicable: The target uses no third-party library outside an adapter.
+
+FacadePortsConsumerOwned:
+  instructions: >-
+    Are the ports `target.source` uses defined next to the code that consumes
+    them, in that code's language, and narrow enough that consumers use every
+    method?
+  criteria:
+    meets: Ports are consumer-owned, domain-worded, and narrow.
+    violates: Ports mirror a vendor API, live with the provider, or force unused methods on consumers.
+    not_applicable: The target uses no ports.
+
+FacadeWorkflowVendorFree:
+  instructions: >-
+    Is the workflow code in `target.source` free of provider names, SDK types,
+    credentials, provider-only fields, and provider error text?
+  criteria:
+    meets: The workflow names only domain capabilities.
+    violates: The workflow names a vendor, imports an SDK type, or handles provider error text.
+    not_applicable: The target is an adapter or host, not a workflow.
+
+FacadeNoProviderSwitch:
+  instructions: >-
+    Is the workflow in `target.source` free of provider enums, provider-valued
+    parameters or fields, provider switches, and branches on origin metadata?
+  criteria:
+    meets: No provider identifier type or value appears in the workflow, and provider choice is never a branch.
+    violates: The workflow declares or accepts a provider enum or provider-valued parameter, or branches on a provider name, enum, or origin field.
+    not_applicable: The target talks to only one backend with no credible second provider.
+
+FacadeHostComposes:
+  instructions: >-
+    Are concrete adapters in `target.source` built only by the host or
+    composition root, never constructed inside the workflow?
+  criteria:
+    meets: The workflow receives adapters; only the host constructs them.
+    violates: The workflow constructs a concrete adapter or client itself.
+    not_applicable: The target uses no adapters.
+
+FacadeCapabilitySelection:
+  instructions: >-
+    When `target.source` selects an adapter at runtime from candidates, does
+    each candidate keep claim, prove, and translate as separate steps, with
+    the first matching candidate winning unless the domain names another
+    policy, and no match being an explicit domain outcome?
+  criteria:
+    meets: Selection is first-match over separate claim, prove, and translate steps, or follows a policy the domain names, and no match is a domain result.
+    violates: Steps are fused, a default provider replaces the no-match outcome, selection lives in the workflow, or the selection policy is not first-match and no domain rule names it.
+    not_applicable: The target does no runtime selection among adapters.
+
+FacadeMechanismHostChosen:
+  instructions: >-
+    Is each mechanism port `target.source` uses chosen once by the host, with
+    no `matches`-style applicability method declared on the port, called by
+    the workflow, or used to re-select the mechanism at runtime?
+  criteria:
+    meets: The host picks the mechanism, and the mechanism port has no applicability method.
+    violates: A mechanism port declares an applicability method, or the workflow asks a mechanism whether it applies, or re-selects it on a call.
+    not_applicable: The target uses no swappable mechanism.
+
+FacadeErrorsSeparated:
+  instructions: >-
+    Does `target.source` turn expected provider rejections into domain results
+    while keeping unexpected failures, such as outages and broken invariants,
+    distinguishable?
+  criteria:
+    meets: Expected rejections map to domain results, and unexpected failures propagate distinctly.
+    violates: Every error is caught as one result, or provider errors leak unchanged into the domain.
+    not_applicable: The target handles no provider errors.
+
+FacadeAdapterTranslatesOnly:
+  instructions: >-
+    Do adapters in `target.source` limit themselves to translation and protocol
+    mechanics, without making product decisions?
+  criteria:
+    meets: Adapters translate only.
+    violates: An adapter decides product policy, retries for product reasons, or picks actions.
+    not_applicable: The target contains no adapters.
+
+FacadeReplacementTest:
+  instructions: >-
+    If a second provider were added to `target.source` tomorrow, would only a
+    new adapter, the host composition, and adapter tests change, leaving the
+    workflow, its tests, and the shared domain model untouched?
+  criteria:
+    meets: A new provider needs only a new adapter, host wiring, and adapter tests.
+    violates: A new provider would require editing the workflow, its tests, or the domain model.
+    not_applicable: The target has one intentionally fixed backend and no credible second provider.
+
+FacadeNotOverAbstracted:
+  instructions: >-
+    Does `target.source` avoid needless facades, such as runtime selection for a
+    single fixed backend or wrappers around pure, stable primitives?
+  criteria:
+    meets: Every facade protects an effect, a test seam, or a real provider choice.
+    violates: A facade or selection layer exists only for symmetry or wraps a pure primitive.
+    not_applicable: The target defines no facades.
+
+FacadeComplete:
+  instructions: >-
+    Where the work introduces a facade, is there an explicit interface
+    definition that serves as its contract, naming every operation callers may
+    use?
+  criteria:
+    meets: The facade has an explicit interface definition that states the contract.
+    violates: The facade has no interface definition, or consumers depend on a concrete type instead of a contract.
+    not_applicable: The target introduces no facade.
+
+FacadeEnforced:
+  instructions: >-
+    Where the work introduces a facade, have all existing call sites of the
+    underlying mechanism in `target.source`, `callers`, and any search shown
+    in `work_log.commands` been moved onto the facade, with no direct use of
+    the mechanism left outside the real implementation?
+  criteria:
+    meets: No direct use of the underlying mechanism remains outside the facade's real implementation.
+    violates: At least one existing call site still uses the mechanism directly, or no search proves none remain.
+    not_applicable: The target introduces no facade.
+
+FacadeWorkflowNamesNoMechanism:
+  instructions: >-
+    Does the workflow code in `target.source` refer only to domain
+    capabilities and effects, with no reference to a concrete mechanism class
+    or technology (a specific store, queue, cache, or transport
+    implementation) in its types, calls, or identifiers?
+  criteria:
+    meets: The workflow refers to domain capabilities and owned ports only; concrete mechanisms are named only in the host and adapters.
+    violates: The workflow names, imports, or references a concrete mechanism implementation or technology.
+    not_applicable: The target is an adapter or host, or it performs no effects through a mechanism.
+
+FacadeProviderChoiceIsolated:
+  instructions: >-
+    Beyond injecting I/O (filesystem, clock, HTTP, randomness), does
+    `target.source` keep the choice of provider out of the workflow, so that
+    adding a different provider to a swappable backend needs no workflow
+    change, even though every effect is already behind a fakeable port?
+  criteria:
+    meets: Provider choice is isolated from the workflow independently of whether effects are injected.
+    violates: Effects are injected but the workflow still contains provider-specific control flow, naming, or types, so effect isolation is being mistaken for provider isolation.
+    not_applicable: The target talks to no swappable provider or mechanism.
+
+FacadeIngressLawsNotForked:
+  instructions: >-
+    If the work in `work_log` adds or changes webhook or ingress handling,
+    does it reuse the existing Flight `src/webhooks/receiver.ts` shape and
+    ingress laws, as shown by `callers`, `target.source`, and `work_log`,
+    rather than copying or restating those laws in a second place?
+  criteria:
+    meets: Webhook or ingress handling goes through the existing receiver, or the work log shows it was read and not duplicated.
+    violates: The change re-implements or restates the receiver's ingress laws in a second place.
+    not_applicable: "`work_log` is null, or the work adds no webhook or ingress handling."
+
+FacadeBoundaryIsNotWorkflow:
+  instructions: >-
+    Is the vendor-free boundary (the ports and the adapters behind them) a
+    separate layer around the workflow in `target.source` and `callers`,
+    rather than the workflow class or function itself being used as the facade
+    that hides the vendor?
+  criteria:
+    meets: The workflow consumes ports; the ports and adapters are the boundary; the workflow is not presented as the facade.
+    violates: The workflow is itself the facade, so the vendor is hidden inside workflow code instead of behind a separate port and adapters.
+    not_applicable: The target talks to no provider or mechanism.
+
+FacadeAdapterOneProvider:
+  instructions: >-
+    Does each adapter in `target.source` and `callers` wrap exactly one
+    concrete provider or mechanism, rather than one class switching between
+    several providers internally?
+  criteria:
+    meets: Each adapter is one provider or mechanism, and a second provider is a second adapter.
+    violates: One adapter contains branches or clients for several providers or mechanisms.
+    not_applicable: The target contains no adapters.
+
+FacadeHostCompositionOnly:
+  instructions: >-
+    Does the host or composition root in `target.source` and `callers` only
+    construct adapters and the workflow and wire them together, with no domain
+    sequence, decisions, statuses, or provider-specific branching of its own?
+  criteria:
+    meets: The host only constructs and composes.
+    violates: The host also contains domain decisions, workflow steps, or runtime provider branching.
+    not_applicable: The target has no host or composition root.
+
+FacadeWorkflowOwnsStatuses:
+  instructions: >-
+    Are the statuses and outcomes returned by the workflow in `target.source`
+    defined by the workflow's own domain vocabulary (for example `Saved` and
+    `Rejected`), rather than provider status codes, response states, or
+    adapter-defined result values passed through?
+  criteria:
+    meets: The workflow returns its own domain statuses, and adapters only feed them.
+    violates: A provider's status code, response state, or adapter-defined value is returned as the workflow's result.
+    not_applicable: The target is an adapter or host, or the workflow returns no status.
+
+FacadeCredentialsInAdapter:
+  instructions: >-
+    Are credentials and secrets for a provider read and used only inside that
+    provider's adapter (the host may hand over configuration), and never in
+    workflow code, port signatures, or domain records in `target.source`?
+  criteria:
+    meets: Credentials appear only in the adapter and in the host configuration handed to it.
+    violates: Workflow code, a port signature, or a domain record carries, reads, or passes a provider credential.
+    not_applicable: No provider credentials are involved.
+
+FacadeVendorStoresInAdapter:
+  instructions: >-
+    Is any vendor-specific store, table, bucket, or persistence detail (for
+    example a provider's own database or object store) confined to an adapter
+    in `target.source`, rather than appearing in the workflow, the port, or
+    the shared domain code?
+  criteria:
+    meets: Vendor stores are reached and described only inside their adapter.
+    violates: The workflow, a port, or domain code touches or encodes a vendor-specific store.
+    not_applicable: No vendor-specific store is used.
+
+FacadeTranslationInAdapter:
+  instructions: >-
+    Is the conversion between provider data and domain values done inside the
+    adapter in `target.source` and `callers`, with the workflow and host
+    receiving and passing only domain values?
+  criteria:
+    meets: Provider-to-domain translation happens only in the adapter.
+    violates: The workflow, host, or domain code translates, reshapes, or interprets provider data itself.
+    not_applicable: The target exchanges no provider data.
+
+FacadePortKindsNotMixed:
+  instructions: >-
+    Is each port in `target.source` and `callers` clearly one kind, either a
+    capability that answers "can you handle this input?" and is chosen at
+    runtime from candidates, or a mechanism that performs an effect and is
+    chosen by the host, rather than one port doing both jobs?
+  criteria:
+    meets: Every port is a capability or a mechanism, not both.
+    violates: A single port both claims input and performs an effect, or both selects and executes.
+    not_applicable: The target uses no ports.
+
+FacadeCandidatesClaimThemselves:
+  instructions: >-
+    When `target.source` selects among runtime candidates, does each candidate
+    adapter itself answer whether it handles the input (a `matches`-style
+    claim), rather than the workflow, host, or a central table deciding which
+    adapter handles which input?
+  criteria:
+    meets: Each candidate carries its own claim, and the workflow only asks the candidates in order.
+    violates: The decision of which adapter handles an input lives in a workflow conditional, a central mapping, or the host, not in the candidate.
+    not_applicable: The target does no runtime selection among adapters.
+
+FacadeThreeMethodShapeScoped:
+  instructions: >-
+    Does `target.source` limit the claim, prove, and translate three-method
+    shape to runtime-selected capability adapters, rather than imposing it on
+    mechanism ports or ports with a single fixed implementation?
+  criteria:
+    meets: Only runtime-selected capability adapters have the claim/prove/translate methods.
+    violates: Claim, prove, or translate methods exist on a mechanism port or on a port with one fixed implementation.
+    not_applicable: The target defines no ports.
+
+FacadeExpectedRejectionTyped:
+  instructions: >-
+    Do adapters in `target.source` signal an expected rejection, from both the
+    prove step and the translate step, with a domain-owned rejection type, and
+    does the workflow catch only that type to produce its rejected result,
+    rather than catching provider exception classes or inspecting error text?
+  criteria:
+    meets: A domain-owned expected-rejection type is raised by adapters and is the only thing the workflow collapses into a rejected result.
+    violates: The workflow catches a provider exception class, matches error text or codes, or collapses only one of the prove and translate steps.
+    not_applicable: The target handles no provider rejections.
+
+FacadeNoMatchOutcomeExplicit:
+  instructions: >-
+    When no candidate adapter claims the input in `target.source`, does the
+    workflow return an explicit domain result (such as `Rejected`), rather
+    than a default provider, an exception, a null, or a silent skip?
+  criteria:
+    meets: No match yields a named domain outcome that callers can read.
+    violates: No match falls back to a default provider, throws an unclassified error, returns null, or silently drops the input.
+    not_applicable: The target does no runtime selection among adapters.
+
+FacadeProviderInputOpaque:
+  instructions: >-
+    Does the workflow in `target.source` treat incoming provider data as an
+    opaque value and pass it to the adapter, without reading, parsing, or
+    branching on provider-specific structure or fields?
+  criteria:
+    meets: The workflow handles provider input as an opaque value; only adapters look inside.
+    violates: The workflow inspects, parses, or branches on provider-specific fields of the input.
+    not_applicable: The target is an adapter, or receives no provider data.
+
+FacadeSignaturesDomainTyped:
+  instructions: >-
+    Do the public signatures of the workflow and the ports in `target.source`
+    use only domain input and output types, with no vendor, SDK, or framework-
+    provider type in a parameter, return value, or thrown type, whether
+    imported directly or reached through an alias?
+  criteria:
+    meets: Every workflow and port signature is expressed in domain types.
+    violates: A workflow or port signature includes a vendor or SDK type, directly or through an alias.
+    not_applicable: The target has no workflow or port signatures.
+
+FacadeNoProviderBranchManager:
+  instructions: >-
+    Is `target.source` free of a single service or manager that contains the
+    per-provider branches for every supported provider, with the work split
+    into a workflow, a port, and one adapter per provider?
+  criteria:
+    meets: Provider-specific behavior is spread across adapters behind a port, and no manager holds every branch.
+    violates: One service or manager holds provider-specific methods or branches for several providers.
+    not_applicable: The target talks to only one backend with no credible second provider.
+
+FacadeProviderAddedWithoutWorkflowEdit:
+  instructions: >-
+    If the work in `work_log` adds a provider, does the recorded change
+    (`commits` and `commands`) touch only the new adapter, the host
+    composition, and adapter tests, with the workflow file, workflow tests,
+    and shared domain model unchanged?
+  criteria:
+    meets: The provider addition changed only the adapter, the host composition, and adapter tests.
+    violates: The provider addition also edited the workflow, its tests, or the shared domain model.
+    not_applicable: "`work_log` is null, or the work adds no provider."
+
+FacadeFrameworkTypesAtEdge:
+  instructions: >-
+    Do framework types (request, response, or context objects) in
+    `target.source` stay at the framework edge, and does every wrapper around
+    such a type earn a specific domain job, rather than being added only for
+    symmetry or hiding?
+  criteria:
+    meets: Framework types stay at the edge unwrapped, or each wrapper has a named domain job.
+    violates: A framework type is wrapped with no domain job.
+    not_applicable: The target uses no framework types.
+
+FacadeOneShotBodyShared:
+  instructions: >-
+    Where a one-shot input (a request body or stream) is needed by both the
+    prove step and the translate step of an adapter in `target.source`, is it
+    read once into a value shared by both steps, rather than each step reading
+    the original stream?
+  criteria:
+    meets: The one-shot input is captured once and both steps read the captured value.
+    violates: Both steps read the original one-shot input, so the second read is empty or consumed.
+    not_applicable: No input is one-shot, or no adapter has both a prove and a translate step.
+
+FacadeRealImplemented:
+  instructions: >-
+    Where the work introduces a facade, does a real implementation of its
+    interface exist that performs the actual system call or provider work,
+    rather than a stub or a no-op?
+  criteria:
+    meets: A real implementation of the interface exists and performs the actual work.
+    violates: There is no real implementation, or it is a stub, placeholder, or no-op.
+    not_applicable: The target introduces no facade.
+
+FacadeFakeProvided:
+  instructions: >-
+    Where the work introduces a facade, is there an in-memory fake or mock of
+    its interface that tests can use in place of the real implementation?
+  criteria:
+    meets: A working in-memory fake or mock of the interface exists for tests.
+    violates: No fake or mock exists, or it is an empty stub that tests cannot use.
+    not_applicable: The target introduces no facade.
+
+FacadeLintRuleBlocksDirect:
+  instructions: >-
+    Where the work introduces a facade, does `repo` contain a lint rule or
+    equivalent check that fails when code outside the facade's real
+    implementation calls the underlying mechanism directly?
+  criteria:
+    meets: A lint rule or check that blocks direct calls exists in `repo` and covers the introduced facade.
+    violates: No rule blocks direct calls, so a new direct call would pass lint.
+    not_applicable: The target introduces no facade, or `repo` is null.
+
+FacadeTestsUseFake:
+  instructions: >-
+    Where the work introduces a facade, do all `tests` that previously
+    exercised the direct mechanism now use the facade's fake, and none of them
+    still reach the real mechanism?
+  criteria:
+    meets: Every affected test uses the fake and none touches the real mechanism.
+    violates: At least one affected test still uses the real mechanism, patches it directly, or was left unchanged.
+    not_applicable: The target introduces no facade, or `tests` is empty.
+
+FacadePortOneMechanism:
+  instructions: >-
+    Does each port `target.source` uses or defines name one mechanism or
+    capability, rather than joining unrelated mechanisms such as storage,
+    messaging and time in one interface?
+  criteria:
+    meets: Each port is one capability.
+    violates: A port names two or more unrelated mechanisms.
+    not_applicable: The target uses no ports.
+
+FacadeHostOwnFile:
+  instructions: >-
+    Where `target.source` contains or relies on a large inject or provide host
+    (a composition root that wires many adapters), does that host live in its
+    own file apart from the workflow and the adapters?
+  criteria:
+    meets: The large host is its own file.
+    violates: A large host shares a file with the workflow, a port or an adapter.
+    not_applicable: The target has no host, or its host is a few lines.
+
+FacadeLeafChangeStaysInAdapter:
+  instructions: >-
+    Where the work changed only provider mechanics (pagination, auth, wire
+    format), did it preserve the port contract and change only the adapter,
+    with no change to the workflow, domain model or port signature?
+  criteria:
+    meets: Only the adapter changed and the port contract is unchanged.
+    violates: A provider-only change also edited the workflow, the domain model or the port.
+    not_applicable: The work was not a provider-only change.
+
+# === F. Contracts and dependencies =========================================
+
+ContractSingleSource:
+  instructions: >-
+    Does each boundary in `target.source` have one canonical owner and one
+    schema or typed source of truth that names its inputs, outputs, errors,
+    and invariants, used by both providers and consumers?
+  criteria:
+    meets: One owner and one schema or type define each boundary.
+    violates: The shape is defined in several places, has no clear owner, or is hand-parsed in ways that can drift.
+    not_applicable: The target exposes or consumes no boundary.
+
+ContractCompatibilityPolicy:
+  instructions: >-
+    Do boundaries in `target.source` that independently changing consumers
+    rely on have an explicit compatibility and versioning policy, with
+    compatibility tests?
+  criteria:
+    meets: The compatibility policy is explicit and tested.
+    violates: Consumers can break silently because no compatibility policy or test exists.
+    not_applicable: No independently changing consumer depends on the target.
+
+ContractInputValidatedOnce:
+  instructions: >-
+    Does `target.source` accept external input as untyped data and validate or
+    narrow it once at the boundary, rather than trusting it or re-checking it
+    throughout?
+  criteria:
+    meets: External input is validated once at the boundary and typed after.
+    violates: External input is trusted unchecked, or validation is scattered through the code.
+    not_applicable: The target takes no external input.
+
+ContractFailureMeanings:
+  instructions: >-
+    Does `target.source` give its errors, statuses, and exit codes explicit,
+    documented meanings that callers can rely on?
+  criteria:
+    meets: Each failure has a stable, explicit meaning.
+    violates: Failures are generic, inconsistent, or meanings must be guessed from text.
+    not_applicable: The target reports no failures across a boundary.
+
+ContractNoDuplicateInterpretation:
+  instructions: >-
+    Do `target.source` and `callers` interpret the same data or rule through one
+    shared function, rather than each keeping its own copy of the logic?
+  criteria:
+    meets: Every interpretation of the data or rule goes through one owner.
+    violates: Two places parse, check, or interpret the same data or rule separately.
+    not_applicable: No other code interprets the same data or rule.
+
+ContractValidatedByRealParser:
+  instructions: >-
+    Do `tests` validate contracts, schemas, configuration, and generated
+    artifacts through their real parser, validator, or consumer, rather than
+    by searching source text for expected words?
+  criteria:
+    meets: Contracts are checked by parsing or consuming them for real.
+    violates: Tests only grep or string-match the contract text.
+    not_applicable: The target has no contract, schema, or generated artifact.
+
+ContractConfigValidated:
+  instructions: >-
+    Is configuration that `target.source` reads, such as JSON, TOML, YAML, or
+    environment variables, given a schema, validated once, documented with
+    units and defaults, and free of committed secrets?
+  criteria:
+    meets: Configuration is schema-validated once, documented, and rejects unknown or unsafe values.
+    violates: Configuration is read ad hoc, unvalidated, undocumented, or holds secrets.
+    not_applicable: The target reads no configuration.
+
+ContractHttpComplete:
+  instructions: >-
+    If `target.source` serves or calls an HTTP API, is it defined by an OpenAPI
+    contract written and linted before handlers, with generated types, and
+    covering authentication, authorization, validation, a stable error
+    envelope, pagination limits, timeouts, idempotency, versioning, and
+    deprecation, without leaking database or provider shapes?
+  criteria:
+    meets: The API follows a linted contract written before handlers, with generated types, covering every one of those concerns.
+    violates: The API lacks a contract, any one of those concerns is missing, or it leaks storage or provider shapes.
+    not_applicable: The target has no HTTP API.
+
+ContractDependenciesPinned:
+  instructions: >-
+    In `repo`, are language runtimes, direct tools and development
+    dependencies pinned and dependency locks committed according to the
+    repository's policy, as the ecosystem allows?
+  criteria:
+    meets: Runtimes, tools and dependencies are pinned and locks are committed.
+    violates: A runtime or tool floats on latest, or lockfiles are missing.
+    not_applicable: "`repo` is null."
+
+ContractNoReimplementedLibrary:
+  instructions: >-
+    Does `target.source`, and the verification tooling in `repo`, use a mature
+    pinned library or tool (parser, validator, scanner, linter, generator,
+    test tool) where one fits, and not a partial local reimplementation?
+  criteria:
+    meets: Mature, pinned tools are used where they fit.
+    violates: Code or tooling partially reimplements a mature tool, or the tool used is not pinned.
+    not_applicable: The target and `repo` do nothing a common tool already does.
+
+ContractDevToolsOutOfRuntime:
+  instructions: >-
+    In `repo`, are validators, scanners, linters, generators, and test tools
+    kept out of the shipped runtime dependency graph?
+  criteria:
+    meets: Development tools are development-only dependencies.
+    violates: A development or verification tool ships as a runtime dependency.
+    not_applicable: "`repo` is null."
+
+ContractInvariantsEnforcedMechanically:
+  instructions: >-
+    Are rules that must always hold for `target.source` enforced by types,
+    lint, tests, architecture checks, permissions or hooks, and not by
+    documentation, review comments or an instruction in a prompt alone?
+  criteria:
+    meets: Each must-hold rule has a mechanical check.
+    violates: A must-hold rule relies only on prose, comments, reviewer memory or prompt obedience.
+    not_applicable: The target has no rules that must always hold.
+
+ContractRepoTasksHonest:
+  instructions: >-
+    If `work_log` shows a new repository, does `repo` expose honest `setup`,
+    `fmt`, `lint`, `typecheck`, `test`, `scan`, `build`, `doctor` and `ci`
+    tasks through `mise`, with runtimes and tools pinned, dependency locks
+    committed, Lefthook delegating to those tasks, and `ci` as the complete
+    non-mutating gate?
+  criteria:
+    meets: All tasks exist through `mise`, are honest, runtimes are pinned, and Lefthook delegates to them.
+    violates: A task is missing, `ci` is a subset, a name overstates what it does, runtimes are unpinned, or hooks do not delegate to the tasks.
+    not_applicable: The work is not a new repository.
+
+ContractNoInventedTooling:
+  instructions: >-
+    If `work_log` shows an isolated module refactor, did the work avoid
+    inventing task-runner tasks, lockfiles, manifests, scanners, or CI the
+    request did not ask for?
+  criteria:
+    meets: No unrequested repository tooling was added.
+    violates: Repository tooling was invented around an isolated refactor.
+    not_applicable: "`work_log` is null, or the work is a new repository or automation change."
+
+ContractTestsThroughRealBoundary:
+  instructions: >-
+    Do the contract tests in `tests` cross the real boundary between the
+    production provider and its consumers, not a mock or a copy of the
+    boundary?
+  criteria:
+    meets: Contract tests call the real provider and a real consumer across the boundary.
+    violates: Contract tests use a mock or a copy of the boundary, or exercise only one side.
+    not_applicable: The target has no boundary or contract.
+
+ContractNoCallerBypass:
+  instructions: >-
+    Is every caller in `callers` using the boundary's contract (API, schema,
+    port), and not reaching behind it to the provider's storage, internal
+    types or undocumented behavior?
+  criteria:
+    meets: All callers use the contract.
+    violates: A caller bypasses the contract and uses provider internals.
+    not_applicable: The target exposes or consumes no boundary.
+
+ContractSharedRuleBoundaryImproved:
+  instructions: >-
+    Where two scripts or modules need the same rule and one cannot import it,
+    was the package boundary changed so both call the one owner, and not a
+    copy of the check made?
+  criteria:
+    meets: Both call the owner after the boundary was improved, or no sharing was blocked.
+    violates: The rule was copied because the boundary made import hard.
+    not_applicable: No rule is shared between separate scripts or modules.
+
+ContractHttpConformanceTested:
+  instructions: >-
+    If `target.source` serves or calls an HTTP API, do `tests` or `repo` check
+    that the implementation conforms to the OpenAPI contract, and are clients
+    generated from it where practical?
+  criteria:
+    meets: A conformance test runs against the contract, and clients are generated where practical.
+    violates: The contract exists but nothing checks the implementation against it, or clients are hand-written where generation was practical.
+    not_applicable: The target has no HTTP API.
+
+ContractUsesExistingTaskRunner:
+  instructions: >-
+    Where `repo` already has a task runner, did the work add its tasks and
+    automation through that runner, and not by adding a second runner or loose
+    scripts?
+  criteria:
+    meets: New tasks use the existing task runner.
+    violates: A second task runner or untracked scripts were added beside the existing one.
+    not_applicable: "`repo` is null, or it had no task runner before the work."
+
+ContractRuntimeDepsMinimal:
+  instructions: >-
+    In `repo`, is every runtime dependency needed by shipped code, with no
+    unused or convenience dependency in the runtime set?
+  criteria:
+    meets: Each runtime dependency is used by shipped code.
+    violates: A runtime dependency is unused or only a convenience.
+    not_applicable: "`repo` is null."
+
+ContractDevToolsNotBlockedByRuntimeRestriction:
+  instructions: >-
+    If the request restricted shipped runtime dependencies, did `work_log`
+    still use mature development and verification tools (validators, scanners,
+    linters, generators, test tools), unless the request explicitly restricted
+    all dependencies?
+  criteria:
+    meets: Mature dev tools were used, or the request restricted all dependencies.
+    violates: A runtime-only restriction led to no verification tool or a hand-made substitute.
+    not_applicable: "`work_log` is null, or the request had no dependency restriction."
+
+ContractSchemaVersionsPinned:
+  instructions: >-
+    Where reproducibility depends on them, are the tool versions and the
+    schema versions for configuration pinned in `repo` or in the configuration
+    itself?
+  criteria:
+    meets: Tool and schema versions are pinned where reproducibility depends on them.
+    violates: A tool or schema version floats where reproducibility depends on it.
+    not_applicable: The target reads no configuration, or reproducibility does not depend on tool or schema versions.
+
+# === G. Migration and refactoring ==========================================
+
+MigrationCompletePath:
+  instructions: >-
+    Did the change to `target.source` cover the smallest complete domain path,
+    including the whole module when the request in `work_log` named one,
+    rather than migrating a few selected methods?
+  criteria:
+    meets: The full named path or module was migrated.
+    violates: Only part of the named module or path was migrated.
+    not_applicable: The target is not the subject of a change or migration.
+
+MigrationNoLegacyWrapper:
+  instructions: >-
+    Is `target.source` free of wrappers, proxies, compatibility objects, or
+    aliases that keep an old owner alive behind a new name?
+  criteria:
+    meets: The current owner directly holds the behavior.
+    violates: A wrapper, proxy, alias, or re-export preserves a superseded owner.
+    not_applicable: The target has no history of refactoring.
+
+MigrationSingleOwner:
+  instructions: >-
+    Across `target.source` and `callers`, does each decision, policy,
+    transition, retry rule, mutation and invariant have exactly one owner with
+    no bypass path?
+  criteria:
+    meets: One owner per decision, rule, mutation and invariant, and no caller bypasses it.
+    violates: Two owners exist for any of them, or a caller reaches the mutation without the owner.
+    not_applicable: The target owns no policy, invariant or mutation.
+
+MigrationNoDeadCode:
+  instructions: >-
+    Is `target.source` free of dead code, superseded paths, deprecated paths,
+    unused exports, and commented-out blocks?
+  criteria:
+    meets: Everything in the file is used.
+    violates: The file contains dead, superseded, deprecated, or commented-out code.
+    not_applicable: The file is generated.
+
+MigrationRedesignedNotRelocated:
+  instructions: >-
+    Does the structure of `target.source` come from the product operation,
+    domain states and owners, with responsibility, dependency direction, state
+    shape and reuse reconsidered, rather than from moving old adjacent methods
+    into new files?
+  criteria:
+    meets: Responsibility, dependency direction, state shape and reuse were redesigned.
+    violates: Old methods were moved together, or any of those four was carried over unexamined.
+    not_applicable: The target was not produced by a refactor.
+
+MigrationSeamBounded:
+  instructions: >-
+    If `target.source` contains a temporary migration seam, is it named and
+    bounded, rather than leaving two permanent owners?
+  criteria:
+    meets: Every temporary seam is named with a clear end.
+    violates: A seam is unnamed or open-ended, so two owners persist.
+    not_applicable: The target contains no migration seam.
+
+MigrationTouchedDebtResolved:
+  instructions: >-
+    Did the work on `target.source` resolve mixed owners, copied policy, and
+    unclear homes on the path it touched, rather than walking past that debt?
+  criteria:
+    meets: Debt on the touched path was resolved.
+    violates: The change added to or routed around debt on its own path.
+    not_applicable: The target was not changed.
+
+MigrationReusesExisting:
+  instructions: >-
+    Does `target.source` call existing owned functions for behavior that
+    already exists elsewhere, extending them for real variations, rather than
+    copying them with a slight variation?
+  criteria:
+    meets: Shared behavior is reused or extended in its owner.
+    violates: The file copies existing behavior, possibly with a small variation.
+    not_applicable: Nothing in the file duplicates behavior found elsewhere.
+
+MigrationOwnedPathEasierThanBypass:
+  instructions: >-
+    Is the owned function, port or workflow in `target.source` easier for the
+    next caller to call than to bypass or copy, with a discoverable name,
+    location and signature that needs no extra setup?
+  criteria:
+    meets: The owned path is the easiest way to get the behavior.
+    violates: Bypassing or copying the behavior is easier than calling the owner, for example because the owner is hard to find or import or needs awkward setup.
+    not_applicable: Nothing in the target is meant for reuse.
+
+MigrationRecurringPatternCentralized:
+  instructions: >-
+    Where the same pattern recurs in `target.source` and `callers`, was the
+    missing domain concept named and centralized in one owner, or is the
+    repetition plain syntax that is deliberately clearer than a shared
+    abstraction?
+  criteria:
+    meets: Each recurring pattern is centralized under a named concept, or its repetition is a justified choice.
+    violates: A recurring pattern is repeated without a named owner, and nothing shows the repetition is deliberate.
+    not_applicable: Nothing recurs.
+
+MigrationNoBoltOn:
+  instructions: >-
+    Where the work changed behavior on an existing path, did it first make
+    that path safe, rather than bolting the new behavior onto an unsafe path
+    just to minimize the diff?
+  criteria:
+    meets: The path the change touches is owned and safe, or the change was not made on an unsafe path.
+    violates: New behavior was added to an unsafe path, such as a handler that reads, decides and writes, to keep the diff small.
+    not_applicable: The target was not changed, or the path was already safe.
+
+MigrationFixLedgerNotWarn:
+  instructions: >-
+    Where the work found a size, SRP, SOLID or DRY violation in its result,
+    does `work_log` show it renamed owners and rewrote `layout`, rather than
+    keeping the mixed file and noting a warning?
+  criteria:
+    meets: Each violation led to a rewritten ledger and files, or no violation remains.
+    violates: A violation is kept and described in a note, TODO or warning, and the ledger was not corrected.
+    not_applicable: "`work_log` is null, or no violation was found."
+
+MigrationBehaviorProtectedByTests:
+  instructions: >-
+    Before the work moved or restructured `target.source`, did `work_log` show
+    focused tests (characterization tests) protecting the intentional public
+    behavior, passing before and after the move?
+  criteria:
+    meets: Behavior-protecting tests were green before the move and after it.
+    violates: The move began without such tests, or they were first written against the new structure.
+    not_applicable: "`work_log` is null, or the work is not a change to existing code."
+
+MigrationAffectedInventory:
+  instructions: >-
+    Before changing `target.source`, does `work_log` list every affected read,
+    decision, write, caller, retry, contract, library boundary and duplicated
+    interpretation on the path?
+  criteria:
+    meets: The inventory covers all of them and was made before the change.
+    violates: The inventory is missing, omits one of those kinds, or came after the change.
+    not_applicable: "`work_log` is null, or the work is new code with nothing existing to inventory."
+
+MigrationEffectsInReusableModules:
+  instructions: >-
+    When a large legacy module was decomposed, did reusable effects and
+    stateful behavior move to composables or equivalent application modules,
+    rather than staying in the legacy file or in views?
+  criteria:
+    meets: Reusable effects and state each live in an application module.
+    violates: Reusable effects or stateful behavior remain in the legacy module or are copied into views.
+    not_applicable: The target was not a large legacy module being decomposed.
+
+MigrationVisualRegionsAsComponents:
+  instructions: >-
+    When a large legacy module with visual regions was decomposed, does each
+    visual region live in a component whose inputs and outputs form an
+    explicit contract?
+  criteria:
+    meets: Each visual region is a component with an explicit input/output contract.
+    violates: A visual region stays inline in the legacy file, or a component reaches shared state instead of declared inputs and outputs.
+    not_applicable: The target has no visual regions.
+
+MigrationSplitFilesShareNothing:
+  instructions: >-
+    Across the files that replaced a large legacy file, does each own its own
+    state and policy, with none sharing hidden state (module globals, a shared
+    mutable object) and none duplicating a policy?
+  criteria:
+    meets: Each file owns its state and policy and nothing is shared implicitly.
+    violates: Split files share hidden state or repeat the same policy.
+    not_applicable: The target was not produced by splitting a file.
+
+MigrationContractTestsAtBoundary:
+  instructions: >-
+    Do `tests` check the existing public boundary of `target.source` (public
+    names, outputs and statuses) with characterization or contract tests that
+    pass unchanged after the refactor?
+  criteria:
+    meets: Boundary tests existed before the refactor and pass unchanged after it.
+    violates: Boundary tests were deleted or loosened to pass, or the boundary has none.
+    not_applicable: The target was not refactored.
+
+MigrationNoDecorativeLayer:
+  instructions: >-
+    Does the production route in `callers` use the new structure, with no
+    modern-looking layer built beside a legacy owner that still serves the
+    real traffic?
+  criteria:
+    meets: The production route uses the new owners and the legacy owner is gone.
+    violates: A new layer exists but the production route still goes through the legacy owner.
+    not_applicable: The target was not migrated from legacy patterns.
+
+MigrationTouchedConceptEasier:
+  instructions: >-
+    Is each concept the work touched in `target.source` easier for the next
+    developer or agent to understand and change than before, with clearer
+    names, ownership and tests?
+  criteria:
+    meets: Each touched concept is no harder, and is clearer or better owned than before.
+    violates: A touched concept is harder to understand or change than before.
+    not_applicable: The target was not changed.
+
+MigrationHandlerWriteAuthorityRemoved:
+  instructions: >-
+    After the migration, do the handlers in `callers` have no write authority,
+    no write port, storage handle or write-capable client, and only the owned
+    workflow can mutate?
+  criteria:
+    meets: Handlers cannot write, and only the owned workflow holds that authority.
+    violates: A handler still holds or constructs a write-capable dependency.
+    not_applicable: The work did not migrate an unsafe handler path.
+
+AuditPatternFixedEverywhere:
+  instructions: >-
+    If `work_log` is an audit, was each pattern fixed once structurally and
+    then migrated across every instance counted in the inventory?
+  criteria:
+    meets: Each pattern got one structural fix applied to all its instances.
+    violates: Some instances were left, or instances were patched one by one without a shared fix.
+    not_applicable: "`work_log` is null, or the work is not an audit."
+
+AuditZeroDeferrals:
+  instructions: >-
+    If `work_log` is an audit, was every finding fixed or deleted in the same
+    pass, with only decisions that need the user escalated immediately?
+  criteria:
+    meets: No finding was deferred to later.
+    violates: Some finding was tracked for later, marked low priority, or called out of scope.
+    not_applicable: "`work_log` is null, or the work is not an audit."
+
+AuditTouchedFilesAudited:
+  instructions: >-
+    If `work_log` is an audit, did every file it created or heavily modified
+    get its own audit pass?
+  criteria:
+    meets: Every new or heavily modified file was audited.
+    violates: A new or heavily modified file skipped the audit.
+    not_applicable: "`work_log` is null, or the work is not an audit."
+
+AuditFacadeLawsWalked:
+  instructions: >-
+    If `work_log` is a review or audit of a facade or provider boundary, does
+    it show each of the nine agnostic-facade laws checked in turn, with a
+    result for each?
+  criteria:
+    meets: All nine laws are walked with a recorded result.
+    violates: The review skips one or more laws or gives no per-law result.
+    not_applicable: "`work_log` is null, or the work is not a review of a facade or provider boundary."
+
+AuditClassPrevented:
+  instructions: >-
+    Looking at `work_log` (notes, commands, commits) and the repository guards
+    in `repo`, did the audit pair each fixed finding with a structural guard
+    that stops the whole class from recurring (a type, lint rule, shared
+    owner, or failing-then-passing fixture), instead of fixing only the
+    instance it found?
+  criteria:
+    meets: Each fixed finding has a recorded guard that blocks its class from returning, not only a patch to the instance.
+    violates: At least one finding was fixed by patching the instance alone, with nothing in the work that would catch or prevent the same class of mistake again.
+    not_applicable: "`work_log` is null, or the work is not an audit."
+
+AuditEscalationImmediate:
+  instructions: >-
+    For any finding in `work_log` that needs a user-only decision (a product
+    call or a destructive action), did the work raise it to the user
+    immediately, rather than leaving it in `work_log.notes` or a backlog to be
+    dealt with someday?
+  criteria:
+    meets: Every user-only-decision finding was escalated to the user at the moment it was found, with the decision asked explicitly.
+    violates: A user-only-decision finding was only noted, parked, or listed for later with no immediate escalation.
+    not_applicable: "`work_log` is null, the work is not an audit, or no finding needed a user-only decision."
+
+AuditEscalationOnlyUserDecisions:
+  instructions: >-
+    Is every finding in `work_log` that was escalated instead of fixed one
+    that really needs a user-only decision (a product call or a destructive
+    action), rather than a technical finding the audit could have fixed or
+    deleted itself?
+  criteria:
+    meets: Every escalated finding is a genuine product call or destructive action, and all other findings were fixed or deleted.
+    violates: A finding the audit could have decided and fixed itself was escalated, handed back, or left open as "needs discussion".
+    not_applicable: "`work_log` is null, the work is not an audit, or nothing was escalated."
+
+AuditFixedOrDeletedNotSuppressed:
+  instructions: >-
+    Was each finding in `work_log` resolved by changing or removing the
+    offending code, rather than by a suppression, ignore directive, allowlist
+    entry, or note that leaves the problem in place?
+  criteria:
+    meets: Every finding ended as a code fix or a deletion.
+    violates: At least one finding was suppressed, ignored, allowlisted, or documented while the problem remains.
+    not_applicable: "`work_log` is null, or the work is not an audit."
+
+AuditFindsNameIntentMismatch:
+  instructions: >-
+    Does `work_log` show that the audit compared each function and symbol name
+    in `target.source` with what the code actually does, and reported or fixed
+    every place where the name and the intent disagree?
+  criteria:
+    meets: A name-versus-behavior check was done, and every mismatch found was reported and fixed.
+    violates: No name-versus-intent check appears in the work, or a mismatch was seen and left.
+    not_applicable: "`work_log` is null, or the work is not an audit."
+
+AuditFindsUnexplainedMagicValues:
+  instructions: >-
+    Does `work_log` show that the audit searched `target.source` for magic
+    values whose origin no one can explain, and reported or fixed each one?
+  criteria:
+    meets: The audit looked for unexplained magic values and every one found was reported and fixed.
+    violates: The audit has no search for unexplained magic values, or one was found and left.
+    not_applicable: "`work_log` is null, or the work is not an audit."
+
+AuditFindsWrongReasonTests:
+  instructions: >-
+    Does `work_log` show that the audit examined `tests` for tests that pass
+    for the wrong reason (a mocked-away subject, a tautology, a setup that
+    never reaches the behavior), and reported or fixed each one?
+  criteria:
+    meets: The audit checked the tests for wrong-reason passes and fixed every one it found.
+    violates: The audit did not examine whether tests pass for the right reason, or a wrong-reason test was found and left.
+    not_applicable: "`work_log` is null, the work is not an audit, or `tests` is empty."
+
+AuditFindsFacadeEscapes:
+  instructions: >-
+    Does `work_log` show that the audit searched `target.source` and `callers`
+    for system calls (clock, filesystem, process, environment, network,
+    randomness) that bypass an existing facade, and reported or fixed each
+    one?
+  criteria:
+    meets: A search for facade escapes was run and every escape found was reported and fixed.
+    violates: No search for system calls outside facade coverage is shown, or an escape was found and left.
+    not_applicable: "`work_log` is null, or the work is not an audit."
+
+AuditInventoryCoversEveryShape:
+  instructions: >-
+    Compare the pattern inventory in `work_log` with `target.source`. Does the
+    inventory list every recurring code shape in the file, including direct
+    system calls, error-handling patterns, constants, and concurrency shapes,
+    with none missing?
+  criteria:
+    meets: Every recurring shape in `target.source`, in each of those categories, appears in the inventory.
+    violates: At least one recurring shape in `target.source` (system call, error pattern, constant, concurrency shape, or other) is missing from the inventory.
+    not_applicable: "`work_log` is null, the work is not an audit, or `target.source` has no recurring shapes."
+
+AuditInventoryCountsAccurate:
+  instructions: >-
+    For each row of the pattern inventory in `work_log`, does the instance
+    count equal the number of occurrences of that pattern actually present in
+    the original `target.source`?
+  criteria:
+    meets: Every inventory count matches the real number of occurrences.
+    violates: Some count is lower or higher than the real number of occurrences, or the count cannot be checked against the source.
+    not_applicable: "`work_log` is null, the work is not an audit, or no inventory exists."
+
+AuditMissingFacadeIntroduced:
+  instructions: >-
+    For every system boundary that `work_log` shows was hit directly (without
+    a facade), did the audit introduce the missing facade in the same pass,
+    rather than leaving the direct call, noting it, or adding a partial stub?
+  criteria:
+    meets: Every directly-hit boundary found now sits behind a facade introduced during the audit.
+    violates: A boundary hit directly was found and left without a facade, or only a partial stub was added.
+    not_applicable: "`work_log` is null, the work is not an audit, or no boundary was hit directly."
+
+AuditCreatedFilesCompliant:
+  instructions: >-
+    Looking at the files and helpers the audit created or heavily modified
+    (visible in `work_log.commits` and `work_log.notes`), do they follow the
+    same standards the audit enforces on `target.source`, with no non-
+    compliant helper introduced while fixing the target?
+  criteria:
+    meets: Every file created or heavily modified during the audit is itself compliant.
+    violates: A file or helper created during the audit breaks a rule the audit was enforcing.
+    not_applicable: "`work_log` is null, the work is not an audit, or the audit created and heavily modified no files besides the target."
+
+AuditFileReadFully:
+  instructions: >-
+    Does `work_log.commands` show that the whole of `target.path` was read,
+    not just slices or search hits, before the pattern inventory was built?
+  criteria:
+    meets: The full file was read before the inventory.
+    violates: Only parts of the file were read, or the inventory was built without a full read.
+    not_applicable: "`work_log` is null, or the work is not an audit."
+
+AuditFindingsCompiledBeforeFixing:
+  instructions: >-
+    Does `work_log` contain a single compiled list of all findings (linter
+    output, inventory patterns, and independent discoveries combined), written
+    before the first fix was implemented?
+  criteria:
+    meets: A combined findings list was compiled before fixing started.
+    violates: No combined list exists, or it was assembled after fixes began.
+    not_applicable: "`work_log` is null, or the work is not an audit."
+
+AuditFindingsAllCategories:
+  instructions: >-
+    Do the findings compiled in `work_log` cover every category of issue the
+    audit looked for (correctness, structure, facades and system calls,
+    errors, constants, concurrency, tests), rather than only one or two?
+  criteria:
+    meets: The compiled findings span all categories examined, with each category either listing findings or stating none were found.
+    violates: Whole categories of issue are missing from the compiled findings with no statement that they were checked.
+    not_applicable: "`work_log` is null, or the work is not an audit."
+
+AuditFacadesBeforeFixes:
+  instructions: >-
+    Does `work_log` show that every needed facade and lint rule was introduced
+    before the fixes that depend on them were implemented?
+  criteria:
+    meets: Facades and lint rules came first, and fixes were then written against them.
+    violates: A facade or lint rule was added after the fixes that needed it, or the fixes were written first and the facade fitted afterward.
+    not_applicable: "`work_log` is null, the work is not an audit, or no facade or lint rule was needed."
+
+AuditCallSitesMigrated:
+  instructions: >-
+    For every name, signature, or behavior the audit changed in
+    `target.source`, are all call sites in `callers` and elsewhere in
+    `work_log.commits` updated to the new form, with none left on the old one?
+  criteria:
+    meets: Every call site of every changed item uses the new form.
+    violates: At least one call site still uses the old name, signature, or behavior.
+    not_applicable: "`work_log` is null, the work is not an audit, or the audit changed no name, signature, or behavior seen by callers."
+
+AuditNewPathsTested:
+  instructions: >-
+    For each new code path the audit added (a new branch, helper, facade,
+    adapter, or error path, as seen in `work_log.commits`), does a test in
+    `tests` exercise it?
+  criteria:
+    meets: Every new path has at least one test that exercises it.
+    violates: At least one new path has no test.
+    not_applicable: "`work_log` is null, the work is not an audit, or the audit added no new paths."
+
+AuditCommitAfterGreen:
+  instructions: >-
+    In `work_log`, was each audited file's commit made after the linter and
+    tests were re-run and passed on that file's final state?
+  criteria:
+    meets: Each commit came after a green linter and test run on that file's final contents.
+    violates: A commit was made before the green run, or the code changed after the run without a re-run.
+    not_applicable: "`work_log` is null, or the work is not an audit."
+
+AuditSemanticNotPlausible:
+  instructions: >-
+    For each judgment in `work_log` that something was fine (a value, a
+    threshold, a name, a branch), does the record give a traced reason or
+    evidence, rather than that it looks reasonable or conventional?
+  criteria:
+    meets: Every approval in the work cites what was traced or measured.
+    violates: At least one approval rests only on plausibility, convention, or "looks fine".
+    not_applicable: "`work_log` is null, or the work is not an audit."
+
+AuditConstantOriginsAsked:
+  instructions: >-
+    For every constant, threshold, and magic number in `target.source`, does
+    `work_log` show the audit asked where the value came from and recorded the
+    answer (a source, a measurement, or a derivation), or fixed or removed the
+    value when no answer existed?
+  criteria:
+    meets: Every constant, threshold, and magic number has a recorded origin or was fixed or removed.
+    violates: At least one constant, threshold, or magic number was never questioned for its origin.
+    not_applicable: "`work_log` is null, the work is not an audit, or `target.source` has no constants, thresholds, or magic numbers."
+
+AuditRuntimeWithoutOverrideAsked:
+  instructions: >-
+    For each constant and threshold in `target.source`, does `work_log` show
+    the audit asked whether the runtime or standard library would behave
+    acceptably without it, and recorded the answer?
+  criteria:
+    meets: Each constant and threshold has a recorded answer to whether the runtime would handle things without it.
+    violates: The question was not asked for at least one constant or threshold.
+    not_applicable: "`work_log` is null, the work is not an audit, or `target.source` has no constants or thresholds."
+
+AuditScopeSingleFile:
+  instructions: >-
+    Does `work_log` show an audit scoped to `target.path` and the files that
+    audit's own fixes required, rather than dependency upgrades or a sweep
+    across the whole codebase?
+  criteria:
+    meets: The work stays on the target file and the files its fixes require.
+    violates: The work upgrades dependencies or cleans up the whole codebase under the name of an audit.
+    not_applicable: "`work_log` is null, or the work is not an audit."
+
+# === H. Quality attributes =================================================
+
+SecurityThreatModel:
+  instructions: >-
+    Do `target.source` or `work_log` identify the assets, trust boundaries,
+    actors, abuse cases and failure impact, before the controls in the code
+    were chosen?
+  criteria:
+    meets: All five are named, were identified first, and match the controls.
+    violates: Controls exist without a stated threat, failure impact is missing, the threat model came after the controls, or a clear trust boundary is unacknowledged.
+    not_applicable: The target crosses no trust boundary.
+
+SecurityInputBounded:
+  instructions: >-
+    Does `target.source` bound the size, count, and depth of external input and
+    set explicit resource limits?
+  criteria:
+    meets: External input and resource use are bounded.
+    violates: Input size, count, or depth is unbounded, so a caller can exhaust resources.
+    not_applicable: The target takes no external input.
+
+SecurityAuthorizedAtMutation:
+  instructions: >-
+    Does `target.source` check authorization at the point of each consequential
+    change, with least privilege, not only at an outer handler?
+  criteria:
+    meets: Authorization is enforced where the change happens, with minimal privilege.
+    violates: Authorization is checked only upstream, privilege is broad, or a path skips the check.
+    not_applicable: The target makes no access-controlled changes.
+
+SecurityInjectionSafe:
+  instructions: >-
+    Does `target.source` keep untrusted values out of shell commands, SQL,
+    templates, and paths except through parameterization or strict escaping?
+  criteria:
+    meets: Untrusted values are always parameterized or escaped.
+    violates: Untrusted values are interpolated into a command, query, template, or path.
+    not_applicable: The target builds no commands, queries, templates, or paths from input.
+
+SecurityPathIdentity:
+  instructions: >-
+    When `target.source` checks file paths or other security-relevant
+    identity, does it check identity (links, traversal) on the raw input
+    before normalizing, keep both the original and canonical forms where
+    needed, and define which checks apply to each?
+  criteria:
+    meets: Raw checks run before normalization, both forms are kept where needed, and each check names the form it applies to.
+    violates: The path is resolved first, a needed original is discarded, or it is unclear which check applies to which form.
+    not_applicable: The target handles no file paths or identities from input.
+
+SecurityNoSecretsExposed:
+  instructions: >-
+    Does `target.source` keep secrets out of source, logs, command arguments,
+    error messages, reports, fixtures, and generated artifacts?
+  criteria:
+    meets: Secrets never appear in those places.
+    violates: A secret is hardcoded, logged, passed as an argument, or embedded in a fixture or artifact.
+    not_applicable: The target handles no secrets.
+
+SecurityFailClosed:
+  instructions: >-
+    When a check, scanner, or dependency in `target.source` is unavailable or
+    misconfigured, does the code deny or fail rather than proceed?
+  criteria:
+    meets: Missing or broken checks cause denial or failure.
+    violates: A missing or broken check lets the operation proceed.
+    not_applicable: The target has no security-relevant checks.
+
+SecurityScanCovers:
+  instructions: >-
+    Does the scan configured in `repo` include a real secret scanner that
+    inspects committed, generated, and untracked files, fails when a safe
+    synthetic secret is present, and fails closed when the tool is missing?
+  criteria:
+    meets: The scan covers all those files, catches a synthetic secret, and fails when unavailable.
+    violates: The scan is only lint, skips generated or untracked files, or passes when the tool is missing.
+    not_applicable: "`repo` is null."
+
+SecurityEveryToolFailsClosed:
+  instructions: >-
+    Does every security tool configured in `repo` (secret, dependency, static,
+    container and infrastructure scanners) fail the gate when it is missing,
+    misconfigured, or inspects nothing?
+  criteria:
+    meets: Each security tool fails closed when unavailable or misconfigured.
+    violates: Some security tool passes when it is missing, misconfigured or scanning no files.
+    not_applicable: "`repo` is null, or it configures no security tool."
+
+SecurityScanSurfacesCovered:
+  instructions: >-
+    Does `repo` scan each applicable surface (dependencies, source,
+    configuration, infrastructure, containers, secrets) with a tool that fits
+    that surface?
+  criteria:
+    meets: Every applicable surface has a scan.
+    violates: An applicable surface has no scan, or a lint task stands in for the scanner.
+    not_applicable: "`repo` is null."
+
+ConcurrencyModelNamed:
+  instructions: >-
+    Does `target.source` name its consistency model and the identity token it
+    binds decisions to?
+  criteria:
+    meets: The consistency model and identity token are explicit.
+    violates: Shared state is changed without a stated consistency model or identity token.
+    not_applicable: The target changes no state that another actor can modify.
+
+ConcurrencyRealIdentity:
+  instructions: >-
+    Does `target.source` identify versions with a real identity token, rather
+    than modification time, size, name, or retry count, treating same-size
+    content with a restored modification time as a different version?
+  criteria:
+    meets: Versions are identified by a token the domain proves, such as a content hash or revision.
+    violates: Time, size, name, or count stands in for identity.
+    not_applicable: The target tracks no versions of shared state.
+
+ConcurrencyAtomicMutation:
+  instructions: >-
+    Does `target.source` apply changes to shared state with an atomic
+    conditional operation, or, where the platform cannot, state that limit and
+    detect and compensate for interference?
+  criteria:
+    meets: Changes are atomic and conditional, or the limit is explicit with detection and recovery.
+    violates: The code checks and then changes state in separate steps with nothing catching interference.
+    not_applicable: The target changes no state that another actor can modify.
+
+ConcurrencyPostMutationVerified:
+  instructions: >-
+    Where `target.source` cannot compare versions atomically, does it verify the
+    result after the committing primitive and keep the outcome changed,
+    conflicted, or unknown until that check proves the planned version was
+    affected?
+  criteria:
+    meets: The result is verified after the change, and success waits for that proof.
+    violates: Success is reported without checking that the planned version was the one changed.
+    not_applicable: The target uses atomic conditional changes, or changes no shared state.
+
+ConcurrencyOwnershipExplicit:
+  instructions: >-
+    Does `target.source` make idempotency keys, lock ownership, retry
+    ownership, and conflict behavior explicit, with transport retries kept
+    separate from product retry policy?
+  criteria:
+    meets: These are explicit, and product retry policy has one owner.
+    violates: Duplicates, lock holders, or retry ownership are implicit, or a transport layer decides product retries.
+    not_applicable: The target has no retries, locks, or duplicate-sensitive effects.
+
+ResilienceBounded:
+  instructions: >-
+    Is every wait, retry loop, queue, batch, and external call in
+    `target.source` bounded by a timeout, a count, or a size?
+  criteria:
+    meets: Every wait and external call has a bound.
+    violates: Some wait, retry, queue, or call can run or grow without limit.
+    not_applicable: The target makes no waits, retries, or external calls.
+
+ResilienceFailureModes:
+  instructions: >-
+    Does `target.source` define behavior for timeouts, partial failure,
+    duplicate delivery, restart, dependency outage, corrupt state, and an
+    exhausted retry budget, where each can occur?
+  criteria:
+    meets: Each relevant failure mode has defined, recoverable behavior.
+    violates: Some relevant failure mode is unhandled or leaves state inconsistent.
+    not_applicable: The target has no failure modes beyond a plain error return.
+
+ResilienceResumable:
+  instructions: >-
+    Does `target.source` keep enough durable state to resume or compensate
+    after interruption without duplicating effects?
+  criteria:
+    meets: Interrupted work can resume or compensate without repeating effects.
+    violates: An interruption would lose progress or repeat effects.
+    not_applicable: The target does no long-running or multi-step effectful work.
+
+ResilienceUnknownNotSuccess:
+  instructions: >-
+    Does `target.source` report unknown or incomplete results as unknown or
+    partial, never as success?
+  criteria:
+    meets: Unknown and partial results are reported honestly.
+    violates: An unknown, timed-out, or partial result is reported as success.
+    not_applicable: The target reports no results that can be unknown or partial.
+
+ResilienceRetriesSafe:
+  instructions: >-
+    Does `target.source` retry only operations that are safe to repeat, with
+    backoff and jitter?
+  criteria:
+    meets: Retries are limited to safe operations and use backoff and jitter.
+    violates: An unsafe operation is retried, or retries run in a tight loop.
+    not_applicable: The target does not retry.
+
+ObservabilityShellEmits:
+  instructions: >-
+    Does the pure decision code in `target.source` return reasons and evidence
+    as data, leaving logs, metrics, traces, and audit records to the outer
+    layer?
+  criteria:
+    meets: Decisions return reasons, and only the outer layer emits telemetry.
+    violates: Decision code logs or emits telemetry itself, or reasons are lost before the outer layer.
+    not_applicable: The target has no decision code.
+
+ObservabilityUsefulFields:
+  instructions: >-
+    Do logs and telemetry in `target.source` carry the operation identity,
+    version basis, outcome, duration, retry or conflict state, and safe
+    correlation fields, while excluding secrets and unnecessary personal data?
+  criteria:
+    meets: Telemetry carries those fields and nothing sensitive.
+    violates: Telemetry lacks any one of operation identity, version basis, outcome, duration, retry or conflict state, or correlation fields, or includes secrets or unnecessary personal data.
+    not_applicable: The target emits no telemetry.
+
+ObservabilityAlertsActionable:
+  instructions: >-
+    Does every alert defined in `target.source` or `repo` correspond to an
+    action a user or operator can take?
+  criteria:
+    meets: Each alert maps to a clear action.
+    violates: Some alert fires with no action anyone can take.
+    not_applicable: No alerts are defined.
+
+ObservabilityHealthSplit:
+  instructions: >-
+    If `target.source` exposes health checks, do they separate process
+    liveness from dependency readiness?
+  criteria:
+    meets: Liveness and readiness are separate checks.
+    violates: One check conflates liveness and readiness.
+    not_applicable: The target exposes no health checks.
+
+ObservabilityVerifiedLive:
+  instructions: >-
+    Does `work_log` or `tests` show telemetry observed during a real success
+    path and a real failure path, rather than only checking that logging calls
+    exist?
+  criteria:
+    meets: Telemetry was observed on both a success and a failure path.
+    violates: Telemetry was only checked by the presence of logging calls, or not at all.
+    not_applicable: The target emits no telemetry.
+
+ScaleClaimsMeasured:
+  instructions: >-
+    Does every scale or performance claim in `target.source` or `work_log`
+    name the workload, data distribution, metric, threshold, service-level
+    objective and resource ceiling, and is it backed by a measured benchmark
+    or analytical model that exercises the limiting resource and the failure
+    modes with a measured curve, not extrapolation from a small happy-path
+    fixture?
+  criteria:
+    meets: Every claim is bounded and measured across the limiting resource and failure modes.
+    violates: A claim lacks any of those items, ignores failure modes, or extrapolates beyond what was measured.
+    not_applicable: No scale or performance claim is made.
+
+ScaleBoundedProcessing:
+  instructions: >-
+    If `target.source` is meant for very large datasets, does it use bounded
+    memory, streaming or partitioned work, stable pagination or checkpoints,
+    backpressure, resumability, skew handling, and a stated capacity model?
+  criteria:
+    meets: Processing has every one of bounded memory, streaming or partitioning, stable pagination or checkpoints, backpressure, resumability, skew handling, and a capacity model.
+    violates: Any one of those properties is missing.
+    not_applicable: The target is not meant for very large datasets.
+
+ScaleWorkloadQuantified:
+  instructions: >-
+    Where `target.source` or `work_log` claims "enterprise scale" or similar,
+    is the claim translated into a workload with item count, request rate,
+    data distribution, concurrency, latency target, throughput target, memory
+    and storage limits and cost ceiling?
+  criteria:
+    meets: The claim is expressed as numbers for each of those.
+    violates: "\"Enterprise scale\" or similar is claimed without those numbers."
+    not_applicable: No scale claim is made.
+
+ScaleComplexityAndBottleneckDocumented:
+  instructions: >-
+    Does `target.source` or `work_log` document the complexity of the main
+    work and the first expected bottleneck?
+  criteria:
+    meets: Complexity and the first bottleneck are both stated.
+    violates: Either one is missing.
+    not_applicable: The target processes only small, fixed inputs.
+
+# === I. Tests ==============================================================
+
+TestsExist:
+  instructions: >-
+    Do `tests` exercise the behavior that `target.source` exposes?
+  criteria:
+    meets: The target's public behavior is exercised by tests.
+    violates: There are no tests, or they miss the target's main behavior.
+    not_applicable: The target is configuration or generated code that needs no tests.
+
+TestsDecisionsPlain:
+  instructions: >-
+    Do `tests` check decision logic with plain domain values and no
+    infrastructure mocks?
+  criteria:
+    meets: Decision tests use plain values only.
+    violates: Decision tests need mocks of infrastructure or library internals.
+    not_applicable: There are no tests, or the target has no decision logic.
+
+TestsWorkflowUsesFakes:
+  instructions: >-
+    Do workflow tests in `tests` use fakes of the owned ports, without
+    constructing concrete adapters, vendor requests, or SDK types?
+  criteria:
+    meets: Workflow tests use port fakes only.
+    violates: Workflow tests import a concrete adapter, build a vendor request, or mock an SDK.
+    not_applicable: There are no workflow tests.
+
+TestsAdapterColocated:
+  instructions: >-
+    Do adapter tests in `tests` live with their adapter rather than with the
+    workflow?
+  criteria:
+    meets: Each adapter's tests sit beside that adapter.
+    violates: Adapter tests live in workflow test files.
+    not_applicable: The target has no adapters or adapter tests.
+
+TestsShellProvesExecution:
+  instructions: >-
+    Do `tests` at the effectful edges prove observation, faithful execution of
+    the plan, precondition checks, no duplicated effects, and correct adapter
+    translation?
+  criteria:
+    meets: Edge tests cover each of those properties that applies.
+    violates: Some applicable property, such as precondition checks or non-duplication, is untested.
+    not_applicable: The target has no effectful edges.
+
+TestsFailureAndBoundary:
+  instructions: >-
+    Do `tests` cover failure, boundary, and stale-state cases in proportion to
+    risk, not only the successful path?
+  criteria:
+    meets: Failure, boundary, and stale-state cases are covered in proportion to risk.
+    violates: Tests cover only the successful path.
+    not_applicable: There are no tests.
+
+TestsAdversarialAtSeam:
+  instructions: >-
+    Do `tests` try to break each claimed invariant at the exact point where it
+    could fail, such as traversal and links for files, injection and
+    authorization for APIs, replay and duplication for events, and exhaustion
+    for public inputs?
+  criteria:
+    meets: Adversarial tests target the real seams.
+    violates: Invariants are claimed but never attacked, or only checked earlier in the call stack.
+    not_applicable: The target claims no invariants that an attacker or race could break.
+
+TestsInterleavingAtPrimitive:
+  instructions: >-
+    Do `tests` reproduce the unsafe interleaving deterministically at the
+    primitive that commits the change, rather than at a check earlier in the
+    call stack?
+  criteria:
+    meets: A deterministic test hook races the committing primitive itself.
+    violates: Races are untested, or only tested before the committing step.
+    not_applicable: The target changes no state that another actor can modify.
+
+TestsFaultsThroughPorts:
+  instructions: >-
+    Do `tests` inject failures through the owned ports, and prove restart
+    recovery and partial-result reporting through the public path?
+  criteria:
+    meets: Failures are injected through ports, and recovery is proven publicly.
+    violates: Failure paths are untested, or tested by patching library internals.
+    not_applicable: The target has no failure modes beyond a plain error return.
+
+TestsAssertBehavior:
+  instructions: >-
+    Do `tests` assert observable output, status, and final state, rather than
+    wiring, mock echoes, source text, tautologies, or incidental defaults?
+  criteria:
+    meets: Assertions check behavior a consumer would notice.
+    violates: Assertions check wiring, mock calls, source text, tautologies, or that nothing threw.
+    not_applicable: There are no tests.
+
+TestsPublicEntrypoint:
+  instructions: >-
+    Do `tests` invoke the exact public entrypoint by its documented name and
+    shape, running the built or installed artifact, rather than an internal
+    helper or an easier substitute?
+  criteria:
+    meets: At least one test drives the real public entrypoint through the built artifact.
+    violates: Tests reach only internal helpers, aliases, or substitutes.
+    not_applicable: The target has no public entrypoint.
+
+TestsPassForRightReason:
+  instructions: >-
+    Would each test in `tests` fail if the behavior it names were broken?
+  criteria:
+    meets: Each test fails when its named behavior breaks.
+    violates: Some test would still pass with the behavior broken, for example because it mocks the thing it checks.
+    not_applicable: There are no tests.
+
+TestsRuleFixtures:
+  instructions: >-
+    Does every lint rule or check that guards a forbidden pattern in
+    `target.source` or `repo` have both a passing and a failing fixture?
+  criteria:
+    meets: Each guard has positive and negative fixtures.
+    violates: A guard has no fixtures, or only one side.
+    not_applicable: No lint rule or check guards a forbidden pattern.
+
+TestsExerciseProductionWorkflow:
+  instructions: >-
+    Do the tests in `tests` drive the same workflow, entrypoint and owners
+    that production triggers in `callers` call, rather than a separate path
+    built only for tests?
+  criteria:
+    meets: Tests call the production workflow with fakes only at the owned ports.
+    violates: Tests exercise a copy, a test-only path or a different entrypoint than production uses.
+    not_applicable: There are no tests.
+
+# === J. Completion evidence ================================================
+
+EvidenceOrdinaryPath:
+  instructions: >-
+    Does `work_log` show one ordinary path working end to end through the
+    public entrypoint before infrastructure work began, rerun after each
+    boundary or invariant safeguard was added, and still passing after every
+    safeguard (a safeguard that breaks the ordinary path counts as failed)?
+  criteria:
+    meets: The ordinary path was proven first, rerun after each safeguard, and passed every time.
+    violates: The ordinary path was never run, was not rerun after a safeguard, or failed after a safeguard was added.
+    not_applicable: "`work_log` is null."
+
+EvidenceTraceCited:
+  instructions: >-
+    Does `work_log` trace the real trigger to its mutation, citing the
+    production symbols that observe, decide, plan, execute and validate the
+    version basis?
+  criteria:
+    meets: The trace names every one of those symbols on the real path.
+    violates: There is no trace, a symbol is missing, or it cites names that are not on the production path.
+    not_applicable: "`work_log` is null."
+
+EvidenceBypassSearch:
+  instructions: >-
+    Does `work_log` show a search for alternate decision or mutation paths and
+    duplicate implementations, with the result?
+  criteria:
+    meets: A search was run and found no bypass or duplicate, or the ones found were removed.
+    violates: No search was run, or found bypasses remain.
+    not_applicable: "`work_log` is null."
+
+EvidenceFreshShellInvocation:
+  instructions: >-
+    Does `work_log` show every requested public entrypoint invoked with its
+    exact documented shape from a fresh shell through the repository's normal
+    environment, outside the source tree?
+  criteria:
+    meets: Each entrypoint was invoked exactly as documented from a fresh shell outside the source tree.
+    violates: An entrypoint was run only through a private build path, source import, or manual activation, or not at all.
+    not_applicable: "`work_log` is null, or the target has no public entrypoint."
+
+EvidenceInstalledArtifact:
+  instructions: >-
+    Does `work_log` show the built or installed artifact exercised outside the
+    repository?
+  criteria:
+    meets: The artifact was run outside the repository and its result observed.
+    violates: Only source-tree runs or unit tests were shown.
+    not_applicable: "`work_log` is null, or the target produces no artifact."
+
+EvidenceGateTwice:
+  instructions: >-
+    Does `work_log` show the repository's complete public gate run twice from
+    clean state, with the same result both times?
+  criteria:
+    meets: The full gate passed twice from clean state.
+    violates: The gate ran once, was a subset, or the runs disagreed.
+    not_applicable: "`work_log` is null."
+
+EvidenceLintTestsGreen:
+  instructions: >-
+    Does `work_log` show the linter and tests rerun and passing after the last
+    change?
+  criteria:
+    meets: Linter and tests passed after the final edit.
+    violates: Linter or tests were not rerun after the last change, or failed.
+    not_applicable: "`work_log` is null."
+
+EvidenceVerdictsSeparate:
+  instructions: >-
+    Does `work_log` give separate verdicts for behavior and structure, each as
+    PASS, FAIL, or NOT PROVEN with citations, marking everything not directly
+    observed as NOT PROVEN?
+  criteria:
+    meets: Behavior and structure have separate cited verdicts, and unobserved claims are NOT PROVEN.
+    violates: One verdict covers both, citations are missing, or unobserved claims are stated as done.
+    not_applicable: "`work_log` is null."
+
+EvidenceRecordsComplete:
+  instructions: >-
+    Do the evidence records in `work_log` include input and treatment hashes,
+    tool and runtime versions, commands, exit status, duration, stdout and
+    stderr, environment key names without values, artifact hashes, and known
+    limitations?
+  criteria:
+    meets: Evidence records carry every one of those fields that applies.
+    violates: Any one applicable field is missing from the evidence records.
+    not_applicable: "`work_log` is null."
+
+EvidenceIndependentEvaluation:
+  instructions: >-
+    In `work_log`, is evaluation kept separate from generation, so the agent
+    or model that produced the work did not grade its own result?
+  criteria:
+    meets: An independent check or evaluator judged the result.
+    violates: The producer graded its own work.
+    not_applicable: "`work_log` is null."
+
+EvidenceReproducibleBuild:
+  instructions: >-
+    If `work_log` claims reproducibility, does it show two builds whose
+    normalized artifacts were compared and matched, run from a clean copy?
+  criteria:
+    meets: Two clean builds were compared and matched.
+    violates: Reproducibility is claimed without a two-build comparison.
+    not_applicable: "`work_log` is null, or no reproducibility is claimed."
+
+EvidenceRepeatedStepsScripted:
+  instructions: >-
+    Is every deterministic procedure in `work_log` that was performed more
+    than once, or will be repeated by agents, captured as one reusable
+    idempotent script or repository task that owns the sequence, validation,
+    evidence and safe defaults (with timeouts and useful errors), which agents
+    call instead of rebuilding the procedure from prose, with documentation
+    pointing to it?
+  criteria:
+    meets: Each repeated procedure is one script or task with those properties, and agents and docs call it.
+    violates: A repeated procedure is still done by hand or copied from prose, or its script lacks owned sequence, validation, evidence or safe defaults.
+    not_applicable: "`work_log` is null, or no procedure repeats."
+
+EvidenceCommitPerFile:
+  instructions: >-
+    If `work_log` is an audit, does it end with one commit per audited file?
+  criteria:
+    meets: Each audited file has its own commit.
+    violates: Audited files are committed together, or not committed.
+    not_applicable: "`work_log` is null, or the work is not an audit."
+
+EvidenceReplacementTestRun:
+  instructions: >-
+    If `work_log` claims that a boundary is provider-agnostic or a facade,
+    does it show the replacement test being run (what would change if a second
+    provider landed tomorrow), rather than resting the claim on "we injected
+    an interface"?
+  criteria:
+    meets: The agnosticism claim cites a concrete replacement-test walk-through.
+    violates: The claim rests on interface injection alone, with no replacement test.
+    not_applicable: "`work_log` is null, or it makes no agnosticism or facade claim."
+
+EvidenceProviderNameGrepZero:
+  instructions: >-
+    Does `work_log` show a search of the workflow files for every provider
+    name in use, with the output recorded and zero hits?
+  criteria:
+    meets: A provider-name grep over the workflow was run and returned zero hits.
+    violates: No such grep was run, or it returned hits that were left in place.
+    not_applicable: "`work_log` is null, or the target has no workflow talking to a swappable provider."
+
+EvidenceEveryProductionFileInspected:
+  instructions: >-
+    Does `work_log` show that every resulting production file was inspected
+    for mixed ownership, duplicated knowledge, reversed dependencies, and
+    responsibility concentration, with the result for each file?
+  criteria:
+    meets: Each resulting production file has a recorded inspection for all four defects.
+    violates: Some production file was never inspected, or the inspection covers fewer than the four defects.
+    not_applicable: "`work_log` is null."
+
+EvidenceLeftoversNotRisk:
+  instructions: >-
+    Where `work_log` leaves a remaining oversized owner, generic runtime or
+    state bag, dynamically bound method map, or concentrated replacement
+    module, does it treat it as incomplete work, and not as a documented
+    migration risk, follow-up or accepted limitation?
+  criteria:
+    meets: No such leftover remains, or each one is reported as unfinished work.
+    violates: A leftover of that kind is described as a migration risk, a follow-up or an accepted limitation, and the work is reported complete.
+    not_applicable: "`work_log` is null, or no such leftover exists."
+
+EvidenceUnfinishedTransferReportedPartial:
+  instructions: >-
+    If the requested ownership transfer is unfinished, does `work_log` report
+    partial progress and name what remains, rather than reporting the refactor
+    complete?
+  criteria:
+    meets: The report states partial progress and what remains, or the transfer is finished.
+    violates: An unfinished transfer is reported as complete or as done with caveats.
+    not_applicable: "`work_log` is null, or the work is not an ownership transfer."
+
+EvidenceChangedOperationAndEntrypoints:
+  instructions: >-
+    Does `work_log` identify the changed product operation and every affected
+    production entrypoint (routes, commands, jobs, workers) before any verdict
+    is given?
+  criteria:
+    meets: The operation and all affected entrypoints are listed.
+    violates: The operation or some affected entrypoint is not identified.
+    not_applicable: "`work_log` is null."
+
+EvidenceTestsAndEnforcementInspected:
+  instructions: >-
+    Does `work_log` show an inspection of `tests` and of the architecture
+    enforcement in `repo` (lint rules, architecture tests, hooks, permissions)
+    made separately from reading the implementation?
+  criteria:
+    meets: Tests and enforcement were each inspected on their own, with findings.
+    violates: Tests or enforcement were not inspected, or were assumed from the implementation.
+    not_applicable: "`work_log` is null."
+
+EvidenceInvariantProbes:
+  instructions: >-
+    Does `work_log` list each consequential invariant of the change and show a
+    probe, designed to falsify it, that was run with its observed result?
+  criteria:
+    meets: Each consequential invariant has a falsification probe and a recorded result.
+    violates: An invariant has no probe, or the probe could not have failed.
+    not_applicable: "`work_log` is null, or the change has no consequential invariant."
+
+EvidenceFinalStateObserved:
+  instructions: >-
+    Does `work_log` show the real end state after the operation (the stored
+    record, file, message or external effect) observed directly, and not
+    inferred from a unit test or a return value?
+  criteria:
+    meets: The final state was read back from the real system.
+    violates: End state is inferred from a unit test, a mock, or a return value.
+    not_applicable: "`work_log` is null, or the target causes no state change."
+
+EvidenceCleanCheckoutReproduction:
+  instructions: >-
+    Does `work_log` show setup, tests and build run in a clean checkout or
+    copy that contains only committed inputs, with the same results as in the
+    working tree?
+  criteria:
+    meets: A clean copy reproduced setup, tests and build from committed inputs.
+    violates: Setup, tests or build were never run from a clean copy, or depend on uncommitted files.
+    not_applicable: "`work_log` is null."
+
+EvidenceFailVerdictCitesPathAndFix:
+  instructions: >-
+    For each FAIL verdict in `work_log`, does it cite the specific bypass or
+    unsafe path and state the smallest root-level correction?
+  criteria:
+    meets: Each FAIL names the path and the smallest root-level fix.
+    violates: A FAIL gives no path, or proposes a patch at the symptom, or states no correction.
+    not_applicable: "`work_log` is null, or it contains no FAIL verdict."
+
+EvidenceNotProvenSaysWhatIsNeeded:
+  instructions: >-
+    For each NOT PROVEN verdict in `work_log`, does it state exactly what must
+    be inspected or executed before a verdict is possible?
+  criteria:
+    meets: Each NOT PROVEN names the specific inspection or execution still needed.
+    violates: A NOT PROVEN gives no specific step, or is a vague caveat.
+    not_applicable: "`work_log` is null, or it contains no NOT PROVEN verdict."
+
+EvidenceStructuralFailureNotStyle:
+  instructions: >-
+    Where `work_log` finds a structural safety failure (a bypass, an unowned
+    mutation, a stale-basis path), does it report it as a FAIL and not as
+    style feedback, even though tests pass?
+  criteria:
+    meets: Structural safety failures are reported as FAIL, or none exist.
+    violates: A structural safety failure is reported as a nit, a suggestion or style feedback because tests pass.
+    not_applicable: "`work_log` is null, or no structural safety failure was found."
+
+EvidenceTasksVerifiedByIntentionalFailure:
+  instructions: >-
+    Does `work_log` show each repository task (`lint`, `typecheck`, `test`,
+    `scan`, `ci`) failing when an intentional failure was introduced, not only
+    passing on good input?
+  criteria:
+    meets: Each task was shown to fail on a deliberate defect.
+    violates: A task was verified only by passing on good input.
+    not_applicable: "`work_log` is null, or the work did not create or change repository tasks."
+
+EvidenceQualityClaimsHaveEvidence:
+  instructions: >-
+    For every quality claim in `work_log` or `target.source` (secure,
+    resilient, reproducible, reliable, scalable), does it state a workload,
+    boundary, metric, threshold and executable evidence, or else get marked
+    NOT PROVEN?
+  criteria:
+    meets: Each claim carries all five elements, or is marked NOT PROVEN.
+    violates: A quality claim is made without all five elements and is not marked NOT PROVEN.
+    not_applicable: "`work_log` is null, or no quality claim is made."
+
+EvidenceScannerProvenWithFinding:
+  instructions: >-
+    Does `work_log` show a safe synthetic finding placed in a file each
+    scanner must inspect and the scanner failing on it, for every scanner?
+  criteria:
+    meets: Each scanner was shown failing on a planted finding.
+    violates: A scanner was accepted because it was green, or the planted finding was not in a required file.
+    not_applicable: "`work_log` is null, or the work added or changed no scanner."
+
+# === K. Language rules =====================================================
+
+LanguageRepoTooling:
+  instructions: >-
+    Does `target.source` follow the repository's pinned language version,
+    formatter, linter, type checker, test runner and established conventions
+    shown in `repo`?
+  criteria:
+    meets: The code matches the repository's pinned version, tooling and conventions.
+    violates: The code needs a different language version, or ignores or replaces the repository's tooling or conventions.
+    not_applicable: "`repo` is null."
+
+LanguagePython:
+  instructions: >-
+    If `target.language` is Python, does `target.source` use modern type
+    syntax such as `X | None`, specific exception types and never a bare
+    `except`, dataclasses instead of loose dicts for structured values,
+    immutable values for observations, decisions, and plans, effects behind
+    ports, `asyncio` with an async HTTP client rather than threads for I/O,
+    `pathlib` while keeping raw paths where a security check needs them, and
+    small typed constructors instead of a validation framework where one
+    suffices?
+  criteria:
+    meets: The code follows those Python rules.
+    violates: The code breaks any one of those Python rules.
+    not_applicable: The target is not Python.
+
+LanguageGo:
+  instructions: >-
+    If `target.language` is Go, does `target.source` take `context.Context` as
+    the first parameter of blocking and remote calls and never store it in a
+    struct, define small interfaces where they are used and return concrete
+    types, wrap errors with `%w` and operation context while keeping
+    classifiable errors intact, log with `slog`, use `errgroup` for parallel
+    work with shared cancellation, compare concrete values rather than an
+    interface that may hold a nil pointer, use pointer receivers on types
+    holding a mutex, and avoid package globals, unbounded goroutines, loop
+    variable capture bugs, and hidden background work, with explicit
+    shutdown, ownership, and backpressure?
+  criteria:
+    meets: The code follows those Go rules.
+    violates: The code breaks any one of those Go rules.
+    not_applicable: The target is not Go.
+
+LanguageGoWorkerCounts:
+  instructions: >-
+    If `target.language` is Go, are worker and concurrency counts in
+    `target.source` derived from the machine through an intent-named helper,
+    such as a default worker count for CPU-bound work or a multiplier for
+    I/O-bound work, rather than hardcoded numbers?
+  criteria:
+    meets: Worker counts come from an intent-named helper or a cited measurement.
+    violates: A worker count is a hardcoded number with no measurement.
+    not_applicable: The target is not Go, or starts no workers.
+
+LanguageGoBinaryVersion:
+  instructions: >-
+    If `target.source` is a Go binary's main package, does it support
+    `--version` with the version injected at build time through `-ldflags`
+    rather than hardcoded?
+  criteria:
+    meets: The binary prints a build-injected version for `--version`.
+    violates: The binary lacks `--version`, or its version is hardcoded.
+    not_applicable: The target is not a Go main package.
+
+LanguageGoNolint:
+  instructions: >-
+    If `target.language` is Go, is every `//nolint` in `target.source` scoped
+    to one linter with a reason, and limited to a confirmed linter bug with an
+    issue link, generated code, or a benchmarked optimization, with no
+    package-level `//nolint`?
+  criteria:
+    meets: Every `//nolint` is scoped, reasoned, and allowed.
+    violates: Some `//nolint` lacks a reason, is package-level, or suppresses a real issue.
+    not_applicable: The target is not Go, or has no `//nolint`.
+
+LanguageGoTestsParallelSafe:
+  instructions: >-
+    If `target.language` is Go, do `tests` use `t.TempDir()` instead of shared
+    paths, port `:0` instead of fixed ports, no global mutable state across
+    parallel tests, no `time.Sleep` for synchronization, and tolerance
+    comparisons for time-based values?
+  criteria:
+    meets: Tests follow every parallel-safety rule.
+    violates: Tests break any one of those parallel-safety rules.
+    not_applicable: The target is not Go, or has no tests.
+
+LanguageGoLintRules:
+  instructions: >-
+    If `target.language` is Go, does `repo` keep custom lint rules, such as
+    bans on direct time or OS calls outside facades, as one ruleguard file per
+    rule in a `rules/` directory wired into golangci-lint?
+  criteria:
+    meets: Custom rules live one per file in `rules/` and run in the linter.
+    violates: Forbidden patterns have no custom rule, or rules are not wired into the linter.
+    not_applicable: The target is not Go, or `repo` is null.
+
+LanguageGoRaceTested:
+  instructions: >-
+    If `target.language` is Go and `target.source` is concurrent, do `tests`
+    run with the race detector?
+  criteria:
+    meets: Concurrent behavior is covered by race-detector runs.
+    violates: Concurrent code has no race-detector test.
+    not_applicable: The target is not concurrent Go.
+
+LanguageTypeScript:
+  instructions: >-
+    If `target.language` is TypeScript or JavaScript, does `target.source` use
+    strict mode, avoid `any`, accept `unknown` at boundaries and narrow it
+    once, use closed discriminated unions handled exhaustively and immutable
+    data where practical, keep transport schemas separate from domain types,
+    use named exports instead of default exports, and compute derived state
+    inline or with memoization instead of effects?
+  criteria:
+    meets: The code follows those TypeScript rules.
+    violates: The code breaks any one of those TypeScript rules.
+    not_applicable: The target is not TypeScript or JavaScript.
+
+LanguageCss:
+  instructions: >-
+    If `target.source` contains CSS, does it use Grid for two-dimensional
+    layout, Flexbox for one-dimensional alignment, and design tokens as custom
+    properties instead of raw values?
+  criteria:
+    meets: The styles follow those CSS rules.
+    violates: The styles break any one of those CSS rules.
+    not_applicable: The target has no CSS.
+
+LanguageVue:
+  instructions: >-
+    If `target.source` is a Vue component, does it use the Composition API with
+    `script setup lang="ts"` unless the repository documents otherwise, keep
+    policy in pure modules and stateful effects in composables, declare props,
+    emits, slots, and loading, empty, error, and disabled states explicitly,
+    avoid destructuring that breaks reactivity, and carry no Vue 2 mixins or
+    Options API on the migrated path?
+  criteria:
+    meets: The component follows those Vue rules.
+    violates: The component breaks any one of those Vue rules.
+    not_applicable: The target is not a Vue component.
+
+LanguageShell:
+  instructions: >-
+    If `target.language` is shell, is `target.source` short orchestration
+    around existing commands, with reusable or structured logic left to
+    Python or Go, `set -euo pipefail`, quoted values, `[[ ]]` tests, no
+    parsing of `ls` output, cleanup traps, and bounded external calls?
+  criteria:
+    meets: The script follows those shell rules.
+    violates: The script breaks any one of those shell rules.
+    not_applicable: The target is not a shell script.
+
+LanguageSql:
+  instructions: >-
+    If `target.source` contains SQL, does it use `NUMERIC` for money,
+    `TIMESTAMPTZ` for times, `JSONB` for JSON, `CREATE INDEX CONCURRENTLY` on
+    live tables, explicit column lists instead of `SELECT *`, and parameters
+    for every value?
+  criteria:
+    meets: The SQL follows those rules.
+    violates: The SQL breaks any one of those rules.
+    not_applicable: The target has no SQL.
+
+LanguagePhp:
+  instructions: >-
+    If `target.language` is PHP, does `target.source` avoid `@` error
+    suppression, inject dependencies instead of constructing them inside
+    classes, avoid floats for money, and in WordPress use `$wpdb->prepare`,
+    `esc_*` on output, `sanitize_*` on input, and nonces?
+  criteria:
+    meets: The code follows those PHP rules.
+    violates: The code breaks any one of those PHP rules.
+    not_applicable: The target is not PHP.
+
+LanguagePerl:
+  instructions: >-
+    If `target.language` is Perl, does `target.source` use `strict` and
+    `warnings`, avoid subroutine prototypes, use `croak` for caller errors,
+    and check every `open`?
+  criteria:
+    meets: The code follows those Perl rules.
+    violates: The code breaks any one of those Perl rules.
+    not_applicable: The target is not Perl.
+
+LanguageVueComponentRegion:
+  instructions: >-
+    If `target.source` is a Vue component, does it own presentation and user
+    interaction for one cohesive region only, with no reusable stateful
+    behavior or policy inside it?
+  criteria:
+    meets: The component covers one cohesive region of presentation and interaction.
+    violates: The component spans several regions, or holds policy or reusable stateful behavior.
+    not_applicable: The target is not a Vue component.
+
+LanguageShellNoPipelineProcessing:
+  instructions: >-
+    If `target.language` is shell, does `target.source` keep data processing
+    (parsing, transforming, joining structured data) out of fragile pipelines
+    of text tools, leaving it to Python or Go or a structured tool?
+  criteria:
+    meets: The script orchestrates commands and leaves data processing to a structured tool.
+    violates: The script parses or transforms data with a chain of text tools such as grep, sed, awk and cut.
+    not_applicable: The target is not a shell script.
+
+# === L. Clarity ============================================================
+
+ClaritySelfEvident:
+  instructions: >-
+    Can a reader tell what each function in `target.source` does from its
+    name, signature, and body alone, without relying on comments? Judge only
+    what the code does; reasons why are judged by the comment question.
+  criteria:
+    meets: Names, types, and flow make what each function does obvious.
+    violates: Some function needs a comment, a debugger, or outside knowledge to tell what it does.
+    not_applicable: The target has no functions.
+
+ClarityBeginnerMaintainable:
+  instructions: >-
+    Could a motivated beginner who knows only the basics of `target.language`
+    safely make a small change to `target.source` after one careful read?
+  criteria:
+    meets: The code uses plain constructs and a beginner could change it without breaking hidden rules.
+    violates: Changing it safely needs expert knowledge of the language, hidden conventions, or distant code.
+    not_applicable: The target is generated.
+
+ClarityNoCleverness:
+  instructions: >-
+    Is `target.source` free of clever tricks, such as dense one-liners, nested
+    ternaries, obscure language features, metaprogramming, reflection, or
+    operator tricks, where a plain version would work?
+  criteria:
+    meets: Every construct is the plainest one that does the job.
+    violates: Some construct trades plainness for brevity or cleverness.
+    not_applicable: The target has no logic.
+
+ClarityNamesPrecise:
+  instructions: >-
+    Are names in `target.source` specific, spelled out, and honest, with no
+    vague words such as data, info, item, manager, util, helper, handle, or
+    process, no unexplained abbreviations, and booleans that read as yes/no
+    questions?
+  criteria:
+    meets: Every name says exactly what the thing is or does.
+    violates: Some name is vague, abbreviated, misleading, or a boolean that does not read as a question.
+    not_applicable: The target defines no names.
+
+ClarityOneLevelPerFunction:
+  instructions: >-
+    Does each function in `target.source` stay at one level of abstraction,
+    reading top-down with high-level steps first and details pushed into
+    named helpers?
+  criteria:
+    meets: Each function reads as steps at one level, and the file reads top-down.
+    violates: A function mixes high-level steps with low-level detail, or the file must be read bottom-up.
+    not_applicable: The target has one short function.
+
+ClarityNoAndTest:
+  instructions: >-
+    Can each function and the file in `target.source` be described without
+    the word "and" joining two separate jobs?
+  criteria:
+    meets: Each unit is described by one job.
+    violates: Some function or the file needs "and" to describe two separate jobs.
+    not_applicable: The target has no functions.
+
+ClarityMinimal:
+  instructions: >-
+    Does every line, parameter, option, abstraction, and configuration hook in
+    `target.source` serve a need the code has today, with nothing speculative?
+  criteria:
+    meets: Nothing exists for a hypothetical future need.
+    violates: Some parameter, option, layer, or hook serves no current caller.
+    not_applicable: The target is generated.
+
+ClarityConsistent:
+  instructions: >-
+    Does `target.source` match the naming, density, structure, and idiom of
+    the surrounding code in `callers`, using the current idiom for the
+    language version?
+  criteria:
+    meets: The code reads like its neighbors and uses current idiom.
+    violates: The code introduces a second convention, a different density, or an outdated idiom.
+    not_applicable: "`callers` is empty."
+
+ClarityNoDeepNesting:
+  instructions: >-
+    Is nesting in `target.source` at most about three levels, using early
+    returns and guard clauses instead of deep if/else pyramids?
+  criteria:
+    meets: Nesting is shallow, with guard clauses for exceptional cases.
+    violates: Some block nests deeper than about three levels.
+    not_applicable: The target has no control flow.
+
+ClarityNoGrabBagModules:
+  instructions: >-
+    Are module, package, and file names in `target.path` and `layout` named
+    for what they do, never grab-bag names such as common, utils, helpers,
+    misc, shared, or lib?
+  criteria:
+    meets: Every module name states its job.
+    violates: Some module carries a grab-bag name that could hold anything.
+    not_applicable: The target defines no modules or packages.
+
+ClarityStandardParts:
+  instructions: >-
+    Is `target.source` built from standard, well-known primitives of its
+    language and libraries, rather than bespoke constructs where a standard
+    one already fits?
+  criteria:
+    meets: The code composes standard primitives.
+    violates: The code hand-builds something a standard primitive already provides.
+    not_applicable: The target is too small to compose anything.
+
+ClarityTodosComplete:
+  instructions: >-
+    Does every TODO in `target.source` carry an owner, a reason, the context
+    for the shortcut, a tracking link, and a deadline?
+  criteria:
+    meets: Every TODO has owner, reason, context, tracking link, and deadline.
+    violates: Some TODO is missing any one of those parts.
+    not_applicable: The target has no TODOs.
+
+# === M. Correctness ========================================================
+
+CorrectnessMatchesNames:
+  instructions: >-
+    Does each function in `target.source` do exactly what its name,
+    signature, and documentation promise, with no hidden extra effects?
+  criteria:
+    meets: Behavior matches every promise the names and docs make.
+    violates: Some function does more, less, or something different than its name says.
+    not_applicable: The target has no functions.
+
+CorrectnessEdgeCases:
+  instructions: >-
+    Does `target.source` handle edge inputs correctly, such as empty, missing,
+    zero, negative, maximum, duplicate, unordered, and non-ASCII values, and
+    boundaries that invite off-by-one errors?
+  criteria:
+    meets: Each relevant edge input is handled deliberately.
+    violates: Some relevant edge input crashes, misbehaves, or is silently mishandled.
+    not_applicable: The target takes no input.
+
+CorrectnessErrorsCarryContext:
+  instructions: >-
+    Does every error in `target.source` say what operation failed and on what
+    input, and is each error either logged or returned, never both and never
+    swallowed?
+  criteria:
+    meets: Errors carry operation and input context and are handled exactly once.
+    violates: Some error is bare, swallowed, or both logged and returned.
+    not_applicable: The target raises or handles no errors.
+
+CorrectnessNoSilentFallback:
+  instructions: >-
+    Is `target.source` free of silent fallbacks, fake defaults, and empty
+    catch blocks that hide a failure and let wrong results continue?
+  criteria:
+    meets: Failures surface, and every fallback is an explicit, intended outcome.
+    violates: Some fallback or default hides a failure or invents a result.
+    not_applicable: The target has no failure paths.
+
+CorrectnessResourcesReleased:
+  instructions: >-
+    Does `target.source` release files, connections, locks, processes, and
+    temporary data on every path, including errors?
+  criteria:
+    meets: Every acquired resource is released on all paths.
+    violates: Some path, often an error path, leaks a resource.
+    not_applicable: The target acquires no resources.
+
+CorrectnessUnitsExplicit:
+  instructions: >-
+    Are units and encodings in `target.source`, such as time, size, currency,
+    time zone, and text encoding, explicit in types or names?
+  criteria:
+    meets: Every quantity's unit and every text encoding is explicit.
+    violates: Some quantity or text value has an ambiguous unit, zone, or encoding.
+    not_applicable: The target handles no quantities, times, or encoded text.
+
+CorrectnessNoStubs:
+  instructions: >-
+    Is `target.source` free of stubs, placeholders, TODO implementations,
+    mock data on production paths, and no-op functions presented as working?
+  criteria:
+    meets: Every production path is fully implemented.
+    violates: Some production path is a stub, placeholder, TODO, or no-op.
+    not_applicable: The target is a test fixture.
+
+# === N. Performance ========================================================
+
+PerformanceNoWaste:
+  instructions: >-
+    Is `target.source` free of avoidable work, such as repeated computation in
+    loops, string concatenation in loops instead of a builder or join,
+    needless copies or allocations, queries inside loops, and quadratic scans
+    over inputs that can grow?
+  criteria:
+    meets: The code does each piece of work once at a cost that fits its input size.
+    violates: Some loop repeats work, builds strings by concatenation, copies needlessly, queries per item, or scales quadratically on growing input.
+    not_applicable: The target processes only small, fixed inputs.
+
+PerformanceBulkBatched:
+  instructions: >-
+    Do bulk updates and deletes in `target.source` run in bounded batches with
+    a limit and a commit per batch, use set-based statements instead of one
+    round trip per row, and avoid full-table counts on large tables?
+  criteria:
+    meets: Bulk work is batched, set-based, and avoids full scans.
+    violates: Some bulk statement is unbounded, runs per row, or scans a large table each call.
+    not_applicable: The target performs no bulk database work.
+
+PerformanceFitDataStructures:
+  instructions: >-
+    Does `target.source` choose data structures that fit how the data is
+    accessed, such as maps for lookup and sets for membership?
+  criteria:
+    meets: Each collection fits its access pattern.
+    violates: Some collection forces linear searches or conversions its access pattern does not need.
+    not_applicable: The target uses no collections.
+
+PerformanceOperationalValuesConfigurable:
+  instructions: >-
+    Are operational values the domain sets in `target.source`, such as
+    service timeouts, page sizes, and batch limits that are not runtime
+    defaults, named and configurable with a sensible default?
+  criteria:
+    meets: Domain-set operational values are named and configurable.
+    violates: A domain-set operational value is a bare literal that cannot be changed without editing code.
+    not_applicable: The target sets no operational values beyond runtime defaults.
+
+# === O. Exterior ===========================================================
+
+ExteriorEasyPathIsRight:
+  instructions: >-
+    Is the simplest way to call `target.source` also the correct and safe way,
+    with sensible defaults and no required setup a caller could forget?
+  criteria:
+    meets: The default call is correct and safe, and misuse is hard.
+    violates: Correct use needs extra flags, setup, or ordering a caller could miss.
+    not_applicable: The target has no callers outside itself.
+
+ExteriorHelpfulMessages:
+  instructions: >-
+    Do messages a user or operator sees from `target.source` state the cause
+    and the fix in plain words, without stack traces or internal jargon?
+  criteria:
+    meets: Each user-facing message names the cause and the next step.
+    violates: Some message is vague, blames the user, leaks internals, or offers no fix.
+    not_applicable: The target shows no messages to users or operators.
+
+ExteriorHonestStatus:
+  instructions: >-
+    Does `target.source` show callers and users an honest status, including
+    progress, partial results, and failures, rather than optimistic or
+    stale state?
+  criteria:
+    meets: Reported status always matches reality.
+    violates: Some status overstates success, hides partial failure, or goes stale.
+    not_applicable: The target reports no status.
+
+ExteriorSurfaceSimple:
+  instructions: >-
+    Can the public surface of `target.source`, meaning what a caller must know
+    to use it, be explained in one or two sentences?
+  criteria:
+    meets: A caller can learn to use it from a one- or two-sentence explanation.
+    violates: Using it correctly needs a long explanation of options, modes, or ordering.
+    not_applicable: The target has no public surface.

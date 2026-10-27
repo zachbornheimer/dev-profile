@@ -42,6 +42,38 @@ best. Prevents anchoring on the first idea.
 signatures, list every caller, order the migration (new alongside old → migrate →
 delete old).
 
+## Closure gate — before the first edit on a measured defect
+
+A defect with a number on it (latency, size, memory, failure rate) gets no edit
+until all four artifacts exist in writing, in the turn, before the diff:
+
+1. **Floor.** Measure the same operation on a best-known-good platform or
+   baseline (another tool, another build, the minimal program that does the
+   same work). The floor is the achievable minimum; the gap over it is what you
+   are explaining.
+2. **Time budget.** Account for the whole gap over the floor, stage by stage,
+   with measured numbers. An unexplained remainder means the diagnosis is
+   incomplete — keep measuring; do not edit against a partial budget.
+3. **Owner config + upstream.** Read the owner library's or tool's public
+   config/option surface and docs (grep the nouns of the symptom: component,
+   setting, error names), then check its upstream issues and releases. A
+   documented option or an already-landed fix beats a patch or a fork.
+4. **Incorrectness answer.** Write the causality in one paragraph: "why is this
+   wrong at this layer?" — what the owner layer does that it should not, not
+   what the symptom looks like.
+
+**A fix that only skips a consequence is re-planned at the owner layer.**
+Suppressing, short-circuiting, or exiting before the costly step hides the
+defect; if the incorrectness answer names a different layer, the edit belongs
+there (a config option, a fix upstream of the skip), not at the symptom.
+
+**Independent check.** Before landing, hand a fresh context (a subagent with no
+shared history) only the problem statement and the raw measurements — never the
+diff and never your narrative — and ask: "what would make this fix
+unnecessary?" An answer that names a cheaper lever you have not ruled out sends
+you back to artifact 3. Anything you tell the checker beyond the problem and the
+measurements defeats the check.
+
 ## Gotchas — the traps Claude walks into
 
 **Whack-a-mole.** Fixing each instance without naming the pattern. Fix the next

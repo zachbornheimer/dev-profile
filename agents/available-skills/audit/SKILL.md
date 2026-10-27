@@ -9,6 +9,10 @@ A code audit has one mission: leave the codebase **more resistant to future
 mistakes**, not just fix the current instance. Fixing a bug without preventing
 its class is maintenance, not improvement.
 
+To score code area by area and decide which fix workers to spawn, ask the
+System One battery in `questions/code_audit.yaml`. Its header defines the
+state to send, the scoring, and which skill each weak area's worker loads.
+
 ## The four novel principles
 
 ### 1. Zero-deferrals

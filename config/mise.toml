@@ -52,52 +52,85 @@ stdout_path = "~/Library/Logs/weekly-wt-prune.log"
 stderr_path = "~/Library/Logs/weekly-wt-prune.err.log"
 process_type = "Background"
 
+# PARKED, NOT APPLIED (2026-10-26). The ContextForge bridges are declared below but commented out,
+# because no launchd-spawned supervisor reaches its first bridge spawn on this machine today.
+#
+# The bug, as measured: a job started by launchd gets the full PATH, HOME and the exported Keychain
+# secrets in its environment, reaches `state = running` (or `xpcproxy`), then spawns no bridge child,
+# binds none of 4501-4503 and writes nothing to bridges.log/bridges.err. Both the mise label and the
+# hand-written org.zysys label do this; the identical start-bridges.sh started from a shell binds in
+# about 15 s. So it is not the plist and not the script's first `security find-generic-password`:
+# the trace belongs inside `capability contextforge bridges` before its first child spawn.
+#
+# Consequence while parked: after a logout or reboot nothing starts the bridges. Start one by hand:
+#   PATH="$HOME/.local/share/mise/installs/node/26/bin:$PATH" nohup ~/.config/contextforge/start-bridges.sh &
+# and check `lsof -nP -iTCP:4503 -sTCP:LISTEN` then a tools/list (4503 serves 8 tools, 4502 serves 2).
+# Port 4501 is the docker-catalog bridge, which needs Docker Desktop running.
+#
+# Uncomment only after a launchd-started job is seen binding a port, or `mise bootstrap` will install
+# it beside org.zysys and leave two supervisors racing for the same ports.
+#
+# [bootstrap.macos.launchd.agents.contextforge-bridges]
+# # start-bridges.sh exports the gateway secrets from the Keychain and execs
+# # `capability contextforge bridges`, which restarts a bridge whose child exits.
+# program = "/Users/zbornheimer/.config/contextforge/start-bridges.sh"
+# # launchd hands the job /usr/bin:/bin:/usr/sbin:/sbin, and `capability` is `#!/usr/bin/env node`
+# # with node living only in the mise install, so the job cannot exec without this PATH.
+# environment = { HOME = "/Users/zbornheimer", PATH = "/Users/zbornheimer/.local/share/mise/installs/node/26/bin:/Users/zbornheimer/.local/bin:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin" }
+# working_directory = "~/.config/contextforge"
+# keep_alive = true
+# run_at_load = true
+# kickstart = true
+# stdout_path = "~/.config/contextforge/logs/bridges.log"
+# stderr_path = "~/.config/contextforge/logs/bridges.err"
+# process_type = "Background"
+
 [dotfiles]
 # Everything the dev-profile checkout deploys. This is global config, so `mise dot status`
 # and `mise dot apply` see it from any directory. Sources are full paths: a relative
 # source resolves from ~/.config/mise (where this file is linked), not from the repo.
-"~/.config/hk/config.pkl" = { source = "~/Developer/Personal/dev-profile/hk/hk.pkl", mode = "symlink" }
-"~/.config/mise/conf.d/dev-profile.toml" = { source = "~/Developer/Personal/dev-profile/config/tools.toml", mode = "symlink" }
-"~/.config/dprint/dprint.jsonc" = { source = "~/Developer/Personal/dev-profile/config/dprint.jsonc", mode = "symlink" }
-"~/.config/worktrunk/config.toml" = { source = "~/Developer/Personal/dev-profile/config/worktrunk.toml", mode = "symlink" }
-"~/.config/yamllint/config" = { source = "~/Developer/Personal/dev-profile/config/yamllint.yaml", mode = "symlink" }
-"~/.markdownlintrc" = { source = "~/Developer/Personal/dev-profile/config/markdownlintrc.json", mode = "symlink" }
-"~/Developer/Personal/dprint.jsonc" = { source = "~/Developer/Personal/dev-profile/config/dprint.jsonc", mode = "symlink" }
-"~/Developer/Personal/.golangci.yml" = { source = "~/Developer/Personal/dev-profile/config/golangci.yml", mode = "symlink" }
-"~/Developer/Personal/.editorconfig" = { source = "~/Developer/Personal/dev-profile/config/editorconfig", mode = "symlink" }
-"~/Developer/Personal/deny.toml" = { source = "~/Developer/Personal/dev-profile/config/deny.toml", mode = "symlink" }
-"~/.config/nvim" = { source = "~/Developer/Personal/dev-profile/nvim", mode = "symlink" }
-"~/.config/zsh" = { source = "~/Developer/Personal/dev-profile/shell/zsh", mode = "symlink" }
-"~/.local/share/dev-profile/shell.zsh" = { source = "~/Developer/Personal/dev-profile/shell/shell.zsh", mode = "symlink" }
-"~/.config/kitty" = { source = "~/Developer/Personal/dev-profile/kitty", mode = "symlink" }
-"~/.agents" = { source = "~/Developer/Personal/dev-profile/agents", mode = "symlink" }
-"~/.local/share/dev-profile/bin" = { source = "~/Developer/Personal/dev-profile/bin", mode = "symlink" }
-"~/Developer/Personal/mise.toml" = { source = "~/Developer/Personal/dev-profile/config/personal-overlay.toml", mode = "symlink" }
-"~/.gitconfig" = { source = "~/Developer/Personal/dev-profile/home/gitconfig", mode = "symlink" }
-"~/.zshrc" = { source = "~/Developer/Personal/dev-profile/home/zshrc", mode = "symlink" }
-"~/.zshenv" = { source = "~/Developer/Personal/dev-profile/home/zshenv", mode = "symlink" }
-"~/.zprofile" = { source = "~/Developer/Personal/dev-profile/home/zprofile", mode = "symlink" }
-"~/.zlogin" = { source = "~/Developer/Personal/dev-profile/home/zlogin", mode = "symlink" }
-"~/.zshrc.local" = { source = "~/Developer/Personal/dev-profile/home/zshrc.local", mode = "symlink" }
-"~/.tmux.conf" = { source = "~/Developer/Personal/dev-profile/home/tmux.conf", mode = "symlink" }
-"~/.vimrc" = { source = "~/Developer/Personal/dev-profile/home/vimrc", mode = "symlink" }
-"~/.editorconfig" = { source = "~/Developer/Personal/dev-profile/home/editorconfig", mode = "symlink" }
-"~/.profile" = { source = "~/Developer/Personal/dev-profile/home/profile", mode = "symlink" }
-"~/.config/zed" = { source = "~/Developer/Personal/dev-profile/apps/zed", mode = "symlink" }
-"~/.config/git" = { source = "~/Developer/Personal/dev-profile/apps/git", mode = "symlink" }
-"~/.config/bat" = { source = "~/Developer/Personal/dev-profile/apps/bat", mode = "symlink" }
-"~/.config/atuin" = { source = "~/Developer/Personal/dev-profile/apps/atuin", mode = "symlink" }
-"~/.config/direnv" = { source = "~/Developer/Personal/dev-profile/apps/direnv", mode = "symlink" }
-"~/.config/lazygit" = { source = "~/Developer/Personal/dev-profile/apps/lazygit", mode = "symlink" }
-"~/.config/htop" = { source = "~/Developer/Personal/dev-profile/apps/htop", mode = "symlink" }
-"~/.config/btop" = { source = "~/Developer/Personal/dev-profile/apps/btop", mode = "symlink" }
-"~/.config/ripgrep" = { source = "~/Developer/Personal/dev-profile/apps/ripgrep", mode = "symlink" }
-"~/.config/opencode" = { source = "~/Developer/Personal/dev-profile/apps/opencode", mode = "symlink" }
-"~/.config/php-cs-fixer" = { source = "~/Developer/Personal/dev-profile/apps/php-cs-fixer", mode = "symlink" }
-"~/.config/ast-grep" = { source = "~/Developer/Personal/dev-profile/apps/ast-grep", mode = "symlink" }
-"~/.config/ai" = { source = "~/Developer/Personal/dev-profile/apps/ai", mode = "symlink" }
-"~/.config/agent-hooks" = { source = "~/Developer/Personal/dev-profile/apps/agent-hooks", mode = "symlink" }
-"~/.config/zab_ai" = { source = "~/Developer/Personal/dev-profile/apps/zab_ai", mode = "symlink" }
-"~/.config/zsh-preview" = { source = "~/Developer/Personal/dev-profile/apps/zsh-preview", mode = "symlink" }
-"~/.config/1Password" = { source = "~/Developer/Personal/dev-profile/apps/1Password", mode = "symlink" }
-"~/.vim" = { source = "~/Developer/Personal/dev-profile/vim", mode = "symlink" }
+"~/.config/hk/config.pkl" = { source = "~/Developer/Personal/dev-profile/hk/hk.pkl" }
+"~/.config/mise/conf.d/dev-profile.toml" = { source = "~/Developer/Personal/dev-profile/config/tools.toml" }
+"~/.config/dprint/dprint.jsonc" = { source = "~/Developer/Personal/dev-profile/config/dprint.jsonc" }
+"~/.config/worktrunk/config.toml" = { source = "~/Developer/Personal/dev-profile/config/worktrunk.toml" }
+"~/.config/yamllint/config" = { source = "~/Developer/Personal/dev-profile/config/yamllint.yaml" }
+"~/.markdownlintrc" = { source = "~/Developer/Personal/dev-profile/config/markdownlintrc.json" }
+"~/Developer/Personal/dprint.jsonc" = { source = "~/Developer/Personal/dev-profile/config/dprint.jsonc" }
+"~/Developer/Personal/.golangci.yml" = { source = "~/Developer/Personal/dev-profile/config/golangci.yml" }
+"~/Developer/Personal/.editorconfig" = { source = "~/Developer/Personal/dev-profile/config/editorconfig" }
+"~/Developer/Personal/deny.toml" = { source = "~/Developer/Personal/dev-profile/config/deny.toml" }
+"~/.config/nvim" = { source = "~/Developer/Personal/dev-profile/nvim" }
+"~/.config/zsh" = { source = "~/Developer/Personal/dev-profile/shell/zsh" }
+"~/.local/share/dev-profile/shell.zsh" = { source = "~/Developer/Personal/dev-profile/shell/shell.zsh" }
+"~/.config/kitty" = { source = "~/Developer/Personal/dev-profile/kitty" }
+"~/.agents" = { source = "~/Developer/Personal/dev-profile/agents" }
+"~/.local/share/dev-profile/bin" = { source = "~/Developer/Personal/dev-profile/bin" }
+"~/Developer/Personal/mise.toml" = { source = "~/Developer/Personal/dev-profile/config/personal-overlay.toml" }
+"~/.gitconfig" = { source = "~/Developer/Personal/dev-profile/home/gitconfig" }
+"~/.zshrc" = { source = "~/Developer/Personal/dev-profile/home/zshrc" }
+"~/.zshenv" = { source = "~/Developer/Personal/dev-profile/home/zshenv" }
+"~/.zprofile" = { source = "~/Developer/Personal/dev-profile/home/zprofile" }
+"~/.zlogin" = { source = "~/Developer/Personal/dev-profile/home/zlogin" }
+"~/.zshrc.local" = { source = "~/Developer/Personal/dev-profile/home/zshrc.local" }
+"~/.tmux.conf" = { source = "~/Developer/Personal/dev-profile/home/tmux.conf" }
+"~/.vimrc" = { source = "~/Developer/Personal/dev-profile/home/vimrc" }
+"~/.editorconfig" = { source = "~/Developer/Personal/dev-profile/home/editorconfig" }
+"~/.profile" = { source = "~/Developer/Personal/dev-profile/home/profile" }
+"~/.config/zed" = { source = "~/Developer/Personal/dev-profile/apps/zed" }
+"~/.config/git" = { source = "~/Developer/Personal/dev-profile/apps/git" }
+"~/.config/bat" = { source = "~/Developer/Personal/dev-profile/apps/bat" }
+"~/.config/atuin" = { source = "~/Developer/Personal/dev-profile/apps/atuin" }
+"~/.config/direnv" = { source = "~/Developer/Personal/dev-profile/apps/direnv" }
+"~/.config/lazygit" = { source = "~/Developer/Personal/dev-profile/apps/lazygit" }
+"~/.config/htop" = { source = "~/Developer/Personal/dev-profile/apps/htop" }
+"~/.config/btop" = { source = "~/Developer/Personal/dev-profile/apps/btop" }
+"~/.config/ripgrep" = { source = "~/Developer/Personal/dev-profile/apps/ripgrep" }
+"~/.config/opencode" = { source = "~/Developer/Personal/dev-profile/apps/opencode" }
+"~/.config/php-cs-fixer" = { source = "~/Developer/Personal/dev-profile/apps/php-cs-fixer" }
+"~/.config/ast-grep" = { source = "~/Developer/Personal/dev-profile/apps/ast-grep" }
+"~/.config/ai" = { source = "~/Developer/Personal/dev-profile/apps/ai" }
+"~/.config/agent-hooks" = { source = "~/Developer/Personal/dev-profile/apps/agent-hooks" }
+"~/.config/zab_ai" = { source = "~/Developer/Personal/dev-profile/apps/zab_ai" }
+"~/.config/zsh-preview" = { source = "~/Developer/Personal/dev-profile/apps/zsh-preview" }
+"~/.config/1Password" = { source = "~/Developer/Personal/dev-profile/apps/1Password" }
+"~/.vim" = { source = "~/Developer/Personal/dev-profile/vim" }
