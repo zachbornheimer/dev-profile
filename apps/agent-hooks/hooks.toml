@@ -212,15 +212,18 @@ on_failure = "block"
 [[hooks]]
 name = "pretooluse-gate-bypass-tripwire"
 events = ["tool.before"]
-policy = "gate-bypass-tripwire"
+# ZYS-1758: this row was `policy =` only, and dispatch skips a row without a
+# command, so the tripwire never ran. The matcher lists the run_command
+# spellings too (hook_common aliases them to Bash).
+command = ["/Users/zbornheimer/.agents/hooks/gate-bypass-tripwire.py"]
 timeout = "5s"
-matcher = "Bash"
+matcher = "Bash|bash|sh|zsh|shell|terminal|exec|run_terminal_cmd|run_terminal_command|mcp__capability__agentmux_capability_run_command|agentmux_capability_run_command"
 on_failure = "block"
 
 [[hooks]]
 name = "pretooluse-gate-bypass-tripwire-write"
 events = ["tool.before"]
-policy = "gate-bypass-tripwire"
+command = ["/Users/zbornheimer/.agents/hooks/gate-bypass-tripwire.py"]
 timeout = "5s"
 matcher = "Edit|Write"
 on_failure = "block"

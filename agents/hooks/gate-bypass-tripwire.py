@@ -59,6 +59,22 @@ IN_PLACE_EDITORS = frozenset({"sed", "perl"})
 IN_PLACE_FLAG = re.compile(r"-[a-zA-Z]*i[a-zA-Z]*")
 LOCKFILE_NAMES = frozenset({"package-lock.json", "pnpm-lock.yaml"})
 HOOKS_PATH_SETTING = "core.hooksPath="
+# ZYS-1758: switches that turn the hook runner off without a git flag.
+# hk (HK=0, HK_SKIP_HOOK[S]), husky (HUSKY=0), lefthook (LEFTHOOK=0).
+HOOK_OFF_ENV = re.compile(r"(HK|HUSKY|LEFTHOOK)=(0|false|no|off)", re.IGNORECASE)
+HOOK_SKIP_ENV = re.compile(r"(HK_SKIP_HOOKS?|LEFTHOOK_EXCLUDE)=.+")
+# Git config injected through the environment (git >= 2.31 / GIT_CONFIG_PARAMETERS).
+GIT_CONFIG_ENV = re.compile(
+    r"(GIT_CONFIG_PARAMETERS|GIT_CONFIG_KEY_\d+)=.*", re.IGNORECASE
+)
+# Config keys whose value disables hooks; matched case-insensitively like git does.
+HOOK_DISABLING_KEYS = re.compile(
+    r"(core\.hookspath|hk\.skiphooks?|hook\.[^.=\s]+\.enabled)", re.IGNORECASE
+)
+NESTING_SHELLS = frozenset({"sh", "bash", "zsh", "dash"})
+# Helpers that push to main with --no-verify baked in (dotfiles push-origin-main.zsh).
+HOOK_SKIPPING_HELPERS = frozenset({"push-origin-main"})
+SCRIPT_SUFFIXES = (".sh", ".bash", ".zsh", ".py", ".js", ".mjs", ".ts", ".pl", ".rb")
 
 NO_VERIFY_REASON = (
     "This command runs git commit with --no-verify (or its short form -n), bypassing a "
@@ -81,6 +97,32 @@ HOOKS_PATH_REASON = (
     "This command sets git's core.hooksPath via -c, disabling every git hook for this "
     "invocation. Fix what the hook would catch instead of routing around it — bypassing hooks "
     "via hooksPath is still bypassing. Only do this with the user's explicit, direct instruction."
+)
+HOOK_ENV_REASON = (
+    "This command turns git hooks off through the environment (HK=0, HK_SKIP_HOOK, HUSKY=0, "
+    "LEFTHOOK=0, or GIT_CONFIG_* carrying a hook setting). That is the same bypass as "
+    "--no-verify. Fix what the hook would catch instead; only bypass with the user's "
+    "explicit, direct instruction."
+)
+HOOK_CONFIG_REASON = (
+    "This command changes git config to disable or skip hooks (core.hooksPath, hk.skipHook, "
+    "hook.<name>.enabled). Every later commit and push in this clone would then skip the gate. "
+    "Fix what the hook would catch instead; only do this with the user's explicit, direct "
+    "instruction."
+)
+HELPER_REASON = (
+    "This helper pushes to main with --no-verify built in, so the pre-push gate never runs. "
+    "Push with plain `git push` (hooks on) or open a pull request instead."
+)
+WT_REASON = (
+    "This worktrunk command passes --no-hooks/--no-verify, which skips the project's "
+    "pre-merge and pre-commit hooks before main moves. Run it without the flag and fix what "
+    "the hook catches; only skip with the user's explicit, direct instruction."
+)
+SCRIPT_REASON = (
+    "This file is a script that runs git with hooks skipped (--no-verify, HK=0, HUSKY=0, "
+    "core.hooksPath). Writing the bypass into a script and running it is still bypassing the "
+    "gate. Remove the bypass; only add one with the user's explicit, direct instruction."
 )
 TEXT_NO_VERIFY_REASON = (
     "This command runs git with --no-verify, bypassing a pre-commit/pre-push hook. Fix what "
@@ -164,6 +206,81 @@ def disables_git_hooks(segment: Segment) -> bool:
     return False
 
 
+def sets_hook_env(segment: Segment) -> bool:
+    """Leading VAR=val words, `env VAR=val`, or `export VAR=val` that switch hooks off."""
+    for word in segment:
+        if HOOK_OFF_ENV.fullmatch(word) or HOOK_SKIP_ENV.fullmatch(word):
+            return True
+        if GIT_CONFIG_ENV.fullmatch(word) and HOOK_DISABLING_KEYS.search(word):
+            return True
+    return False
+
+
+def config_disables_hooks(segment: Segment) -> bool:
+    """`git config [scope] <hook key> <value>` (a write) or `git -c <hook key>=...`."""
+    in_git = previous_was_c = False
+    in_config = False
+    for word in segment:
+        in_git = in_git or word == "git"
+        if not in_git:
+            continue
+        if previous_was_c and HOOK_DISABLING_KEYS.match(word) and "=" in word:
+            return True
+        if (
+            word.startswith("-c")
+            and len(word) > 2
+            and HOOK_DISABLING_KEYS.match(word[2:])
+        ):
+            return True
+        previous_was_c = word == "-c"
+        if word == "config":
+            in_config = True
+            continue
+        if in_config and HOOK_DISABLING_KEYS.fullmatch(word):
+            # a read (--get, --list, ...) has a flag before the key; a write does not
+            return not any(
+                w
+                in (
+                    "--get",
+                    "--get-all",
+                    "--get-regexp",
+                    "--list",
+                    "-l",
+                    "--unset",
+                    "--unset-all",
+                )
+                for w in segment
+            )
+    return False
+
+
+WT_HOOK_SKIP_FLAGS = frozenset({"--no-hooks", "--no-verify"})
+
+
+def worktrunk_skips_hooks(segment: Segment) -> bool:
+    """`wt merge|step commit|... --no-hooks` skips wt's pre-merge/pre-commit gate."""
+    return (
+        bool(segment)
+        and segment[0] == "wt"
+        and any(w in WT_HOOK_SKIP_FLAGS for w in segment)
+    )
+
+
+def runs_hook_skipping_helper(segment: Segment) -> bool:
+    return bool(segment) and segment[0] in HOOK_SKIPPING_HELPERS
+
+
+def nested_shell_scripts(segment: Segment) -> list[str]:
+    """The script strings of `sh -c '...'` (and bash/zsh/dash), to re-check."""
+    found = []
+    for i, word in enumerate(segment[:-1]):
+        if word.rsplit("/", 1)[-1] in NESTING_SHELLS and "-c" in segment[i + 1 : i + 3]:
+            j = segment.index("-c", i + 1)
+            if j + 1 < len(segment):
+                found.append(segment[j + 1])
+    return found
+
+
 def _any_segment(segments: Iterable[Segment], rule: Callable[[Segment], bool]) -> bool:
     return any(rule(segment) for segment in segments)
 
@@ -180,6 +297,14 @@ def word_layer_reason(command: ShellCommand) -> str | None:
         return LOCKFILE_REASON
     if _any_segment(segments, disables_git_hooks):
         return HOOKS_PATH_REASON
+    if _any_segment(segments, sets_hook_env):
+        return HOOK_ENV_REASON
+    if _any_segment(segments, config_disables_hooks):
+        return HOOK_CONFIG_REASON
+    if _any_segment(segments, runs_hook_skipping_helper):
+        return HELPER_REASON
+    if _any_segment(segments, worktrunk_skips_hooks):
+        return WT_REASON
     return None
 
 
@@ -225,10 +350,55 @@ def text_layer_reason(command: str) -> str | None:
     return None
 
 
-def bash_bypass_reason(command: str) -> str | None:
+MAX_NESTING = 3
+
+
+def bash_bypass_reason(command: str, depth: int = 0) -> str | None:
     parsed = ShellCommand.parse(command)
     word_reason = word_layer_reason(parsed) if parsed is not None else None
+    if word_reason is None and parsed is not None and depth < MAX_NESTING:
+        for segment in parsed.segments():
+            for inner in nested_shell_scripts(segment):
+                word_reason = bash_bypass_reason(inner, depth + 1)
+                if word_reason:
+                    break
+            if word_reason:
+                break
     return word_reason or text_layer_reason(command)
+
+
+# --- scripts written to disk (zq#102: "Pushed via /tmp script with --no-verify") ---
+
+SCRIPT_BYPASS_LINE = re.compile(
+    r"--no-verify\b|\b(HK|HUSKY|LEFTHOOK)=[\"']?(0|false)\b|\bHK_SKIP_HOOKS?=|core\.hooksPath",
+    re.IGNORECASE,
+)
+
+
+def is_script(file_path: str, content: str) -> bool:
+    return file_path.endswith(SCRIPT_SUFFIXES) or content.startswith("#!")
+
+
+def script_bypass_reason(file_path: str, old_text: str, new_text: str) -> str | None:
+    """A net-new line in a script that runs git with hooks skipped."""
+    if not is_script(file_path, new_text):
+        return None
+
+    def hits(text: str) -> int:
+        count = 0
+        for line in text.split("\n"):
+            stripped = line.strip()
+            if stripped.startswith(("#", "//")) and not stripped.startswith("#!"):
+                continue
+            if (
+                "git" in line
+                and SCRIPT_BYPASS_LINE.search(line)
+                or re.search(r"\b(HK|HUSKY|LEFTHOOK)=[\"']?(0|false)\b", line)
+            ):
+                count += 1
+        return count
+
+    return SCRIPT_REASON if hits(new_text) > hits(old_text) else None
 
 
 # --- Edit / Write -------------------------------------------------------------
@@ -247,7 +417,7 @@ def file_edit_reason(file_path: str, old_text: str, new_text: str) -> str | None
     for pragma in SUPPRESSION_PRAGMAS:
         if lines_containing(new_text, pragma) > lines_containing(old_text, pragma):
             return PRAGMA_REASON.format(pragma=pragma)
-    return None
+    return script_bypass_reason(file_path, old_text, new_text)
 
 
 def existing_text(file_path: str) -> str:
