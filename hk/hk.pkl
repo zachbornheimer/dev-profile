@@ -767,9 +767,13 @@ hooks {
       ["ty"] {
         check = "dev-profile-ty {{files}}"
       }
+      // A file step needs a glob: hk runs a glob-less step even when the push holds no
+      // files, and an empty {{files}} makes `betterleaks dir` scan the process cwd and the
+      // hk util checks exit with a usage error (tests/pre-push-empty-file-list-fixture.sh).
       ["betterleaks"] {
         check =
           "dev-profile-if-installed betterleaks betterleaks dir --redact --verbose --no-banner {{files}}"
+        glob = List("**/*")
       }
       ["case-conflicts"] {
         check = "hk util check-case-conflict {{files}}"
@@ -790,6 +794,7 @@ hooks {
       }
       ["check-executables-have-shebangs"] {
         check = "hk util check-executables-have-shebangs {{files}}"
+        glob = List("**/*")
       }
       ["check-symlinks"] {
         check = "hk util check-symlinks {{files}}"
@@ -838,12 +843,14 @@ hooks {
       }
       ["merge-conflicts"] {
         check = "hk util check-merge-conflict --assume-in-merge {{files}}"
+        glob = List("**/*")
       }
       ["no-trunk-prettier"] {
         check = "dev-profile-ban-trunk-prettier"
       }
       ["private-keys"] {
         check = "hk util detect-private-key {{files}}"
+        glob = List("**/*")
       }
       ["strict-json"] {
         check =

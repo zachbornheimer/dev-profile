@@ -15,6 +15,7 @@ done
 bash "$root/tests/output-fixture.sh" >/dev/null || fail "output fixture"
 bash "$root/tests/hook-path-free.sh" >/dev/null || fail "hook path fixture"
 bash "$root/tests/ban-trunk-prettier-fixture.sh" >/dev/null || fail "ban-trunk-prettier fixture"
+bash "$root/tests/pre-push-empty-file-list-fixture.sh" >/dev/null || fail "pre-push empty file list fixture"
 for f in "$root"/bin/*; do
 	bash -n "$f" || fail "bin/${f##*/}"
 done
