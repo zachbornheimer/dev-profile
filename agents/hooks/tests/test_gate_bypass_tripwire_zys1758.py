@@ -205,6 +205,33 @@ OMP_CASES: dict[str, tuple[dict[str, Any], str]] = {
         _omp_eval("git commit --no-verify -m wip"),
         DENY,
     ),
+    "omp-meta-exec-run-command": (
+        {
+            "tool_name": "write",
+            "tool_input": {
+                "path": "xd://mcp__capability_meta_capability_exec",
+                "content": _json.dumps(
+                    {
+                        "name": "run_command",
+                        "input": {"command": "HK=0 git push origin main"},
+                    }
+                ),
+            },
+        },
+        DENY,
+    ),
+    "omp-meta-exec-plain": (
+        {
+            "tool_name": "write",
+            "tool_input": {
+                "path": "xd://mcp__capability_meta_capability_exec",
+                "content": _json.dumps(
+                    {"name": "run_command", "input": {"command": "sleep 25"}}
+                ),
+            },
+        },
+        SILENT,
+    ),
     "omp-plain-push": (
         _omp_run_command("cd /tmp/w && git push -u origin zys-1731 2>&1 | tail -8"),
         SILENT,

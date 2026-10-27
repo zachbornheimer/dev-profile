@@ -442,21 +442,37 @@ def _verdict(reason: str | None, tool_name: str) -> Decision:
 # as `content`, or as `tool.<server>_run_command({...})` inside `eval` code, and
 # its bridge passes those raw tool names (ZYS-1758: the --no-verify push and the
 # HK=0 commit both took the `write xd://` route).
-XD_RUN_COMMAND = re.compile(r"^xd://[\w.-]*run_command$")
-EVAL_RUN_COMMAND = re.compile(r"\b[\w.]*run_command\s*\(")
-JSON_COMMAND_FIELD = re.compile(r'"command"\s*:\s*("(?:[^"\\]|\\.)*")')
+XD_TOOL = re.compile(r"^xd://(?P<server>[\w.-]+)$")
 
 
 def xd_run_command(event: HookEvent) -> str | None:
-    """The shell command of an omp `write xd://…run_command`, else None."""
-    if not XD_RUN_COMMAND.match(event.tool_input("file_path")):
+    """The shell command of an omp `write xd://…` that runs run_command, else None.
+
+    Two shapes: `xd://<server>_run_command` with {"command": …}, and the meta
+    gateway `xd://<server>_exec` with {"name": "run_command", "input": {"command": …}}.
+    """
+    target = XD_TOOL.match(event.tool_input("file_path"))
+    if target is None:
         return None
     try:
         call = json.loads(event.tool_input("content") or "{}")
     except ValueError:
         call = {}
-    command = call.get("command") if isinstance(call, dict) else None
+    if not isinstance(call, dict):
+        call = {}
+    if target["server"].endswith("run_command"):
+        command = call.get("command")
+    elif str(call.get("name", "")).endswith("run_command") and isinstance(
+        call.get("input"), dict
+    ):
+        command = call["input"].get("command")
+    else:
+        return None
     return command if isinstance(command, str) else ""
+
+
+EVAL_RUN_COMMAND = re.compile(r"\b[\w.]*run_command\b")
+JSON_COMMAND_FIELD = re.compile(r'"command"\s*:\s*("(?:[^"\\]|\\.)*")')
 
 
 def eval_run_commands(code: str) -> list[str]:
