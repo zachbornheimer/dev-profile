@@ -41,11 +41,11 @@ Then:
 2. Search, then fetch pages that can change the call. Official docs, then vendor or GitHub, then secondary. Quick budget: 8 fetches. Stop when the call is supported or contradicted.
 3. Save page text. Before citing a sentence, run `quote`. Exit 1 means do not cite it.
 
-```bash
-python3 ~/.agents/available-skills/web-research/scripts/web-research.py quote \
-  --text "exact wording from the page" --from page.txt
-```
+   ```bash
+   python3 ~/.agents/available-skills/web-research/scripts/web-research.py quote \
+     --text "exact wording from the page" --from page.txt
+   ```
 
-1. If `~/.hermes/skills/research/grounded-citations/scripts/sources.py` exists, `add` each URL before writing prose. Otherwise cite `[title](url)` plus source date and retrieval date.
-2. Reply: recommendation, the deciding fact with citation, what would flip it. Then act, discuss, or stop per `after`.
-3. If `workers` is 1 or more, spawn that many read-only workers. `cheap_model` means a cheaper model. Do not spawn extra rounds.
+4. If `~/.hermes/skills/research/grounded-citations/scripts/sources.py` exists, `add` each URL before writing prose. Otherwise cite `[title](url)` plus source date and retrieval date.
+5. Reply: recommendation, the deciding fact with citation, what would flip it. Then act, discuss, or stop per `after`.
+6. If `workers` is 1 or more, spawn that many read-only workers. `cheap_model` means a cheaper model. Do not spawn extra rounds.
