@@ -37,6 +37,7 @@ cargo-deny = "0.20.2"
 shellcheck = "0.11.0"
 opentofu = "1.13"
 "pypi:yamllint" = "1.38.0"
+"pypi:semgrep" = "1.182.1"
 
 [settings]
 experimental = true

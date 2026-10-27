@@ -292,6 +292,14 @@ steps {
       )
     profiles = List("slow")
   }
+  // Semgrep's TypeScript pack on every committed TypeScript file. Judge only:
+  // findings are fixed by hand, and dev-profile-suppressions refuses nosemgrep.
+  // No if-installed guard: this profile pins semgrep, so a missing one is a
+  // broken install that must fail, not an optional scanner to skip.
+  ["semgrep-typescript"] {
+    check = "dev-profile-semgrep {{files}}"
+    glob = List("**/*.ts", "**/*.mts", "**/*.cts", "**/*.tsx")
+  }
   ["kube-linter"] {
     check =
       "dev-profile-if-installed kube-linter kube-linter lint --fail-if-no-objects-found {{files}}"
