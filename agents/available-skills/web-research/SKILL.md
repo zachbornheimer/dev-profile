@@ -46,8 +46,6 @@ python3 ~/.agents/available-skills/web-research/scripts/web-research.py quote \
   --text "exact wording from the page" --from page.txt
 ```
 
-4. If `~/.hermes/skills/research/grounded-citations/scripts/sources.py` exists, `add` each URL before writing prose. Otherwise cite `[title](url)` plus source date and retrieval date.
-5. Reply: recommendation, the deciding fact with citation, what would flip it. Then act, discuss, or stop per `after`.
-6. If `workers` is 1 or more, spawn that many read-only workers. `cheap_model` means a cheaper model. Do not spawn extra rounds.
-
-Gas City beads stay on `agents/web-researcher`. This skill is the chat path.
+1. If `~/.hermes/skills/research/grounded-citations/scripts/sources.py` exists, `add` each URL before writing prose. Otherwise cite `[title](url)` plus source date and retrieval date.
+2. Reply: recommendation, the deciding fact with citation, what would flip it. Then act, discuss, or stop per `after`.
+3. If `workers` is 1 or more, spawn that many read-only workers. `cheap_model` means a cheaper model. Do not spawn extra rounds.

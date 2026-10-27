@@ -35,7 +35,7 @@ Point, don’t fork:
 
 ```markdown
 Filing agent work: load `atask` (`~/.agents/available-skills/atask/SKILL.md`).
-Product tickets: `tickets`. Gas City city-internal: `gc bd`.
+Product tickets: `tickets`.
 ```
 
 ## Orchestrator

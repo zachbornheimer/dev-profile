@@ -364,8 +364,6 @@ brew "gallery-dl"
 brew "garble"
 # Lightweight and flexible command-line JSON processor
 brew "jq"
-# Orchestration-builder SDK for multi-agent coding workflows
-brew "gascity"
 # GNU compiler collection
 brew "gcc"
 # GNU debugger

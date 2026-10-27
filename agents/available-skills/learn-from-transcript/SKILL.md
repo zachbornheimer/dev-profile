@@ -419,8 +419,7 @@ work_order:
   ci / ...`). Never bypass the task runner. <!-- requires: run_command -->
 - **atask is the tracker.** `atask list` is the board; `atask add` files an
   objective with a required `--proof` and `--regression`; `atask claim` / `atask log` / `atask verify complete`
-  run it. A second `atask add` of the same open title returns the existing id.
-  Gas City's city-internal ledger remains `gc bd` (`gc bd --rig <rig> show <id>`). <!-- requires: atask -->
+  run it. A second `atask add` of the same open title returns the existing id. <!-- requires: atask -->
 - Always follow the `command-denial-recovery` skill (/Users/zbornheimer/.agents/available-skills/command-denial-recovery/SKILL.md).
 
 <!-- requires: orchestrator -->

@@ -40,7 +40,7 @@ usage: agent <harness|harness:id|--resume harness:id> [--model <m>] [--effort <e
   --resume    accepts harness:id first, or a native id after the harness.
   prompt      sent after successful native restore, or as the first fresh-session message.
 
-Loads AI keys (ai-keys::env), unsets TMUX so AoE does not attach to Gas City, and opens \`aoe url\`.
+Loads AI keys (ai-keys::env), unsets TMUX so AoE does not attach to an outer tmux server, and opens \`aoe url\`.
 EOF
 }
 

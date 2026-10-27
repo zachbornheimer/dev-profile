@@ -63,14 +63,6 @@ trusted_hash = "sha256:3ba46434df572a81b8ec5141f2853523a443ebcac6462aeb15597f8ba
 trusted_hash = "sha256:bba6996f32ad7a5d5b578c0d64f4a7f0f0f1dfccb1d3f4881e79b9e8a4a8cf5d"
 [hooks.state."/Users/zbornheimer/.codex/hooks.json:user_prompt_submit:1:0"]
 trusted_hash = "sha256:ce0ffdcc519572dfd71140fb9d5a108dec07cb1baf782758880090cf894bae83"
-[hooks.state."/Users/zbornheimer/Developer/zach-factory/.codex/hooks.json:pre_compact:0:0"]
-trusted_hash = "sha256:bee211b62b8da88e328988459beb14de6916eaa426323994d9a7ea9a25d8e386"
-[hooks.state."/Users/zbornheimer/Developer/zach-factory/.codex/hooks.json:session_start:0:0"]
-trusted_hash = "sha256:10ff376f8efe2e535077b7600c0cda5dea8539e872fa2ca1f0e8a5455c50fdf6"
-[hooks.state."/Users/zbornheimer/Developer/zach-factory/.codex/hooks.json:user_prompt_submit:0:0"]
-trusted_hash = "sha256:4fa9de4c2dfb3774df70354a095e680c079f451e46074894b0b53b8a7fcd708e"
-[hooks.state."/Users/zbornheimer/Developer/zach-factory/.codex/hooks.json:user_prompt_submit:0:1"]
-trusted_hash = "sha256:e6c6f7c552feb7aaf44febe3d3bbe447407537db3f88ea318606025328b184d3"
 [hooks.state."worktrunk@worktrunk:plugin.json#hooks[0]:permission_request:0:0"]
 trusted_hash = "sha256:b5f6112154fd814298da679652ea096e11434b7f2876d471eb00c790a68045d0"
 [hooks.state."worktrunk@worktrunk:plugin.json#hooks[0]:session_end:0:0"]

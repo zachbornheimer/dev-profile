@@ -6,7 +6,7 @@ description: >-
   use when fixing bugs, reviewing spec, analyzing reviews, audits, chats, diffs,
   or docs and turning them into board items; when a prompt, handoff, or reference doc says to load
   atask; when the user asks to add, split, or skip a task. Does not implement
-  or claim. Linear stays tickets; Gas City city-internal stays gc bd.
+  or claim. Linear stays tickets.
 ---
 
 # atask — file objectives
@@ -44,12 +44,12 @@ build. Do not invent verbs (`ready`, `comment`, `whoami`).
 
 ## File or skip
 
-| File                                                     | Skip / reuse                                                          |
-| -------------------------------------------------------- | --------------------------------------------------------------------- |
-| One cohesive outcome a later worker can prove            | A step toward an outcome (`write the test`, `open the PR`)            |
-| Distinct shippable results (split)                       | Same open title already on the board (second `add` returns that id)   |
-| Review/audit finding that is real, not already in code   | Already implemented — log on the existing task or leave it            |
-| Follow-up discovered while analyzing, with its own proof | Gas City city-internal (`gc bd`) or a Linear ticket (`tickets` skill) |
+| File                                                     | Skip / reuse                                                        |
+| -------------------------------------------------------- | ------------------------------------------------------------------- |
+| One cohesive outcome a later worker can prove            | A step toward an outcome (`write the test`, `open the PR`)          |
+| Distinct shippable results (split)                       | Same open title already on the board (second `add` returns that id) |
+| Review/audit finding that is real, not already in code   | Already implemented — log on the existing task or leave it          |
+| Follow-up discovered while analyzing, with its own proof | A Linear ticket (`tickets` skill)                                   |
 
 Conjunction in the title (`and` / two verbs that each verify) → **two tasks**,
 or one task only if a single check proves the combined outcome.

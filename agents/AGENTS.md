@@ -413,8 +413,7 @@ work_order:
 - **Webmaster work goes in Mastra, not the `webmaster` CLI.** The CLI (`~/Developer/Zysys/webmaster`, `src/cli.ts`) is being eliminated. Build durable webmaster tools, workflows and agents in Mastra (`capability-replicas/mastra`), exposed over MCP so every harness shares them. Never add commands to the CLI or design new work around `webmaster <cmd>`; its behavior is a migration source only. No one-off scripts: reusable work is a tested, named Mastra tool/workflow.
 - **atask is the tracker.** `atask list` is the board; `atask add` files an
   objective with a required `--proof` and `--regression`; `atask claim` / `atask log` / `atask verify complete`
-  run it. A second `atask add` of the same open title returns the existing id.
-  Gas City's city-internal ledger remains `gc bd` (`gc bd --rig <rig> show <id>`). <!-- requires: atask -->
+  run it. A second `atask add` of the same open title returns the existing id. <!-- requires: atask -->
 - Always follow the `command-denial-recovery` skill (/Users/zbornheimer/.agents/available-skills/command-denial-recovery/SKILL.md).
 
 <!-- requires: orchestrator -->

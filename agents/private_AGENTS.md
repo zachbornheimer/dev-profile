@@ -205,7 +205,6 @@ work_order:
 - **atask is the tracker.** `atask list` is the board; `atask add` files an
   objective with a required `--check`; `atask claim` / `atask log` / `atask verify complete`
   run it. A second `atask add` of the same open title returns the existing id.
-  Gas City's city-internal ledger remains `gc bd` (`gc bd --rig <rig> show <id>`).
 
 ## Routing (your core job — loose ask → the right worker / skill / primitive)
 

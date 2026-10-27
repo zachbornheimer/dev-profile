@@ -43,7 +43,7 @@ For each workflow, config, script, task, hook, pin, or tooling doc:
   depends on another: `wt -C <repo> switch --create <branch> --base <prev> --no-cd`.
 - Commit each chunk with `wt -C <wt> step commit` (it writes the message; no `-m`).
   Never `--no-verify` / `HK=0`. Each commit builds on its own.
-- Large runs: a dynamic workflow (or Gas City formula) with one agent per stream,
+- Large runs: a dynamic workflow with one agent per stream,
   then an adversarial reviewer per branch hunting for dropped behavior.
 
 ## Steps

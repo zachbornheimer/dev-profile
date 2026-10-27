@@ -32,7 +32,6 @@ feeling that “someone should look at this.”
   only if the outcome is a named artifact plus a check that the artifact
   exists **and** answers the question.
 - Linear product bugs the user wants in Linear (`tickets` skill).
-- Gas City city-internal work (`gc bd`).
 - Work the user forbade (`do not implement`, `audit only`) — unless they
   asked to **file** it.
 - A second task that only exists to remind someone to `verify complete`.

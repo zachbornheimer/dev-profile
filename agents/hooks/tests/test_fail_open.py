@@ -89,7 +89,6 @@ CONTRACTS = {
 # Hooks whose code never reads a HookEvent, so the decide fault can't reach them.
 NO_HOOK_EVENT = frozenset(
     {
-        "gc-aoe-attach.py",
         "comms-recall.py",
         "pick-probe.py",
         "quality-guard-run.py",
@@ -112,7 +111,6 @@ NO_HOOK_EVENT = frozenset(
 NO_IO_BOUNDARY = frozenset(
     {
         "comms-recall.py",
-        "gc-aoe-attach.py",
         "pick-probe.py",
         "relocate-synced-skills.py",
     }

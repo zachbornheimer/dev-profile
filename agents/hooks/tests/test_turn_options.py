@@ -40,9 +40,9 @@ class TurnOptionsTests(unittest.TestCase):
         text = turn_options.render_turn_context(
             "are you happy with how that works?",
             {
-                "choice": "gas-city-self-improve",
-                "shortlist": ["gas-city-self-improve", "skill-creator"],
-                "fits": {"gas-city-self-improve": 0.51, "skill-creator": 0.54},
+                "choice": "self-improve",
+                "shortlist": ["self-improve", "skill-creator"],
+                "fits": {"self-improve": 0.51, "skill-creator": 0.54},
                 "paths": [],
             },
         )

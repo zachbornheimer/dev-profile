@@ -1,6 +1,6 @@
 ---
 name: beads
-description: Use when working on objectives that must survive handoff — file, list, claim, or complete atask work. Trigger when the user asks to find ready work, claim or close tasks, create follow-up work, inspect blockers, recover project context, or choose a tracker. atask is the tracker; Gas City city-internal work stays on gc bd.
+description: Use when working on objectives that must survive handoff — file, list, claim, or complete atask work. Trigger when the user asks to find ready work, claim or close tasks, create follow-up work, inspect blockers, recover project context, or choose a tracker. atask is the tracker.
 ---
 
 # atask
@@ -52,5 +52,4 @@ atask verify complete
 - File objectives, not steps.
 - Every claimable task needs `--proof` and `--regression` (`PRESET: SUBJECT [k=v]`). Without both it is a draft; never claim a draft. Diagnose with `atask verify proof|regression`; `claim release --failed` counts an attempt.
 - Prefer `--json` / `ATASK_OUTPUT=json` when parsing.
-- Gas City city-internal work uses `gc bd`. Do not file product or personal work there.
 - Do not auto-complete. Both proofs have to pass.
