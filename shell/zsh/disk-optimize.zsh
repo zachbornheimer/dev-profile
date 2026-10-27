@@ -1,7 +1,7 @@
 # Unique APFS physical size: merged F_LOG2PHYS_EXT spans (same as ~/test.zsh _bm_scan).
 # Walk without following symlinks; skip other devices (same as --one-fs).
 optimize::unique-bytes() {
-	python3 - "$1" <<'PY'
+	uv run --no-project --quiet python - "$1" <<'PY'
 import fcntl, os, stat, struct, sys
 
 F_LOG2PHYS_EXT = 65
@@ -125,7 +125,7 @@ optimize() {
 	unique_before=$(<"$tmp/unique_before")
 
 	local report
-	report=$(python3 -c '
+	report=$(uv run --no-project --quiet python -c '
 import json, sys
 raw = open(sys.argv[1], "r", encoding="utf-8").read().strip()
 data = None
