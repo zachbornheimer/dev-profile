@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
+
+RUN_COMMAND_TOOL = re.compile(r"^mcp__[\w-]*run_command$")
 
 # Grok tool names normalized to Claude Code's, so one `match` serves both.
 TOOL_NAME_ALIASES = {
@@ -80,7 +83,11 @@ class HookEvent:
     @property
     def tool_name(self) -> str:
         name = self.field("tool_name", "toolName")
-        return TOOL_NAME_ALIASES.get(name, name)
+        if name in TOOL_NAME_ALIASES:
+            return TOOL_NAME_ALIASES[name]
+        # Every MCP server's run_command (omp: mcp__capability_agentmux_capability_run_command,
+        # mcp__capability_always_on_…; ZYS-1758) is a shell runner too.
+        return "Bash" if RUN_COMMAND_TOOL.match(name) else name
 
     @property
     def raw_tool_name(self) -> str:

@@ -218,7 +218,7 @@ events = ["tool.before"]
 # whose code can call run_command directly.
 command = ["/Users/zbornheimer/.agents/hooks/gate-bypass-tripwire.py"]
 timeout = "5s"
-matcher = "Bash|bash|sh|zsh|shell|terminal|exec|run_terminal_cmd|run_terminal_command|mcp__capability__agentmux_capability_run_command|agentmux_capability_run_command|eval"
+matcher = "Bash|bash|sh|zsh|shell|terminal|exec|run_terminal_cmd|run_terminal_command|mcp__capability__agentmux_capability_run_command|agentmux_capability_run_command|eval|mcp__capability_agentmux_capability_run_command|mcp__capability_always_on_agentmux_capability_run_command"
 on_failure = "block"
 
 [[hooks]]

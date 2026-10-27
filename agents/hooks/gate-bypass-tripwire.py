@@ -36,6 +36,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
 
+from eval_code import shell_candidates
 from hook_common import Decision, HookEvent, ShellCommand, run_hook
 
 HOOK_NAME = "gate-bypass-tripwire"
@@ -496,9 +497,12 @@ def decide(event: HookEvent) -> Decision | None:
             bash_bypass_reason(xd_command) if xd_command else None, "run_command"
         )
     if event.raw_tool_name == "eval":
-        reasons = (
-            bash_bypass_reason(c) for c in eval_run_commands(event.tool_input("code"))
-        )
+        code = event.tool_input("code")
+        language = event.tool_input("language") or "py"
+        # run_command JSON fields, then every literal / argv list / env skip the
+        # code can hand a shell (lib/eval_code.py; ZYS-1758 ruling 3).
+        commands = eval_run_commands(code) + shell_candidates(code, language)
+        reasons = (bash_bypass_reason(c) for c in commands)
         return _verdict(next((r for r in reasons if r), None), "eval")
     match tool_name:
         case "Bash":
