@@ -26,6 +26,7 @@ Fails OPEN (via run_hook) on any parse error or unexpected input.
 
 from __future__ import annotations
 
+import json
 import re
 import sys
 from collections.abc import Callable, Iterable
@@ -437,8 +438,52 @@ def _verdict(reason: str | None, tool_name: str) -> Decision:
     return Decision.no_objection(f"{tool_name}:no-bypass-pattern")
 
 
+# omp runs run_command as `write xd://<server>_run_command` with the call's JSON
+# as `content`, or as `tool.<server>_run_command({...})` inside `eval` code, and
+# its bridge passes those raw tool names (ZYS-1758: the --no-verify push and the
+# HK=0 commit both took the `write xd://` route).
+XD_RUN_COMMAND = re.compile(r"^xd://[\w.-]*run_command$")
+EVAL_RUN_COMMAND = re.compile(r"\b[\w.]*run_command\s*\(")
+JSON_COMMAND_FIELD = re.compile(r'"command"\s*:\s*("(?:[^"\\]|\\.)*")')
+
+
+def xd_run_command(event: HookEvent) -> str | None:
+    """The shell command of an omp `write xd://…run_command`, else None."""
+    if not XD_RUN_COMMAND.match(event.tool_input("file_path")):
+        return None
+    try:
+        call = json.loads(event.tool_input("content") or "{}")
+    except ValueError:
+        call = {}
+    command = call.get("command") if isinstance(call, dict) else None
+    return command if isinstance(command, str) else ""
+
+
+def eval_run_commands(code: str) -> list[str]:
+    """Every `"command": "…"` string in eval code that calls a run_command tool."""
+    if not EVAL_RUN_COMMAND.search(code):
+        return []
+    found: list[str] = []
+    for literal in JSON_COMMAND_FIELD.findall(code):
+        try:
+            found.append(json.loads(literal))
+        except ValueError:
+            continue
+    return found
+
+
 def decide(event: HookEvent) -> Decision | None:
     tool_name = event.tool_name
+    xd_command = xd_run_command(event) if tool_name == "Write" else None
+    if xd_command is not None:
+        return _verdict(
+            bash_bypass_reason(xd_command) if xd_command else None, "run_command"
+        )
+    if event.raw_tool_name == "eval":
+        reasons = (
+            bash_bypass_reason(c) for c in eval_run_commands(event.tool_input("code"))
+        )
+        return _verdict(next((r for r in reasons if r), None), "eval")
     match tool_name:
         case "Bash":
             command = event.tool_input("command")

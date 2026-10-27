@@ -151,3 +151,84 @@ def test_tripwire_bash_row_matches_run_command_aliases() -> None:
     )
     for alias in ("Bash", "agentmux_capability_run_command", "run_terminal_command"):
         assert alias in row["matcher"].split("|"), alias
+
+
+# --- omp: run_command arrives as `write xd://…run_command` or inside `eval` ----
+# The omp bridge passes the raw tool name. The ZYS-1758 push was
+#   write {path: "xd://mcp__capability_agentmux_capability_run_command",
+#          content: "{\"command\":\"cd … && git push --no-verify origin main …\"}"}
+# and the f4bd6e86 commit was the same shape with `HK=0 git commit`.
+
+import json as _json
+
+
+def _omp_run_command(
+    command: str, server: str = "mcp__capability_agentmux_capability_run_command"
+) -> dict[str, Any]:
+    content = _json.dumps({"command": command, "purpose": "x", "timeout_seconds": 180})
+    return {
+        "tool_name": "write",
+        "toolName": "write",
+        "tool_input": {
+            "path": f"xd://{server}",
+            "i": "Pushing main",
+            "content": content,
+        },
+    }
+
+
+def _omp_eval(command: str) -> dict[str, Any]:
+    call = _json.dumps({"command": command, "timeout_seconds": 120})
+    code = f"r=await tool.mcp__capability_agentmux_capability_run_command({call})\nprint(r)"
+    return {
+        "tool_name": "eval",
+        "toolName": "eval",
+        "tool_input": {"language": "py", "code": code},
+    }
+
+
+OMP_CASES: dict[str, tuple[dict[str, Any], str]] = {
+    "omp-shallowpelican-push": (
+        _omp_run_command(
+            "cd /Users/x/.worktrees/capability-replicas-zys-1731 && git push --no-verify origin main 2>&1 | tail -4 && git rev-parse origin/main"
+        ),
+        DENY,
+    ),
+    "omp-always-on-hk0-commit": (
+        _omp_run_command(
+            "cd /Users/x/capability-replicas && HK=0 git commit -m \"$(cat <<'EOF'\nfix: x\nEOF\n)\" -- a.ts",
+            server="mcp__capability_always_on_agentmux_capability_run_command",
+        ),
+        DENY,
+    ),
+    "omp-eval-run-command-no-verify": (
+        _omp_eval("git commit --no-verify -m wip"),
+        DENY,
+    ),
+    "omp-plain-push": (
+        _omp_run_command("cd /tmp/w && git push -u origin zys-1731 2>&1 | tail -8"),
+        SILENT,
+    ),
+    "omp-eval-plain": (_omp_eval("git log --oneline -6"), SILENT),
+}
+
+
+@pytest.mark.parametrize("name", sorted(OMP_CASES))
+def test_omp_run_command_shapes(hooks: HookRunner, name: str) -> None:
+    payload, want = OMP_CASES[name]
+    run = hooks.run_payload(PY_HOOK, payload)
+    assert run.exit_code == 0 and not run.failed_open, run.log
+    assert run.decision == want, f"{name} -> {run.stdout}"
+
+
+def test_tripwire_rows_match_omp_raw_tool_names() -> None:
+    """The omp bridge sends the raw names `write` and `eval`, not Bash."""
+    rows = {
+        r["name"]: r
+        for r in _hooks_toml()["hooks"]
+        if "gate-bypass-tripwire" in r["name"]
+    }
+    names = set(rows["pretooluse-gate-bypass-tripwire"]["matcher"].split("|")) | set(
+        rows["pretooluse-gate-bypass-tripwire-write"]["matcher"].split("|")
+    )
+    assert {"write", "eval"} <= names

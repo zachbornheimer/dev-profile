@@ -214,18 +214,20 @@ name = "pretooluse-gate-bypass-tripwire"
 events = ["tool.before"]
 # ZYS-1758: this row was `policy =` only, and dispatch skips a row without a
 # command, so the tripwire never ran. The matcher lists the run_command
-# spellings too (hook_common aliases them to Bash).
+# spellings too (hook_common aliases them to Bash), plus omp's raw `eval`,
+# whose code can call run_command directly.
 command = ["/Users/zbornheimer/.agents/hooks/gate-bypass-tripwire.py"]
 timeout = "5s"
-matcher = "Bash|bash|sh|zsh|shell|terminal|exec|run_terminal_cmd|run_terminal_command|mcp__capability__agentmux_capability_run_command|agentmux_capability_run_command"
+matcher = "Bash|bash|sh|zsh|shell|terminal|exec|run_terminal_cmd|run_terminal_command|mcp__capability__agentmux_capability_run_command|agentmux_capability_run_command|eval"
 on_failure = "block"
 
 [[hooks]]
 name = "pretooluse-gate-bypass-tripwire-write"
 events = ["tool.before"]
+# `write` is omp's raw name, and also how omp runs run_command (`write xd://…`).
 command = ["/Users/zbornheimer/.agents/hooks/gate-bypass-tripwire.py"]
 timeout = "5s"
-matcher = "Edit|Write"
+matcher = "Edit|Write|write"
 on_failure = "block"
 
 [[hooks]]
