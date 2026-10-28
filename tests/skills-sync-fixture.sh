@@ -64,8 +64,14 @@ cat >"${skills}/.skill-lock.json" <<'JSON'
 JSON
 git init -q "${repo}"
 
+# A copy of the primary aubx guard sits ahead of the installer on PATH, as
+# ~/.local/bin/aubx does when a fresh clone runs with AGENTS_HOME pointing at
+# it. The wrapper must skip it; resolving it re-enters the confiner.
+mkdir -p "${work}/guard"
+printf '#!/usr/bin/env bash\n# aubx — scope guard in front of aube'"'"'s `aubx`.\necho "guard re-entered" >&2\nexit 127\n' >"${work}/guard/aubx"
+chmod +x "${work}/guard/aubx"
 export HOME="${work}/home" AGENTS_HOME="${repo}/agents"
-export PATH="${work}/stub:${PATH}"
+export PATH="${work}/guard:${work}/stub:${PATH}"
 mkdir -p "${HOME}"
 sync() { "${repo}/agents/bin/aubx-skills" sync >"${work}/out.txt" 2>&1; }
 

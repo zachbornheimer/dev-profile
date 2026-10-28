@@ -229,6 +229,11 @@ resolve_aubx() {
 		# guard re-enters the confiner, and every global install dies with
 		# "confiner re-entered itself". Compare file identity.
 		[ "$candidate" -ef "$SELF_DIR/$AUBX_NAME" ] && continue
+		# Identity is not enough when this wrapper is a second copy of the
+		# profile (a fresh clone run with AGENTS_HOME pointing at it): then
+		# ~/.local/bin/aubx is the primary guard, a different file, and resolving
+		# it re-enters the confiner the same way. Skip any copy of the guard.
+		head -n 3 "$candidate" 2>/dev/null | grep -q 'scope guard in front of aube' && continue
 		printf '%s\n' "$candidate"
 		return 0
 	done
