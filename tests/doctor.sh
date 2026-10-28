@@ -34,6 +34,7 @@ pkl test tests/profile.test.pkl || fail "pkl test (regenerate the snapshot with:
 bash tests/contract-fixtures.sh "$out" || fail "contract fixtures"
 bash tests/go-fix-fixture.sh "$out" || fail "go-fix fixture"
 bash tests/gosec-fixture.sh "$out" || fail "gosec fixture"
+bash tests/brakeman-fixture.sh || fail "brakeman fixture"
 bash tests/go-mod-tidy-fixture.sh "$out" || fail "go-mod-tidy fixture"
 bash tests/bump-fixture.sh "$out" || fail "bump fixture"
 bash tests/modernizer-fixture.sh "$out" || fail "modernizer fixture"
