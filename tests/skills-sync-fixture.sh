@@ -59,6 +59,7 @@ cat >"${skills}/.skill-lock.json" <<'JSON'
 {"version":3,"skills":{
   "alpha":{"source":"owner/one","sourceType":"github"},
   "beta":{"source":"owner/two","sourceType":"github"},
+  "gamma":{"source":"owner/three","sourceType":"github"},
   "local-one":{"source":"/tmp/somewhere","sourceType":"local"}
 }}
 JSON
@@ -75,14 +76,20 @@ export PATH="${work}/guard:${work}/stub:${PATH}"
 mkdir -p "${HOME}"
 sync() { "${repo}/agents/bin/aubx-skills" sync >"${work}/out.txt" 2>&1; }
 
-# 1. Only the missing recorded github skill is installed, from its own source.
+# 1. Only the missing recorded github skills are installed, each from its own
+# source, and no recorded entry is dropped while another source is still
+# pending (a fresh clone has every upstream folder missing at once).
 sync || {
 	cat "${work}/out.txt" >&2
 	fail "sync exited nonzero"
 }
 [ -f "${skills}/beta/SKILL.md" ] || fail "sync did not install the missing skill"
-[ "$(wc -l <"${work}/calls.log" | tr -d ' ')" = "1" ] || fail "sync must run the installer once, for the missing skill only"
+[ -f "${skills}/gamma/SKILL.md" ] || fail "sync did not install the second missing skill"
+[ "$(wc -l <"${work}/calls.log" | tr -d ' ')" = "2" ] || fail "sync must run the installer once per source with missing skills"
 grep -q '^skills add owner/two --skill beta ' "${work}/calls.log" || fail "sync must install beta from owner/two: $(cat "${work}/calls.log")"
+grep -q '^skills add owner/three --skill gamma ' "${work}/calls.log" || fail "sync must install gamma from owner/three"
+if grep -q 'dropped record entry' "${work}/out.txt"; then fail "sync must not drop a github entry whose folder is still to be installed: $(grep 'dropped' "${work}/out.txt")"; fi
+[ "$(jq '[.skills[] | select(.sourceType == "github")] | length' "${skills}/.skill-lock.json")" = "3" ] || fail "the record must keep every github entry"
 
 # 2. The ignore list names every recorded github skill and no local one.
 grep -qx '/alpha/' "${skills}/.gitignore" || fail "a recorded github skill must be ignored"

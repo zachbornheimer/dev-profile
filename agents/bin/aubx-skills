@@ -116,8 +116,11 @@ roster_names() {
 # that sourced a skill from a throwaway directory leaves its entry behind when
 # that source disappears: the entry names a dead path and no folder sits in
 # available-skills. Nothing removed it, so `aubx skills update -g` re-resolved
-# dead sources on every run and the record drifted from what is installed. The
-# folder is the authority on what the roster holds.
+# dead sources on every run and the record drifted from what is installed.
+# A github entry is never a ghost: upstream skills are not committed, so the
+# record is the authority for them, and a missing folder is one `sync` installs.
+# Pruning those dropped every not-yet-installed skill on a fresh clone.
+GHOSTS_JQ='(.skills // {}) | to_entries | map(select(.value.sourceType != "github") | .key) - $live | .[]'
 prune_ghost_entries() {
 	[ -f "$RECORD_FILE" ] || return 0
 	if ! command -v jq >/dev/null 2>&1; then
@@ -127,7 +130,7 @@ prune_ghost_entries() {
 	local live ghosts d
 	live="$(roster_names 2>/dev/null)" || return 0
 	[ -n "$live" ] || return 0
-	ghosts="$(jq -r --argjson live "$live" '((.skills // {}) | keys) - $live | .[]' \
+	ghosts="$(jq -r --argjson live "$live" "$GHOSTS_JQ" \
 		"$RECORD_FILE" 2>/dev/null)" || return 0
 	[ -n "$ghosts" ] || return 0
 	if [ "${DRY_RUN:-0}" = "1" ]; then
@@ -143,7 +146,7 @@ prune_ghost_entries() {
 		record_unlock
 		return 0
 	}
-	ghosts="$(jq -r --argjson live "$live" '((.skills // {}) | keys) - $live | .[]' \
+	ghosts="$(jq -r --argjson live "$live" "$GHOSTS_JQ" \
 		"$RECORD_FILE" 2>/dev/null)" || {
 
 		record_unlock
@@ -156,7 +159,7 @@ prune_ghost_entries() {
 	# Re-read inside the lock: the prune builds on what the previous writer
 	# committed, never on the document this run saw on entry.
 	if jq --argjson live "$live" \
-		'.skills = ((.skills // {}) | with_entries(select(.key as $k | ($live | index($k)) != null)))' \
+		'.skills = ((.skills // {}) | with_entries(select(.value.sourceType == "github" or (.key as $k | ($live | index($k)) != null))))' \
 		"$RECORD_FILE" >"$RECORD_TMP" 2>/dev/null; then
 		/bin/mv "$RECORD_TMP" "$RECORD_FILE" || /bin/rm -f "$RECORD_TMP"
 		while IFS= read -r d; do [ -n "$d" ] && note "dropped record entry $d (no folder in $AVAILABLE_DIR)"; done <<<"$ghosts"
