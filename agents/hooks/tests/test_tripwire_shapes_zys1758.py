@@ -101,6 +101,10 @@ for _name, _cmd in INCIDENTS.items():
         "deny",
     )
     GUARD_CASES[f"omp-eval-sh-{_name}"] = (eval_sh(_cmd), "deny")
+    GUARD_CASES[f"native-brief-double-{_name}"] = (
+        omp_mcp(_cmd, "mcp__capability_agentmux__capability_run_command"),
+        "deny",
+    )
 GUARD_CASES.update(
     {
         "omp-eval-argv-no-verify": (
@@ -168,6 +172,10 @@ def test_rows_match_every_raw_run_command_name() -> None:
         "mcp__capability__agentmux_capability_run_command",
         "mcp__capability_agentmux_capability_run_command",
         "mcp__capability_always_on_agentmux_capability_run_command",
+        # The brief's spelling (double underscore after agentmux): absent from the
+        # evidence, but a native tool name of that form reached no tripwire row on
+        # the Mac (level-1 containment payloads 11-12, 2026-10-27).
+        "mcp__capability_agentmux__capability_run_command",
         "eval",
     }
     assert names <= _matcher("pretooluse-gate-bypass-tripwire")
