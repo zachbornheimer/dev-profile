@@ -39,7 +39,8 @@ check="$(pkl eval -x 'checks["brakeman"].check' profile.pkl)"
 run_check() {
 	local files="" f
 	for f in "$@"; do files+=" $(printf '%q' "$f")"; done
-	FIXTURE_ARGV="${work}/argv" PATH="${work}/bin:${PATH}" bash -c "${check//'{{files/}}'/${files# }}"
+	local placeholder='{{files}}'
+	FIXTURE_ARGV="${work}/argv" PATH="${work}/bin:${PATH}" bash -c "${check//"${placeholder}"/${files# }}"
 }
 
 run_check "app/models/a.rb" "app/my dir/b c.rb" || fail "check exited non-zero"
