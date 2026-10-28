@@ -276,15 +276,6 @@
       "installedAt": "2026-10-21T20:44:58.321Z",
       "updatedAt": "2026-10-21T20:44:58.321Z"
     },
-    "lavish": {
-      "source": "kunchenguid/lavish-axi",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/kunchenguid/lavish-axi.git",
-      "skillPath": "skills/lavish/SKILL.md",
-      "skillFolderHash": "680ba3c9c9480ae13b515ccf0ad2837957ba10e8",
-      "installedAt": "2026-10-21T20:45:36.225Z",
-      "updatedAt": "2026-10-21T20:45:36.225Z"
-    },
     "cache-architecture": {
       "source": "kunchenguid/quota-axi",
       "sourceType": "github",
@@ -536,6 +527,255 @@
       "skillFolderHash": "86f1fde92213de2a2de7bddf2028ca4e5481b2a5",
       "installedAt": "2026-10-25T22:13:58.741Z",
       "updatedAt": "2026-10-25T22:13:58.741Z"
+    },
+    "brand-guidelines": {
+      "source": "anthropics/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/anthropics/skills.git",
+      "skillPath": "skills/brand-guidelines/SKILL.md",
+      "skillFolderHash": "1dc8bd3584b80568edae7da16382363e24ecf0f0",
+      "pluginName": "example-skills",
+      "installedAt": "2026-10-28T17:12:13.622Z",
+      "updatedAt": "2026-10-28T17:12:13.622Z"
+    },
+    "canvas-design": {
+      "source": "anthropics/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/anthropics/skills.git",
+      "skillPath": "skills/canvas-design/SKILL.md",
+      "skillFolderHash": "95095faaee2ea943e85a5d1d562fde06841e835e",
+      "pluginName": "example-skills",
+      "installedAt": "2026-10-28T17:12:13.630Z",
+      "updatedAt": "2026-10-28T17:12:13.630Z"
+    },
+    "frontend-design": {
+      "source": "anthropics/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/anthropics/skills.git",
+      "skillPath": "skills/frontend-design/SKILL.md",
+      "skillFolderHash": "d79e2a5bb4df4a386c2adcdd9ab8709bba28c3f6",
+      "pluginName": "example-skills",
+      "installedAt": "2026-10-28T17:12:13.658Z",
+      "updatedAt": "2026-10-28T17:12:13.658Z"
+    },
+    "theme-factory": {
+      "source": "anthropics/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/anthropics/skills.git",
+      "skillPath": "skills/theme-factory/SKILL.md",
+      "skillFolderHash": "e05534d132fb1b21f9917840874758e30f0a9b1a",
+      "pluginName": "example-skills",
+      "installedAt": "2026-10-28T17:12:13.681Z",
+      "updatedAt": "2026-10-28T17:12:13.681Z"
+    },
+    "xlsx": {
+      "source": "anthropics/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/anthropics/skills.git",
+      "skillPath": "skills/xlsx/SKILL.md",
+      "skillFolderHash": "fe6471cc9b5b97aae0b576ccb92ffd9b0207589d",
+      "pluginName": "document-skills",
+      "installedAt": "2026-10-28T17:12:13.682Z",
+      "updatedAt": "2026-10-28T17:12:13.682Z"
+    },
+    "chrome-devtools-axi": {
+      "source": "kunchenguid/chrome-devtools-axi",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/kunchenguid/chrome-devtools-axi.git",
+      "skillPath": "skills/chrome-devtools-axi/SKILL.md",
+      "skillFolderHash": "741c529ebbdc9f62c9362593701a6968267af6e6",
+      "installedAt": "2026-10-28T17:12:21.357Z",
+      "updatedAt": "2026-10-28T17:12:21.357Z"
+    },
+    "mastra-factory": {
+      "source": "mastra-ai/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/mastra-ai/skills.git",
+      "skillPath": "skills/mastra-factory/SKILL.md",
+      "skillFolderHash": "e118437cef48a547cc97c8fbd06be3a680af7c4f",
+      "pluginName": "mastra-skills",
+      "installedAt": "2026-10-28T17:12:38.652Z",
+      "updatedAt": "2026-10-28T17:12:38.652Z"
+    },
+    "requesting-code-review": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/obra/superpowers.git",
+      "skillPath": "skills/requesting-code-review/SKILL.md",
+      "skillFolderHash": "f4a6749898702895ea4fd57c7f186cf43205b99a",
+      "installedAt": "2026-10-28T17:13:03.269Z",
+      "updatedAt": "2026-10-28T17:13:03.269Z"
+    },
+    "seo": {
+      "source": "AgriciDaniel/claude-seo",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/AgriciDaniel/claude-seo.git",
+      "skillPath": "skills/seo/SKILL.md",
+      "skillFolderHash": "3dba76438de86006e7297b5fb7bc4390fa700f4d",
+      "installedAt": "2026-10-28T17:13:51.316Z",
+      "updatedAt": "2026-10-28T17:13:51.316Z"
+    },
+    "seo-audit": {
+      "source": "AgriciDaniel/claude-seo",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/AgriciDaniel/claude-seo.git",
+      "skillPath": "skills/seo-audit/SKILL.md",
+      "skillFolderHash": "2f7690870846be5469f16f17cdea0530df44b5cb",
+      "installedAt": "2026-10-28T17:13:51.317Z",
+      "updatedAt": "2026-10-28T17:13:51.317Z"
+    },
+    "seo-backlinks": {
+      "source": "AgriciDaniel/claude-seo",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/AgriciDaniel/claude-seo.git",
+      "skillPath": "skills/seo-backlinks/SKILL.md",
+      "skillFolderHash": "567483c9baa6880f18e79f0827518f6429d26988",
+      "installedAt": "2026-10-28T17:13:51.318Z",
+      "updatedAt": "2026-10-28T17:13:51.318Z"
+    },
+    "seo-competitor-pages": {
+      "source": "AgriciDaniel/claude-seo",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/AgriciDaniel/claude-seo.git",
+      "skillPath": "skills/seo-competitor-pages/SKILL.md",
+      "skillFolderHash": "9a5f3f6c0b01c4e7de66ca592a948231f2ba39ac",
+      "installedAt": "2026-10-28T17:13:51.318Z",
+      "updatedAt": "2026-10-28T17:13:51.318Z"
+    },
+    "seo-content": {
+      "source": "AgriciDaniel/claude-seo",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/AgriciDaniel/claude-seo.git",
+      "skillPath": "skills/seo-content/SKILL.md",
+      "skillFolderHash": "414206793ae64ce3322ede006189c7f874d6f0d0",
+      "installedAt": "2026-10-28T17:13:51.318Z",
+      "updatedAt": "2026-10-28T17:13:51.318Z"
+    },
+    "seo-dataforseo": {
+      "source": "AgriciDaniel/claude-seo",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/AgriciDaniel/claude-seo.git",
+      "skillPath": "skills/seo-dataforseo/SKILL.md",
+      "skillFolderHash": "9d89d0217c15a1d60f6e0378e9635a745224f036",
+      "installedAt": "2026-10-28T17:13:51.319Z",
+      "updatedAt": "2026-10-28T17:13:51.319Z"
+    },
+    "seo-geo": {
+      "source": "AgriciDaniel/claude-seo",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/AgriciDaniel/claude-seo.git",
+      "skillPath": "skills/seo-geo/SKILL.md",
+      "skillFolderHash": "7d2a5b98def25b81004ff45504697ec2af6c0131",
+      "installedAt": "2026-10-28T17:13:51.319Z",
+      "updatedAt": "2026-10-28T17:13:51.319Z"
+    },
+    "seo-google": {
+      "source": "AgriciDaniel/claude-seo",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/AgriciDaniel/claude-seo.git",
+      "skillPath": "skills/seo-google/SKILL.md",
+      "skillFolderHash": "73136ebeaa9bcef787a3923fdcd4a74b7c7acfc4",
+      "installedAt": "2026-10-28T17:13:51.320Z",
+      "updatedAt": "2026-10-28T17:13:51.320Z"
+    },
+    "seo-hreflang": {
+      "source": "AgriciDaniel/claude-seo",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/AgriciDaniel/claude-seo.git",
+      "skillPath": "skills/seo-hreflang/SKILL.md",
+      "skillFolderHash": "a1a467cc52a580f600cfa7702a4568df737f5b1d",
+      "installedAt": "2026-10-28T17:13:51.320Z",
+      "updatedAt": "2026-10-28T17:13:51.320Z"
+    },
+    "seo-image-gen": {
+      "source": "AgriciDaniel/claude-seo",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/AgriciDaniel/claude-seo.git",
+      "skillPath": "skills/seo-image-gen/SKILL.md",
+      "skillFolderHash": "fe38c30e95ed5c6c35bce08b08716c50e4cd18cd",
+      "installedAt": "2026-10-28T17:13:51.321Z",
+      "updatedAt": "2026-10-28T17:13:51.321Z"
+    },
+    "seo-images": {
+      "source": "AgriciDaniel/claude-seo",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/AgriciDaniel/claude-seo.git",
+      "skillPath": "skills/seo-images/SKILL.md",
+      "skillFolderHash": "b736a6bec663ee1106352a5efa2e65807d046aa9",
+      "installedAt": "2026-10-28T17:13:51.321Z",
+      "updatedAt": "2026-10-28T17:13:51.321Z"
+    },
+    "seo-local": {
+      "source": "AgriciDaniel/claude-seo",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/AgriciDaniel/claude-seo.git",
+      "skillPath": "skills/seo-local/SKILL.md",
+      "skillFolderHash": "71d91412348f58f692abafff1bd6d31cac83d87b",
+      "installedAt": "2026-10-28T17:13:51.322Z",
+      "updatedAt": "2026-10-28T17:13:51.322Z"
+    },
+    "seo-maps": {
+      "source": "AgriciDaniel/claude-seo",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/AgriciDaniel/claude-seo.git",
+      "skillPath": "skills/seo-maps/SKILL.md",
+      "skillFolderHash": "d3ff6a9fd9cb4c60812428bcf8c103abfdd1fd9f",
+      "installedAt": "2026-10-28T17:13:51.322Z",
+      "updatedAt": "2026-10-28T17:13:51.322Z"
+    },
+    "seo-page": {
+      "source": "AgriciDaniel/claude-seo",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/AgriciDaniel/claude-seo.git",
+      "skillPath": "skills/seo-page/SKILL.md",
+      "skillFolderHash": "ad8c90a09e278ef5a7e288c810da0b7ac6885ec4",
+      "installedAt": "2026-10-28T17:13:51.322Z",
+      "updatedAt": "2026-10-28T17:13:51.322Z"
+    },
+    "seo-plan": {
+      "source": "AgriciDaniel/claude-seo",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/AgriciDaniel/claude-seo.git",
+      "skillPath": "skills/seo-plan/SKILL.md",
+      "skillFolderHash": "15b2b3606d5e867e135a8c8551ea82d344a6da8f",
+      "installedAt": "2026-10-28T17:13:51.323Z",
+      "updatedAt": "2026-10-28T17:13:51.323Z"
+    },
+    "seo-programmatic": {
+      "source": "AgriciDaniel/claude-seo",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/AgriciDaniel/claude-seo.git",
+      "skillPath": "skills/seo-programmatic/SKILL.md",
+      "skillFolderHash": "00cf04b8ce5631f05f99f3bb23e4079cb864db87",
+      "installedAt": "2026-10-28T17:13:51.323Z",
+      "updatedAt": "2026-10-28T17:13:51.323Z"
+    },
+    "seo-schema": {
+      "source": "AgriciDaniel/claude-seo",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/AgriciDaniel/claude-seo.git",
+      "skillPath": "skills/seo-schema/SKILL.md",
+      "skillFolderHash": "21855890d58c26d77950b2aa8d000d75ac5aa439",
+      "installedAt": "2026-10-28T17:13:51.323Z",
+      "updatedAt": "2026-10-28T17:13:51.323Z"
+    },
+    "seo-sitemap": {
+      "source": "AgriciDaniel/claude-seo",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/AgriciDaniel/claude-seo.git",
+      "skillPath": "skills/seo-sitemap/SKILL.md",
+      "skillFolderHash": "890c7637b8d7dad53ae1b0e19060b3e5e3fdaefd",
+      "installedAt": "2026-10-28T17:13:51.323Z",
+      "updatedAt": "2026-10-28T17:13:51.323Z"
+    },
+    "seo-technical": {
+      "source": "AgriciDaniel/claude-seo",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/AgriciDaniel/claude-seo.git",
+      "skillPath": "skills/seo-technical/SKILL.md",
+      "skillFolderHash": "088441f497e2228d7cff15f2bca2664668295cff",
+      "installedAt": "2026-10-28T17:13:51.324Z",
+      "updatedAt": "2026-10-28T17:13:51.324Z"
     }
   }
 }

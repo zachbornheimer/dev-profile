@@ -19,6 +19,7 @@ bash "$root/tests/pre-push-empty-file-list-fixture.sh" >/dev/null || fail "pre-p
 bash "$root/tests/semgrep-fixture.sh" >/dev/null || fail "semgrep fixture"
 bash "$root/tests/dev-family-fixture.sh" "$root" >/dev/null || fail "dev-family fixture"
 bash "$root/tests/commit-fix-fixture.sh" "$root" >/dev/null || fail "commit-fix fixture"
+bash "$root/tests/skills-sync-fixture.sh" >/dev/null || fail "skills sync fixture"
 for f in "$root"/bin/*; do
 	bash -n "$f" || fail "bin/${f##*/}"
 done

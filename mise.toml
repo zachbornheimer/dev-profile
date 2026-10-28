@@ -10,9 +10,10 @@ DEV_PROFILE_BACKUPS = "{{env.HOME}}/.local/state/dev-profile/backups"
 "brew:git" = "latest"
 
 [tasks.setup]
-description = "Link the global mise config, then apply the dotfiles it declares"
+description = "Link the global mise config, apply the dotfiles it declares, then install the recorded upstream skills"
 # Two runs: the first links ~/.config/mise/config.toml; a fresh mise process then reads its table.
-run = ["mise dot apply --yes", "mise dot apply --yes"]
+# Upstream skills are not committed; aubx-skills installs them from agents/available-skills/.skill-lock.json.
+run = ["mise dot apply --yes", "mise dot apply --yes", "~/.agents/bin/aubx-skills sync"]
 
 [tasks.doctor]
 description = "Syntax-check the files this branch installs"

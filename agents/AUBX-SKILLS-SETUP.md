@@ -20,6 +20,15 @@
 3. **Symlink Creation**: Creates symlinks in various agent skill roots pointing to the central location
 4. **Atomic Updates**: Uses file locking to prevent concurrent modification issues
 
+## Upstream Skills Are Installed, Not Committed
+
+- `.skill-lock.json` is committed. Every `github` entry in it is an upstream skill.
+- `available-skills/.gitignore` is generated from that record by every `add`, `update`, `remove` and `sync`, so upstream skill folders are never committed. Skills written here (no `github` entry) stay tracked.
+- `aubx-skills sync` installs each recorded upstream skill whose folder is missing, one installer run per source.
+- After a pull (merge or rebase) or checkout in the dev-profile checkout, the global git hook `hook.agents-skills-sync` (`hooks/skills-sync-on-pull`) runs `sync` in the background; its log is `~/.local/state/dev-profile/skills-sync.log`. `mise run setup` runs `sync` on a fresh machine.
+- A skill copied from upstream and then edited by hand (for example `lavish`) has no record entry and is committed, so `update` never overwrites the edits.
+- `tests/skills-sync-fixture.sh` covers sync, the ignore list and the hook with a stub installer.
+
 ## Environment Variables
 
 - `AGENTS_HOME`: Defaults to `$HOME/.agents` (no override needed)
@@ -43,31 +52,37 @@ PATH: ~/.local/bin is configured in .zprofile
 ## Usage
 
 ### Add a skill globally
+
 ```bash
 aubx-skills add vercel-labs/agent-skills --skill deploy-to-vercel -g -y
 ```
 
 ### Update all global skills
+
 ```bash
 aubx-skills update -g
 ```
 
 ### Update specific skills
+
 ```bash
 aubx-skills update -g skill-name
 ```
 
 ### List installed skills
+
 ```bash
 aubx-skills list
 ```
 
 ### Remove a skill
+
 ```bash
 aubx-skills remove skill-name -g -y
 ```
 
 ### Dry run (test without changes)
+
 ```bash
 aubx-skills --dry-run add <package> --skill <skill-name> -g
 ```
@@ -107,6 +122,7 @@ aubx-skills --dry-run add <package> --skill <skill-name> -g
 ## Troubleshooting
 
 ### aubx-skills not found
+
 ```bash
 # Check symlink
 ls -la ~/.local/bin/aubx-skills
@@ -119,11 +135,13 @@ export PATH="$HOME/.local/bin:$PATH"
 ```
 
 ### Skills not appearing in agent
+
 1. Check if skill is in available-skills: `ls ~/.agents/available-skills/`
 2. Check if symlink exists: `ls -la ~/.claude/skills/skill-name`
 3. Verify agent configuration loads from correct skills directory
 
 ### Lock file issues
+
 ```bash
 # If stale lock exists (>120 seconds old)
 rm -rf ~/.agents/available-skills/.skill-lock.lock

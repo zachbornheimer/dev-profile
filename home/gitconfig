@@ -96,3 +96,11 @@
 [hook "wt-worktree-bootstrap"]
 	command = /Users/zbornheimer/.agents/hooks/wt-post-checkout
 	event = post-checkout
+# Upstream agent skills are installed from agents/available-skills/.skill-lock.json, not
+# committed. After a pull (merge or rebase) or checkout in the dev-profile checkout, install
+# any the record names that are missing; every other repo returns at once.
+[hook "agents-skills-sync"]
+	command = \"$HOME/.agents/hooks/skills-sync-on-pull\"
+	event = post-merge
+	event = post-rewrite
+	event = post-checkout

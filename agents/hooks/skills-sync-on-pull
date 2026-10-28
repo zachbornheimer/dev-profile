@@ -1,0 +1,33 @@
+#!/bin/bash
+# git post-merge / post-checkout / post-rewrite: after a pull, rebase or
+# checkout of the checkout that backs ~/.agents, install every upstream skill
+# its record (available-skills/.skill-lock.json) names but the tree lacks.
+# Upstream skills are not committed (available-skills/.gitignore is generated
+# from the record), so this is how a pull or a fresh clone gets them back.
+#
+# Registered globally in ~/.gitconfig as hook.agents-skills-sync. Every other
+# repository returns at once. The install runs in the background so a pull
+# never waits on the network; its output goes to the log named below.
+top="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
+agents_home="${AGENTS_HOME:-$HOME/.agents}"
+[ -d "$top/agents" ] && [ -d "$agents_home" ] || exit 0
+[ "$(cd "$top/agents" && pwd -P)" = "$(cd "$agents_home" && pwd -P)" ] || exit 0
+record="$agents_home/available-skills/.skill-lock.json"
+[ -f "$record" ] || exit 0
+command -v jq >/dev/null 2>&1 || exit 0
+
+missing="$(jq -r '.skills | to_entries[] | select(.value.sourceType == "github") | .key' "$record" |
+	while read -r name; do
+		[ -f "$agents_home/available-skills/$name/SKILL.md" ] || printf '%s\n' "$name"
+	done)"
+[ -n "$missing" ] || exit 0
+
+log="${XDG_STATE_HOME:-$HOME/.local/state}/dev-profile/skills-sync.log"
+mkdir -p "$(dirname "$log")"
+count="$(printf '%s\n' "$missing" | wc -l | tr -d ' ')"
+echo "agents: installing ${count} recorded skill(s) in the background; log: ${log}" >&2
+(
+	cd "$HOME" || exit 0
+	AGENTS_HOME="$agents_home" nohup "$agents_home/bin/aubx-skills" sync >>"$log" 2>&1 &
+)
+exit 0
