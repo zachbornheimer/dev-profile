@@ -17,8 +17,11 @@ bash "$root/tests/hook-path-free.sh" >/dev/null || fail "hook path fixture"
 bash "$root/tests/ban-trunk-prettier-fixture.sh" >/dev/null || fail "ban-trunk-prettier fixture"
 bash "$root/tests/pre-push-empty-file-list-fixture.sh" >/dev/null || fail "pre-push empty file list fixture"
 bash "$root/tests/semgrep-fixture.sh" >/dev/null || fail "semgrep fixture"
+bash "$root/tests/dev-family-fixture.sh" "$root" >/dev/null || fail "dev-family fixture"
+bash "$root/tests/commit-fix-fixture.sh" "$root" >/dev/null || fail "commit-fix fixture"
 for f in "$root"/bin/*; do
 	bash -n "$f" || fail "bin/${f##*/}"
 done
+node --check "$root/dev-relay.mjs" || fail dev-relay.mjs
 [ -f "$root/config/personal-overlay.toml" ] || fail config/personal-overlay.toml
 echo "ok"

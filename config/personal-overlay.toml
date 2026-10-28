@@ -136,8 +136,13 @@ description = "Start this checkout's dev stack if it is down; idempotent, never 
 dir = "{{cwd}}"
 run = "dev-profile-dev start"
 
+[tasks."dev:stop"]
+description = "Stop this checkout's dev stack (also run by the stack itself after a day without a request)"
+dir = "{{cwd}}"
+run = "dev-profile-dev stop"
+
 [tasks."dev:restart"]
-description = "Stop this checkout's dev stack, then start it (the only verb that kills)"
+description = "Stop this checkout's dev stack, then start it"
 dir = "{{cwd}}"
 run = "dev-profile-dev restart"
 

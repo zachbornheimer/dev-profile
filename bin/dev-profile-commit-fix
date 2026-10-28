@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+set -euo pipefail
+real_wt() {
+	local dir cand self_dir rest
+	self_dir=$(cd "$(dirname "$0")" && pwd -P) || return 127
+	rest=$PATH
+	while [ -n "$rest" ]; do
+		dir=${rest%%:*}
+		case $rest in
+		*:*) rest=${rest#*:} ;;
+		*) rest= ;;
+		esac
+		[ -n "$dir" ] || continue
+		cand=$dir/wt
+		[ -x "$cand" ] || continue
+		[ "$cand" -ef "$self_dir/wt" ] && continue
+		printf '%s\n' "$cand"
+		return 0
+	done
+	printf '%s\n' 'wt: no worktrunk binary on PATH' >&2
+	return 127
+}
+real=$(real_wt) || exit $?
+status=0
+"$real" "$@" || status=$?
+if [ "$status" -ne 0 ]; then
+	notice="wt step commit failed. Running: omp @task 'We were unable to run wt step commit due to errors. please fix, and then commit with wt step commit.'"
+	zsh -fc 'print -ru2 -- "$1"' _ "$notice" || printf '%s\n' "$notice" >&2
+	exec omp @task 'We were unable to run wt step commit due to errors. please fix, and then commit with wt step commit.'
+fi
+exit 0

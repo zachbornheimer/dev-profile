@@ -12,6 +12,7 @@
 !/.github/zizmor.yml
 !/profile.pkl
 !/conform.lua
+!/dev-relay.mjs
 !/lib/
 !/lib/*.pkl
 !/tools/
