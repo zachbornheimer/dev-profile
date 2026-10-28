@@ -1,35 +1,50 @@
 #!/usr/bin/env bash
 # UserPromptSubmit hook: batches prompt-level questions, then runs the intent, project and suggestion capabilities.
-# It returns intent/project text followed by the skill capability's XML context, so the agent receives
-# each selected skill's path and description. A repeat of the same suggestions in one session (or a block
-# over the size cap) is emitted as a names-only pointer instead of the full block. The per-session
-# skill-picks JSON is a fallback, not the injection path.
+# It returns the session's scope line, intent/project text and the suggester's XML context: at most 5 skills (name and
+# one line) and 3 tool cards, 3,000 characters in all, so nothing here shortens or drops a block for size. The block's
+# description tells the agent to reach skills via skill_search and tool_call({ address: "skill/<name>" }), tools via
+# tool_search and tool_call({ address, args }). The same set repeated in one session is emitted as a names-only pointer.
+# The per-session skill-picks JSON is a fallback, not the injection path.
 # One prompt_submit_questions answer map is forwarded to the frustration and dictation consumers; they do not re-ask.
 # The capability runtime calls model APIs or the local proxy; this hook never starts a harness session.
 # Each capability declares the access it needs (tools, mcp, hooks) in its definition; the runtime grants only that.
 #
 # stdin:  the harness hook payload (UserPromptSubmit JSON: prompt, session_id, cwd)
-# stdout: one hookSpecificOutput JSON with intent/project context followed by the raw skill XML, or nothing
+# stdout: one hookSpecificOutput JSON with the scope, intent and project lines followed by the skill XML
+#         (tool suggestions as gateway tool_call cards), or nothing
 # A hook must never block a prompt: every failure prints nothing and exits 0.
 #
 #   prompt-submit-capabilities.sh              run as a hook
-#   prompt-submit-capabilities.sh --self-test  run on a fixed prompt, assert the output shape and that no
-#                                              harness or MCP child process appeared; prints "ok"
+#   prompt-submit-capabilities.sh --self-test  run the whole hook on a fixed prompt against stub capabilities (5 skills,
+#                                              3 tool cards): assert the context shape, its size, its wording, the
+#                                              repeat pointer and the unavailable notice, and that no harness or MCP
+#                                              child process appeared; prints "ok". SELF_TEST_SHOW_CONTEXT=1 prints it.
 set -uo pipefail
 
 readonly KEYS_FILE="$HOME/.cache/ai/keys.env"
 readonly NESTED_RUN_GUARD="$HOME/.agents/hooks/nested-run-guard.sh"
 readonly SKILL_PICKS_DIR="$HOME/.agents/hooks/state/skill-picks"
 readonly SUGGEST_STATE_DIR="$HOME/.agents/hooks/state/suggest-context"
-readonly CAPABILITY_BIN_DIR="$HOME/.local/share/aube/bin"
+# The self-test points this at a directory holding a stub `capability`; nothing else sets it.
+readonly CAPABILITY_BIN_DIR="${CAPABILITY_BIN_DIR:-$HOME/.local/share/aube/bin}"
 readonly CAPABILITY_WALL_SECONDS=20
 readonly MODEL_TIMEOUT_MS=15000
 readonly PROMPT_MAX_CHARS=4000
-readonly SUGGEST_CAP_CHARS=8192
 readonly MAX_INTENT_PARTS=3
 readonly SELF_TEST_PROMPT="fix the flaky test in the cache module"
 readonly SELF_TEST_POLL_SECONDS=0.1
 readonly SELF_TEST_WALL_SECONDS=$((CAPABILITY_WALL_SECONDS + 10))
+readonly SELF_TEST_CONTEXT_MAX_CHARS=3500
+readonly SELF_TEST_SKILLS=5
+readonly SELF_TEST_TOOL_CARDS=3
+# What the agent is told, word for word, about reaching skills and tools; and the tools it must no longer be sent to.
+readonly -a SELF_TEST_REQUIRED_WORDING=(
+	'skill_search'
+	'tool_call({ address: "skill/<name>" })'
+	'tool_search'
+	'tool_call({ address, args })'
+)
+readonly SELF_TEST_RETIRED_WORDING='read_skill|find_skills|search_tools'
 # Commands that mean a harness session or an MCP gateway started under the hook.
 readonly FORBIDDEN_CHILD_PATTERN='(^|/| )(grok|claude --print|claude -p|codex exec|docker mcp|chrome-devtools)'
 readonly SELF="${BASH_SOURCE[0]}"
@@ -96,6 +111,13 @@ project_line() {
     | "Project: \($name) (p=\($probability))"' "$1" 2>/dev/null
 }
 
+# The scope the MCP header carries for this session — omp writes `omp-<session_id>` into `x-scope` —
+# beside the working directory it started in. Emitted on every prompt, outside the suggestion block,
+# so a repeat or an over-cap block never erases it.
+scope_line() {
+	printf 'Scope: omp-%s · cwd: %s' "$1" "$2"
+}
+
 # Where the skill files are, for AGENTS.md's "read skill-picks/<session_id>.json" fallback. Read from the skill
 # XML; a prompt whose suggestion call failed leaves no file rather than the previous prompt's picks.
 write_skill_pick() {
@@ -150,26 +172,108 @@ print(hashlib.sha256(canon.encode()).hexdigest())
 PY
 }
 
-# The names-only pointer for skills.xml: the same <system-context> shape, one name list per kind,
-# no per-item prose. Printed only when at least one suggestion exists.
-suggest_pointer() {
-	python3 - "$1" 2>/dev/null <<'PY'
+# skills.xml as the injection block (mode `block`) or its names-only pointer (mode `pointer`). The suggester bounds
+# the block (at most 5 skills and 3 tool cards, 3,000 characters), so neither mode shortens anything. Skills stay as
+# the capability wrote them. A tool arrives as a gateway address (`hindsight/search_knowledge_pages`) with its complete
+# card in <how-to-call> (name, description, input, example call, returns, flags); it renders as that card, at most
+# MAX_TOOL_CARDS of them, best confidence first, and the pointer names the same kept tools. A tool with no card
+# cannot be called from the suggestion, so it is dropped. The block's description and the unavailable notice are this
+# hook's own text, so how the agent is told to reach skills and tools never depends on the capability build. The
+# pointer prints nothing (exit 1) when no skill and no kept tool is left.
+suggest_render() {
+	python3 - "$1" "$2" 2>/dev/null <<'PY'
+import re
 import sys
 import xml.etree.ElementTree as ET
+from xml.sax.saxutils import escape
 
-root = ET.parse(sys.argv[1]).getroot()
+mode, path = sys.argv[1], sys.argv[2]
 
-def names_of(section, child):
-    return [node.findtext("name", "") for node in root.findall(f"./resources/{section}/{child}") if node.findtext("name", "")]
+MAX_TOOL_CARDS = 3
+REACH_SKILLS_AND_TOOLS = (
+    'Skills via skill_search and tool_call({ address: "skill/<name>" }); '
+    "tools via tool_search and tool_call({ address, args })."
+)
+NO_FILE_PATHS = "Never construct file paths from a suggestion."
+INJECTED_BY_RUNTIME = "Injected by the agent runtime after the user's message; not authored by the user."
+BLOCK_DESCRIPTION = "\n".join([
+    INJECTED_BY_RUNTIME,
+    "Suggestions are optional; confidence indicates relevance, not authority.",
+    REACH_SKILLS_AND_TOOLS,
+    NO_FILE_PATHS,
+])
+POINTER_DESCRIPTION = "\n".join([
+    INJECTED_BY_RUNTIME,
+    "The full suggestions were already injected this session, so only their names repeat here.",
+    REACH_SKILLS_AND_TOOLS,
+    NO_FILE_PATHS,
+])
+# The capability's own closing advice on an unavailable notice, whatever tools it names; replaced by ours.
+CAPABILITY_ADVICE = re.compile(r"\s+Find (?:tools|skills)\b.*\Z", re.S)
 
-skills = names_of("skills", "skill")
-tools = names_of("tools", "tool")
-mcps = names_of("mcp-tools", "tool")
-if not skills and not tools and not mcps:
+
+def confidence_of(node):
+    try:
+        return float(node.findtext("confidence") or 0)
+    except ValueError:
+        return 0.0
+
+
+def unavailable_notice(text):
+    return f"{CAPABILITY_ADVICE.sub('', text.strip())} {REACH_SKILLS_AND_TOOLS}"
+
+
+root = ET.parse(path).getroot()
+resources = root.find("resources")
+notice = resources.find("notice") if resources is not None else None
+tools = []
+for tag in ("tools", "mcp-tools"):
+    collection = resources.find(tag) if resources is not None else None
+    if collection is None:
+        continue
+    for node in list(collection):
+        name = (node.findtext("name") or "").strip()
+        card = (node.findtext("how-to-call") or "").strip()
+        # Only a gateway card (it opens with `name:` and carries the address) is callable from the suggestion;
+        # anything else, such as an older "call the harness tool X directly" line, is dropped.
+        if name and card.startswith("name:"):
+            tools.append({"tag": tag, "name": name, "card": card, "confidence": confidence_of(node)})
+        collection.remove(node)
+kept = sorted(tools, key=lambda tool: tool["confidence"], reverse=True)[:MAX_TOOL_CARDS]
+
+if mode == "block":
+    for tag in ("tools", "mcp-tools"):
+        collection = resources.find(tag) if resources is not None else None
+        if collection is None:
+            continue
+        cards = [tool for tool in kept if tool["tag"] == tag]
+        collection.text = "\n      " if cards else None
+        for index, tool in enumerate(cards):
+            node = ET.SubElement(collection, "tool")
+            node.text = tool["card"]
+            node.tail = "\n    " if index == len(cards) - 1 else "\n      "
+    description = root.find("description")
+    if description is None:
+        description = ET.Element("description")
+        root.insert(0, description)
+    description.text = f"\n{BLOCK_DESCRIPTION}\n  "
+    if notice is not None:
+        notice.text = unavailable_notice(notice.text or "")
+    # ElementTree escapes < and > in text; the agent reads the call forms as written.
+    print(ET.tostring(root, encoding="unicode").replace(escape(REACH_SKILLS_AND_TOOLS), REACH_SKILLS_AND_TOOLS))
+    sys.exit(0)
+
+skills = [name for name in (node.findtext("name", "").strip() for node in root.findall("./resources/skills/skill")) if name]
+names = {tag: [tool["name"] for tool in kept if tool["tag"] == tag] for tag in ("tools", "mcp-tools")}
+if root.get("status") == "unavailable" and notice is not None and (notice.text or "").strip():
+    # A degraded run is never silent, even on a repeat: name the outage instead of dropping the block.
+    print(unavailable_notice(notice.text))
+    sys.exit(0)
+if not skills and not names["tools"] and not names["mcp-tools"]:
     sys.exit(1)
 
-def line(tag, names):
-    return f"    <{tag}>{', '.join(names)}</{tag}>" if names else f"    <{tag} />"
+def line(tag, values):
+    return f"    <{tag}>{', '.join(values)}</{tag}>" if values else f"    <{tag} />"
 
 print("\n".join([
     "<system-context",
@@ -178,19 +282,12 @@ print("\n".join([
     '  mode="pointer"',
     ">",
     "  <description>",
-    "This context was automatically injected by the agent runtime",
-    "after the user's message. It was not authored by the user.",
-    "",
-    "The full suggestions were already injected this session (or exceed the",
-    "size cap), so only their names repeat here.",
-    "Open a suggested skill with read_skill (pass the bare name), or search",
-    "for more with find_skills — never construct file paths from a suggestion.",
-    "Load a suggested tool with search_tools (pass its name), then call it.",
+    POINTER_DESCRIPTION,
     "  </description>",
     "  <resources>",
     line("skills", skills),
-    line("tools", tools),
-    line("mcp-tools", mcps),
+    line("tools", names["tools"]),
+    line("mcp-tools", names["mcp-tools"]),
     "  </resources>",
     "</system-context>",
 ]))
@@ -198,22 +295,23 @@ PY
 }
 
 emit_context() {
-	local dir="$1" session="$2" lines="" line xml pointer=""
-	for line in "$(intent_line "$dir/intent.json")" "$(project_line "$dir/project.json")"; do
+	local dir="$1" session="$2" cwd="$3" lines="" line xml block pointer=""
+	for line in "$(intent_line "$dir/intent.json")" "$(project_line "$dir/project.json")" "$(scope_line "$session" "$cwd")"; do
 		[[ -n "$line" ]] && lines+="${lines:+$'\n'}$line"
 	done
 	xml="$(cat "$dir/skills.xml" 2>/dev/null)"
 	if [[ "$xml" == '<system-context'* ]]; then
 		local hash prior
+		block="$(suggest_render block "$dir/skills.xml")"
 		hash="$(suggest_fingerprint "$dir/skills.xml")"
 		prior="$(last_suggest_hash "$session")"
-		if [[ -n "$hash" && ("$prior" == "$hash" || ${#xml} -gt $SUGGEST_CAP_CHARS) ]]; then
-			pointer="$(suggest_pointer "$dir/skills.xml")"
+		if [[ -n "$hash" && "$prior" == "$hash" ]]; then
+			pointer="$(suggest_render pointer "$dir/skills.xml")"
 		fi
 		if [[ -n "$pointer" ]]; then
 			lines+="${lines:+$'\n'}$pointer"
-		else
-			lines+="${lines:+$'\n'}$xml"
+		elif [[ -n "$block" ]]; then
+			lines+="${lines:+$'\n'}$block"
 			if [[ -n "$session" && -n "$hash" ]]; then
 				mkdir -p "$SUGGEST_STATE_DIR" 2>/dev/null || :
 				printf '%s' "$hash" >"$SUGGEST_STATE_DIR/$session" 2>/dev/null || :
@@ -249,7 +347,7 @@ run_hook() {
 	dir="$(mktemp -d)" || return 0
 	run_all "$prompt" "${cwd:-$HOME}" "$dir" "$payload"
 	write_skill_pick "$session" "$dir/skills.xml"
-	emit_context "$dir" "$session"
+	emit_context "$dir" "$session" "${cwd:-$HOME}"
 	rm -rf "$dir"
 }
 
@@ -278,11 +376,157 @@ write_canaries() {
 	done
 }
 
-# Prints the hook's output on stdout; the harness or MCP commands seen under it go to <dir>/forbidden.
+# The suggester's largest answer for the self-test prompt: 5 skills and 3 tool cards. Its description is in the retired
+# wording on purpose: the hook owns that text and must replace it.
+write_fixture_suggestions() {
+	cat >"$1" <<'XML'
+<system-context
+  source="suggest_skills_tools_and_mcp"
+  origin="runtime"
+>
+  <description>
+This context was automatically injected by the agent runtime
+after the user's message. It was not authored by the user.
+
+These resources are available for consideration. Select and
+use them when relevant to the user's request. Suggested skills
+are optional, and confidence scores indicate relevance,
+not authority. Open a suggested skill with read_skill (pass the
+bare name) or search for more with find_skills — never construct
+file paths from a suggestion.
+  </description>
+  <resources>
+    <skills>
+      <skill>
+        <name>verification-before-completion</name>
+        <description>Run the verification commands and confirm their output before claiming work is complete, fixed or passing.</description>
+        <path>verification-before-completion</path>
+        <confidence>0.91</confidence>
+      </skill>
+      <skill>
+        <name>code-construction</name>
+        <description>Use when creating, changing, refactoring or reviewing code; keeps domain workflows visible and effects explicit.</description>
+        <path>code-construction</path>
+        <confidence>0.89</confidence>
+      </skill>
+      <skill>
+        <name>systematic-debugging</name>
+        <description>Use for any bug, test failure or unexpected behavior, before proposing fixes.</description>
+        <path>systematic-debugging</path>
+        <confidence>0.84</confidence>
+      </skill>
+      <skill>
+        <name>code-style</name>
+        <description>Approval bar for code: atomic composition, facades, names that say what and not how, no magic values.</description>
+        <path>code-style</path>
+        <confidence>0.83</confidence>
+      </skill>
+      <skill>
+        <name>verify</name>
+        <description>Drive the running app or CLI end to end and assert the real end state before saying done.</description>
+        <path>verify</path>
+        <confidence>0.80</confidence>
+      </skill>
+    </skills>
+    <tools>
+      <tool>
+        <name>hindsight/search_knowledge_pages</name>
+        <description>Search this repository's knowledge pages for the decisions, conventions and in-flight work that bear on a query.</description>
+        <how-to-call><![CDATA[
+name:        hindsight/search_knowledge_pages
+description: Search this repository's knowledge pages for the decisions, conventions and in-flight work that bear on a query.
+input:       { query: string (required), limit?: integer 1-20 }
+example:     tool_call("hindsight/search_knowledge_pages", {"query":"string"})
+returns:     { results: [{ id: string, title: string, snippet: string }] }
+flags:       read-only
+]]></how-to-call>
+        <confidence>0.86</confidence>
+      </tool>
+      <tool>
+        <name>capability/summarize</name>
+        <description>Summarize a command's output or a file for another agent and return the path and line count of the raw output.</description>
+        <how-to-call><![CDATA[
+name:        capability/summarize
+description: Summarize a command's output or a file for another agent and return the path and line count of the raw output.
+input:       { text: string (required), purpose?: string }
+example:     tool_call("capability/summarize", {"text":"string"})
+returns:     { summary: string, path: string, lines: integer }
+flags:       read-only
+]]></how-to-call>
+        <confidence>0.82</confidence>
+      </tool>
+    </tools>
+    <mcp-tools>
+      <tool>
+        <name>linear/save_issue</name>
+        <description>Create or update a Linear issue; pass id to update, otherwise team and title create one.</description>
+        <how-to-call><![CDATA[
+name:        linear/save_issue
+description: Create or update a Linear issue; pass id to update, otherwise team and title create one.
+input:       { id?: string, team?: string, title?: string, description?: string }
+example:     tool_call("linear/save_issue", {})
+returns:     { id: string, url: string }
+flags:       writes
+]]></how-to-call>
+        <confidence>0.78</confidence>
+      </tool>
+    </mcp-tools>
+  </resources>
+</system-context>
+XML
+}
+
+# A degraded run: the suggester could not judge, so it says so in a notice (in the retired wording again).
+write_fixture_unavailable() {
+	cat >"$1" <<'XML'
+<system-context
+  source="suggest_skills_tools_and_mcp"
+  origin="runtime"
+  status="unavailable"
+>
+  <description>
+This context was automatically injected by the agent runtime
+after the user's message. It was not authored by the user.
+  </description>
+  <resources>
+    <notice status="unavailable">Recommendations are unavailable this turn (judge timed out). Find tools with tool_search and skills with find_skills.</notice>
+    <skills />
+    <tools />
+    <mcp-tools />
+  </resources>
+</system-context>
+XML
+}
+
+# A `capability` that answers from the fixtures in <dir>, and the consumer hook's answer command, so the self-test
+# needs no model, no network and no installed runtime.
+write_stubs() {
+	local dir="$1" no_answers='{"output":{"answers":{}}}'
+	mkdir -p "$dir/bin"
+	printf '%s' '{"output":{"Parts":[{"Type":{"Value":"task"},"Intent":{"Value":"fix"}}]}}' >"$dir/intent.json"
+	printf '%s' '{"output":{"ProjectName":"agent-hooks","NeedsNewProject":false,"Probabilities":{"agent-hooks":0.39}}}' \
+		>"$dir/project.json"
+	cat >"$dir/bin/capability" <<STUB
+#!/bin/sh
+case "\$2" in
+prompt_submit_questions) echo '$no_answers' ;;
+identify_intent) cat "$dir/intent.json" ;;
+select_project) cat "$dir/project.json" ;;
+suggest_skills_tools_and_mcp) cat "$dir/suggestions.xml" ;;
+*) exit 1 ;;
+esac
+STUB
+	printf '#!/bin/sh\necho '"'%s'"'\n' "$no_answers" >"$dir/bin/prompt-answers"
+	chmod +x "$dir/bin/capability" "$dir/bin/prompt-answers"
+}
+
+# Runs the hook once on <payload> and leaves its stdout in <output>; the harness or MCP commands seen under it go to
+# <dir>/forbidden. The stubs in <dir>/bin answer every capability call.
 observe_hook() {
-	local dir="$1" payload="$2" pid started
-	PATH="$dir:$PATH" PROMPT_SUBMIT_FRESH=1 env -u AGENTMUX_NESTED_RUN "$SELF" --skip-guard <<<"$payload" \
-		>"$dir/output" &
+	local dir="$1" payload="$2" output="$3" pid started
+	PATH="$dir:$PATH" PROMPT_SUBMIT_FRESH=1 env -u AGENTMUX_NESTED_RUN \
+		CAPABILITY_BIN_DIR="$dir/bin" PROMPT_ANSWERS_CMD="$dir/bin/prompt-answers" \
+		"$SELF" --skip-guard <<<"$payload" >"$output" &
 	pid=$!
 	started=$SECONDS
 	while kill -0 "$pid" 2>/dev/null; do
@@ -296,15 +540,111 @@ observe_hook() {
 	wait "$pid" 2>/dev/null
 }
 
-# The hook JSON: the intent line first, then the capability's complete XML as the last block. The project line
-# depends on the host's atask registry, so a missing one is reported by the caller, not failed here.
+# One prompt of <session> through the hook: run_turn <dir> <session> <name> leaves the hook output in <dir>/<name>.
+run_turn() {
+	local dir="$1" session="$2" name="$3" payload
+	payload="$(jq -nc --arg p "$SELF_TEST_PROMPT" --arg c "$PWD" --arg s "$session" '{prompt: $p, cwd: $c, session_id: $s}')"
+	observe_hook "$dir" "$payload" "$dir/$name"
+}
+
+# The hook JSON: the intent line first, the scope line beside it, then the capability's XML as the last block.
 has_hook_shape() {
 	jq -e '
     .hookSpecificOutput.hookEventName == "UserPromptSubmit"
     and (.hookSpecificOutput.additionalContext as $c
          | ($c | startswith("Intent: "))
+           and ($c | split("\n") | any(startswith("Scope: omp-") and contains(" · cwd: ")))
            and ($c | contains("<system-context"))
            and ($c | rtrimstr("\n") | endswith("</system-context>")))' "$1" >/dev/null 2>&1
+}
+
+context_of() {
+	jq -r '.hookSpecificOutput.additionalContext // empty' "$1" 2>/dev/null
+}
+
+# The context's length in characters, as the agent counts it (jq counts code points, not bytes).
+chars_of() {
+	jq -r '(.hookSpecificOutput.additionalContext // "") | length' "$1" 2>/dev/null
+}
+
+# check_wording <label> <context>: the agent is told how to reach skills and tools, and no retired tool is named.
+check_wording() {
+	local label="$1" context="$2" phrase failed=0
+	for phrase in "${SELF_TEST_REQUIRED_WORDING[@]}"; do
+		[[ "$context" == *"$phrase"* ]] || {
+			echo "self-test: $label: the context does not say: $phrase" >&2
+			failed=1
+		}
+	done
+	if grep -Eq "$SELF_TEST_RETIRED_WORDING" <<<"$context"; then
+		echo "self-test: $label: the context still names a retired tool ($SELF_TEST_RETIRED_WORDING)" >&2
+		failed=1
+	fi
+	return "$failed"
+}
+
+# The first turn of a session: the full block, the scope/intent/project lines, and the whole context within budget.
+check_first_turn() {
+	local output="$1" context chars skills cards failed=0
+	if ! has_hook_shape "$output"; then
+		echo "self-test: first turn: output is not the hook shape (Intent line first, a Scope line, XML block last):" >&2
+		cat "$output" >&2
+		return 1
+	fi
+	context="$(context_of "$output")"
+	chars="$(chars_of "$output")"
+	skills="$(grep -c '<skill>' <<<"$context")" || :
+	cards="$(grep -c '<tool>name:' <<<"$context")" || :
+	echo "self-test: first turn context: $chars characters (limit $SELF_TEST_CONTEXT_MAX_CHARS), $skills skills, $cards tool cards" >&2
+	if [[ -n "${SELF_TEST_SHOW_CONTEXT:-}" ]]; then printf '%s\n' "$context" >&2; fi
+	((chars <= SELF_TEST_CONTEXT_MAX_CHARS)) || {
+		echo "self-test: first turn: the context is over $SELF_TEST_CONTEXT_MAX_CHARS characters" >&2
+		failed=1
+	}
+	((skills == SELF_TEST_SKILLS && cards == SELF_TEST_TOOL_CARDS)) || {
+		echo "self-test: first turn: expected $SELF_TEST_SKILLS skills and $SELF_TEST_TOOL_CARDS tool cards" >&2
+		failed=1
+	}
+	[[ "$context" == *$'\nProject: agent-hooks (p=0.39)'* ]] || {
+		echo "self-test: first turn: the project line is missing" >&2
+		failed=1
+	}
+	check_wording "first turn" "$context" || failed=1
+	return "$failed"
+}
+
+# The same suggestions again in the session: only the names-only pointer, still with the scope line, and shorter.
+check_repeat_turn() {
+	local output="$1" first="$2" context failed=0
+	if ! has_hook_shape "$output"; then
+		echo "self-test: repeat turn: output is not the hook shape:" >&2
+		cat "$output" >&2
+		return 1
+	fi
+	context="$(context_of "$output")"
+	[[ "$context" == *'mode="pointer"'* && "$context" != *'<skill>'* && "$context" == *verification-before-completion* ]] || {
+		echo "self-test: repeat turn: expected the names-only pointer" >&2
+		failed=1
+	}
+	(($(chars_of "$output") < $(chars_of "$first"))) || {
+		echo "self-test: repeat turn: the pointer is not shorter than the full block" >&2
+		failed=1
+	}
+	check_wording "repeat turn" "$context" || failed=1
+	return "$failed"
+}
+
+# A degraded suggester names the outage on every turn, in the hook's wording; <label> says which turn.
+check_unavailable_turn() {
+	local label="$1" output="$2" context failed=0
+	context="$(context_of "$output")"
+	[[ "$context" == Intent:* && "$context" == *$'\nScope: omp-'* && "$context" == *'Recommendations are unavailable'* ]] || {
+		echo "self-test: $label: expected the intent line, the scope line and the unavailable notice:" >&2
+		printf '%s\n' "$context" >&2
+		return 1
+	}
+	check_wording "$label" "$context" || failed=1
+	return "$failed"
 }
 
 self_test() {
@@ -312,27 +652,31 @@ self_test() {
 		echo "self-test: jq is missing" >&2
 		return 1
 	}
-	local dir payload verdict=0
+	local dir session="self-test-$$" verdict=0
 	dir="$(mktemp -d)" || return 1
 	write_canaries "$dir"
-	payload="$(jq -nc --arg p "$SELF_TEST_PROMPT" --arg c "$PWD" '{prompt: $p, cwd: $c, session_id: ""}')"
+	write_stubs "$dir"
+	write_fixture_suggestions "$dir/suggestions.xml"
 	ps -p $$ >/dev/null 2>&1 || echo "self-test: note: ps is not permitted here; checking launcher canaries only" >&2
-	observe_hook "$dir" "$payload"
+	run_turn "$dir" "$session-block" first
+	run_turn "$dir" "$session-block" repeat
+	write_fixture_unavailable "$dir/suggestions.xml"
+	run_turn "$dir" "$session-down" down
+	run_turn "$dir" "$session-down" down-repeat
 	if [[ -s "$dir/called" || -s "$dir/forbidden" ]]; then
 		echo "self-test: a harness or MCP process ran under the hook:" >&2
 		cat "$dir/called" "$dir/forbidden" >&2 2>/dev/null
 		verdict=1
-	elif ! has_hook_shape "$dir/output"; then
-		echo "self-test: output is not the hook shape (Intent line first, XML block last):" >&2
-		cat "$dir/output" >&2
-		verdict=1
 	else
-		jq -r '.hookSpecificOutput.additionalContext | split("<system-context")[0] | gsub("\\n$"; "")' "$dir/output" |
-			sed 's/^/self-test: preceding context: /' >&2
-		echo "self-test: XML context is the final block" >&2
-		echo ok
+		check_first_turn "$dir/first" || verdict=1
+		check_repeat_turn "$dir/repeat" "$dir/first" || verdict=1
+		check_unavailable_turn "unavailable turn" "$dir/down" || verdict=1
+		check_unavailable_turn "unavailable repeat" "$dir/down-repeat" || verdict=1
 	fi
+	rm -f "$SUGGEST_STATE_DIR/$session-block" "$SUGGEST_STATE_DIR/$session-down" \
+		"$SKILL_PICKS_DIR/$session-block.json" "$SKILL_PICKS_DIR/$session-down.json"
 	rm -rf "$dir"
+	if ((verdict == 0)); then echo ok; fi
 	return "$verdict"
 }
 
