@@ -428,7 +428,7 @@ examples {
       }
       ["brakeman"] {
         fix = null
-        check = "dev-profile-if-installed brakeman mise exec ruby@4 -- brakeman -q -w2 {{files}}"
+        check = #"dev-profile-if-installed brakeman bash -c 'IFS=,; exec mise exec ruby@4 -- brakeman -q -w2 --only-files "$*"' _ {{files}}"#
         files = "ruby"
         after = List()
         profiles = List("slow")
@@ -746,7 +746,7 @@ examples {
       }
       ["brakeman"] {
         fix = null
-        check = "dev-profile-if-installed brakeman mise exec ruby@4 -- brakeman -q -w2 {{files}}"
+        check = #"dev-profile-if-installed brakeman bash -c 'IFS=,; exec mise exec ruby@4 -- brakeman -q -w2 --only-files "$*"' _ {{files}}"#
         files = "ruby"
         after = List()
         profiles = null
