@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# Run a command (the pre-commit hook); when it fails, put the tracked files and the index
+# back as they were. hk's fix steps rewrite staged files in place and stage the result, and
+# a later step's failure leaves those rewrites behind with no commit made: the edits the
+# author made are gone. A failed commit must change nothing.
+# Untracked files are never touched: the hook only runs on tracked, staged paths.
+# Usage: dev-profile-restore-tree-on-failure <command> [args…]
+set -euo pipefail
+(($#)) || {
+	echo 'usage: dev-profile-restore-tree-on-failure <command> [args…]' >&2
+	exit 2
+}
+
+index_file="${GIT_INDEX_FILE:-$(git rev-parse --git-path index)}"
+# No index: nothing is tracked, so the command has nothing to rewrite.
+[[ -f "${index_file}" ]] || exec "$@"
+
+scratch="$(mktemp -d)"
+keep_scratch=0
+trap '((keep_scratch)) || rm -rf "${scratch}"' EXIT
+
+# The tracked files as they are now, as a tree: a copy of the index with every tracked path
+# re-hashed from the work tree. The index itself is saved byte for byte.
+cp "${index_file}" "${scratch}/index.orig"
+cp "${index_file}" "${scratch}/index.snap"
+GIT_INDEX_FILE="${scratch}/index.snap" git add -u
+snap_tree="$(GIT_INDEX_FILE="${scratch}/index.snap" git write-tree)"
+
+# Work tree first, then the index: the work tree is judged against the snapshot.
+restore() {
+	local now_tree
+	cp "${scratch}/index.snap" "${scratch}/index.now" || return 1
+	GIT_INDEX_FILE="${scratch}/index.now" git add -u || return 1
+	now_tree="$(GIT_INDEX_FILE="${scratch}/index.now" git write-tree)" || return 1
+	# Deleted, modified or retyped (mode included) since the snapshot: write the snapshot back.
+	git diff-tree -r -z --no-renames --name-only --diff-filter=DMT "${snap_tree}" "${now_tree}" |
+		GIT_INDEX_FILE="${scratch}/index.snap" git checkout-index -f -z --stdin || return 1
+	cp "${scratch}/index.orig" "${index_file}.restore" || return 1
+	mv -f "${index_file}.restore" "${index_file}" || return 1
+}
+
+status=0
+"$@" || status=$?
+if ((status != 0)); then
+	if restore; then
+		echo "${1##*/} failed (exit ${status}): tracked files and the index are as they were before it ran" >&2
+	else
+		keep_scratch=1
+		echo "${1##*/} failed (exit ${status}) and the tree could not be restored; the original index is ${scratch}/index.orig" >&2
+	fi
+fi
+exit "${status}"

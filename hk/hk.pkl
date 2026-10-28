@@ -160,13 +160,17 @@ steps {
   ["check-shebang-scripts-are-executable"] {
     fix = "dev-profile-shebang-scripts-executable {{files}}"
   }
+  // hk runs a glob-less step even when the commit holds no files, and `hk util` then exits
+  // with a usage error for the empty {{files}}. A glob lets hk skip the step instead.
   ["newlines"] {
     fix = "hk util end-of-file-fixer --fix {{files}}"
     check_diff = "hk util end-of-file-fixer --diff {{files}}"
+    glob = List("**/*")
   }
   ["trailing-whitespace"] {
     fix = "hk util trailing-whitespace --fix {{files}}"
     check_diff = "hk util trailing-whitespace --diff {{files}}"
+    glob = List("**/*")
   }
   ["uv-instead-of-python-in-tasks"] {
     fix = "dev-profile-uv-instead-of-python-in-tasks {{files}}"
