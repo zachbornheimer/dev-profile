@@ -116,6 +116,46 @@ Every candidate ends in exactly one set:
 
 Audit mode stops here. Report counts plus every `recover` and `unsure` case.
 
+## Standalone clones that pretend to be worktrees
+
+A harness may create its "worktrees" as full clones (Grok writes
+`~/.grok/worktrees/<slug>/subagent-*` with its own `.git` directory and a
+`.git/grok-worktree-source` naming the origin repo). `wt` sees each as a main worktree,
+so `wt step relocate` correctly reports nothing to move and `wt step prune` will never
+touch them. Check before auditing:
+
+```bash
+for f in ~/.grok/worktrees/*/subagent-*/.git; do [ -d "$f" ] && echo "clone: ${f%/.git}"; done
+```
+
+Adopt them in place rather than copying the checkout:
+
+```bash
+python3 scripts/grok_worktree_link.py            # dry run; add --apply to convert
+```
+
+It fetches the clone's HEAD, stash and unique branches into the source repo, creates
+`grok/<id>/<branch>` there so the renamed branch cannot collide with the source repo's own
+checkout, registers a `--no-checkout` worktree and grafts that registration onto the clone,
+then carries the clone's index over so uncommitted work survives byte for byte. The original
+`.git` is moved to `~/.grok/worktree-gits`, never deleted. Then `wt step relocate` moves them
+to the template path.
+
+Verify before removing anything:
+
+```bash
+python3 scripts/check_layout.py        # seconds: pointer, checkout and location per clone
+python3 scripts/verify_adoption.py     # slower: pointer, HEAD commit, index, branch and stash objects
+```
+
+`scripts/relocate_direct.py <repo>` moves a repo's worktrees to the template destination
+when `wt step relocate`'s status scan takes minutes per worktree on a very large tree;
+`scripts/return_partial.py` undoes a relocation pass that was stopped mid-run.
+
+Leave alone, and say so: clones whose `.git/modules` is populated (adopting one strands the
+submodule `.git` pointers inside the checkout), clones holding nested worktrees, and clones
+whose recorded origin is not a git repository.
+
 ## Cleanup
 
 Cleanup may operate only on the settled set. Follow [references/cleanup.md](references/cleanup.md).
