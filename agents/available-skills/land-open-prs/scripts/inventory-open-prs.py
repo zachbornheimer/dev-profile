@@ -69,9 +69,7 @@ def repository_details(repo_hint: str | None, runner: Runner) -> tuple[str, str]
 
 def elapsed_days(value: object, now: dt.datetime, context: str) -> int:
     try:
-        observed = dt.datetime.fromisoformat(
-            text(value, context).replace("Z", "+00:00")
-        )
+        observed = dt.datetime.fromisoformat(text(value, context))
     except ValueError as error:
         raise InventoryError(
             f"malformed {context}: expected ISO-8601 timestamp"

@@ -9,6 +9,7 @@ import sys
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
+from typing import Self
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -48,7 +49,7 @@ class FakeHTTPResponse:
     def read(self) -> bytes:
         return self._body
 
-    def __enter__(self) -> FakeHTTPResponse:
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, *args: object) -> None:
@@ -124,7 +125,9 @@ class NextMoveTests(unittest.TestCase):
     def test_mitigate_with_low_noul_becomes_run_test(self) -> None:
         payload = systemone_payload(next_move_choice="mitigate", mitigation_proven=0.1)
         stdout = io.StringIO()
-        with mock.patch("urllib.request.urlopen", return_value=FakeHTTPResponse(payload)) as urlopen:
+        with mock.patch(
+            "urllib.request.urlopen", return_value=FakeHTTPResponse(payload)
+        ) as urlopen:
             with redirect_stdout(stdout):
                 code = next_move.main(["--board", str(FIXTURE)], getenv=getenv_with_key)
         self.assertEqual(code, 0)
@@ -142,7 +145,9 @@ class NextMoveTests(unittest.TestCase):
             mitigation_proven=0.2,
         )
         stdout = io.StringIO()
-        with mock.patch("urllib.request.urlopen", return_value=FakeHTTPResponse(payload)):
+        with mock.patch(
+            "urllib.request.urlopen", return_value=FakeHTTPResponse(payload)
+        ):
             with redirect_stdout(stdout):
                 code = next_move.main(["--board", str(FIXTURE)], getenv=getenv_with_key)
         self.assertEqual(code, 0)
@@ -154,7 +159,9 @@ class NextMoveTests(unittest.TestCase):
     def test_guessed_colima_restart_never_mitigates(self) -> None:
         payload = systemone_payload(next_move_choice="mitigate", mitigation_proven=0.95)
         stdout = io.StringIO()
-        with mock.patch("urllib.request.urlopen", return_value=FakeHTTPResponse(payload)):
+        with mock.patch(
+            "urllib.request.urlopen", return_value=FakeHTTPResponse(payload)
+        ):
             with redirect_stdout(stdout):
                 code = next_move.main(["--board", str(FIXTURE)], getenv=getenv_with_key)
         self.assertEqual(code, 0)

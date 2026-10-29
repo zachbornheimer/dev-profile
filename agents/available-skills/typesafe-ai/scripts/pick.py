@@ -117,7 +117,9 @@ def build_session_relation_question() -> dict[str, Any]:
 def for_base(request: dict[str, Any], skills: list[Skill], base: str) -> dict[str, Any]:
     """The wide request with its roster chunked to fit ``base``'s Choice limit."""
     limit = PICK_CHOICE_MAX_OPTIONS_BY_BASE_URL.get(base, PICK_CHOICE_MAX_OPTIONS)
-    kept = {k: v for k, v in request["questions"].items() if not k.startswith(SKILL_PREFIX)}
+    kept = {
+        k: v for k, v in request["questions"].items() if not k.startswith(SKILL_PREFIX)
+    }
     return prioritize_current(
         {**request, "questions": {**build_skill_questions(skills, limit), **kept}}
     )
@@ -210,7 +212,7 @@ def local_pick(
 def _files_to_load(skills: list[Skill], choice: str) -> tuple[str, ...]:
     for skill in skills:
         if skill.name == choice:
-            return skill.load if skill.load else (choice,)
+            return skill.load or (choice,)
     return (choice,)
 
 
@@ -257,7 +259,7 @@ def _skill_score(prompt: str, skill: Skill) -> int:
 
 def _state_in_flight(in_flight: str) -> str:
     text = in_flight.strip()
-    return text if text else IN_FLIGHT_NONE
+    return text or IN_FLIGHT_NONE
 
 
 def _has_in_flight(in_flight: str) -> bool:
@@ -393,7 +395,9 @@ def read_wide(
         else read_noul(answers, f"{GATE_PREFIX}{key}")
         for key in GATE_QUESTIONS
     ]
-    session_relation, second_product, split = _session_fields(answers, in_flight, has_context)
+    session_relation, second_product, split = _session_fields(
+        answers, in_flight, has_context
+    )
     return Wide(
         ranked=tuple(sorted(probabilities.items(), key=lambda item: -item[1])),
         needs_skill=sum(gates) / len(gates),
@@ -449,4 +453,6 @@ def settle(
 ) -> PickResult:
     if choice == CHOICE_NONE:
         return result(wide, skills, REASON_NO_FIT, confidence=confidence, fits=fits)
-    return result(wide, skills, REASON_SELECTED, choice=choice, confidence=confidence, fits=fits)
+    return result(
+        wide, skills, REASON_SELECTED, choice=choice, confidence=confidence, fits=fits
+    )

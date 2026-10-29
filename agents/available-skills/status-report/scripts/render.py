@@ -102,20 +102,30 @@ def main(argv: list[str] | None = None) -> int:
 
 def parse_args(argv: list[str] | None) -> argparse.Namespace:
     """Parse CLI options; inline JSON is the preferred agent interface."""
-    parser = argparse.ArgumentParser(prog="status-report", description="Render status-report JSON.")
+    parser = argparse.ArgumentParser(
+        prog="status-report", description="Render status-report JSON."
+    )
     parser.add_argument("--json", dest="json_text", help="report JSON as one argument")
-    parser.add_argument("--stdin", action="store_true", help="read report JSON from stdin")
+    parser.add_argument(
+        "--stdin", action="store_true", help="read report JSON from stdin"
+    )
     parser.add_argument(
         "--color",
         choices=("auto", "always", "never"),
         default="auto",
         help="ANSI color mode (default: auto)",
     )
-    parser.add_argument("--validate-only", action="store_true", help="validate without rendering")
-    parser.add_argument("path", nargs="?", help="optional JSON file path for manual use")
+    parser.add_argument(
+        "--validate-only", action="store_true", help="validate without rendering"
+    )
+    parser.add_argument(
+        "path", nargs="?", help="optional JSON file path for manual use"
+    )
 
     args = parser.parse_args(argv)
-    input_count = int(args.json_text is not None) + int(args.stdin) + int(args.path is not None)
+    input_count = (
+        int(args.json_text is not None) + int(args.stdin) + int(args.path is not None)
+    )
     if input_count != 1:
         parser.error("provide exactly one input: --json, --stdin, or a file path")
     return args
@@ -133,7 +143,9 @@ def read_input(args: argparse.Namespace) -> str:
 def parse_report(raw: str) -> Report:
     """Decode strict JSON, reject unknown fields, and validate semantic values."""
     try:
-        data = json.loads(raw, object_pairs_hook=_unique_object, parse_constant=_reject_json_constant)
+        data = json.loads(
+            raw, object_pairs_hook=_unique_object, parse_constant=_reject_json_constant
+        )
     except (json.JSONDecodeError, ReportError) as exc:
         raise ReportError(f"decode JSON: {exc}") from exc
 
@@ -155,22 +167,34 @@ def parse_report(raw: str) -> Report:
         issue_obj = _expect_object(value, prefix)
         _expect_keys(issue_obj, prefix, required={"issueId", "summary", "checks"})
 
-        issue_id = _expect_string(issue_obj["issueId"], f"{prefix}.issueId", max_length=40)
+        issue_id = _expect_string(
+            issue_obj["issueId"], f"{prefix}.issueId", max_length=40
+        )
         if issue_id in seen_ids:
             raise ReportError(f'{prefix}.issueId "{issue_id}" is duplicated')
         seen_ids.add(issue_id)
 
-        issue_summary = _expect_string(issue_obj["summary"], f"{prefix}.summary", max_length=280)
-        check_values = _expect_list(issue_obj["checks"], f"{prefix}.checks", min_items=1)
+        issue_summary = _expect_string(
+            issue_obj["summary"], f"{prefix}.summary", max_length=280
+        )
+        check_values = _expect_list(
+            issue_obj["checks"], f"{prefix}.checks", min_items=1
+        )
 
         checks: list[Check] = []
         seen_checks: set[str] = set()
         for check_index, check_value in enumerate(check_values):
             check_prefix = f"{prefix}.checks[{check_index}]"
             check_obj = _expect_object(check_value, check_prefix)
-            _expect_keys(check_obj, check_prefix, required={"name", "status", "detail", "evidence"})
+            _expect_keys(
+                check_obj,
+                check_prefix,
+                required={"name", "status", "detail", "evidence"},
+            )
 
-            name = _expect_string(check_obj["name"], f"{check_prefix}.name", max_length=80)
+            name = _expect_string(
+                check_obj["name"], f"{check_prefix}.name", max_length=80
+            )
             if name in seen_checks:
                 raise ReportError(f'{check_prefix}.name "{name}" is duplicated')
             seen_checks.add(name)
@@ -182,15 +206,25 @@ def parse_report(raw: str) -> Report:
                     "use done, in_progress, or not_started"
                 )
 
-            detail = _expect_string(check_obj["detail"], f"{check_prefix}.detail", max_length=400)
-            evidence_values = _expect_list(check_obj["evidence"], f"{check_prefix}.evidence", min_items=1)
+            detail = _expect_string(
+                check_obj["detail"], f"{check_prefix}.detail", max_length=400
+            )
+            evidence_values = _expect_list(
+                check_obj["evidence"], f"{check_prefix}.evidence", min_items=1
+            )
             evidence = tuple(
-                _expect_string(item, f"{check_prefix}.evidence[{evidence_index}]", max_length=400)
+                _expect_string(
+                    item, f"{check_prefix}.evidence[{evidence_index}]", max_length=400
+                )
                 for evidence_index, item in enumerate(evidence_values)
             )
-            checks.append(Check(name=name, status=status, detail=detail, evidence=evidence))
+            checks.append(
+                Check(name=name, status=status, detail=detail, evidence=evidence)
+            )
 
-        issues.append(Issue(issue_id=issue_id, summary=issue_summary, checks=tuple(checks)))
+        issues.append(
+            Issue(issue_id=issue_id, summary=issue_summary, checks=tuple(checks))
+        )
 
     return Report(version=version, effort=effort, summary=summary, issues=tuple(issues))
 
@@ -226,7 +260,9 @@ def _expect_keys(
     optional = optional or set()
     missing = required - value.keys()
     if missing:
-        raise ReportError(f"{path} missing required field(s): {', '.join(sorted(missing))}")
+        raise ReportError(
+            f"{path} missing required field(s): {', '.join(sorted(missing))}"
+        )
     unknown = value.keys() - required - optional
     if unknown:
         raise ReportError(f"{path} has unknown field(s): {', '.join(sorted(unknown))}")
@@ -359,7 +395,7 @@ def render(output: TextIO, report: Report, palette: Palette, width: int) -> None
 
 def count_issue_statuses(report: Report) -> dict[str, int]:
     """Count derived issue states for the compact headline summary."""
-    counts = {status: 0 for status in STATUSES}
+    counts = dict.fromkeys(STATUSES, 0)
     for issue in report.issues:
         counts[derive_issue_status(issue)] += 1
     return counts
@@ -367,7 +403,10 @@ def count_issue_statuses(report: Report) -> dict[str, int]:
 
 def sorted_issues(issues: tuple[Issue, ...]) -> list[Issue]:
     """Put active work first, untouched work second, and completed work last."""
-    return sorted(issues, key=lambda issue: (STATUS_ORDER[derive_issue_status(issue)], issue.issue_id))
+    return sorted(
+        issues,
+        key=lambda issue: (STATUS_ORDER[derive_issue_status(issue)], issue.issue_id),
+    )
 
 
 def render_table(

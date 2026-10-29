@@ -12,12 +12,13 @@ class TestSystemUtils(unittest.TestCase):
         test_path = "test_file.txt"
         system_utils.write_file(test_path, test_content)
 
-        with open(test_path, 'r') as file:
+        with open(test_path) as file:
             content = file.read().strip()
         self.assertEqual(content, test_content)
 
         # Cleanup
         import os
+
         os.remove(test_path)
 
     def test_run_command(self):
@@ -30,7 +31,7 @@ class TestSystemUtils(unittest.TestCase):
         self.assertEqual(result.strip(), "test input")
 
         # Test command with error
-        with open(os.devnull, 'w') as devnull:
+        with open(os.devnull, "w") as devnull:
             old_stderr = sys.stderr
             sys.stderr = devnull
             result = system_utils.run_command("ls nonexistentfile")
@@ -44,7 +45,7 @@ class TestSystemUtils(unittest.TestCase):
 
         def mock_Thread(*args, **kwargs):
             nonlocal thread_started
-            if kwargs.get('target') == system_utils.ui.show_spinner:
+            if kwargs.get("target") == system_utils.ui.show_spinner:
                 thread_started = True
             return original_Thread(*args, **kwargs)
 
@@ -59,5 +60,5 @@ class TestSystemUtils(unittest.TestCase):
             threading.Thread = original_Thread
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

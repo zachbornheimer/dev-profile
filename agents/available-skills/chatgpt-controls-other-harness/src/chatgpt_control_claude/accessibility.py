@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import ctypes
 import subprocess
 import time
@@ -101,7 +102,9 @@ class Accessibility:
         ax.AXValueGetValue.argtypes = [CFTypeRef, ctypes.c_uint32, ctypes.c_void_p]
 
     def _cfstr(self, text: str) -> CFStringRef:
-        return self._cf.CFStringCreateWithCString(None, text.encode(), kCFStringEncodingUTF8)
+        return self._cf.CFStringCreateWithCString(
+            None, text.encode(), kCFStringEncodingUTF8
+        )
 
     def _pystr(self, ref: CFTypeRef | None) -> str:
         if not ref or self._cf.CFGetTypeID(ref) != self._cf.CFStringGetTypeID():
@@ -134,8 +137,7 @@ class Accessibility:
                 'tell application "System Events" to get unix id of process "ChatGPT"',
             ],
             text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             timeout=5,
             check=False,
         )
@@ -160,7 +162,9 @@ class Accessibility:
         if not value:
             return (0.0, 0.0)
         point = CGPoint()
-        if not self._ax.AXValueGetValue(value, kAXValueCGPointType, ctypes.byref(point)):
+        if not self._ax.AXValueGetValue(
+            value, kAXValueCGPointType, ctypes.byref(point)
+        ):
             return (0.0, 0.0)
         return (point.x, point.y)
 
@@ -206,11 +210,16 @@ class Accessibility:
             if depth >= max_depth:
                 continue
             children = self._get(element, "AXChildren")
-            if not children or self._cf.CFGetTypeID(children) != self._cf.CFArrayGetTypeID():
+            if (
+                not children
+                or self._cf.CFGetTypeID(children) != self._cf.CFArrayGetTypeID()
+            ):
                 continue
             count = min(int(self._cf.CFArrayGetCount(children)), max_children)
             for index in range(count):
-                queue.append((self._cf.CFArrayGetValueAtIndex(children, index), depth + 1))
+                queue.append(
+                    (self._cf.CFArrayGetValueAtIndex(children, index), depth + 1)
+                )
         return found
 
     def find_labeled(
@@ -292,7 +301,9 @@ def open_files_pane(ax: Accessibility, *, timeout: float = 6.0) -> None:
         raise RuntimeError("ChatGPT More control was not in the AX tree")
     ax.perform(more[0], "AXShowMenu")
     time.sleep(0.35)
-    view = ax.find_labeled(VIEW_FILES_TITLE, roles=frozenset({"AXMenuItem", "AXButton"}))
+    view = ax.find_labeled(
+        VIEW_FILES_TITLE, roles=frozenset({"AXMenuItem", "AXButton"})
+    )
     if view is None:
         raise RuntimeError("View files in chat was not in the More menu")
     ax.perform(view[0], "AXPress")
@@ -360,10 +371,8 @@ def activate_named_file(ax: Accessibility, filename: str) -> None:
     for element, node, _depth in ax.walk(container, max_nodes=200, max_depth=8):
         if node.role != "AXButton" or node.title != filename:
             continue
-        try:
+        with contextlib.suppress(RuntimeError):
             ax.perform(element, "AXScrollToVisible")
-        except RuntimeError:
-            pass
         time.sleep(0.25)
         moved = ax.describe(element)
         click_screen(*moved.click_point)
@@ -373,7 +382,9 @@ def activate_named_file(ax: Accessibility, filename: str) -> None:
 
 def find_download_control(ax: Accessibility) -> tuple[AXUIElementRef, AXNode] | None:
     """Preview toolbar button titled Download, not the chat's Download file link."""
-    for element, node, _depth in ax.walk(ax.front_window(), max_nodes=1500, max_depth=28):
+    for element, node, _depth in ax.walk(
+        ax.front_window(), max_nodes=1500, max_depth=28
+    ):
         if node.role == "AXButton" and node.title.casefold() == "download":
             return (element, node)
     return None

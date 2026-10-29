@@ -22,7 +22,9 @@ class AlteredFiles(Files):
             report = json.loads(raw)
             window = report["windows"][0]
             if self.fault == "quote":
-                window["observations"][0]["candidate"]["evidence"][0]["quote"] = "invented quote"
+                window["observations"][0]["candidate"]["evidence"][0]["quote"] = (
+                    "invented quote"
+                )
             elif self.fault == "disposition":
                 window["observations"][0]["status"] = "review-candidate"
             elif self.fault == "count":
@@ -37,9 +39,8 @@ def test_real_completed_artifact_offline() -> None:
     result = asyncio.run(prove(DEFAULT_REPORT, Files()))
     assert result["status"] == "completed"
     assert result["accepted_rules"] == []
-    assert result["dimension_coverage"] == {
-        key: "unknown"
-        for key in (
+    assert result["dimension_coverage"] == dict.fromkeys(
+        (
             "satisfaction",
             "quality",
             "communication",
@@ -49,11 +50,14 @@ def test_real_completed_artifact_offline() -> None:
             "decision",
             "lesson",
             "contradiction",
-        )
-    }
+        ),
+        "unknown",
+    )
 
 
-@pytest.mark.parametrize("fault", ["quote", "disposition", "count", "schema", "missing-phase"])
+@pytest.mark.parametrize(
+    "fault", ["quote", "disposition", "count", "schema", "missing-phase"]
+)
 def test_proof_rejects_corrupt_artifacts(fault: str) -> None:
     with pytest.raises((ValueError, OSError)):
         asyncio.run(prove(DEFAULT_REPORT, AlteredFiles(fault)))

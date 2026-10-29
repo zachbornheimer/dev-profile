@@ -36,7 +36,9 @@ from post_edit_lint_limits import (
 from post_edit_lint_linters import LinterRunner, strip_clean_output
 
 HOOK_NAME = "post-edit-lint"
-LINTABLE_TOOL_NAMES = frozenset({"Edit", "Write", "search_replace", "write", "MultiEdit", "Update"})
+LINTABLE_TOOL_NAMES = frozenset(
+    {"Edit", "Write", "search_replace", "write", "MultiEdit", "Update"}
+)
 FIX_ISSUES_REASON = "Fix these issues before continuing."
 LINT_MAX_LINES = 30
 GIT_REV_PARSE_TIMEOUT_SECS = 10
@@ -50,13 +52,18 @@ def _is_skipped_path(file_path: str) -> bool:
     if "/docs/" in file_path and file_path.endswith(".md"):
         return True
     basename = file_path.rsplit("/", 1)[-1]
-    return basename in ("PLAN.md",) or "CHANGELOG" in basename or "LICENSE" in basename
+    return basename == "PLAN.md" or "CHANGELOG" in basename or "LICENSE" in basename
 
 
 def _real_repo_root_of(directory: str) -> str | None:
     """The real git boundary — the only place this hook asks git anything."""
     return (
-        GIT.run(directory, "rev-parse", "--show-toplevel", timeout=GIT_REV_PARSE_TIMEOUT_SECS).text
+        GIT.run(
+            directory,
+            "rev-parse",
+            "--show-toplevel",
+            timeout=GIT_REV_PARSE_TIMEOUT_SECS,
+        ).text
         or None
     )
 
@@ -75,7 +82,9 @@ def structure_findings(file_path: str, lines: list[str]) -> list[str]:
     size_finding = file_size_finding(file_path, len(lines), limits.file_lines)
     if size_finding:
         findings.append(size_finding + "\n")
-    func_finding = function_size_finding(file_extension(file_path), lines, limits.func_lines)
+    func_finding = function_size_finding(
+        file_extension(file_path), lines, limits.func_lines
+    )
     if func_finding:
         findings.append(func_finding + "\n")
     return findings
@@ -118,13 +127,17 @@ def build_reason(
     """None when clean; the block reason text otherwise."""
     findings = structure_findings(file_path, lines)
     extension = file_extension(file_path)
-    lint_output, skip_note = _run_language_linter(runner, file_path, extension, repo_root_of)
+    lint_output, skip_note = _run_language_linter(
+        runner, file_path, extension, repo_root_of
+    )
     if skip_note:
         findings.append(skip_note)
     lint_output = strip_clean_output(lint_output)
 
     has_real_findings = any(
-        not line.startswith("LINT SKIPPED") for line in "".join(findings).split("\n") if line
+        not line.startswith("LINT SKIPPED")
+        for line in "".join(findings).split("\n")
+        if line
     )
     reason = "".join(findings)
 
@@ -143,7 +156,9 @@ def build_reason(
 
 
 def decide(
-    event: HookEvent, runner: LinterRunner, repo_root_of: RepoRootFinder = _real_repo_root_of
+    event: HookEvent,
+    runner: LinterRunner,
+    repo_root_of: RepoRootFinder = _real_repo_root_of,
 ) -> dict | None:
     """None means silent (exit 0, no stdout) — parity with the .sh's bare `exit 0`."""
     if event.tool_name not in LINTABLE_TOOL_NAMES:

@@ -28,7 +28,7 @@ def md(value: Any) -> str:
     if value is None:
         return "—"
     text = str(value).replace("|", "\\|").replace("\n", "<br>")
-    return text if text else "—"
+    return text or "—"
 
 
 def join(values: list[str]) -> str:
@@ -72,7 +72,9 @@ def build_tree(root_id: str, nodes: dict[str, dict[str, Any]]) -> list[str]:
     return lines
 
 
-def surface_nodes(surface_id: str, nodes: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+def surface_nodes(
+    surface_id: str, nodes: dict[str, dict[str, Any]]
+) -> list[dict[str, Any]]:
     """Return nodes on a surface in source JSON order."""
 
     return [node for node in nodes.values() if node["surfaceId"] == surface_id]
@@ -102,7 +104,11 @@ def surface_interactions(
     """Return interactions originating from nodes on a surface."""
 
     node_ids = {node["id"] for node in surface_nodes(surface_id, nodes)}
-    return [interaction for interaction in interactions if interaction["sourceNodeId"] in node_ids]
+    return [
+        interaction
+        for interaction in interactions
+        if interaction["sourceNodeId"] in node_ids
+    ]
 
 
 def unresolved_for_surface(
@@ -146,7 +152,9 @@ def render(data: dict[str, Any], review: dict[str, Any] | None = None) -> str:
     surfaces = data["surfaces"]
     nodes = {node["id"]: node for node in data["nodes"]}
     states = {state["id"]: state for state in data["states"]}
-    interactions = {interaction["id"]: interaction for interaction in data["interactions"]}
+    interactions = {
+        interaction["id"]: interaction for interaction in data["interactions"]
+    }
     unresolved = data["unresolved"]
 
     lines: list[str] = [
@@ -163,7 +171,11 @@ def render(data: dict[str, Any], review: dict[str, Any] | None = None) -> str:
     if data["scope"]["exclusions"]:
         lines.extend(["", "### Explicit exclusions", ""])
         for exclusion in data["scope"]["exclusions"]:
-            evidence = evidence_text(exclusion.get("evidence", [])) if exclusion.get("evidence") else "—"
+            evidence = (
+                evidence_text(exclusion.get("evidence", []))
+                if exclusion.get("evidence")
+                else "—"
+            )
             lines.append(
                 f"- **{exclusion['description']}** — {exclusion['reason']}. Evidence: {evidence}"
             )
@@ -213,7 +225,9 @@ def render(data: dict[str, Any], review: dict[str, Any] | None = None) -> str:
             surface_interactions(surface["id"], nodes, list(interactions.values()))
         )
         unresolved_count = len(
-            unresolved_for_surface(surface["id"], nodes, states, interactions, unresolved)
+            unresolved_for_surface(
+                surface["id"], nodes, states, interactions, unresolved
+            )
         )
         lines.append(
             f"| {index} | {md(surface['name'])} (`{surface['id']}`) | {md(surface['type'])} | {node_count} | {state_count} | {interaction_count} | {unresolved_count} |"
@@ -221,7 +235,9 @@ def render(data: dict[str, Any], review: dict[str, Any] | None = None) -> str:
 
     lines.extend(["", "## Surface index", ""])
     for index, surface in enumerate(surfaces, start=1):
-        lines.append(f"{index}. **{surface['name']}** — `{surface['id']}` ({surface['type']})")
+        lines.append(
+            f"{index}. **{surface['name']}** — `{surface['id']}` ({surface['type']})"
+        )
 
     lines.extend(["", "## Surface decompositions", ""])
 
@@ -230,8 +246,12 @@ def render(data: dict[str, Any], review: dict[str, Any] | None = None) -> str:
         s_nodes = surface_nodes(sid, nodes)
         s_states = surface_states(sid, nodes, list(states.values()))
         s_interactions = surface_interactions(sid, nodes, list(interactions.values()))
-        s_unresolved = unresolved_for_surface(sid, nodes, states, interactions, unresolved)
-        parent = f"`{surface['parentSurfaceId']}`" if surface["parentSurfaceId"] else "—"
+        s_unresolved = unresolved_for_surface(
+            sid, nodes, states, interactions, unresolved
+        )
+        parent = (
+            f"`{surface['parentSurfaceId']}`" if surface["parentSurfaceId"] else "—"
+        )
 
         lines.extend(
             [
@@ -302,10 +322,14 @@ def render(data: dict[str, Any], review: dict[str, Any] | None = None) -> str:
             )
             for interaction in s_interactions:
                 target_surface = (
-                    f"`{interaction['targetSurfaceId']}`" if interaction["targetSurfaceId"] else "—"
+                    f"`{interaction['targetSurfaceId']}`"
+                    if interaction["targetSurfaceId"]
+                    else "—"
                 )
                 target_state = (
-                    f"`{interaction['targetStateId']}`" if interaction["targetStateId"] else "—"
+                    f"`{interaction['targetStateId']}`"
+                    if interaction["targetStateId"]
+                    else "—"
                 )
                 lines.append(
                     f"| {md(interaction['name'])} (`{interaction['id']}`) | `{interaction['sourceNodeId']}` | {md(interaction['gesture'])} | {md(interaction['result'])} | {target_surface} | {target_state} | {md(interaction['description'])} | {evidence_text(interaction['evidence'])} |"
@@ -365,7 +389,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("input", type=Path, help="Validated ui-decomposition.json")
     parser.add_argument("output", type=Path, help="Markdown output path")
-    parser.add_argument("--review", type=Path, help="Passing adversarial review to render")
+    parser.add_argument(
+        "--review", type=Path, help="Passing adversarial review to render"
+    )
     return parser
 
 

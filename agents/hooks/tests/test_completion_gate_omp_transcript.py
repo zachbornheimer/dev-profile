@@ -149,6 +149,52 @@ def test_omp_injected_and_agent_messages_are_not_prompts(tmp_path: Path) -> None
     assert facts.history == ()
 
 
+def test_omp_device_call_accepts_args_omp_already_decoded(tmp_path: Path) -> None:
+    """An object-shaped ``content`` used to raise TypeError and fail every Stop hook open.
+
+    The gate reads the whole log, so one such row silenced completion-gate and
+    duplicate-turn-breaker for the rest of the session (omp:01a169a2, 2026-10-29).
+    """
+    path = _omp_session(
+        tmp_path,
+        [
+            _user("check the api"),
+            _assistant(
+                _call(
+                    "c9",
+                    "write",
+                    path=RUN_COMMAND_DEVICE,
+                    content={"command": "echo alive"},
+                ),
+                stop="toolUse",
+            ),
+            _result("c9", "write", "alive\n"),
+            _assistant(_text("alive")),
+        ],
+    )
+    facts = read_transcript_facts(path)
+    assert facts is not None
+    assert [(r.tool, r.command) for r in facts.runs] == [("Bash", "echo alive")]
+
+
+def test_omp_device_call_tolerates_missing_content(tmp_path: Path) -> None:
+    path = _omp_session(
+        tmp_path,
+        [
+            _user("check it"),
+            _assistant(
+                _call("c1", "write", path=RUN_COMMAND_DEVICE, content=None),
+                stop="toolUse",
+            ),
+            _result("c1", "write", "no args\n"),
+            _assistant(_text("done")),
+        ],
+    )
+    facts = read_transcript_facts(path)
+    assert facts is not None
+    assert [(r.tool, r.command) for r in facts.runs] == [("Bash", "")]
+
+
 def test_omp_prompt_may_be_plain_string_and_carries_its_timestamp(
     tmp_path: Path,
 ) -> None:

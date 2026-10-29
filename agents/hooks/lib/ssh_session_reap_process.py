@@ -6,6 +6,7 @@ never needs a live process table or to actually signal anything.
 
 from __future__ import annotations
 
+import contextlib
 import os
 import signal
 import subprocess
@@ -47,7 +48,5 @@ class ProcessKiller:
             with open(self.kill_file, "a", encoding="utf-8") as handle:
                 handle.write(f"TERM {pid}\n")
             return
-        try:
+        with contextlib.suppress(OSError):
             os.kill(pid, signal.SIGTERM)
-        except OSError:
-            pass

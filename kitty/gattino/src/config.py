@@ -3,9 +3,9 @@ from os import path
 
 
 def load_config() -> dict:
-    config_path = path.expanduser('~/.config/kitty/gattino/gattino.config.json')
+    config_path = path.expanduser("~/.config/kitty/gattino/gattino.config.json")
     try:
-        with open(config_path, 'r') as f:
+        with open(config_path) as f:
             config = json.load(f)
         return config
     except FileNotFoundError:

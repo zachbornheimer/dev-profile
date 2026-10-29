@@ -412,7 +412,7 @@ def _ingest_usage(session: Session, obj: dict[str, Any]) -> None:
 
 
 def _parse_ts(value: str) -> datetime:
-    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    return datetime.fromisoformat(value)
 
 
 def _set_duration(session: Session) -> None:

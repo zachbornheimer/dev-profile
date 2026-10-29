@@ -27,6 +27,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
 
+import contextlib
+
 from hook_common import Decision, HookEvent, HookSettings, run_hook
 
 HOOK_NAME = "reviewer-nudge"
@@ -54,7 +56,7 @@ def _reap_leftover_ssh(event: HookEvent) -> None:
     Best-effort and fire-and-forget, exactly like the former shell wrapper's
     `... | ssh-session-reap.sh >/dev/null 2>&1 || true`.
     """
-    try:
+    with contextlib.suppress(OSError, subprocess.SubprocessError):
         subprocess.run(
             [str(SELF_DIR / "ssh-session-reap.py")],
             input=json.dumps(event.payload),
@@ -63,8 +65,6 @@ def _reap_leftover_ssh(event: HookEvent) -> None:
             timeout=SSH_REAP_TIMEOUT_SECS,
             check=False,
         )
-    except (OSError, subprocess.SubprocessError):
-        pass
 
 
 def _edit_count(state_dir: Path, session_id: str) -> int | None:
@@ -111,15 +111,18 @@ def decide(event: HookEvent) -> Decision | None:
 
     last_nudged_at = _last_nudged_at(state_dir, session_id)
     if edit_count <= last_nudged_at:
-        return Decision.no_objection(f"edits={edit_count} already-nudged-at={last_nudged_at}")
+        return Decision.no_objection(
+            f"edits={edit_count} already-nudged-at={last_nudged_at}"
+        )
 
     sent_marker = state_dir / f"reviewer-nudge-sent-{session_id}.txt"
-    try:
+    with contextlib.suppress(OSError):
         sent_marker.write_text(str(edit_count))
-    except OSError:
-        pass
     return Decision.context(
-        NUDGE_MESSAGE, "Stop", "nudged", log_detail=f"edits={edit_count} no-review-recorded"
+        NUDGE_MESSAGE,
+        "Stop",
+        "nudged",
+        log_detail=f"edits={edit_count} no-review-recorded",
     )
 
 

@@ -154,7 +154,7 @@ def cutoff_dt(ctx: Context, days: int, since_last: bool) -> datetime:
             except (OSError, json.JSONDecodeError):
                 ran = None
             if ran:
-                return datetime.fromisoformat(str(ran).replace("Z", "+00:00"))
+                return datetime.fromisoformat(str(ran))
     return ctx.now - timedelta(days=days)
 
 

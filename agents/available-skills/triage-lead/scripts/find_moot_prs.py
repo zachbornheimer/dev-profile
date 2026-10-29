@@ -88,7 +88,7 @@ def fetch_open_prs(repo: str) -> list[dict]:
 
 
 def age_hours(created_at: str) -> float:
-    created = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+    created = datetime.fromisoformat(created_at)
     return (datetime.now(UTC) - created).total_seconds() / 3600
 
 

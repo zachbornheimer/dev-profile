@@ -27,9 +27,25 @@ LINEAR_ATTACH_MAX_DF = 2
 
 LINEAR_NAME_STOPWORDS = frozenset(
     {
-        "launch", "exit", "summit", "phase", "ops", "ad", "hoc", "support",
-        "inbound", "callback", "feed", "hosting", "for", "of", "and", "the",
-        "a", "an", "to",
+        "launch",
+        "exit",
+        "summit",
+        "phase",
+        "ops",
+        "ad",
+        "hoc",
+        "support",
+        "inbound",
+        "callback",
+        "feed",
+        "hosting",
+        "for",
+        "of",
+        "and",
+        "the",
+        "a",
+        "an",
+        "to",
     }
 )
 
@@ -41,16 +57,42 @@ LINEAR_NAME_STOPWORDS = frozenset(
 # "wordpress", "sdk", "git", "macos").
 FAMILY_KEY_STOPWORDS = frozenset(
     {
-        "cli", "sdk", "wordpress", "plugin", "docker", "backend", "frontend",
-        "tool", "tooling", "api", "git", "macos", "launchd", "metadata",
-        "nlp", "worktree", "react", "react-native", "node", "nodejs",
-        "http-client", "grpc", "expo", "supabase", "auth", "forms",
-        "hosting", "infrastructure", "mobile-app",
+        "cli",
+        "sdk",
+        "wordpress",
+        "plugin",
+        "docker",
+        "backend",
+        "frontend",
+        "tool",
+        "tooling",
+        "api",
+        "git",
+        "macos",
+        "launchd",
+        "metadata",
+        "nlp",
+        "worktree",
+        "react",
+        "react-native",
+        "node",
+        "nodejs",
+        "http-client",
+        "grpc",
+        "expo",
+        "supabase",
+        "auth",
+        "forms",
+        "hosting",
+        "infrastructure",
+        "mobile-app",
         # Generated-SDK mirror tags: every language's generated client repeats
         # these, so they name a build mechanism, not a product. A framework
         # tag like "laravel" is the same shape (many unrelated repos can use
         # it) and is stopped for the same reason.
-        "generated", "packagist", "laravel",
+        "generated",
+        "packagist",
+        "laravel",
     }
 )
 
@@ -85,7 +127,9 @@ def build_nodes(inputs: BuildInputs) -> list[dict[str, Any]]:
     _attach_linear(inputs, areas, products, leaves_by_product)
     _mark_large_areas(areas, products)
     _finalize_area_criteria(areas, products, inputs.overrides.get("area_labels", {}))
-    _apply_criteria_overrides(areas, products, leaves_by_product, inputs.overrides.get("criteria", {}))
+    _apply_criteria_overrides(
+        areas, products, leaves_by_product, inputs.overrides.get("criteria", {})
+    )
 
     nodes: list[dict[str, Any]] = list(areas.values())
     nodes.extend(products.values())
@@ -100,7 +144,9 @@ def build_nodes(inputs: BuildInputs) -> list[dict[str, Any]]:
 def _build_areas(overrides: dict[str, Any]) -> dict[str, dict[str, Any]]:
     org_areas = overrides.get("org_areas", {})
     area_labels = overrides.get("area_labels", {})
-    area_ids = sorted({entry["area"] for entry in org_areas.values()} | set(area_labels))
+    area_ids = sorted(
+        {entry["area"] for entry in org_areas.values()} | set(area_labels)
+    )
     areas: dict[str, dict[str, Any]] = {}
     for area_id in area_ids:
         areas[area_id] = {
@@ -203,11 +249,7 @@ def _family_key_for_area(
 
     def eligible(key: str) -> bool:
         df = keyword_df.get(key, 0)
-        return (
-            candidate_repo_count.get(key, 0) >= 2
-            and df >= 2
-            and df <= FAMILY_MAX_DF
-        )
+        return candidate_repo_count.get(key, 0) >= 2 and df >= 2 and df <= FAMILY_MAX_DF
 
     family_key: dict[str, str] = {}
     for repo in area_repos:
@@ -240,7 +282,9 @@ def _family_key_for_area(
 # --- P3: archived fold -----------------------------------------------------
 
 
-def _pick_alias_target(archived: dict[str, Any], live_leaves: list[dict[str, Any]]) -> dict[str, Any]:
+def _pick_alias_target(
+    archived: dict[str, Any], live_leaves: list[dict[str, Any]]
+) -> dict[str, Any]:
     """Most token overlap wins; newest `pushed_at` breaks a tie.
 
     Two stable passes: sort newest-first, then stable-sort by descending
@@ -264,12 +308,10 @@ def _build_products(
     repos = inputs.repos
     overrides = inputs.overrides
     description_df = _description_document_frequency(repos)
-    all_keyword_df = document_frequency(
-        [set(r.get("keywords") or []) for r in repos]
-    )
+    all_keyword_df = document_frequency([set(r.get("keywords") or []) for r in repos])
     all_keyword_df = {normalize_keyword(k): v for k, v in all_keyword_df.items()}
 
-    repos_by_full_name = {r["full_name"]: r for r in repos}
+    {r["full_name"]: r for r in repos}
     by_area: dict[str, list[dict[str, Any]]] = {}
     for repo in repos:
         area = repo_area.get(repo["full_name"])
@@ -308,8 +350,10 @@ def _build_products(
         live = [r for r in members if not r.get("archived")]
         archived = [r for r in members if r.get("archived")]
         derived_by = (
-            "override:merge" if product_id in merge_why
-            else "family" if len(live) > 1 or (live and len(members) > 1)
+            "override:merge"
+            if product_id in merge_why
+            else "family"
+            if len(live) > 1 or (live and len(members) > 1)
             else "singleton"
         )
 
@@ -317,12 +361,16 @@ def _build_products(
         if live:
             for repo in live:
                 tokens = _enrich_repo_tokens(repo, description_df)
-                leaf = _repo_leaf_node(repo, product_id, tokens, inputs.developer_clones)
+                leaf = _repo_leaf_node(
+                    repo, product_id, tokens, inputs.developer_clones
+                )
                 leaves.append(leaf)
             for repo in archived:
                 target = _pick_alias_target(repo, leaves)
                 target.setdefault("aliases", []).append(repo["full_name"])
-                target["tokens"] = sorted(set(target["tokens"]) | _repo_keyword_tokens(repo))
+                target["tokens"] = sorted(
+                    set(target["tokens"]) | _repo_keyword_tokens(repo)
+                )
         else:
             primary = max(archived, key=lambda r: r.get("pushed_at") or "")
             tokens: set[str] = set()
@@ -331,14 +379,18 @@ def _build_products(
             leaf = _repo_leaf_node(primary, product_id, tokens, inputs.developer_clones)
             leaf["archived"] = True
             leaf["aliases"] = sorted(
-                r["full_name"] for r in archived if r["full_name"] != primary["full_name"]
+                r["full_name"]
+                for r in archived
+                if r["full_name"] != primary["full_name"]
             )
             leaves.append(leaf)
 
         for leaf in leaves:
             leaf.pop("_pushed_at_sort_key", None)
 
-        product_tokens = sorted({tok for leaf in leaves for tok in leaf.get("tokens") or []})
+        product_tokens = sorted(
+            {tok for leaf in leaves for tok in leaf.get("tokens") or []}
+        )
         products[product_id] = {
             "id": product_id,
             "parent": area,
@@ -381,11 +433,17 @@ def _repo_leaf_node(
 
 
 def _leaf_criteria(repo: dict[str, Any]) -> str:
-    text = str(repo.get("description_proposed") or repo.get("description_current") or repo["full_name"])
+    text = str(
+        repo.get("description_proposed")
+        or repo.get("description_current")
+        or repo["full_name"]
+    )
     return text[:DESCRIPTION_CHARS]
 
 
-def _product_criteria(product_id: str, leaves: list[dict[str, Any]], tokens: list[str]) -> str:
+def _product_criteria(
+    product_id: str, leaves: list[dict[str, Any]], tokens: list[str]
+) -> str:
     members = ", ".join(leaf.get("project_key", leaf["id"]) for leaf in leaves)
     top_tokens = ", ".join(tokens[:6])
     text = f"Products: {members}; {top_tokens}"
@@ -446,7 +504,9 @@ def _linear_tokens(name: str) -> set[str]:
     raw = name.replace("—", " ").replace("&", " ").replace(":", " ").replace("→", " ")
     candidates = re.split(r"[^a-z0-9]+", raw.lower())
     return {
-        t for t in candidates if t and t not in LINEAR_NAME_STOPWORDS and not t.isdigit()
+        t
+        for t in candidates
+        if t and t not in LINEAR_NAME_STOPWORDS and not t.isdigit()
     }
 
 
@@ -485,7 +545,9 @@ def _product_identity_tokens(
     return basename_tokens, keyword_tokens - basename_tokens
 
 
-def _is_better_match(candidate: tuple[int, int], current: tuple[int, int] | None) -> bool:
+def _is_better_match(
+    candidate: tuple[int, int], current: tuple[int, int] | None
+) -> bool:
     """Lower (tier, df) wins: basename tier beats keyword tier; within a
     tier, the rarer (lower document frequency) token wins."""
     return current is None or candidate < current
@@ -499,11 +561,14 @@ def _attach_linear(
 ) -> None:
     repos_by_full_name = {r["full_name"]: r for r in inputs.repos}
     identity_tokens = {
-        product_id: _product_identity_tokens(product, leaves_by_product.get(product_id, []), repos_by_full_name)
+        product_id: _product_identity_tokens(
+            product, leaves_by_product.get(product_id, []), repos_by_full_name
+        )
         for product_id, product in products.items()
     }
     all_tokens_by_product = {
-        product_id: basename | keyword for product_id, (basename, keyword) in identity_tokens.items()
+        product_id: basename | keyword
+        for product_id, (basename, keyword) in identity_tokens.items()
     }
     product_token_df = document_frequency(list(all_tokens_by_product.values()))
     linear_area_override = inputs.overrides.get("linear_area", {})
@@ -533,7 +598,9 @@ def _attach_linear(
         leaf = _linear_leaf(project, best_product)
         leaves_by_product.setdefault(best_product, []).append(leaf)
 
-    _attach_unattached_linear(unattached, areas, products, leaves_by_product, linear_area_override)
+    _attach_unattached_linear(
+        unattached, areas, products, leaves_by_product, linear_area_override
+    )
 
 
 def _linear_leaf(project: dict[str, Any], product_id: str) -> dict[str, Any]:
@@ -577,9 +644,15 @@ def _attach_unattached_linear(
                 token_counts[token] = token_counts.get(token, 0) + 1
         grouped: dict[str, list[dict[str, Any]]] = {}
         for project in projects:
-            candidates = [t for t in _linear_tokens(project["name"]) if token_counts.get(t, 0) >= 2]
-            key = sorted(candidates)[0] if candidates else None
-            group_id = f"product:{key}" if key else f"product:{_slugify(project['name'])}"
+            candidates = [
+                t
+                for t in _linear_tokens(project["name"])
+                if token_counts.get(t, 0) >= 2
+            ]
+            key = min(candidates) if candidates else None
+            group_id = (
+                f"product:{key}" if key else f"product:{_slugify(project['name'])}"
+            )
             grouped.setdefault(group_id, []).append(project)
 
         for product_id, group_projects in grouped.items():
@@ -625,7 +698,9 @@ def _finalize_area_criteria(
         top_tokens = sorted(counts, key=lambda t: (-counts[t], t))[:8]
         area["tokens"] = top_tokens
         label = area_labels.get(area_id, area["label"])
-        area["criteria"] = f"{label}: {', '.join(top_tokens)}"[:DESCRIPTION_CHARS] or label
+        area["criteria"] = (
+            f"{label}: {', '.join(top_tokens)}"[:DESCRIPTION_CHARS] or label
+        )
 
 
 def _apply_criteria_overrides(
@@ -650,7 +725,9 @@ def _apply_criteria_overrides(
 # --- P7: sibling cap ---------------------------------------------------
 
 
-def _mark_large_areas(areas: dict[str, dict[str, Any]], products: dict[str, dict[str, Any]]) -> None:
+def _mark_large_areas(
+    areas: dict[str, dict[str, Any]], products: dict[str, dict[str, Any]]
+) -> None:
     counts: dict[str, int] = {}
     for product in products.values():
         counts[product["parent"]] = counts.get(product["parent"], 0) + 1
