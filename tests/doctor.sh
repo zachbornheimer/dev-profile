@@ -1,30 +1,70 @@
 #!/usr/bin/env bash
-# Check the files this branch installs. There is no Pkl render.
+# `mise run doctor`: syntax-check every generated file with the tool that consumes it.
 set -euo pipefail
-root="$(cd "$(dirname "$0")/.." && pwd)"
+out="$DEV_PROFILE_OUT"
 fail() {
 	echo "FAIL: $*" >&2
 	exit 1
 }
-HK_FILE="$root/hk/hk.pkl" hk validate >/dev/null || fail hk/hk.pkl
-dprint output-resolved-config --config "$root/config/dprint.jsonc" >/dev/null || fail config/dprint.jsonc
-zsh -n "$root/shell/shell.zsh" || fail shell/shell.zsh
-for f in "$root"/shell/zsh/*.zsh; do
-	zsh -n "$f" || fail "shell/zsh/${f##*/}"
+HK_FILE="$out/hk-config.pkl" hk validate >/dev/null || fail hk-config.pkl
+dprint output-resolved-config --config "$out/dprint.jsonc" >/dev/null || fail dprint.jsonc
+wt --config "$out/worktrunk.toml" config show >/dev/null || fail worktrunk.toml
+for alias in up pr pr-draft pr-auto "done" prune commit-unstaged commit-fix; do
+	wt --config "$out/worktrunk.toml" config alias show "$alias" >/dev/null || fail "worktrunk alias $alias"
 done
-bash "$root/tests/output-fixture.sh" >/dev/null || fail "output fixture"
-bash "$root/tests/hook-path-free.sh" >/dev/null || fail "hook path fixture"
-bash "$root/tests/ban-trunk-prettier-fixture.sh" >/dev/null || fail "ban-trunk-prettier fixture"
-bash "$root/tests/pre-push-empty-file-list-fixture.sh" >/dev/null || fail "pre-push empty file list fixture"
-bash "$root/tests/ruby-security-steps-fixture.sh" >/dev/null || fail "ruby security steps fixture"
-bash "$root/tests/pre-commit-fixture.sh" >/dev/null || fail "pre-commit fixture"
-bash "$root/tests/semgrep-fixture.sh" >/dev/null || fail "semgrep fixture"
-bash "$root/tests/dev-family-fixture.sh" "$root" >/dev/null || fail "dev-family fixture"
-bash "$root/tests/commit-fix-fixture.sh" "$root" >/dev/null || fail "commit-fix fixture"
-bash "$root/tests/skills-sync-fixture.sh" >/dev/null || fail "skills sync fixture"
-for f in "$root"/bin/*; do
-	bash -n "$f" || fail "bin/${f##*/}"
-done
-node --check "$root/dev-relay.mjs" || fail dev-relay.mjs
-[ -f "$root/config/personal-overlay.toml" ] || fail config/personal-overlay.toml
-echo "ok"
+wt --config "$out/worktrunk.toml" config alias dry-run pr -- @ >/dev/null || fail worktrunk alias dry-run pr
+grep -Fq "$out/bin/dev-profile-pkl-fmt" "$out/dprint.jsonc" || fail "dprint pkl exec must be $out/bin/dev-profile-pkl-fmt"
+jq empty "$out/profile.json" || fail profile.json
+luac -p "$out/conform.lua" || fail conform.lua
+zsh -n "$out/shell.zsh" || fail shell.zsh
+node --check "$out/dev-relay.mjs" || fail dev-relay.mjs
+for f in "$out"/bin/*; do bash -n "$f" || fail "${f##*/}"; done
+# Same bar the profile sets for every repo's push: warnings block, info tips do not.
+shellcheck --severity=warning "$out"/bin/* tests/*.sh || fail shellcheck
+"$out/bin/dev-profile-git-config-hooks" || fail "git 2.54+ (config-based hooks) does not resolve"
+# Every generated script runs under pipefail: a reader that stops early (head)
+# kills its writer with SIGPIPE and the script with exit 141.
+if grep -nE '[|][[:space:]]*head([[:space:]]|$)' "$out"/bin/*; then fail "a generated script pipes into head; under pipefail that exits 141. Use sed -n 1p or awk 'NR <= n'"; fi
+golangci-lint config verify --config "$out/golangci.yml" || fail golangci.yml
+grep -F "allow-parallel-runners: true" "$out/golangci.yml" || fail "golangci allow-parallel-runners"
+grep -F "composer audit --locked" "$out/bin/dev-profile-contract-php" || fail "composer audit --locked"
+if pkl eval -x 'checks["oxlint"].check' profile.pkl | grep -F -- "--deny-warnings"; then fail "oxlint must not deny-warnings"; fi
+while IFS= read -r cmd; do [[ -x "$out/bin/$cmd" ]] || fail "hk step command without a rendered bin script: $cmd"; done < <(grep -ohE "dev-profile-[a-z0-9-]+" "$out/src/profile.pkl" "$out"/src/tools/*/*.pkl | sort -u)
+pkl test tests/profile.test.pkl || fail "pkl test (regenerate the snapshot with: pkl test --overwrite tests/profile.test.pkl)"
+bash tests/contract-fixtures.sh "$out" || fail "contract fixtures"
+bash tests/go-fix-fixture.sh "$out" || fail "go-fix fixture"
+bash tests/gosec-fixture.sh "$out" || fail "gosec fixture"
+bash tests/brakeman-fixture.sh || fail "brakeman fixture"
+bash tests/go-mod-tidy-fixture.sh "$out" || fail "go-mod-tidy fixture"
+bash tests/bump-fixture.sh "$out" || fail "bump fixture"
+bash tests/modernizer-fixture.sh "$out" || fail "modernizer fixture"
+bash tests/perl-profile-fixture.sh "$out" || fail "perl-profile fixture"
+bash tests/guards-fixture.sh "$out" || fail "guards fixture"
+bash tests/deny-fixture.sh "$out" || fail "deny fixture"
+bash tests/lint-full-tree-fixture.sh "$out" || fail "lint-full-tree fixture"
+for gem_tool in bundle-audit brakeman; do command -v "$gem_tool" >/dev/null || echo "note: $gem_tool is not installed; run mise install (pinned in profile.pkl tools). Its push check is skipped until then."; done
+bash tests/pr-fixture.sh "$out" || fail "pr fixture"
+bash tests/commit-fix-fixture.sh "$out" || fail "commit-fix fixture"
+bash tests/escape-hatch-fixture.sh README.md "$out" || fail "escape-hatch fixture"
+bash tests/sync-fixture.sh "$out" || fail "sync fixture"
+bash tests/done-fixture.sh "$out" || fail "done fixture"
+bash tests/retire-fixture.sh "$out" || fail "retire fixture"
+bash tests/shellcheck-fix-fixture.sh "$out" || fail "shellcheck-fix fixture"
+bash tests/shellcheck-severity-fixture.sh "$out" || fail "shellcheck-severity fixture"
+bash tests/tool-path-fixture.sh "$out" || fail "tool-path fixture"
+bash tests/shell-init-fixture.sh "$out" || fail "shell-init fixture"
+bash tests/dev-family-fixture.sh "$out" || fail "dev-family fixture"
+bash tests/worktree-copy-fixture.sh "$out" || fail "worktree-copy fixture"
+bash tests/worktree-start-fixture.sh "$out" || fail "worktree-start fixture"
+bash tests/identity-guard-fixture.sh "$out" || fail "identity-guard fixture"
+bash tests/hardcoded-dev-port-fixture.sh "$out" || fail "hardcoded-dev-port fixture"
+bash tests/formatter-linter-agreement-fixture.sh "$out" || fail "formatter-linter-agreement fixture"
+bash tests/swift-format-fixture.sh "$out" || fail "swift-format fixture"
+bash tests/owned-files-fixture.sh "$out" || fail "owned-files fixture"
+bash tests/kernel-pins-fixture.sh "$out" || fail "kernel-pins fixture"
+bash tests/retire-legacy-hooks-fixture.sh "$out" || fail "retire-legacy-hooks fixture"
+bash tests/ci-action-fixture.sh "$out" || fail "ci-action fixture"
+bash tests/out-dir-fixture.sh || fail "out-dir fixture"
+bash tests/conform-resolve-fixture.sh "$out" || fail "conform-resolve fixture"
+bash tests/lint-binding-fixture.sh "$out" || fail "lint-binding fixture"
+echo "doctor ok"
