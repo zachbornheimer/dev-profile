@@ -499,7 +499,7 @@ steps {
     profiles = List("slow")
   }
   ["brakeman"] {
-    check = "dev-profile-if-installed brakeman mise exec ruby@4 -- brakeman -q -w2 {{files}}"
+    check = "dev-profile-brakeman {{files}}"
     glob =
       List(
         "**/*.rb",
@@ -513,7 +513,7 @@ steps {
     profiles = List("slow")
   }
   ["bundle-audit"] {
-    check = "dev-profile-if-installed bundle-audit bundle-audit check {{files}}"
+    check = "dev-profile-bundle-audit {{files}}"
     glob = List("**/Gemfile.lock")
     profiles = List("slow")
   }
@@ -919,7 +919,7 @@ hooks {
         check = "dev-profile-suppressions --unpushed"
       }
       ["brakeman"] {
-        check = "dev-profile-if-installed brakeman mise exec ruby@4 -- brakeman -q -w2 {{files}}"
+        check = "dev-profile-brakeman {{files}}"
         glob =
           List(
             "**/*.rb",
@@ -932,7 +932,7 @@ hooks {
           )
       }
       ["bundle-audit"] {
-        check = "dev-profile-if-installed bundle-audit bundle-audit check {{files}}"
+        check = "dev-profile-bundle-audit {{files}}"
         glob = List("**/Gemfile.lock")
       }
       ["rubocop"] {

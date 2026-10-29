@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# dev-profile-brakeman <files…>: brakeman the given files, each scanned from the
+# Rails app that holds it. Run from the repo root, as hk does.
+# brakeman takes one path, the app root (a directory holding app/), and narrows
+# the scan with --only-files. Handed the changed files as arguments it reads the
+# last one as the app path and refuses: "Please supply the path to a Rails
+# application (looking in .../spec/support/capybara.rb)". The app root is the
+# nearest directory at or above a file that holds app/, so an app below the repo
+# root is scanned from its own root, one run per app. A file no Rails app holds
+# cannot be scanned by brakeman: it is named on stderr as not scanned.
+# Skips when brakeman is not installed or no file is given.
+command -v brakeman >/dev/null 2>&1 || exit 0
+repo="$(pwd -P)"
+
+# app_root <relative file>: the nearest enclosing directory that holds app/.
+app_root() {
+	local dir="$1"
+	while :; do
+		case "${dir}" in
+		*/*) dir="${dir%/*}" ;;
+		*) dir=. ;;
+		esac
+		if [[ -d "${dir}/app" ]]; then
+			printf '%s\n' "${dir}"
+			return 0
+		fi
+		[[ "${dir}" != . ]] || return 1
+	done
+}
+
+files=()
+roots=()
+for file in "$@"; do
+	file="${file#"${repo}/"}"
+	file="${file#./}"
+	if [[ "${file}" == /* || "${file}" == *,* ]]; then
+		# --only-files splits its value on commas, and a path outside the repo has no root here.
+		echo "dev-profile-brakeman: cannot scan ${file}: an absolute path or a comma in the name" >&2
+		exit 1
+	fi
+	if root="$(app_root "${file}")"; then
+		files+=("${file}")
+		roots+=("${root}")
+	else
+		echo "dev-profile-brakeman: ${file} is in no Rails app (no app/ above it): not scanned" >&2
+	fi
+done
+((${#files[@]})) || exit 0
+
+status=0
+while IFS= read -r root; do
+	scoped=()
+	for i in "${!files[@]}"; do
+		[[ "${roots[i]}" == "${root}" ]] || continue
+		if [[ "${root}" == . ]]; then
+			scoped+=("${files[i]}")
+		else
+			scoped+=("${files[i]#"${root}/"}")
+		fi
+	done
+	# --only-files takes one comma-separated value.
+	only="${scoped[0]}"
+	for path in "${scoped[@]:1}"; do
+		only+=",${path}"
+	done
+	mise exec ruby@4 -- brakeman -q -w2 --path "${root}" --only-files "${only}" || status=$?
+done < <(printf '%s\n' "${roots[@]}" | sort -u)
+exit "${status}"

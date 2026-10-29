@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# dev-profile-bundle-audit <Gemfile.lock…>: bundle-audit each given lockfile from
+# the directory that holds it. Run from the repo root, as hk does.
+# bundle-audit check takes a project directory, never a lockfile: handed
+# "Gemfile.lock" it looks for Gemfile.lock/Gemfile.lock and reports "No such file
+# or directory: Gemfile.lock". Run in the lockfile's directory it reads that
+# project's .bundler-audit.yml, so a lockfile below the repo root is audited as
+# its own project.
+# Skips when bundle-audit is not installed or no lockfile is given.
+command -v bundle-audit >/dev/null 2>&1 || exit 0
+
+status=0
+for lock in "$@"; do
+	dir="$(dirname "${lock}")"
+	echo "bundle-audit: ${lock}" >&2
+	(cd "${dir}" && bundle-audit check --gemfile-lock "$(basename "${lock}")") || status=$?
+done
+exit "${status}"
