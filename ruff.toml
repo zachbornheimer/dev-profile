@@ -1,0 +1,5 @@
+# Hooks fail open by design: a hook that raises on its own logging or stdin handling
+# breaks the user's turn, so `except Exception: pass` there is the intended shape.
+# S110 asks for logging; a hook's logger is the thing being protected.
+[lint.per-file-ignores]
+"agents/hooks/*.py" = ["S110"]

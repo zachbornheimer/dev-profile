@@ -418,6 +418,7 @@ steps {
   }
   ["check-executables-have-shebangs"] {
     check = "hk util check-executables-have-shebangs {{files}}"
+    exclude = List("vim/.netrwhist", "vim/bundle/**")
     profiles = List("slow")
   }
   ["check-symlinks"] {
@@ -616,7 +617,12 @@ steps {
       )
     profiles = List("slow")
     dir = "{{workspace}}"
-    workspace_indicator = "Cargo.toml"
+    // The lock file exists only at a cargo workspace root. Keyed on Cargo.toml
+    // instead, every member crate is its own "workspace", so hk ran the same
+    // `--workspace check` once per member, and the copies raced on cargo-deny's
+    // single advisory-DB lock (at-gt0wr6: "failed to acquire lock within the
+    // specified duration").
+    workspace_indicator = "Cargo.lock"
   }
   ["clippy"] {
     check =
@@ -862,6 +868,7 @@ hooks {
       ["check-executables-have-shebangs"] {
         check = "hk util check-executables-have-shebangs {{files}}"
         glob = List("**/*")
+        exclude = List("vim/.netrwhist", "vim/bundle/**")
       }
       ["check-symlinks"] {
         check = "hk util check-symlinks {{files}}"
@@ -1045,7 +1052,8 @@ hooks {
             "**/.deny.exceptions.toml",
           )
         dir = "{{workspace}}"
-        workspace_indicator = "Cargo.toml"
+        // Root-only marker: see the top-level cargo-deny step.
+        workspace_indicator = "Cargo.lock"
       }
       ["clippy"] {
         check =
