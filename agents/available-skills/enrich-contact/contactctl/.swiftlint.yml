@@ -1,0 +1,5 @@
+# Set explicitly so `swiftlint lint` and `swiftlint --fix` agree. With no config the
+# 0.65.1 defaults disagree: lint reports trailing commas as violations while the fixer
+# adds them, so every pre-commit run re-dirties the same lines.
+trailing_comma:
+  mandatory_comma: false
