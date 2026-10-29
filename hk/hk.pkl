@@ -180,6 +180,7 @@ steps {
   ["rubocop-fix"] {
     fix = "dev-profile-rubocop-fix {{files}}"
     glob = List("**/*.rb", "**/*.rake")
+    exclude = List("vim/bundle/**")
   }
   ["clippy-fix"] {
     fix = "dev-profile-clippy-fix {{files}}"
@@ -576,7 +577,15 @@ steps {
         "**/Thorfile",
         "**/Vagrantfile",
       )
-    exclude = List("node_modules/**/*", "tmp/**/*", "vendor/**/*", ".git/**/*")
+    exclude =
+      List(
+        "node_modules/**/*",
+        "tmp/**/*",
+        "vendor/**/*",
+        ".git/**/*",
+        "vim/bundle/**",
+        "**/Brewfile",
+      )
     profiles = List("slow")
   }
   ["cargo-check"] {
@@ -995,7 +1004,15 @@ hooks {
             "**/Thorfile",
             "**/Vagrantfile",
           )
-        exclude = List("node_modules/**/*", "tmp/**/*", "vendor/**/*", ".git/**/*")
+        exclude =
+          List(
+            "node_modules/**/*",
+            "tmp/**/*",
+            "vendor/**/*",
+            ".git/**/*",
+            "vim/bundle/**",
+            "**/Brewfile",
+          )
       }
       ["cargo-check"] {
         check = "cargo check --quiet"
