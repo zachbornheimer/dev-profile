@@ -1,4 +1,4 @@
-amends "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pkl"
+amends "package://github.com/jdx/hk/releases/download/v2.9.0/hk@2.9.0#/Config.pkl"
 
 // Frozen from the live hk module. A checkout must not amend a path outside the repo.
 fail_fast = false

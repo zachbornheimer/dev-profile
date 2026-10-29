@@ -27,7 +27,7 @@ mkdir -p "${hk_config}"
 # Only the dev-profile-* steps: this fixture judges how the hook finds its helpers, not
 # which steps the full profile runs.
 cat >"${hk_config}/config.pkl" <<'PKL'
-amends "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pkl"
+amends "package://github.com/jdx/hk/releases/download/v2.9.0/hk@2.9.0#/Config.pkl"
 hooks {
   ["pre-push"] {
     steps {

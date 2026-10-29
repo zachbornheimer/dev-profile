@@ -1,6 +1,6 @@
 [tools]
 pkl = "0.32.1"
-hk = "2.5.0"
+hk = "2.9.0"
 dprint = "0.64.3"
 worktrunk = "0.80.0"
 go = "1.27"
