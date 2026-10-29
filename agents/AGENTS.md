@@ -18,17 +18,20 @@ including No slop and ADHD shape. Off for ADHD shape only: "stop adhd mode" or
 <!-- requires: run_command -->
 
 **Command execution is `run_command`, always — every command, including the first of the session.**
-`run_command` (`agentmux_capability_run_command`; harnesses that prefix it show `mcp__capability__agentmux_capability_run_command`) is the sole shell runner, with no exceptions
-and no fallbacks. Never use the Bash tool or any other shell/executor tool, even for a one-liner
+`run_command` is the sole shell runner, with no exceptions and no fallbacks. It is one of the capability
+gateway's listed tools: call it directly by whatever name your harness shows for it (the name ends in
+`run_command`), never through `tool_call`. Never use the Bash tool or any other shell/executor tool, even for a one-liner
 or a bare `ls`/`cd`; never ask permission to use run_command; never test whether Bash works. A
 Bash denial or a disabled Bash is a routing signal, not a question for me — switch to
-run_command and keep going. If it is missing from your tool list, call
-`search_tools("command execution")` right then, before any other tool call.
+run_command and keep going. If it is missing from your tool list, call the gateway's `tool_search`
+tool with `{ "query": "run a shell command" }` right then, before any other tool call.
 If run_command itself returns an error, fix the command and call run_command again with a
 different phrasing — a failing run_command never licenses Bash, a harness-native shell, or
 skipping the command. A `Bash` tool in your tool list is dead surface copied from other harnesses: never call it, not even once, not even for a bare `ls`. This binds the workers you spawn too — say "run every command through run_command" in every work order you write. There is exactly one way to run a command in every harness.
 
-**Tool denial recovery:** When any tool returns "No such tool available", "disabled", or similar denial, immediately call search_tools with the tool's capability category (e.g., "command execution", "web search", "file editing") to discover alternatives. Do not retry the denied tool, escalate to user, or ask permission until you have attempted discovery. One denial = one immediate search_tools call.
+**Tool and skill access:** the capability gateway lists a few tools directly; everything else (upstream MCP tools, skills) is reached by calling its `tool_search` or `skill_search` tool, then its `tool_call` tool with `{ "address": "<address from the result>", "args": { ... } }`. These are tools your harness calls like any other — not functions inside an eval or code cell.
+
+**Tool denial recovery:** When any tool returns "No such tool available", "disabled", or similar denial, immediately call `tool_search` with the capability you need (e.g. "run a shell command", "web search", "edit a file"). Do not retry the denied tool, escalate to user, or ask permission until you have attempted discovery. One denial = one immediate `tool_search` call.
 
 **Research before escalation:** Before asking the user for information you could discover yourself (package names, tool capabilities, configuration options, API behavior), attempt web search, documentation lookup, package-registry query, or filesystem inspection. Escalate only when you've tried discovery and hit a genuine blocker (credentials, destructive action, scope decision, information only the user has). If you realize mid-escalation that you could have researched it, do the research now instead of sending the question.
 
@@ -411,6 +414,11 @@ work_order:
   to re-explain what's already in the summary.
 - **Build:** `mise` is the sole entrypoint (`setup / lint / test / scan / build /
   ci / ...`). Never bypass the task runner. <!-- requires: run_command -->
+- **Never start Docker Desktop to repair a docker command.** `open -a Docker` and
+  `docker desktop start` are not recovery steps. Use the daemon the project declares
+  (homelab: `DOCKER_HOST=unix://$HOME/.colima/default/docker.sock`); if `docker info`
+  fails, say so and stop. Verified 2026-10-29: agent shells doing exactly that were
+  the only thing launching Docker Desktop, three times in one afternoon.
 - **Webmaster work goes in Mastra, not the `webmaster` CLI.** The CLI (`~/Developer/Zysys/webmaster`, `src/cli.ts`) is being eliminated. Build durable webmaster tools, workflows and agents in Mastra (`capability-replicas/mastra`), exposed over MCP so every harness shares them. Never add commands to the CLI or design new work around `webmaster <cmd>`; its behavior is a migration source only. No one-off scripts: reusable work is a tested, named Mastra tool/workflow.
 - **atask is the tracker.** `atask list` is the board; `atask add` files an
   objective with a required `--proof` and `--regression`; `atask claim` / `atask log` / `atask verify complete`
@@ -495,6 +503,13 @@ has not explained the run: on `claude:2ed0c871`, four Bash denials drew every on
 twelve hypotheses while three user recoveries (items 57, 72, 76) — the user
 diagnosing the agent's own tool catalog — were uncounted. Read the census, name the
 classes the diagnosis leaves out, then propose.
+
+**Prefer fresh `write` over hash-anchored `edit` in long sessions.** Hours-long
+turns drift files underneath hash-anchored edits: `Edit rejected … hash #0000`
+rejections and duplicate re-writes are retry waste, not retrieval waste
+(`omp_01a17a86`: 2 rejected edits, 2 duplicate writes, items 84, 113, 498, 556).
+In a session past ~10 turns, or after any eviction receipt, re-read the file and
+`write` it whole instead of `edit`-patching a stale hash.
 
 One row is unwired, and it is not the row this transcript exercised. Claude Code
 answered four Bash calls with "No such tool available" (items 3, 24, 61, 74), so the
