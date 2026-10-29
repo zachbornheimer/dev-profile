@@ -3,7 +3,7 @@ name: 04 Choosing Primitives
 description: Pick Choice, Score, Noul, or Box by the output shape the next line of code needs — closed-set label, ordered level, probability, or image edges.
 ---
 
-ORIGINAL SOURCE: https://docs.typesafe.ai/primitives
+ORIGINAL SOURCE: <https://docs.typesafe.ai/primitives>
 VIDEO: none
 Use the original source primarily. This skill below is a summary in our own words. View details at this link.
 

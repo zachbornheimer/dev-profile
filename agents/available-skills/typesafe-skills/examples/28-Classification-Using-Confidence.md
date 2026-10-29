@@ -3,7 +3,7 @@ name: 28 Classification Using Confidence
 description: Run one fine-grained Choice classification, then deterministically back off low-confidence winners to an existing parent category instead of making a second model call or escalating to a human.
 ---
 
-ORIGINAL SOURCE: https://docs.typesafe.ai/cookbooks/classification_using_confidence
+ORIGINAL SOURCE: <https://docs.typesafe.ai/cookbooks/classification_using_confidence>
 VIDEO: none
 Use the original source primarily. This skill below is a summary in our own words. View details at this link.
 
@@ -23,6 +23,7 @@ QUESTION = (
     "as this filing describes them."
 )
 
+
 def questions() -> dict:
     return {
         "group": Choice(
@@ -30,6 +31,7 @@ def questions() -> dict:
             criteria={group: describe(group) for group in sorted(GROUPS)},
         )
     }
+
 
 def classify(filing: dict) -> dict:
     answer = ask(filing["id"], filing["text"])
@@ -48,12 +50,12 @@ def classify(filing: dict) -> dict:
 
 Across 60 SEC filings with a 0.9 confidence threshold and taxonomy built from `sic_codes.tsv` (444 industries, 75 major groups, 10 divisions):
 
-| Strategy | Accuracy |
-|---|---|
+| Strategy                                    | Accuracy    |
+| ------------------------------------------- | ----------- |
 | Always name a group, confident cases (n=30) | 90% (27/30) |
-| Always name a group, unsure cases (n=30) | 40% (12/30) |
-| Report division when unsure (n=30) | 70% (21/30) |
-| Overall useful answers | 80% (48/60) |
+| Always name a group, unsure cases (n=30)    | 40% (12/30) |
+| Report division when unsure (n=30)          | 70% (21/30) |
+| Overall useful answers                      | 80% (48/60) |
 
 ## Pitfalls
 

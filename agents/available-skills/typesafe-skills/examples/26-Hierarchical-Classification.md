@@ -3,7 +3,7 @@ name: 26 Hierarchical Classification
 description: Represent taxonomy edges as Choice probability distributions and run parallel beam search in code so one ambiguous early classification doesn't permanently misroute the final leaf.
 ---
 
-ORIGINAL SOURCE: https://docs.typesafe.ai/cookbooks/hierarchical_classification
+ORIGINAL SOURCE: <https://docs.typesafe.ai/cookbooks/hierarchical_classification>
 VIDEO: none
 Use the original source primarily. This skill below is a summary in our own words. View details at this link.
 
@@ -25,8 +25,14 @@ def choose(state: str, labels: tuple[str, ...]) -> dict[str, float]:
     if len(labels) == 1:
         return {labels[0]: 1.0}
     question, keys = child_question(labels)
-    response = client.system_one(state=state, questions={"child": question}, model=MODEL)
-    return {label: response.answers["child"].probabilities[key] for key, label in keys.items()}
+    response = client.system_one(
+        state=state, questions={"child": question}, model=MODEL
+    )
+    return {
+        label: response.answers["child"].probabilities[key]
+        for key, label in keys.items()
+    }
+
 
 def beam_search(hierarchy: Hierarchy) -> dict:
     """Parallel width-K beam search using geometric-mean probability."""
@@ -39,12 +45,12 @@ Paths are scored by the geometric mean of their edge probabilities — `product(
 
 ## Results / numbers
 
-| Hierarchy | Nodes | Greedy correct | Beam K=3 correct |
-|---|---|---|---|
-| CPC patents | ~10,000+ | No | Yes |
-| Shopify products | ~7,000+ | No | Yes |
-| MeSH biomedical | ~30,000+ | Yes | Yes |
-| CookSafe files | ~300+ | Yes | Yes |
+| Hierarchy        | Nodes    | Greedy correct | Beam K=3 correct |
+| ---------------- | -------- | -------------- | ---------------- |
+| CPC patents      | ~10,000+ | No             | Yes              |
+| Shopify products | ~7,000+  | No             | Yes              |
+| MeSH biomedical  | ~30,000+ | Yes            | Yes              |
+| CookSafe files   | ~300+    | Yes            | Yes              |
 
 Beam search matched 4 of 4 expected leaves; greedy matched 2 of 4.
 

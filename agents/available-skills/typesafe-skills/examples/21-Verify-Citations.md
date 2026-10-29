@@ -3,7 +3,7 @@ name: 21 Verify Citations
 description: Check exact quote existence deterministically in code first, then use a TypeSafe Choice question to judge whether the surrounding source context supports, contradicts, or says nothing about the generated claim.
 ---
 
-ORIGINAL SOURCE: https://docs.typesafe.ai/cookbooks/citation_check
+ORIGINAL SOURCE: <https://docs.typesafe.ai/cookbooks/citation_check>
 VIDEO: none
 Use the original source primarily. This skill below is a summary in our own words. View details at this link.
 
@@ -19,9 +19,11 @@ The cookbook verifies 8 citations against RFC 7519 (JSON Web Token). Step one is
 def locate(sections: dict[str, str], citation: dict) -> tuple[str, str | None]:
     """Returns status ('found', 'section-only', 'missing') and section text"""
 
+
 def check_citation(sections: dict[str, str], citation: dict) -> dict:
     """Orchestrates string match + semantic verification.
     Returns: verdict, confidence, and auto/review flag"""
+
 
 RELATION_TO_VERDICT = {
     "supports": "verified",
@@ -46,12 +48,12 @@ Four possible verdicts total: verified, fabricated, contradicted, unsupported. T
 
 On the 8-citation RFC 7519 test set:
 
-| Category | Count | Confidence |
-|---|---|---|
-| Verified | 4 | 0.93-0.99 |
-| Fabricated (string match caught) | 1 | n/a — no API call needed |
-| Contradicted | 1 | 0.99 |
-| Unsupported | 2 | 0.27, 0.56 (routed to review) |
+| Category                         | Count | Confidence                    |
+| -------------------------------- | ----- | ----------------------------- |
+| Verified                         | 4     | 0.93-0.99                     |
+| Fabricated (string match caught) | 1     | n/a — no API call needed      |
+| Contradicted                     | 1     | 0.99                          |
+| Unsupported                      | 2     | 0.27, 0.56 (routed to review) |
 
 ## Pitfalls
 
@@ -65,4 +67,4 @@ On the 8-citation RFC 7519 test set:
 - `20-Classify-RAG-Passages.md` — the upstream pipeline stage that assembles the evidence this pattern later verifies.
 - `31-Universal-Verification-Layer.md` — the general verification-layer pattern this citation checker is one instance of.
 - `23-Structured-Extraction-Cascade.md` — another two-stage cheap-then-verify pipeline, verifying extracted fields instead of citations.
-</content>
+  </content>

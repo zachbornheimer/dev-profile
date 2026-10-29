@@ -3,7 +3,7 @@ name: 23 Structured Extraction Cascade
 description: Extract with a cheap mini model first, verify each field with a batched TypeSafe error battery returning calibrated P(wrong), and escalate to an expensive reasoning model only when a field-level signal fires above threshold.
 ---
 
-ORIGINAL SOURCE: https://docs.typesafe.ai/cookbooks/sde_cascade
+ORIGINAL SOURCE: <https://docs.typesafe.ai/cookbooks/sde_cascade>
 VIDEO: none
 Use the original source primarily. This skill below is a summary in our own words. View details at this link.
 
@@ -32,7 +32,7 @@ source + schema
       flagged -> expensive reasoning extractor (rung 1)
 ```
 
-Verification questions for non-empty fields: `name_desc_mismatch`, `type_mismatch`, `unreasonable`, `hallucinated`, `off_target`, `incomplete`, `format_violation`. For empty fields: `absence_wrong` (does the source contain information that should have been extracted?). Aggregation is `max` across fields — escalate if *any* field flag exceeds the 0.7 fire threshold, since averaging would let one strong error signal get diluted into silence. Install: `pip install openai datasets jsonschema ipython 'cooksafe>=0.2.0,<0.3.0'`. Requires `OPENAI_API_KEY` and `TYPESAFE_API_KEY`.
+Verification questions for non-empty fields: `name_desc_mismatch`, `type_mismatch`, `unreasonable`, `hallucinated`, `off_target`, `incomplete`, `format_violation`. For empty fields: `absence_wrong` (does the source contain information that should have been extracted?). Aggregation is `max` across fields — escalate if _any_ field flag exceeds the 0.7 fire threshold, since averaging would let one strong error signal get diluted into silence. Install: `pip install openai datasets jsonschema ipython 'cooksafe>=0.2.0,<0.3.0'`. Requires `OPENAI_API_KEY` and `TYPESAFE_API_KEY`.
 
 ## Results / numbers
 
@@ -50,4 +50,4 @@ On the 100-prompt ScrapeGraphAI test set, the cascade achieves roughly 0.81 qual
 - `21-Verify-Citations.md` — the same cheap-check-then-verify shape, applied to citations instead of extracted fields.
 - `28-Classification-Using-Confidence.md` — using calibrated confidence to decide when a cheap classification needs escalation.
 - `16-Recover-Document-Structure.md` — another pattern where a second pass depends on the first pass's output, though here the second pass is a fallback rather than a required stage.
-</content>
+  </content>

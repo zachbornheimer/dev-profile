@@ -5,12 +5,12 @@ description: Use TypeSafe to turn interactive product input into a bounded state
 
 ORIGINAL SOURCES:
 
-- https://docs.typesafe.ai/concepts/use-case-map
-- https://docs.typesafe.ai/demos/smart-home
-- https://docs.typesafe.ai/patterns/fan-out
+- <https://docs.typesafe.ai/concepts/use-case-map>
+- <https://docs.typesafe.ai/demos/smart-home>
+- <https://docs.typesafe.ai/patterns/fan-out>
 
 This is a cross-cutting pattern with no single source page; it draws on the three pages above.
-VIDEO: Loom embed on the smart-home demo page (https://www.loom.com/embed/18c4dbcf8db546dfb2d7f2ef018e78e4), titled "TypeSafe Smart Home Demo." The share page did not load a description or transcript at fetch time — do not infer video content beyond the title.
+VIDEO: Loom embed on the smart-home demo page (<https://www.loom.com/embed/18c4dbcf8db546dfb2d7f2ef018e78e4>), titled "TypeSafe Smart Home Demo." The share page did not load a description or transcript at fetch time — do not infer video content beyond the title.
 Use the original source primarily. This skill below is a summary in our own words. View details at this link.
 
 ## When to use

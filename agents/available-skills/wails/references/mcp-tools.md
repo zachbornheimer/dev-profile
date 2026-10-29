@@ -1,6 +1,6 @@
 # Wails v3 built-in MCP tools
 
-Source: https://v3.wails.io/guides/mcp-service/
+Source: <https://v3.wails.io/guides/mcp-service/>
 
 Requires the app compiled with the `mcp` build tag (`WAILS_MCP=1 wails3 dev` or
 `go run -tags mcp .`). Default URL: `http://127.0.0.1:9099/mcp`.

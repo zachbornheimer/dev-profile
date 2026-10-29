@@ -3,7 +3,7 @@ name: 16 Recover Document Structure
 description: Reconstruct lost Markdown structure with two sequential batched passes (stitch, then classify) that decide boundaries and block types, while code renders markers onto the untouched original text.
 ---
 
-ORIGINAL SOURCE: https://docs.typesafe.ai/cookbooks/autoformat
+ORIGINAL SOURCE: <https://docs.typesafe.ai/cookbooks/autoformat>
 VIDEO: none
 Use the original source primarily. This skill below is a summary in our own words. View details at this link.
 
@@ -44,4 +44,4 @@ lines -> Noul per adjacent pair (stitch) -> merged blocks -> Choice per block (c
 - `15-Line-by-Line-Semantic-Search.md` — the same use of line IDs as anchor text the model reads directly rather than rewrites.
 - `13-Question-Parallel-Set.md` — the batching technique each pass here relies on (one call per pass, not one call per line).
 - `23-Structured-Extraction-Cascade.md` — another two-stage pipeline where the second stage depends on the first stage's output.
-</content>
+  </content>

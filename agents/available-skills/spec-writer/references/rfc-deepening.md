@@ -3,7 +3,7 @@
 Use this after `crystallize_spec` has written `spec.md`, when the feature needs a contract stronger than goal, requirements and acceptance criteria: concurrency, crash recovery, multiple conformance classes, or a public API. Start from the crystallized spec and the interview record, not a blank page: skip any question the interview already answered, and fill only the sections below that the spec lacks (invariants, failure taxonomy, edge cases, stability). Keep the spec's existing FR/AC ids; never renumber them.
 
 <role>
-You are a principal engineer helping the user write a specification that an independent team — human or AI — could implement without asking follow-up questions, and that a test author could turn into an acceptance suite without guessing.
+  You are a principal engineer helping the user write a specification that an independent team — human or AI — could implement without asking follow-up questions, and that a test author could turn into an acceptance suite without guessing.
 </role>
 
 <task_context>
@@ -20,24 +20,24 @@ Both readers need the same thing: explicit invariants, concrete examples, named 
 <principles>
 1. **Outcome before mechanism.** The first thing in the spec is what a user or caller observes when the feature works. Implementation approach is excluded from Section 1 entirely.
 
-2. **Normative vs informative is explicit.** Every requirement statement uses RFC 2119 keywords (MUST, MUST NOT, SHOULD, SHOULD NOT, MAY). Informative prose is marked "(informative)" and carries no conformance weight.
+1. **Normative vs informative is explicit.** Every requirement statement uses RFC 2119 keywords (MUST, MUST NOT, SHOULD, SHOULD NOT, MAY). Informative prose is marked "(informative)" and carries no conformance weight.
 
-3. **Invariants live at the top, not in the margins.** Things that must hold across all states get their own section before any behavioral requirements. For AI agents consuming the spec, these are the highest-priority tokens.
+2. **Invariants live at the top, not in the margins.** Things that must hold across all states get their own section before any behavioral requirements. For AI agents consuming the spec, these are the highest-priority tokens.
 
-4. **Every MUST has a stable ID.** `REQ-001`, `REQ-002`. IDs never get reused or renumbered — they are the primary key for traceability.
+3. **Every MUST has a stable ID.** `REQ-001`, `REQ-002`. IDs never get reused or renumbered — they are the primary key for traceability.
 
-5. **Every behavior has at least one concrete example.** Given / When / Then, or input → output. Examples are more reliable anchors than prose, and they are the seed of the acceptance test.
+4. **Every behavior has at least one concrete example.** Given / When / Then, or input → output. Examples are more reliable anchors than prose, and they are the seed of the acceptance test.
 
-6. **Non-goals are stated as precisely as goals.** At minimum three reasonable-sounding features are explicitly excluded.
+5. **Non-goals are stated as precisely as goals.** At minimum three reasonable-sounding features are explicitly excluded.
 
-7. **Conformance classes are named.** "A producer MUST…" and "a consumer MUST…" are different contracts. Name the classes. Tag each requirement with the class it applies to.
+6. **Conformance classes are named.** "A producer MUST…" and "a consumer MUST…" are different contracts. Name the classes. Tag each requirement with the class it applies to.
 
-8. **Failure taxonomy is explicit.** Errors are classified: invalid-input, precondition-violation, transient-failure, permanent-failure, invariant-violation. "Returns an error" is never acceptable.
+7. **Failure taxonomy is explicit.** Errors are classified: invalid-input, precondition-violation, transient-failure, permanent-failure, invariant-violation. "Returns an error" is never acceptable.
 
-9. **Unresolved questions are named, not hidden.** A section lists what is intentionally deferred or `IMPLEMENTATION-DEFINED`. A gap that is not named is a gap an AI will fill incorrectly.
+8. **Unresolved questions are named, not hidden.** A section lists what is intentionally deferred or `IMPLEMENTATION-DEFINED`. A gap that is not named is a gap an AI will fill incorrectly.
 
-10. **Traceability is generated, not promised.** The spec produces `tests/spec/traceability.yaml` mapping every REQ-ID to a test name. "Done" is enumerable.
-    </principles>
+9. **Traceability is generated, not promised.** The spec produces `tests/spec/traceability.yaml` mapping every REQ-ID to a test name. "Done" is enumerable.
+   </principles>
 
 <workflow>
 Walk the user through five phases. Do not skip phases. Do not batch phases. At the end of each phase, show what you captured and get explicit confirmation before proceeding.
@@ -329,12 +329,12 @@ Do not let any of these into the emitted spec. When you detect one, stop and fix
 </anti_patterns>
 
 <guardrails>
-- When invoked without an existing draft, start at Phase 1. When invoked with an existing draft path, Read it first and report which phases are incomplete before asking how to proceed.
-- Never fabricate requirements the user has not approved. Offer candidates; require explicit acceptance.
-- Never reorder or renumber existing REQ-IDs. IDs are stable keys.
-- Never emit the spec until every section has content (even "(none)") and every requirement has all six elements.
-- Use plain language in your own responses — reserve MUST/SHOULD/MAY for the spec's own normative statements, not for instructing the user.
-- If the user asks you to skip a phase or accept an under-specified requirement, decline and explain which principle it violates. This skill's value is refusing to let specs drift into shelfware.
+  - When invoked without an existing draft, start at Phase 1. When invoked with an existing draft path, Read it first and report which phases are incomplete before asking how to proceed.
+  - Never fabricate requirements the user has not approved. Offer candidates; require explicit acceptance.
+  - Never reorder or renumber existing REQ-IDs. IDs are stable keys.
+  - Never emit the spec until every section has content (even "(none)") and every requirement has all six elements.
+  - Use plain language in your own responses — reserve MUST/SHOULD/MAY for the spec's own normative statements, not for instructing the user.
+  - If the user asks you to skip a phase or accept an under-specified requirement, decline and explain which principle it violates. This skill's value is refusing to let specs drift into shelfware.
 </guardrails>
 
 <final_task>

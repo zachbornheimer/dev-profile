@@ -3,7 +3,7 @@ name: 07 Confidence Gated Routing
 description: Treat a Choice answer and its confidence as two separate routing inputs, so higher-consequence actions require a higher confidence threshold before executing automatically.
 ---
 
-ORIGINAL SOURCE: https://docs.typesafe.ai/patterns/confidence-routing
+ORIGINAL SOURCE: <https://docs.typesafe.ai/patterns/confidence-routing>
 VIDEO: none
 Use the original source primarily. This skill below is a summary in our own words. View details at this link.
 
@@ -20,16 +20,16 @@ An automated action has real consequences if the model's interpretation is wrong
 ```python
 intent = response.answers["intent"]
 
-if intent.confidence < MIN_CLASSIFICATION_CONFIDENCE:      # 0.6 floor
+if intent.confidence < MIN_CLASSIFICATION_CONFIDENCE:  # 0.6 floor
     return human_review()
 
 if intent.choice == "read_balance":
     return show_balance()
 
 if intent.choice == "approve_transfer":
-    if intent.confidence >= TRANSFER_AUTO_THRESHOLD:        # 0.85+
+    if intent.confidence >= TRANSFER_AUTO_THRESHOLD:  # 0.85+
         return confirm_and_execute()
-    return ask_for_confirmation()                            # 0.6-0.85
+    return ask_for_confirmation()  # 0.6-0.85
 ```
 
 ## Results / numbers

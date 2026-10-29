@@ -3,7 +3,7 @@ name: 22 LLM Guardrails
 description: Screen both inputs and outputs with a battery of parallel hazard Nouls plus a severity Score in one request, then apply readable pass/review/block/support routing policies in code instead of a system prompt or cascading LLM calls.
 ---
 
-ORIGINAL SOURCE: https://docs.typesafe.ai/cookbooks/llm_guardrails
+ORIGINAL SOURCE: <https://docs.typesafe.ai/cookbooks/llm_guardrails>
 VIDEO: none
 Use the original source primarily. This skill below is a summary in our own words. View details at this link.
 
@@ -24,8 +24,16 @@ HAZARD_ACTION = {
 }
 
 POLICIES = {
-    "strict": {"review_threshold": 0.35, "action_threshold": 0.70, "severity_block": 2.0},
-    "permissive": {"review_threshold": 0.35, "action_threshold": 0.85, "severity_block": 2.0},
+    "strict": {
+        "review_threshold": 0.35,
+        "action_threshold": 0.70,
+        "severity_block": 2.0,
+    },
+    "permissive": {
+        "review_threshold": 0.35,
+        "action_threshold": 0.85,
+        "severity_block": 2.0,
+    },
 }
 ```
 
@@ -43,7 +51,7 @@ The cookbook documents the architecture and its two named policies (`strict`, `p
 
 ## Pitfalls
 
-- A single "is this safe?" question hides *why* a request is risky — decompose into separate hazard signals so different hazards can use different thresholds and routes.
+- A single "is this safe?" question hides _why_ a request is risky — decompose into separate hazard signals so different hazards can use different thresholds and routes.
 - Centralize hazard definitions, thresholds, severity rules, and pass/review/block/support decisions in code — never let the policy live only in a prompt.
 - Do not assume the cookbook's exact hazards or thresholds fit another product; build the taxonomy around your actual policy, threat model, and review process.
 - Severity can override a review to a block — make sure that override path is itself reviewable, not a hidden side effect of the severity Score.
@@ -53,4 +61,4 @@ The cookbook documents the architecture and its two named policies (`strict`, `p
 - `20-Classify-RAG-Passages.md` — the same battery-of-Nouls-plus-threshold-routing shape, applied to retrieved passages instead of chat turns.
 - `07-Confidence-Gated-Routing.md` — the general confidence-threshold routing pattern this guardrail layer specializes.
 - `36-Manual-Review-to-Confidence-Gated-Automation.md` — migrating a manual review queue into confidence-gated automation, the same shape as the review/block split here.
-</content>
+  </content>

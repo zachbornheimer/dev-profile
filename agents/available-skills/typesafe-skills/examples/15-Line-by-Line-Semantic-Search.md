@@ -3,7 +3,7 @@ name: 15 Line by Line Semantic Search
 description: Rank ID-tagged document lines with a Choice question while a companion Noul checks whether any line actually answers the query, so ranking-with-no-real-answer is distinguishable from a real hit.
 ---
 
-ORIGINAL SOURCE: https://docs.typesafe.ai/cookbooks/semantic_find
+ORIGINAL SOURCE: <https://docs.typesafe.ai/cookbooks/semantic_find>
 VIDEO: none
 Use the original source primarily. This skill below is a summary in our own words. View details at this link.
 
@@ -22,11 +22,13 @@ from typesafe_sdk import Choice, Noul, NoulCriteria, TypeSafeClient
 
 TYPESAFE_MODEL = "jev-1.12"
 
+
 def where_question(query: str) -> Choice:
     return Choice(
         instructions=f'Which line contains the answer to: "{query}"?',
         criteria={line_id(i): None for i in range(len(LINES))},
     )
+
 
 def exists_question(query: str) -> Noul:
     return Noul(
@@ -36,6 +38,7 @@ def exists_question(query: str) -> Noul:
             false="No line addresses this",
         ),
     )
+
 
 with TypeSafeClient() as client:
     result = client.system_one(
@@ -66,4 +69,4 @@ Example thresholds used to interpret the `exists` Noul: `FOUND = 0.7`, `ABSENT =
 - `14-Re-Rank-Search-Results.md` — scoring a shortlist of candidates from a separate retriever, rather than ranking every line in one document.
 - `16-Recover-Document-Structure.md` — another pattern that uses line IDs as anchor text the model reads directly rather than rewrites.
 - `20-Classify-RAG-Passages.md` — applying narrow per-passage checks after retrieval, the RAG-pipeline analog of this document-search pattern.
-</content>
+  </content>

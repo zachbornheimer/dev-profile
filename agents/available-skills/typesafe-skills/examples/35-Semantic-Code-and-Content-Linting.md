@@ -3,7 +3,7 @@ name: 35 Semantic Code and Content Linting
 description: Turn team conventions that require interpretation — not mechanical syntax rules — into reviewable TypeSafe checks, leaving formal, provable rules to ordinary linters.
 ---
 
-ORIGINAL SOURCE: https://docs.typesafe.ai/concepts/use-case-map
+ORIGINAL SOURCE: <https://docs.typesafe.ai/concepts/use-case-map>
 VIDEO: none
 Use the original source primarily. This skill below is a summary in our own words. View details at this link.
 

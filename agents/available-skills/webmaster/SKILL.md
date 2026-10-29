@@ -20,7 +20,7 @@ From the words, infer: the **site** (site list, tiers and notes: `references/rou
 
 Before anything else, read that site's profile (`sites/<site>.yaml`) for its quirks: transport, credentials, protected plugins, DB-migrating plugins, money paths, forms and recipients, mail provider, host, registrar, client contact.
 
-Ongoing care for WordPress sites. **LLM-driven:** you perform every check yourself with the instruments available (see *How checks run*): mounted `webmaster.*` capabilities where the harness provides them, HTTP probes, wp-cli over the profile's transport, DNS/TLS lookups, browser walks, provider APIs read-only. This skill supplies the thresholds, runbooks, policies and output shapes; work inside them, never around them. A check with no available instrument is `unmeasured`, never healthy.
+Ongoing care for WordPress sites. **LLM-driven:** you perform every check yourself with the instruments available (see _How checks run_): mounted `webmaster.*` capabilities where the harness provides them, HTTP probes, wp-cli over the profile's transport, DNS/TLS lookups, browser walks, provider APIs read-only. This skill supplies the thresholds, runbooks, policies and output shapes; work inside them, never around them. A check with no available instrument is `unmeasured`, never healthy.
 
 ## Mission and method
 
@@ -87,7 +87,7 @@ A defect in the tooling is fixed in the tooling. Route it; do not absorb it.
 
 **Default: run the whole loop in one turn.** Being asked to run /webmaster is the go-ahead for every step. The run stops early only on "just a report", "read-only" or "dry run" (step 8). Asking permission between steps, or ending on "say fix", is forbidden.
 
-1. **Check.** Run every area's check yourself (see *How checks run*). A check that failed on a network error: re-run it once before calling it unmeasured.
+1. **Check.** Run every area's check yourself (see _How checks run_). A check that failed on a network error: re-run it once before calling it unmeasured.
 2. **Report.** Write the report yourself in the output shape below (scorecard, Needs you, Changes, areas, Tickets) and keep it with the site's change log.
 3. **Plan.** From the findings, write the remediation plan: **execute** (you will fix now), **record** (money paths, watch only), **worklist** (ticketed, not this cycle). Nothing on the host changes in this step.
 4. **Tickets.** Group findings by root cause/owner — stale admins, redirect chains, stray files, etc. — mapping many findings to one ticket via `{finding_id: ticket}`. Reuse existing grouped tickets first (`references/method.md` > Tickets), verifying each is open or Done (skip Duplicate or Canceled; if Duplicate, follow `duplicateOf` to the canonical ticket), else create new ones in linear-personal, team Zysys. Project ISJAC is for isjac.org; for bpp search existing Best Plan Pro / BPP / webmaster tickets and put them on the matching Linear project (linear-sah per `policies/tiers.md`). **Stop and re-group if >10 new tickets would be created.** Record the `{finding_id: ticket}` mapping in the change log. Never claim an unfiled ticket. Fix only what has a ticket.
@@ -110,15 +110,15 @@ Alerts that need a human: confirmed-down (uptime), Sev1 (`runbooks/incident-sev1
 
 ## Router (top rows; full table in `references/router.md`)
 
-| Ask | Mode | Do |
-|---|---|---|
-| "check <site>", "monthly check" | Operate | The whole Operate loop |
-| Site down, hacked, checkout broken | Incident | `runbooks/incident-sev1.md` |
-| Member can't log in, username or email change | Remediate | `runbooks/member-account-change.md`; `references/areas/access.md` |
-| "update plugins/core" | Operate | `runbooks/plugin-update.md`; `references/areas/updates.md` |
-| Emails not arriving, DMARC | Investigate | `references/areas/forms-email.md`; `runbooks/dmarc-rollout.md` |
-| Link broken, domain, DNS, cert | Investigate | `references/areas/content-pages.md`; `references/areas/domains-dns-tls.md` |
-| Meeting notes / email pasted | Operate | `runbooks/client-notes-intake.md` |
+| Ask                                           | Mode        | Do                                                                         |
+| --------------------------------------------- | ----------- | -------------------------------------------------------------------------- |
+| "check <site>", "monthly check"               | Operate     | The whole Operate loop                                                     |
+| Site down, hacked, checkout broken            | Incident    | `runbooks/incident-sev1.md`                                                |
+| Member can't log in, username or email change | Remediate   | `runbooks/member-account-change.md`; `references/areas/access.md`          |
+| "update plugins/core"                         | Operate     | `runbooks/plugin-update.md`; `references/areas/updates.md`                 |
+| Emails not arriving, DMARC                    | Investigate | `references/areas/forms-email.md`; `runbooks/dmarc-rollout.md`             |
+| Link broken, domain, DNS, cert                | Investigate | `references/areas/content-pages.md`; `references/areas/domains-dns-tls.md` |
+| Meeting notes / email pasted                  | Operate     | `runbooks/client-notes-intake.md`                                          |
 
 ## Findings and output
 

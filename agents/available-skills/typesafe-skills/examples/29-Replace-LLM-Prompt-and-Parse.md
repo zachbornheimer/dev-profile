@@ -5,9 +5,9 @@ description: Recognize generative LLM calls whose real purpose is to emit a labe
 
 ORIGINAL SOURCES:
 
-- https://docs.typesafe.ai/concepts/how-to-build-with-system-one
-- https://docs.typesafe.ai/cookbooks/function_calling
-- https://docs.typesafe.ai/primitives
+- <https://docs.typesafe.ai/concepts/how-to-build-with-system-one>
+- <https://docs.typesafe.ai/cookbooks/function_calling>
+- <https://docs.typesafe.ai/primitives>
 
 This is a cross-cutting pattern with no single source page; it draws on the three pages above.
 VIDEO: none
@@ -35,6 +35,7 @@ def plot_price(
     resolution: Literal["1m", "5m", "15m", "1h", "1d"] = "15m",
     include_volume: bool = False,
 ): ...
+
 
 # "show me apple daily with volume"
 # -> plot_price(symbol='AAPL', resolution='1d', include_volume=True)

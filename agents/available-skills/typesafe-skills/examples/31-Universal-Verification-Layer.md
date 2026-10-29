@@ -5,10 +5,10 @@ description: Put bounded TypeSafe checks in front of acceptance for any AI-gener
 
 ORIGINAL SOURCES:
 
-- https://docs.typesafe.ai/concepts/use-case-map
-- https://docs.typesafe.ai/cookbooks/citation_check
-- https://docs.typesafe.ai/cookbooks/sde_cascade
-- https://docs.typesafe.ai/cookbooks/llm_guardrails
+- <https://docs.typesafe.ai/concepts/use-case-map>
+- <https://docs.typesafe.ai/cookbooks/citation_check>
+- <https://docs.typesafe.ai/cookbooks/sde_cascade>
+- <https://docs.typesafe.ai/cookbooks/llm_guardrails>
 
 This is a cross-cutting pattern with no single source page; it draws on the four pages above.
 VIDEO: none
@@ -35,11 +35,20 @@ producer (LLM/tool/parser)
 def check_citation(sections: dict[str, str], citation: dict) -> dict:
     status, section = locate(sections, citation)
     answer = ask(citation["claim"], section) if section is not None else None
-    return {"id": citation["id"], "status": status, "answer": answer, **verdict(status, answer)}
+    return {
+        "id": citation["id"],
+        "status": status,
+        "answer": answer,
+        **verdict(status, answer),
+    }
 ```
 
 ```python
-fired = {qid: p for qid, p in checks.items() if not qid.startswith("__overall__") and p > FIRE_T}
+fired = {
+    qid: p
+    for qid, p in checks.items()
+    if not qid.startswith("__overall__") and p > FIRE_T
+}
 escalate = bool(fired)
 ```
 
@@ -51,6 +60,7 @@ jailbreak = Noul(
         false="It is an ordinary request respecting normal boundaries.",
     ),
 )
+
 
 def route(nouls: dict[str, float], severity: float, policy: dict) -> str:
     triggered = []

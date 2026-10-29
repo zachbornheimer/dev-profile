@@ -5,9 +5,9 @@ description: Keep regexes, parsers, indexes, and databases for candidate generat
 
 ORIGINAL SOURCES:
 
-- https://docs.typesafe.ai/cookbooks/pre_parsed_value_extraction_cookbook
-- https://docs.typesafe.ai/cookbooks/date_extraction_cookbook
-- https://docs.typesafe.ai/concepts/how-to-build-with-system-one
+- <https://docs.typesafe.ai/cookbooks/pre_parsed_value_extraction_cookbook>
+- <https://docs.typesafe.ai/cookbooks/date_extraction_cookbook>
+- <https://docs.typesafe.ai/concepts/how-to-build-with-system-one>
 
 This is a cross-cutting pattern with no single source page; it draws on the three pages above.
 VIDEO: none
@@ -15,7 +15,7 @@ Use the original source primarily. This skill below is a summary in our own word
 
 ## When to use
 
-Deterministic code is good at finding *where* candidates are but bad at knowing *what the user means*. Use this whenever you're tempted to replace a working parser or index with a model — replace only the selection step instead.
+Deterministic code is good at finding _where_ candidates are but bad at knowing _what the user means_. Use this whenever you're tempted to replace a working parser or index with a model — replace only the selection step instead.
 
 ## What it demonstrates
 
@@ -34,13 +34,23 @@ raw input
 def date_questions(role: str) -> dict[str, Choice]:
     """Seven typed choices that read a date's shape and parts."""
     return {
-        "mode": Choice(instructions=..., criteria={"absolute": None, "relative": None, "none": None}),
-        "month": Choice(...), "day": Choice(...), "year": Choice(...),
-        "day_anchor": Choice(...), "weekday": Choice(...), "week_offset": Choice(...),
+        "mode": Choice(
+            instructions=...,
+            criteria={"absolute": None, "relative": None, "none": None},
+        ),
+        "month": Choice(...),
+        "day": Choice(...),
+        "year": Choice(...),
+        "day_anchor": Choice(...),
+        "weekday": Choice(...),
+        "week_offset": Choice(...),
     }
 
+
 def extract_date(document: str, role: str) -> dict:
-    return assemble(read_parts(document, role))  # assemble() resolves typed parts to a concrete date + confidence
+    return assemble(
+        read_parts(document, role)
+    )  # assemble() resolves typed parts to a concrete date + confidence
 ```
 
 Other examples from the pattern: regex finds all emails, TypeSafe decides which is the billing contact; a parser finds all dates, TypeSafe decides which is the renewal date; an AST finds all candidate symbols, TypeSafe judges which violates a semantic convention; a database returns nearby product names, TypeSafe decides which record the user's phrase refers to; BM25/vector search finds candidates, TypeSafe judges relevance.
@@ -49,14 +59,14 @@ Other examples from the pattern: regex finds all emails, TypeSafe decides which 
 
 Date extraction cookbook, four documents, auto-accept threshold 0.60 confidence, reference date 2026-07-30:
 
-| Question | Expected | Got | Confidence | Status |
-|---|---|---|---|---|
-| Agreement effective date | 2025-01-01 | 2025-01-01 | 0.97 | accepted |
-| Agreement expiration | 2027-12-31 | 2027-12-31 | 0.91 | accepted |
-| Form return deadline | 2026-08-14 | 2026-08-14 | 0.95 | accepted |
-| Kickoff call date | none | none | 0.46 | sent to review |
-| Survey closing date | 2026-07-30 | 2026-07-30 | 0.94 | accepted |
-| Design review date | 2026-08-06 | 2026-08-06 | 0.92 | accepted |
+| Question                 | Expected   | Got        | Confidence | Status         |
+| ------------------------ | ---------- | ---------- | ---------- | -------------- |
+| Agreement effective date | 2025-01-01 | 2025-01-01 | 0.97       | accepted       |
+| Agreement expiration     | 2027-12-31 | 2027-12-31 | 0.91       | accepted       |
+| Form return deadline     | 2026-08-14 | 2026-08-14 | 0.95       | accepted       |
+| Kickoff call date        | none       | none       | 0.46       | sent to review |
+| Survey closing date      | 2026-07-30 | 2026-07-30 | 0.94       | accepted       |
+| Design review date       | 2026-08-06 | 2026-08-06 | 0.92       | accepted       |
 
 5 dates auto-accepted, 1 sent to human review.
 

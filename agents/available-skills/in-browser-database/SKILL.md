@@ -31,18 +31,18 @@ one demonstrably cannot do what the app needs.
 
 ## Pick the sync layer
 
-| Layer | Model | Use when | Watch out |
-|---|---|---|---|
-| Electric SQL | Reactive "Shapes" synced from Postgres | You already have Postgres | Mutations not included; pair with TanStack DB or LiveStore |
-| Zero | Postgres-backed queries + mutations | Electric-like sync with writes included | Younger ecosystem |
-| PowerSync | Postgres/MySQL/Mongo sync | Enterprise requirements | Heavier; commercial |
-| TanStack DB | Client reactive layer over a sync backend | Decouple client UX from sync choice | A layer, not a backend |
-| LiveStore | Event-sourced reactive store over Electric (etc.) | Event-sourcing + local-first together | Imposes its own schema requirements on the Postgres DB |
-| Jazz | Encrypted CoValues, group permissions | Rapid prototyping; privacy-first; no server business logic | Server is BLIND (E2E encryption); history is never deleted → GDPR + storage growth; passkey auth needs HTTPS everywhere (painful local dev) |
-| Dexie Cloud | Sync for Dexie.js apps | Already on Dexie | Dexie-scoped |
-| Triplit / Instant | Full-stack local-first, DX-focused | Small greenfield apps | Smaller ecosystems |
-| Turso (Limbo) WASM + OPFS | Embedded SQLite in browser, with sync | SQL in the browser; load the `turso-db` skill for SDK details | Sync story newer than the engine |
-| Hand-rolled LSE-style | Own transactions + delta log | Nothing above fits (rare) | Read `references/sync-engine-patterns.md` first |
+| Layer                     | Model                                             | Use when                                                      | Watch out                                                                                                                                   |
+| ------------------------- | ------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Electric SQL              | Reactive "Shapes" synced from Postgres            | You already have Postgres                                     | Mutations not included; pair with TanStack DB or LiveStore                                                                                  |
+| Zero                      | Postgres-backed queries + mutations               | Electric-like sync with writes included                       | Younger ecosystem                                                                                                                           |
+| PowerSync                 | Postgres/MySQL/Mongo sync                         | Enterprise requirements                                       | Heavier; commercial                                                                                                                         |
+| TanStack DB               | Client reactive layer over a sync backend         | Decouple client UX from sync choice                           | A layer, not a backend                                                                                                                      |
+| LiveStore                 | Event-sourced reactive store over Electric (etc.) | Event-sourcing + local-first together                         | Imposes its own schema requirements on the Postgres DB                                                                                      |
+| Jazz                      | Encrypted CoValues, group permissions             | Rapid prototyping; privacy-first; no server business logic    | Server is BLIND (E2E encryption); history is never deleted → GDPR + storage growth; passkey auth needs HTTPS everywhere (painful local dev) |
+| Dexie Cloud               | Sync for Dexie.js apps                            | Already on Dexie                                              | Dexie-scoped                                                                                                                                |
+| Triplit / Instant         | Full-stack local-first, DX-focused                | Small greenfield apps                                         | Smaller ecosystems                                                                                                                          |
+| Turso (Limbo) WASM + OPFS | Embedded SQLite in browser, with sync             | SQL in the browser; load the `turso-db` skill for SDK details | Sync story newer than the engine                                                                                                            |
+| Hand-rolled LSE-style     | Own transactions + delta log                      | Nothing above fits (rare)                                     | Read `references/sync-engine-patterns.md` first                                                                                             |
 
 Decision heuristics:
 
@@ -112,14 +112,14 @@ re-bootstraps instead of crashing.
 ## Sources (read order)
 
 1. Reverse engineering Linear's sync engine (CTO-endorsed, mid-2025):
-   https://github.com/backupManager/reverse-linear-sync-engine-dev
+   <https://github.com/backupManager/reverse-linear-sync-engine-dev>
    (README + SUMMARY.md)
 2. Protocol-level DevTools breakdown (Dec 2022; shows the wire format):
-   https://marknotfound.com/posts/reverse-engineering-linears-sync-magic/
+   <https://marknotfound.com/posts/reverse-engineering-linears-sync-magic/>
 3. Figma multiplayer (property LWW, trees, undo):
-   https://www.figma.com/blog/how-figmas-multiplayer-technology-works/
+   <https://www.figma.com/blog/how-figmas-multiplayer-technology-works/>
 4. Local-first ecosystem tour (Jazz tradeoffs, fit matrix):
-   https://bytemash.net/posts/i-went-down-the-linear-rabbit-hole/
+   <https://bytemash.net/posts/i-went-down-the-linear-rabbit-hole/>
 
 Staleness warning: Linear ships roughly every half hour; the 2025 writeup
 watched the model count go from 76 to 80 while being written. Treat specifics

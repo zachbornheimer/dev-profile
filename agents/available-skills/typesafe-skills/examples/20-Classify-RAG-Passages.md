@@ -3,7 +3,7 @@ name: 20 Classify RAG Passages
 description: Insert a TypeSafe classification stage between retrieval and generation that labels each passage's relevance, evidence, contradiction, and prompt-injection risk, so deterministic code — not similarity score alone — decides what reaches the generator.
 ---
 
-ORIGINAL SOURCE: https://docs.typesafe.ai/cookbooks/classifying_rag_passages
+ORIGINAL SOURCE: <https://docs.typesafe.ai/cookbooks/classifying_rag_passages>
 VIDEO: none
 Use the original source primarily. This skill below is a summary in our own words. View details at this link.
 
@@ -48,10 +48,10 @@ Routing thresholds, checked in this priority order (security first):
 
 ```python
 THRESHOLDS = {
-    "injection_max": 0.70,      # security filter
-    "contradicts_min": 0.70,    # conflict detection
-    "relevant_min": 0.45,       # relevance floor
-    "evidence_min": 0.55,       # inclusion threshold
+    "injection_max": 0.70,  # security filter
+    "contradicts_min": 0.70,  # conflict detection
+    "relevant_min": 0.45,  # relevance floor
+    "evidence_min": 0.55,  # inclusion threshold
 }
 ```
 
@@ -74,4 +74,4 @@ On the false-premise test query ("Refresh tokens expire after 30 days..."), the 
 - `15-Line-by-Line-Semantic-Search.md` — a related existence-plus-ranking pattern, applied within one document instead of across retrieved passages.
 - `21-Verify-Citations.md` — the downstream check: verifying that generated claims are actually supported by the evidence this pattern assembled.
 - `22-LLM-Guardrails.md` — the injection-detection Noul here is a narrower instance of the general hazard-screening pattern in that cookbook.
-</content>
+  </content>

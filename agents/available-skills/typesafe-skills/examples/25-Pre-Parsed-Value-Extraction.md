@@ -3,7 +3,7 @@ name: 25 Pre-Parsed Value Extraction
 description: Over-find candidate values with regex, use Choice to select the one the question asks for, then normalize the exact chosen span in code so the model can never invent or transpose a digit.
 ---
 
-ORIGINAL SOURCE: https://docs.typesafe.ai/cookbooks/pre_parsed_value_extraction_cookbook
+ORIGINAL SOURCE: <https://docs.typesafe.ai/cookbooks/pre_parsed_value_extraction_cookbook>
 VIDEO: none
 Use the original source primarily. This skill below is a summary in our own words. View details at this link.
 
@@ -36,6 +36,7 @@ def find(pattern: re.Pattern, text: str) -> list[str]:
             out.append(span)
     return out
 
+
 candidates = find(EMAIL_RE, EMAIL_DOC)
 answer = Choice(
     instructions="Which candidate is the invoice total?",
@@ -47,7 +48,11 @@ For the phone number case, the selected candidate is parsed and normalized only 
 
 ```python
 mobile = pick(PHONE_DOC, phones, "Which of these is the direct mobile / cell number?")
-region = classify(PHONE_DOC, "In what country is this office located?", ["US", "GB", "DE", "FR", "CA", "AU"])
+region = classify(
+    PHONE_DOC,
+    "In what country is this office located?",
+    ["US", "GB", "DE", "FR", "CA", "AU"],
+)
 parsed = phonenumbers.parse(mobile["choice"], region["choice"])
 e164 = phonenumbers.format_number(parsed, phonenumbers.PhoneNumberFormat.E164)
 ```

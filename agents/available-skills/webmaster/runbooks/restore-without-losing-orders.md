@@ -13,15 +13,15 @@ A restore overwrites everything written since the backup: orders, donations, new
 
 ## Restore
 
-7. Restore files and database from the same backup, in staging first if a staging copy exists; otherwise restore in place after step 2.
-8. Flush caches; run `wp core verify-checksums`; confirm plugin versions match the DB versions.
+1. Restore files and database from the same backup, in staging first if a staging copy exists; otherwise restore in place after step 2.
+2. Flush caches; run `wp core verify-checksums`; confirm plugin versions match the DB versions.
 
 ## After restoring (replay)
 
-9. Replay the exported orders and users from step 4 that are missing. Match each to its Stripe charge; do not recharge.
-10. Subscriptions: check each renewal that fell between the backup and now; avoid a second charge, and manually process any missed renewal. Check on-hold subscriptions and paused memberships.
-11. Re-enable checkout; run a Stripe test-mode synthetic order; check the webhook endpoint is receiving events.
-12. Confirm scheduled actions (Action Scheduler) are running and not replaying old jobs.
-13. Log everything in the change log; tell the client contact (via Zach) which transactions were manually reconciled.
+1. Replay the exported orders and users from step 4 that are missing. Match each to its Stripe charge; do not recharge.
+2. Subscriptions: check each renewal that fell between the backup and now; avoid a second charge, and manually process any missed renewal. Check on-hold subscriptions and paused memberships.
+3. Re-enable checkout; run a Stripe test-mode synthetic order; check the webhook endpoint is receiving events.
+4. Confirm scheduled actions (Action Scheduler) are running and not replaying old jobs.
+5. Log everything in the change log; tell the client contact (via Zach) which transactions were manually reconciled.
 
 **Browser tests:** when writing or changing Playwright tests for this (synthetic login/checkout, visual regression, axe), load the `world-class-playwright` skill.

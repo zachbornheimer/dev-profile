@@ -3,7 +3,7 @@ name: 06 Speculative Fan Out
 description: Send a classifier and every branch's follow-up questions in one parallel call before knowing which branch will be taken, and let code discard the answers it doesn't need.
 ---
 
-ORIGINAL SOURCE: https://docs.typesafe.ai/patterns/fan-out
+ORIGINAL SOURCE: <https://docs.typesafe.ai/patterns/fan-out>
 VIDEO: none
 Use the original source primarily. This skill below is a summary in our own words. View details at this link.
 
@@ -28,10 +28,10 @@ questions = {
             "account": "...",
         },
     ),
-    "bug_severity": Score(...),        # speculative — only used if category == bug_report
-    "has_repro": Noul(...),            # speculative
-    "refund_requested": Noul(...),     # speculative — only used if category == billing
-    "frustration": Score(...),         # used across every branch
+    "bug_severity": Score(...),  # speculative — only used if category == bug_report
+    "has_repro": Noul(...),  # speculative
+    "refund_requested": Noul(...),  # speculative — only used if category == billing
+    "frustration": Score(...),  # used across every branch
 }
 
 response = client.system_one(state=state, questions=questions)

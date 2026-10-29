@@ -5,10 +5,10 @@ description: Use TypeSafe for the fast, deterministic-orchestration decisions in
 
 ORIGINAL SOURCES:
 
-- https://docs.typesafe.ai/concepts/use-case-map
-- https://docs.typesafe.ai/patterns/intent-routing
-- https://docs.typesafe.ai/cookbooks/skill_suggestion
-- https://docs.typesafe.ai/cookbooks/llm_guardrails
+- <https://docs.typesafe.ai/concepts/use-case-map>
+- <https://docs.typesafe.ai/patterns/intent-routing>
+- <https://docs.typesafe.ai/cookbooks/skill_suggestion>
+- <https://docs.typesafe.ai/cookbooks/llm_guardrails>
 
 This is a cross-cutting pattern with no single source page; it draws on the four pages above.
 VIDEO: none
@@ -72,16 +72,16 @@ Model selection is never itself authorization — execution permissions stay exp
 
 Skill suggestion, tested on 488 requests against `claude-haiku-4-5-20251001` over Nous Research's 182-skill Hermes catalog:
 
-| Metric | Baseline | With TypeSafe suggestion | Oracle ceiling |
-|---|---|---|---|
-| Wrong loads | 16.8% | 7.3% | 2.5% |
-| Needless loads | 9.8% | 4.0% | 1.2% |
+| Metric         | Baseline | With TypeSafe suggestion | Oracle ceiling |
+| -------------- | -------- | ------------------------ | -------------- |
+| Wrong loads    | 16.8%    | 7.3%                     | 2.5%           |
+| Needless loads | 9.8%     | 4.0%                     | 1.2%           |
 
 2.3x fewer wrong loads, 2.4x fewer needless ones; the suggestion fixed 37 previously-wrong requests but broke 7 previously-correct ones.
 
 ## Pitfalls (AgentMux relevance flagged)
 
-- A confident wrong suggestion is more persuasive than no suggestion at all — the skill-suggestion cookbook explicitly reports it *breaks* some previously-correct baseline selections, not only fixes wrong ones. **AgentMux relevance:** any skill/tool auto-suggestion layer built this way needs to measure regressions, not just gains.
+- A confident wrong suggestion is more persuasive than no suggestion at all — the skill-suggestion cookbook explicitly reports it _breaks_ some previously-correct baseline selections, not only fixes wrong ones. **AgentMux relevance:** any skill/tool auto-suggestion layer built this way needs to measure regressions, not just gains.
 - The gate threshold (mean of the three wide `Noul` questions) and the shortlist size (3 candidates) both need calibration per catalog size; a much larger roster than 182 skills may need hierarchical ranking instead of one flat wide pass.
 - The suggestion-block wording is a measured cache key, not decorative prose — editing it invalidates cached rankings.
 - Confidence thresholds in intent routing must be set per decision's stakes; low confidence on a critical routing decision should trigger human review, not silent automation.

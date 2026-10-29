@@ -3,7 +3,7 @@ name: 19 Entity Alignment
 description: Decide whether two candidate entity records describe the same product using one ordered Score plus companion field-match Nouls, so a costly false merge, a safe reject, and an ambiguous curator case are all distinguishable.
 ---
 
-ORIGINAL SOURCE: https://docs.typesafe.ai/cookbooks/entity_alignment
+ORIGINAL SOURCE: <https://docs.typesafe.ai/cookbooks/entity_alignment>
 VIDEO: none
 Use the original source primarily. This skill below is a summary in our own words. View details at this link.
 
@@ -45,11 +45,11 @@ Cheap deterministic blocking produces candidate pairs first; TypeSafe judges onl
 
 On 450 candidate pairs:
 
-| Outcome | Count | Share |
-|---|---|---|
-| assert sameAs | 40 | 8.9% |
-| curator queue | 50 | 11.1% |
-| leave unlinked | 360 | 80.0% |
+| Outcome        | Count | Share |
+| -------------- | ----- | ----- |
+| assert sameAs  | 40    | 8.9%  |
+| curator queue  | 50    | 11.1% |
+| leave unlinked | 360   | 80.0% |
 
 ## Pitfalls
 
@@ -63,4 +63,4 @@ On 450 candidate pairs:
 - `08-Composite-Scoring.md` — another use of ordered Score levels to encode asymmetric-cost decisions.
 - `19-Entity-Alignment.md` companion pattern `20-Classify-RAG-Passages.md` — narrow per-item Noul batteries used as explanatory signals alongside a primary routing decision.
 - `36-Manual-Review-to-Confidence-Gated-Automation.md` — the general pattern of routing ambiguous cases to human review instead of forcing a binary automated decision.
-</content>
+  </content>

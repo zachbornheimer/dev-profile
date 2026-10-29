@@ -3,7 +3,7 @@ name: 01 When To Use TypeSafe
 description: Decide whether a workflow step belongs in deterministic code, TypeSafe's System One model, or a generative LLM before wiring up an integration.
 ---
 
-ORIGINAL SOURCE: https://docs.typesafe.ai/introduction
+ORIGINAL SOURCE: <https://docs.typesafe.ai/introduction>
 VIDEO: none
 Use the original source primarily. This skill below is a summary in our own words. View details at this link.
 

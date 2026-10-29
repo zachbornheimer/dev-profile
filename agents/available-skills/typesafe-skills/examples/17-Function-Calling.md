@@ -3,7 +3,7 @@ name: 17 Function Calling
 description: Map a natural-language request to a typed function call by turning the function name and each closed-set argument into TypeSafe questions, so the model only selects from values the function can actually accept.
 ---
 
-ORIGINAL SOURCE: https://docs.typesafe.ai/cookbooks/function_calling
+ORIGINAL SOURCE: <https://docs.typesafe.ai/cookbooks/function_calling>
 VIDEO: none
 Use the original source primarily. This skill below is a summary in our own words. View details at this link.
 
@@ -37,7 +37,7 @@ Across the 14 test commands: confidence range 0.53-1.00. The system correctly di
 
 ## Pitfalls
 
-- Confidence reports the *weakest* argument judgment across the whole call, not the product of all of them — don't average it away.
+- Confidence reports the _weakest_ argument judgment across the whole call, not the product of all of them — don't average it away.
 - Arguments without a closed set (free numbers, dates, free text) keep the function's own defaults; TypeSafe only fills closed-set arguments.
 - Do not invoke a consequential tool merely because a function name won the routing Choice — gate low-confidence routing or dangerous arguments, ask for confirmation, and reject argument combinations that violate the function's real constraints.
 - Keep execution, authorization, defaults, cross-field validation, and side effects in code, never in the model.
@@ -48,4 +48,4 @@ Across the 14 test commands: confidence range 0.53-1.00. The system correctly di
 - `09-Intent-Routing.md` — choosing a handler, the same routing shape this cookbook applies to whole functions.
 - `13-Question-Parallel-Set.md` — the batching technique behind sending 54 questions in one request instead of one call per argument.
 - `18-Skill-Suggestion.md` — a related selection problem (which skill, not which function) using a similar Choice-plus-gate shape.
-</content>
+  </content>

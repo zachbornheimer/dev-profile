@@ -3,7 +3,7 @@ name: 24 Date Extraction
 description: Use TypeSafe Choice questions to identify which parts a date expression states — absolute, relative, or absent — then resolve calendar math, validation, and review routing deterministically in code.
 ---
 
-ORIGINAL SOURCE: https://docs.typesafe.ai/cookbooks/date_extraction_cookbook
+ORIGINAL SOURCE: <https://docs.typesafe.ai/cookbooks/date_extraction_cookbook>
 VIDEO: none
 Use the original source primarily. This skill below is a summary in our own words. View details at this link.
 
@@ -27,14 +27,14 @@ Code resolves the typed parts into a concrete `date` object — the model never 
 
 From four test documents:
 
-| Case | Confidence | Outcome |
-|---|---|---|
-| Contract date, year stated | 0.97 | resolved |
-| Contract date, year stated | 0.91 | resolved |
-| Form deadline, year inferred | 0.95 | resolved |
-| Relative date ("today") | 0.94 | resolved |
-| Relative date ("next Thursday") | 0.92 | resolved |
-| Non-existent date | 0.46 | flagged for review |
+| Case                            | Confidence | Outcome            |
+| ------------------------------- | ---------- | ------------------ |
+| Contract date, year stated      | 0.97       | resolved           |
+| Contract date, year stated      | 0.91       | resolved           |
+| Form deadline, year inferred    | 0.95       | resolved           |
+| Relative date ("today")         | 0.94       | resolved           |
+| Relative date ("next Thursday") | 0.92       | resolved           |
+| Non-existent date               | 0.46       | flagged for review |
 
 ## Pitfalls
 
@@ -49,4 +49,4 @@ From four test documents:
 - `25-Pre-Parsed-Value-Extraction.md` — the general pattern of typed-part extraction plus deterministic resolution that this cookbook specializes for dates.
 - `23-Structured-Extraction-Cascade.md` — verifying extracted structured fields, applicable if date extraction feeds a larger record.
 - `26-Hierarchical-Classification.md` — another pattern that decomposes one judgment into several typed sub-questions resolved together.
-</content>
+  </content>

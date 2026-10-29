@@ -3,7 +3,7 @@ name: 27 Autoresearch Feature Discovery
 description: Use TypeSafe Noul/Score judgments as numeric features for a classical ML model, then let an LLM propose new questions from the model's residual errors instead of hand-engineering features.
 ---
 
-ORIGINAL SOURCE: https://docs.typesafe.ai/cookbooks/autoresearch_feature_discovery
+ORIGINAL SOURCE: <https://docs.typesafe.ai/cookbooks/autoresearch_feature_discovery>
 VIDEO: none
 Use the original source primarily. This skill below is a summary in our own words. View details at this link.
 
@@ -50,12 +50,12 @@ Each round, an LLM receives the current accepted questions, dev examples, and CV
 
 2,000 wine reviews (1,200 dev / 800 held-out), RMSE on an 80–100 scale (lower is better):
 
-| Approach | RMSE |
-|---|---|
-| Mean baseline | 3.09 |
-| Word counts (CatBoost on text features) | 2.47 |
-| Ask score directly (single TypeSafe Score) | 2.15 |
-| Round 1 (18 questions, no feedback) | 1.87 |
+| Approach                                    | RMSE |
+| ------------------------------------------- | ---- |
+| Mean baseline                               | 3.09 |
+| Word counts (CatBoost on text features)     | 2.47 |
+| Ask score directly (single TypeSafe Score)  | 2.15 |
+| Round 1 (18 questions, no feedback)         | 1.87 |
 | Round 5 (38 questions, 4 refinement rounds) | 1.77 |
 
 Round 1 to round 5 held-out improvement: −0.097 points, 95% CI [−0.147, −0.050]. Final model: 29 intensity (`Score`) questions producing 58 columns (mean + uncertainty) plus 9 presence (`Noul`) questions producing 9 columns. Top feature by importance share: `note_overall_tone_positivity` at 17.4%.

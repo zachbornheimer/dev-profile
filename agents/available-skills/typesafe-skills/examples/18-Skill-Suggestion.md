@@ -3,7 +3,7 @@ name: 18 Skill Suggestion
 description: Rank a large agent-skill roster cheaply in one TypeSafe call, re-check only the top 3 with full descriptions in a second call, and let the second call reject all candidates instead of forcing a guess.
 ---
 
-ORIGINAL SOURCE: https://docs.typesafe.ai/cookbooks/skill_suggestion
+ORIGINAL SOURCE: <https://docs.typesafe.ai/cookbooks/skill_suggestion>
 VIDEO: none
 Use the original source primarily. This skill below is a summary in our own words. View details at this link.
 
@@ -39,11 +39,11 @@ user turn + compact roster
 ```
 
 ```python
-SHORTLIST = 3                    # candidates passed to stage 2
-EXCERPT_CHARS = 700              # body text per skill for reranking
-GATE_THRESHOLD = 0.30            # mean of three gate nouls; below = suggest nothing
-FITS_THRESHOLD = 0.30            # best "does this fit" noul; below = reject shortlist
-TYPESAFE_MODEL = "jev-1.12"      # ranking model
+SHORTLIST = 3  # candidates passed to stage 2
+EXCERPT_CHARS = 700  # body text per skill for reranking
+GATE_THRESHOLD = 0.30  # mean of three gate nouls; below = suggest nothing
+FITS_THRESHOLD = 0.30  # best "does this fit" noul; below = reject shortlist
+TYPESAFE_MODEL = "jev-1.12"  # ranking model
 AGENT_MODEL = "claude-haiku-4-5-20251001"  # agent under test
 ```
 
@@ -53,10 +53,10 @@ Core functions: `rank_wide(request)` returns the ranked top-12 list, gate score,
 
 Tested on 488 requests (315 with ground-truth skill coverage, 173 with none):
 
-| Metric | Baseline | TypeSafe | Oracle |
-|---|---|---|---|
-| Wrong loads | 16.8% | 7.3% | 2.5% |
-| Needless loads | 9.8% | 4.0% | 1.2% |
+| Metric         | Baseline | TypeSafe | Oracle |
+| -------------- | -------- | -------- | ------ |
+| Wrong loads    | 16.8%    | 7.3%     | 2.5%   |
+| Needless loads | 9.8%     | 4.0%     | 1.2%   |
 
 2.3x fewer wrong loads, 2.4x fewer needless loads than baseline. Of the 315 covered requests, the suggestion fixed 37 the agent had gotten wrong, but broke 7 it had gotten right on its own.
 
@@ -72,4 +72,4 @@ Tested on 488 requests (315 with ground-truth skill coverage, 173 with none):
 - `09-Intent-Routing.md` — choosing a handler, the same two-stage cheap-then-detailed shape applied to routing instead of skill selection.
 - `17-Function-Calling.md` — a related closed-set selection problem (which function) with the same Choice-plus-gate architecture.
 - `13-Question-Parallel-Set.md` — batching the gate and ranking questions into one call per stage, which is what keeps this pattern to two requests instead of many.
-</content>
+  </content>

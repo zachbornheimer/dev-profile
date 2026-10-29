@@ -1,8 +1,8 @@
 ---
 name: ui-decompose
 description: Exhaustively decomposes a UI design source into an implementation-neutral, schema-validated specification, then requires fresh independent adversarial audits before emitting the final Markdown. Use before UI-kit mapping or implementation when omissions are unacceptable.
-compatibility: 'Claude Code v2.1.196+; Python 3 with jsonschema; source-specific MCP/browser tools as required'
-argument-hint: '<design implementation prompt, path, URL, or attachment>'
+compatibility: "Claude Code v2.1.196+; Python 3 with jsonschema; source-specific MCP/browser tools as required"
+argument-hint: "<design implementation prompt, path, URL, or attachment>"
 disable-model-invocation: true
 ---
 
@@ -54,11 +54,11 @@ python3 ${CLAUDE_SKILL_DIR}/scripts/init_run.py "${CLAUDE_PROJECT_DIR}"
 
 Use the printed absolute path as `WORK_DIR`.
 
-2. Set:
+1. Set:
    - `REQUEST=${WORK_DIR}/request.txt`
    - `DECOMPOSITION=${WORK_DIR}/ui-decomposition.json`
    - `OUTPUT=<explicit user path or ${CLAUDE_PROJECT_DIR}/ui-decomposition.md>`
-3. Write `$ARGUMENTS` **verbatim** to `REQUEST`. Do not normalize, summarize, or rewrite it.
+2. Write `$ARGUMENTS` **verbatim** to `REQUEST`. Do not normalize, summarize, or rewrite it.
 
 Never mutate `REQUEST` after this point.
 
@@ -184,7 +184,7 @@ Set:
 - `BEFORE=${WORK_DIR}/decomposition-before-review-N.json`
 - `CORRECTION=${WORK_DIR}/correction-N.json`
 
-2. Spawn a **fresh** correction subagent with only:
+1. Spawn a **fresh** correction subagent with only:
    - `REQUEST`;
    - `BEFORE`;
    - `REVIEW`;
@@ -196,7 +196,7 @@ Set:
 
 The correction agent must source-check every finding. It must explicitly mark every finding `applied` or `rejected-source-contradicts` in the correction report.
 
-3. Validate the correction transaction:
+1. Validate the correction transaction:
 
 ```bash
 python3 ${CLAUDE_SKILL_DIR}/scripts/validate.py correction "$CORRECTION" \
@@ -227,7 +227,7 @@ Only after a validated adversarial review returns `changeRequested: false`:
 python3 ${CLAUDE_SKILL_DIR}/scripts/validate.py decomposition "$DECOMPOSITION" --certify --request "$REQUEST"
 ```
 
-2. Re-run the passing review validation against the exact current artifacts:
+1. Re-run the passing review validation against the exact current artifacts:
 
 ```bash
 python3 ${CLAUDE_SKILL_DIR}/scripts/validate.py review "$PASSING_REVIEW" \
@@ -236,7 +236,7 @@ python3 ${CLAUDE_SKILL_DIR}/scripts/validate.py review "$PASSING_REVIEW" \
   --request "$REQUEST"
 ```
 
-3. Generate the Markdown from the certified JSON and passing review:
+1. Generate the Markdown from the certified JSON and passing review:
 
 ```bash
 python3 ${CLAUDE_SKILL_DIR}/scripts/render.py "$DECOMPOSITION" "$OUTPUT" \

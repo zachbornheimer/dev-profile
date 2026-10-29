@@ -3,7 +3,7 @@ name: 03 Atomic Questions
 description: Decompose one broad judgment into several narrow, independently inspectable questions instead of asking for a single opaque verdict.
 ---
 
-ORIGINAL SOURCE: https://docs.typesafe.ai/concepts/how-to-build-with-system-one
+ORIGINAL SOURCE: <https://docs.typesafe.ai/concepts/how-to-build-with-system-one>
 VIDEO: none
 Use the original source primarily. This skill below is a summary in our own words. View details at this link.
 

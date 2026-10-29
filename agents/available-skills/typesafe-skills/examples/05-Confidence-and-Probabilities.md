@@ -3,7 +3,7 @@ name: 05 Confidence And Probabilities
 description: Use the `confidence` field to gate actions by risk, and the full `probabilities` distribution when relative likelihoods matter, rather than treating every winning answer as equally trustworthy.
 ---
 
-ORIGINAL SOURCE: https://docs.typesafe.ai/confidence
+ORIGINAL SOURCE: <https://docs.typesafe.ai/confidence>
 VIDEO: none
 Use the original source primarily. This skill below is a summary in our own words. View details at this link.
 

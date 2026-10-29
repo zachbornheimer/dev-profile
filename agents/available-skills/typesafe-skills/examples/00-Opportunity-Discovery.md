@@ -3,7 +3,7 @@ name: 00 Opportunity Discovery
 description: Find places in existing code where software already needs bounded semantic understanding, and translate that need into a Choice, Score, or Noul question instead of treating the cookbook catalog as a whitelist.
 ---
 
-ORIGINAL SOURCE: https://docs.typesafe.ai/concepts/use-case-map
+ORIGINAL SOURCE: <https://docs.typesafe.ai/concepts/use-case-map>
 VIDEO: none
 Use the original source primarily. This skill below is a summary in our own words. View details at this link.
 

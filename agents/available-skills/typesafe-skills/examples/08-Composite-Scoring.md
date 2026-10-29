@@ -3,7 +3,7 @@ name: 08 Composite Scoring
 description: Score independent dimensions with separate Score questions, then combine normalized results with explicit code-owned weights instead of asking one prompt for an overall rating.
 ---
 
-ORIGINAL SOURCE: https://docs.typesafe.ai/patterns/composite-scoring
+ORIGINAL SOURCE: <https://docs.typesafe.ai/patterns/composite-scoring>
 VIDEO: none
 Use the original source primarily. This skill below is a summary in our own words. View details at this link.
 
@@ -25,8 +25,12 @@ leadership = quality["leadership"].score / 4
 architecture = quality["architecture"].score / 4
 generalist = quality["generalist"].score / 4
 
-senior_ic = 0.40 * technical + 0.10 * leadership + 0.40 * architecture + 0.10 * generalist
-eng_manager = 0.15 * technical + 0.40 * leadership + 0.20 * architecture + 0.25 * generalist
+senior_ic = (
+    0.40 * technical + 0.10 * leadership + 0.40 * architecture + 0.10 * generalist
+)
+eng_manager = (
+    0.15 * technical + 0.40 * leadership + 0.20 * architecture + 0.25 * generalist
+)
 ```
 
 ## Results / numbers

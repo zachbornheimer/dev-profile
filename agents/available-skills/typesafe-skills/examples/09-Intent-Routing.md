@@ -3,7 +3,7 @@ name: 09 Intent Routing
 description: Classify a request once with TypeSafe, then route it to deterministic code, a specialist LLM, or a human, so expensive resources are only invoked for the requests that actually need them.
 ---
 
-ORIGINAL SOURCE: https://docs.typesafe.ai/patterns/intent-routing
+ORIGINAL SOURCE: <https://docs.typesafe.ai/patterns/intent-routing>
 VIDEO: none
 Use the original source primarily. This skill below is a summary in our own words. View details at this link.
 

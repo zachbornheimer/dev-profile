@@ -3,9 +3,9 @@ name: 37 Images and Box
 description: Attach still PNG/JPEG to System One requests; use Noul/Choice/Score on photos and Box to locate a target. Opt-in, experimental.
 ---
 
-ORIGINAL SOURCE: https://docs.typesafe.ai/images
-ALSO: https://docs.typesafe.ai/primitives/box
-ALSO: https://typesafe.ai/blog/jev-1-14
+ORIGINAL SOURCE: <https://docs.typesafe.ai/images>
+ALSO: <https://docs.typesafe.ai/primitives/box>
+ALSO: <https://typesafe.ai/blog/jev-1-14>
 VIDEO: none
 Use the original source primarily. This skill below is a summary in our own words. View details at this link.
 

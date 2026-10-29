@@ -5,9 +5,9 @@ description: Apply the same narrow TypeSafe judgment across many records, passag
 
 ORIGINAL SOURCES:
 
-- https://docs.typesafe.ai/concepts/use-case-map
-- https://docs.typesafe.ai/cookbooks/rerank_typesafe
-- https://docs.typesafe.ai/cookbooks/autoresearch_feature_discovery
+- <https://docs.typesafe.ai/concepts/use-case-map>
+- <https://docs.typesafe.ai/cookbooks/rerank_typesafe>
+- <https://docs.typesafe.ai/cookbooks/autoresearch_feature_discovery>
 
 This is a cross-cutting pattern with no single source page; it draws on the three pages above.
 VIDEO: none
@@ -49,11 +49,11 @@ Design the question once and reuse the resulting typed signal across every recor
 
 Re-ranking cookbook, 3,565 court opinion passages and 40 queries, BM25 shortlist of 30 candidates per query re-ranked by `Noul`:
 
-| Metric | Before (BM25 only) | After (re-ranked) | Gain |
-|---|---|---|---|
-| Top-1 accuracy | 5% | 18% | +13pp |
-| Top-5 accuracy | 15% | 35% | +20pp |
-| Top-10 accuracy | 38% | 62% | +24pp |
+| Metric          | Before (BM25 only) | After (re-ranked) | Gain  |
+| --------------- | ------------------ | ----------------- | ----- |
+| Top-1 accuracy  | 5%                 | 18%               | +13pp |
+| Top-5 accuracy  | 15%                | 35%               | +20pp |
+| Top-10 accuracy | 38%                | 62%               | +24pp |
 
 Cost: 1,200 TypeSafe calls, 1.56M input tokens, $0.0645 total.
 

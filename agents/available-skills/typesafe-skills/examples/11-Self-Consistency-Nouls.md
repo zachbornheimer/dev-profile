@@ -3,7 +3,7 @@ name: 11 Self Consistency Nouls
 description: Repeat a batched 14-question Noul rubric on one insurance claim across TypeSafe and several LLMs to measure answer stability, cost, and speed, and to size an uncertainty band around the 0.5 decision threshold.
 ---
 
-ORIGINAL SOURCE: https://docs.typesafe.ai/cookbooks/consistency_noul_cookbook
+ORIGINAL SOURCE: <https://docs.typesafe.ai/cookbooks/consistency_noul_cookbook>
 VIDEO: none
 Use the original source primarily. This skill below is a summary in our own words. View details at this link.
 
@@ -35,17 +35,17 @@ return "yes" if p > 0.70 else "no"
 
 Per-query cost and speed, measured against TypeSafe (`jev-latest` at 111ms / $0.000043):
 
-| Condition | Time/call | Cost/call | Speed vs TypeSafe | Cost vs TypeSafe |
-|---|---|---|---|---|
-| claude-haiku-4-5, t=0 | 1780ms | $0.001798 | 16.0x | 42.2x |
-| claude-haiku-4-5, t=default | 1644ms | $0.001798 | 14.8x | 42.2x |
-| claude-haiku-4-5, yes/no, t=0 | 1485ms | $0.001650 | 13.4x | 38.8x |
-| gpt-5.4-mini, t=0 | 1405ms | $0.001089 | 12.7x | 25.6x |
-| gpt-5.4-mini, t=default | 1177ms | $0.001179 | 10.6x | 27.7x |
-| gpt-5.4-mini, yes/no, t=0 | 1113ms | $0.000950 | 10.0x | 22.3x |
-| gpt-5.5 (reasoning) | 11125ms | $0.033157 | 100.2x | 778.9x |
-| claude-opus-4-8 (reasoning) | 13886ms | $0.034275 | 125.0x | 805.1x |
-| **typesafe_noul** | **111ms** | **$0.000043** | **1.0x** | **1.0x** |
+| Condition                     | Time/call | Cost/call     | Speed vs TypeSafe | Cost vs TypeSafe |
+| ----------------------------- | --------- | ------------- | ----------------- | ---------------- |
+| claude-haiku-4-5, t=0         | 1780ms    | $0.001798     | 16.0x             | 42.2x            |
+| claude-haiku-4-5, t=default   | 1644ms    | $0.001798     | 14.8x             | 42.2x            |
+| claude-haiku-4-5, yes/no, t=0 | 1485ms    | $0.001650     | 13.4x             | 38.8x            |
+| gpt-5.4-mini, t=0             | 1405ms    | $0.001089     | 12.7x             | 25.6x            |
+| gpt-5.4-mini, t=default       | 1177ms    | $0.001179     | 10.6x             | 27.7x            |
+| gpt-5.4-mini, yes/no, t=0     | 1113ms    | $0.000950     | 10.0x             | 22.3x            |
+| gpt-5.5 (reasoning)           | 11125ms   | $0.033157     | 100.2x            | 778.9x           |
+| claude-opus-4-8 (reasoning)   | 13886ms   | $0.034275     | 125.0x            | 805.1x           |
+| **typesafe_noul**             | **111ms** | **$0.000043** | **1.0x**          | **1.0x**         |
 
 TypeSafe's mean per-question probability standard deviation across the 15 repeats was 0.0102, below every LLM probability condition. Even TypeSafe's own values drifted across the 0.5 threshold in places — `covered` ranged 0.43–0.53 and `exclusion` ranged 0.53–0.62 across repeats — motivating the 0.30–0.70 uncertain band. The LLM conditions moved more, and moved even at temperature 0: "the LLM answers move from run to run, at temperature 0 too, and on the judgment calls the models disagree with themselves."
 

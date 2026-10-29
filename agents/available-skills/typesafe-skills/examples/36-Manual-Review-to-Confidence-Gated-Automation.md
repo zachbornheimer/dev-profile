@@ -5,10 +5,10 @@ description: Identify a queue of humans repeatedly reading text into a bounded s
 
 ORIGINAL SOURCES:
 
-- https://docs.typesafe.ai/concepts/use-case-map
-- https://docs.typesafe.ai/patterns/confidence-routing
-- https://docs.typesafe.ai/cookbooks/consistency_noul_cookbook
-- https://docs.typesafe.ai/cookbooks/classification_using_confidence
+- <https://docs.typesafe.ai/concepts/use-case-map>
+- <https://docs.typesafe.ai/patterns/confidence-routing>
+- <https://docs.typesafe.ai/cookbooks/consistency_noul_cookbook>
+- <https://docs.typesafe.ai/cookbooks/classification_using_confidence>
 
 This is a cross-cutting pattern with no single source page; it draws on the four pages above.
 VIDEO: none
@@ -58,12 +58,12 @@ def noul_decision_with_uncertainty(probability: float) -> str:
 
 Self-consistency cookbook, 14-question rubric over one complex auto-insurance claim, 15 repeated runs:
 
-| Metric | Result |
-|---|---|
-| TypeSafe latency | 111ms per 14-question call |
-| Speed vs. generative LLMs | 10–125x faster (non-reasoning models) |
-| Cost vs. generative LLMs | 22–806x cheaper (historical pricing) |
-| Mean per-question standard deviation | 0.0102 |
+| Metric                               | Result                                |
+| ------------------------------------ | ------------------------------------- |
+| TypeSafe latency                     | 111ms per 14-question call            |
+| Speed vs. generative LLMs            | 10–125x faster (non-reasoning models) |
+| Cost vs. generative LLMs             | 22–806x cheaper (historical pricing)  |
+| Mean per-question standard deviation | 0.0102                                |
 
 Confidence-gated routing example thresholds: 0.6 floor for low-stakes actions, 0.6–0.85 requires confirmation, >0.85 auto-approves high-stakes actions.
 

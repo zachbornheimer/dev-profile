@@ -3,8 +3,8 @@ name: 10 Smart Home Assistant
 description: A speculative fan-out of TypeSafe questions handles known smart-home commands, with an LLM used only to split compound requests and to answer genuinely conversational ones.
 ---
 
-ORIGINAL SOURCE: https://docs.typesafe.ai/demos/smart-home
-VIDEO: https://www.loom.com/share/18c4dbcf8db546dfb2d7f2ef018e78e4?source=embed_watch_on_loom_cta
+ORIGINAL SOURCE: <https://docs.typesafe.ai/demos/smart-home>
+VIDEO: <https://www.loom.com/share/18c4dbcf8db546dfb2d7f2ef018e78e4?source=embed_watch_on_loom_cta>
 Use the original source primarily. This skill below is a summary in our own words. View details at this link.
 
 ## When to use

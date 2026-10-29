@@ -3,7 +3,7 @@ name: 02 State Design
 description: Build the `state` object passed to System One as the focused evidence packet a knowledgeable reviewer would need, not a context dump.
 ---
 
-ORIGINAL SOURCE: https://docs.typesafe.ai/concepts/state
+ORIGINAL SOURCE: <https://docs.typesafe.ai/concepts/state>
 VIDEO: none
 Use the original source primarily. This skill below is a summary in our own words. View details at this link.
 

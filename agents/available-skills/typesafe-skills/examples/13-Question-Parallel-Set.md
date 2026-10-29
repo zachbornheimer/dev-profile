@@ -3,7 +3,7 @@ name: 13 Question Parallel Set
 description: Batch several independent TypeSafe questions over one shared document into a single System One call instead of one call per question, cutting cost and latency with no change in the answers.
 ---
 
-ORIGINAL SOURCE: https://docs.typesafe.ai/cookbooks/parallel_questions
+ORIGINAL SOURCE: <https://docs.typesafe.ai/cookbooks/parallel_questions>
 VIDEO: none
 Use the original source primarily. This skill below is a summary in our own words. View details at this link.
 
@@ -59,10 +59,10 @@ The comparison in the cookbook issues the batched call and the 13 individual cal
 
 Measured on `jev-1.12` ($0.042 per 1M input tokens, $0.00 per output token):
 
-| Approach | Cost | Wall-clock time |
-|---|---|---|
-| 1 batched call (13 questions) | $0.000497 | 0.27 s |
-| 13 individual calls | $0.006090 | 2.71 s |
+| Approach                      | Cost      | Wall-clock time |
+| ----------------------------- | --------- | --------------- |
+| 1 batched call (13 questions) | $0.000497 | 0.27 s          |
+| 13 individual calls           | $0.006090 | 2.71 s          |
 
 Batching was **12.2x cheaper** and **10.0x faster**. Across all 5 repeated runs, batched and individual answers were identical — standard deviation across repeats was 0.0 for effectively every question, so batching added no extra noise.
 

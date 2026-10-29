@@ -3,7 +3,7 @@ name: 12 Self Consistency Choices
 description: Run a deliberately borderline moderation post through an 8-question Choice rubric 15 times across TypeSafe and several LLMs to measure label agreement, automatic-action coverage, and cost/speed at a chosen confidence threshold.
 ---
 
-ORIGINAL SOURCE: https://docs.typesafe.ai/cookbooks/consistency_choice_cookbook
+ORIGINAL SOURCE: <https://docs.typesafe.ai/cookbooks/consistency_choice_cookbook>
 VIDEO: none
 Use the original source primarily. This skill below is a summary in our own words. View details at this link.
 
@@ -20,7 +20,7 @@ The cookbook evaluates one intentionally fence-sitting moderation post — heate
 ```python
 answer = response.answers["moderation"]
 
-if answer.confidence < AUTO_THRESHOLD:      # 0.60 in this cookbook
+if answer.confidence < AUTO_THRESHOLD:  # 0.60 in this cookbook
     return "uncertain"
 return answer.choice
 ```
@@ -31,11 +31,11 @@ Measure two separate things on a representative dataset: whether the winning lab
 
 Cost and speed, per 8-question call, averaged across 15 runs:
 
-| Condition | Time/call | Cost/call | Slower than TypeSafe | Costlier than TypeSafe |
-|---|---|---|---|---|
-| TypeSafe (`jev-latest`) | 114ms | $0.000046 | — | — |
-| claude-haiku-4-5, t=0 | 3853ms | $0.003498 | 33.8x | 76.1x |
-| gpt-5.5 (reasoning) | 12978ms | $0.041255 | 113.7x | 897.4x |
+| Condition               | Time/call | Cost/call | Slower than TypeSafe | Costlier than TypeSafe |
+| ----------------------- | --------- | --------- | -------------------- | ---------------------- |
+| TypeSafe (`jev-latest`) | 114ms     | $0.000046 | —                    | —                      |
+| claude-haiku-4-5, t=0   | 3853ms    | $0.003498 | 33.8x                | 76.1x                  |
+| gpt-5.5 (reasoning)     | 12978ms   | $0.041255 | 113.7x               | 897.4x                 |
 
 Decision agreement at a 0.60 probability threshold: TypeSafe reached 99.2% policy agreement, with 74.2% of cases resolved automatically and 25.8% marked uncertain; `claude-haiku-4-5` (t=0) reached 100% agreement but 0% abstention (never flagged uncertainty); `gpt-5.4-mini` (t=default) reached 84.2% agreement with 77.5% automatic. TypeSafe's mean probability standard deviation across labels was 0.0098, favorable against five of the six LLM conditions — but "close probabilities still permit routing changes: TypeSafe flips on 2 of the 8 questions," and no condition showed conflicting concrete labels across repeats on any question. Two questions (`primary_risk`, `link_handling`) consistently returned below-threshold probabilities for TypeSafe on this post.
 
