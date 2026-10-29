@@ -37,7 +37,9 @@ fail() {
 # defines no commit hooks, so its commits run none.
 mkdir -p "${scratch}/hk-config"
 ln -s "${repo}/hk/hk.pkl" "${scratch}/hk-config/config.pkl"
-printf '[hook "hk-pre-push"]\n\tevent = pre-push\n\tcommand = PATH="${PATH}:%s/bin" hk run pre-push -S brakeman -S bundle-audit\n' \
+# The checkout's bin goes first: the live copy is already on PATH when the
+# profile is installed, and a stale live wrapper would be judged instead.
+printf '[hook "hk-pre-push"]\n\tevent = pre-push\n\tcommand = PATH="%s/bin:${PATH}" hk run pre-push -S brakeman -S bundle-audit\n' \
 	"${repo}" >"${scratch}/gitconfig"
 export HK_CONFIG_DIR="${scratch}/hk-config" GIT_CONFIG_GLOBAL="${scratch}/gitconfig" GIT_CONFIG_SYSTEM=/dev/null
 export GIT_AUTHOR_NAME=fixture GIT_AUTHOR_EMAIL=fixture@example.invalid

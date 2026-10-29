@@ -11,10 +11,15 @@ set -euo pipefail
 # Skips when bundle-audit is not installed or no lockfile is given.
 command -v bundle-audit >/dev/null 2>&1 || exit 0
 
+# Run it under the profile's Ruby, as dev-profile-brakeman does: the gem's
+# bin/bundle-audit shebang is `#!/usr/bin/env ruby`, so started from PATH it
+# runs under /usr/bin/ruby 2.6 and cannot activate its own gems.
+ruby=(mise exec ruby@4 --)
+
 status=0
 for lock in "$@"; do
 	dir="$(dirname "${lock}")"
 	echo "bundle-audit: ${lock}" >&2
-	(cd "${dir}" && bundle-audit check --gemfile-lock "$(basename "${lock}")") || status=$?
+	(cd "${dir}" && "${ruby[@]}" bundle-audit check --gemfile-lock "$(basename "${lock}")") || status=$?
 done
 exit "${status}"
