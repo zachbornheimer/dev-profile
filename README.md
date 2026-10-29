@@ -2,7 +2,7 @@
 
 The files in this repo are the source. mise dot apply links them into place. There is no Pkl render.
 
-Pins are in config/tools.toml. Hook steps are in hk/hk.pkl. CI installs the pins and runs mise run test.
+Pins are in languages/<lang>/tools.toml, one file per language, merged by profile/mise.toml through `include`. Hook steps are in hk/hk.pkl. CI installs the pins and runs mise run test.
 
 ## Fresh machine
 

@@ -1,0 +1,4 @@
+[tools]
+tflint = "0.64.0"
+buf = "1.73.0"
+opentofu = "1.13"

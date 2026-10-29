@@ -1,0 +1,6 @@
+# Pins for the agent harnesses. These are personal, not engineering: the dotfiles
+# layer owns them once the split lands, and nothing in the task contract calls them.
+[tools]
+"github:rohansx/workz" = "0.11.0"
+"npm:@agentclientprotocol/codex-acp" = "2.1.1"
+"npm:@agentclientprotocol/claude-agent-acp" = "0.88.0"

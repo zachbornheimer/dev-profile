@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-#MISE description="Pins live in config/tools.toml. This task no longer rewrites profile.pkl."
+#MISE description="Pins live in languages/<lang>/tools.toml. This task no longer rewrites profile.pkl."
 set -euo pipefail
-echo "pins are in config/tools.toml; nothing to regenerate" >&2
+echo "pins are in languages/<lang>/tools.toml; nothing to regenerate" >&2
 if [[ -n "${BUMP_SUMMARY:-}" ]]; then
 	: >"${BUMP_SUMMARY}"
 fi

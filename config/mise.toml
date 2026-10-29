@@ -143,7 +143,7 @@ recipients = ["age1qpl3tghy0660prmvz3x2dqjsn69m588e0j0v56ec0rswkujgyshs64dhtc"]
   "*.bak*",
 ] }
 "~/.config/lazygit" = { mode = "track", encrypt = true }
-"~/.config/mise/conf.d/dev-profile.toml" = { source = "~/Developer/Personal/dev-profile/config/tools.toml" }
+"~/.config/mise/conf.d/dev-profile" = { source = "~/Developer/Personal/dev-profile/profile" }
 "~/.config/mise/config.toml" = { mode = "track", encrypt = false }
 "~/.config/nvim" = { mode = "track", encrypt = true, exclude = [".git/**"] }
 "~/.config/omp/fallback-shake" = { mode = "track", encrypt = true }

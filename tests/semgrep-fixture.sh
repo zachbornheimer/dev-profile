@@ -16,7 +16,7 @@ fail() {
 	exit 1
 }
 
-command -v semgrep >/dev/null 2>&1 || fail "semgrep is not installed; it is pinned in config/tools.toml"
+command -v semgrep >/dev/null 2>&1 || fail "semgrep is not installed; it is pinned in languages/python/tools.toml"
 
 # curl stub: logs each call, then behaves as an unreachable registry.
 mkdir -p "${work}/stubs"

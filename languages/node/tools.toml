@@ -1,0 +1,4 @@
+[tools]
+bun = "latest"
+"npm:stylelint" = "17.16.0"
+"npm:oxlint" = "1.87.0"

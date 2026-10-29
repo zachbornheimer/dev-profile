@@ -34,7 +34,7 @@ jobs:
           # shares a 60/hour budget with every runner on the same address.
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          export MISE_GLOBAL_CONFIG_FILE="${GITHUB_WORKSPACE}/config/tools.toml"
+          export MISE_GLOBAL_CONFIG_FILE="${GITHUB_WORKSPACE}/profile/mise.toml"
           echo "MISE_GLOBAL_CONFIG_FILE=${MISE_GLOBAL_CONFIG_FILE}" >>"$GITHUB_ENV"
           mise install --yes
       - name: Test
@@ -58,7 +58,7 @@ jobs:
       - uses: ./
       - name: Repo without a go pin gets the profile's go
         run: |
-          want="$(sed -n 's/^go = "\(.*\)"$/\1/p' "${HOME}/.config/mise/conf.d/dev-profile.toml")"
+          want="$(sed -n 's/^go = "\(.*\)"$/\1/p' "${HOME}/.config/mise/conf.d/dev-profile/languages/go/tools.toml")"
           mkdir "${RUNNER_TEMP}/bare"
           cd "${RUNNER_TEMP}/bare" || exit
           printf '[tasks.noop]\nrun = "true"\n' >mise.toml

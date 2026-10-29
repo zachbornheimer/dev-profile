@@ -27,10 +27,10 @@ runs:
         GITHUB_TOKEN: ${{ inputs.github-token }}
       run: |
         set -euo pipefail
-        pins="${ACTION_PATH}/config/tools.toml"
+        pins="${ACTION_PATH}/profile"
         mkdir -p "${HOME}/.config/mise/conf.d"
-        ln -sfn "${pins}" "${HOME}/.config/mise/conf.d/dev-profile.toml"
-        echo "key=dev-profile-${RUNNER_OS}-${RUNNER_ARCH}-$(shasum -a 256 "${pins}" | cut -c1-16)" >>"${GITHUB_OUTPUT}"
+        ln -sfn "${pins}" "${HOME}/.config/mise/conf.d/dev-profile"
+        echo "key=dev-profile-${RUNNER_OS}-${RUNNER_ARCH}-$(cat "${ACTION_PATH}"/languages/*/tools.toml | shasum -a 256 | cut -c1-16)" >>"${GITHUB_OUTPUT}"
 
     - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:

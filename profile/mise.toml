@@ -1,0 +1,33 @@
+# The dev-profile fragment. ~/.config/mise/conf.d/dev-profile links to this folder, so every
+# relative path below resolves inside the checkout and a worktree checkout can be switched to
+# without the deployed links following it there.
+#
+# This file is the entry point, not the whole config. mise refuses [settings] inside an
+# included file, so it stays here; every pin lives in languages/<lang>/tools.toml, one file
+# per language, so a tool set is one file to read and one file to bump.
+include = [
+  "../languages/common/tools.toml",
+  "../languages/agents/tools.toml",
+  "../languages/docker/tools.toml",
+  "../languages/go/tools.toml",
+  "../languages/kubernetes/tools.toml",
+  "../languages/node/tools.toml",
+  "../languages/python/tools.toml",
+  "../languages/ruby/tools.toml",
+  "../languages/rust/tools.toml",
+  "../languages/terraform/tools.toml",
+]
+
+[settings]
+experimental = true
+auto_install = true
+activate_aggressive = true
+tool_update.global_auto = "12h"
+not_found_auto_install = true
+not_found_auto_install_registry = true
+idiomatic_version_file_ignore_minimum_versions = true
+idiomatic_version_file_enable_tools = ["go", "node", "python", "ruby", "npm", "pnpm", "yarn"]
+trusted_config_paths = ["~/Zysys", "~/Developer"]
+
+[settings.status]
+show_deps_stale = false
