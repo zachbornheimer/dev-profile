@@ -138,6 +138,7 @@ steps {
   ["markdownlint-fix"] {
     fix = "dev-profile-fix markdownlint --fix {{files}}"
     glob = List("**/*.md", "**/*.markdown")
+    exclude = List("vim/bundle/**")
   }
   ["perltidy"] {
     fix = "dev-profile-perltidy-fix {{files}}"
@@ -362,6 +363,7 @@ steps {
     check = "markdownlint {{files}}"
     fix = "dev-profile-fix markdownlint --fix {{files}}"
     glob = List("**/*.md", "**/*.markdown")
+    exclude = List("vim/bundle/**")
     profiles = List("slow")
   }
   ["perlcritic"] {
@@ -795,6 +797,7 @@ hooks {
         check = "markdownlint {{files}}"
         fix = "dev-profile-fix markdownlint --fix {{files}}"
         glob = List("**/*.md", "**/*.markdown")
+        exclude = List("vim/bundle/**")
       }
       ["perlcritic"] {
         check = "dev-profile-perlcritic {{files}}"
