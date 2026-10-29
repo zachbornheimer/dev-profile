@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Mise pins, split by language</title>
+    <link rel="stylesheet" href="colors_and_type.css">
+    <link rel="stylesheet" href="components.css">
+    <style>
+    .page {
+      max-width: var(--layout-max-width);
+      margin: 0 auto;
+    }
+    .grid2 {
+      display: grid;
+      grid-template-columns:
+        repeat(auto-fit, minmax(min(100%, var(--layout-card-min)), 1fr));
+      gap: var(--space-16);
+    }
+    .wrap {
+      overflow-wrap: anywhere;
+    }
+    .tree, .code {
+      font-family: var(--font-mono);
+      font-size: var(--text-mono);
+      line-height: var(--leading-prose);
+      white-space: pre;
+      overflow-x: auto;
+      margin: 0;
+      color: var(--color-text);
+    }
+    .tree {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+    .code {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-card);
+      padding: var(--space-14) var(--space-16);
+    }
+    .files .th, .files .trow {
+      grid-template-columns:
+        minmax(0, 1fr) minmax(0, 1.6fr) minmax(72px, 0.4fr);
+    }
+    .calls .th, .calls .trow {
+      grid-template-columns:
+        minmax(0, 1fr) minmax(0, 1.8fr) minmax(72px, 0.4fr);
+    }
+    .card h3 {
+      margin: var(--space-16) 0 var(--space-8);
+      font-size: var(--text-body);
+      font-weight: var(--weight-semibold);
+    }
+    .card ul, .card ol {
+      margin: 0;
+      padding-left: var(--space-20);
+      color: var(--color-text-secondary);
+      line-height: var(--leading-prose);
+    }
+    .card li {
+      margin-bottom: var(--space-4);
+    }
+    .card h2 .sub {
+      display: block;
+      margin-top: var(--space-4);
+      font-size: var(--text-meta);
+      font-weight: var(--weight-regular);
+      color: var(--color-text-muted);
+    }
+    </style>
+  </head>
+  <body>
+    <main class="preview page">
+      <header class="hdr">
+        <div>
+          <h1>Mise pins, split by language</h1>
+          <p class="meta">
+            29 Oct 2026 · commit <span class="mono">8421e99</span> · branch
+            <span class="mono">feat/mise-split-per-language</span> · 20 files,
+            +164 −63 · nothing on your Mac has changed
+          </p>
+        </div>
+        <span class="pill off"><i></i>Waiting for your review</span>
+      </header>
+
+      <section class="card">
+        <h2>What changed</h2>
+        <p>
+          The 39 tool pins sat in one file,
+          <span class="mono">config/tools.toml</span>, linked into mise as a
+          single-file fragment. They are now one file per language under
+          <span class="mono">languages/&lt;lang&gt;/tools.toml</span>, pulled in
+          by <span class="mono">include</span> from
+          <span class="mono">profile/mise.toml</span>.
+        </p>
+        <p>
+          <span class="mono">~/.config/mise/conf.d/dev-profile</span> links that
+          folder instead of the old file. A folder fragment is what makes the
+          relative includes resolve inside the checkout, so the pins can be read
+          without a machine path in them. 39 pins, 10 files, and the tool
+          versions themselves are unchanged.
+        </p>
+        <p>
+          <span class="mono">hk</span> stayed dev-profile's.
+          <span class="mono">hk/hk.pkl</span> deploys to
+          <span class="mono">~/.config/hk/config.pkl</span>, the git hook keys
+          live in the profile's gitconfig, and the pin that runs the hooks —
+          <span class="mono">hk = "2.5.0"</span> — sits in
+          <span class="mono">languages/common/tools.toml</span> beside
+          <span class="mono">pkl</span> and <span class="mono">dprint</span>.
+          Nothing about hk moved to the dotfiles layer.
+        </p>
+      </section>
+
+      <section class="card">
+        <h2>The layout</h2>
+        <pre class="tree">dev-profile/
+├── mise.toml                    this repo's own project config, plus the link that installs the global config
+├── profile/mise.toml            the fragment root: pin includes and [settings]
+├── languages/
+│   ├── common/tools.toml        pkl, hk, dprint, worktrunk, git, gitleaks, jq, shellcheck, …
+│   ├── agents/tools.toml        workz, codex-acp, claude-agent-acp (yours, for dotfiles to take)
+│   ├── go/tools.toml            go, golangci-lint, gosec, govulncheck, goimports
+│   ├── node/tools.toml          node, stylelint, oxlint
+│   ├── python/tools.toml        uv, ruff, yamllint, semgrep
+│   ├── ruby/tools.toml          brakeman, bundler-audit
+│   ├── rust/tools.toml          cargo-deny
+│   ├── docker/tools.toml        hadolint
+│   ├── kubernetes/tools.toml    kube-linter, kubeconform
+│   └── terraform/tools.toml     tflint, buf, opentofu
+├── config/                      dprint, golangci, deny, yamllint, markdownlint, worktrunk, personal overlay
+├── hk/hk.pkl
+├── tests/profile-layout.sh      the check that keeps this split honest
+└── bin/  shell/  mise-tasks/</pre>
+      </section>
+
+      <section class="card">
+        <h2>
+          <span class="mono">profile/mise.toml</span>
+          <span class="sub">the fragment root — new file</span>
+        </h2>
+        <pre class="code"># The dev-profile fragment. ~/.config/mise/conf.d/dev-profile links to this folder, so every
+# relative path below resolves inside the checkout.
+#
+# This file is the entry point, not the whole config. mise refuses [settings] inside an
+# included file, so it stays here; every pin lives in languages/&lt;lang&gt;/tools.toml, one file
+# per language, so a tool set is one file to read and one file to bump.
+include = [
+  "../languages/common/tools.toml",
+  "../languages/agents/tools.toml",
+  "../languages/docker/tools.toml",
+  "../languages/go/tools.toml",
+  "../languages/kubernetes/tools.toml",
+  "../languages/node/tools.toml",
+  "../languages/python/tools.toml",
+  "../languages/ruby/tools.toml",
+  "../languages/rust/tools.toml",
+  "../languages/terraform/tools.toml",
+]
+
+[settings]
+experimental = true
+auto_install = true
+activate_aggressive = true
+not_found_auto_install = true
+not_found_auto_install_registry = true
+idiomatic_version_file_ignore_minimum_versions = true
+idiomatic_version_file_enable_tools = ["go", "node", "python", "ruby", "npm", "pnpm", "yarn"]
+trusted_config_paths = ["~/Zysys", "~/Developer"]
+
+[settings.status]
+show_deps_stale = false</pre>
+        <p>
+          Every setting is the one that was in
+          <span class="mono">config/tools.toml</span>. Only the pins moved.
+        </p>
+      </section>
+
+      <section class="card">
+        <h2>
+          <span class="mono">languages/&lt;lang&gt;/tools.toml</span>
+          <span class="sub">two of the ten, unchanged pins</span>
+        </h2>
+        <h3>languages/go/tools.toml</h3>
+        <pre class="code">[tools]
+go = "1.27"
+"go:golang.org/x/tools/cmd/goimports" = "0.51.0"
+"aqua:securego/gosec" = "2.29.0"
+golangci-lint = "2.14.0"
+"go:golang.org/x/vuln/cmd/govulncheck" = "1.8.0"</pre>
+        <h3>languages/common/tools.toml</h3>
+        <pre class="code">[tools]
+pkl = "0.32.1"
+hk = "2.5.0"
+dprint = "0.64.3"
+worktrunk = "0.80.0"
+stylua = "2.5.2"
+aube = "2.7.0"
+jq = "1.8.2"
+"conda:git" = "2.56.0"
+betterleaks = "1.9.0"
+"aqua:gitleaks/gitleaks" = "8.30.1"
+"npm:markdownlint-cli" = "0.49.1"
+"aqua:rhysd/actionlint" = "1.7.12"
+pinact = "5.0.0"
+zizmor = "1.30.1"
+shellcheck = "0.11.0"</pre>
+      </section>
+
+      <section class="card">
+        <h2>Why the settings did not move</h2>
+        <p>
+          mise accepts only these keys in an included file:
+          <span class="mono">[tools]</span>, <span class="mono"
+          >[tool_alias]</span>,
+          <span class="mono">[env]</span>, <span class="mono">[vars]</span>,
+          <span class="mono">[hooks]</span>, <span class="mono"
+          >[shell_alias]</span>,
+          <span class="mono">[plugins]</span>, <span class="mono"
+          >[wrappers]</span>,
+          <span class="mono">[bootstrap]</span>, <span class="mono"
+          >min_version</span>
+          and <span class="mono">[_]</span>. Anything else is an error, and
+          <span class="mono">[settings]</span> is in that group — so the entry
+          keeps it and only the pins move. The layout test asserts the settings
+          still apply, which is what catches someone moving them into an include
+          later.
+        </p>
+      </section>
+
+      <section class="card">
+        <h2>Every caller moved with it</h2>
+        <div class="scroll">
+          <div>
+            <div class="tbl calls">
+              <div class="th">
+                <span>File</span><span>What it does now</span><span>State</span>
+              </div>
+              <div class="trow">
+                <span class="mono wrap">config/mise.toml</span>
+                <span>Deploys <span class="mono">conf.d/dev-profile</span> as a
+                  folder link into <span class="mono">profile/</span>, not the
+                  old single file</span>
+                <span class="tag ok">done</span>
+              </div>
+              <div class="trow">
+                <span class="mono wrap">action.yml</span>
+                <span>Links the folder and hashes every
+                  <span class="mono">languages/*/tools.toml</span> for the cache
+                  key</span>
+                <span class="tag ok">done</span>
+              </div>
+              <div class="trow">
+                <span class="mono wrap">.github/workflows/ci.yml</span>
+                <span>Points <span class="mono">MISE_GLOBAL_CONFIG_FILE</span>
+                  at <span class="mono">profile/mise.toml</span> and reads the
+                  go pin from <span class="mono"
+                  >languages/go/tools.toml</span></span>
+                <span class="tag ok">done</span>
+              </div>
+              <div class="trow">
+                <span class="mono wrap">.gitignore</span>
+                <span>It is an allowlist: <span class="mono">languages/</span>
+                  and <span class="mono">profile/</span> needed exceptions or
+                  the new files would never be committed</span>
+                <span class="tag ok">done</span>
+              </div>
+              <div class="trow">
+                <span class="mono wrap"
+                >README.md, mise-tasks/bump, tests/semgrep-fixture.sh</span>
+                <span>Name the new path</span>
+                <span class="tag ok">done</span>
+              </div>
+              <div class="trow">
+                <span class="mono wrap">bin/dev-profile-env</span>
+                <span>Still links a <span class="mono">mise-profile.toml</span>
+                  that no longer exists anywhere — dead before this change,
+                  left alone</span>
+                <span class="tag warn">untouched</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>
+          What I checked
+          <span class="sub">in the worktree on this Mac, mise 2026.10.21</span>
+        </h2>
+        <div class="scroll">
+          <div>
+            <div class="tbl files">
+              <div class="th">
+                <span>Check</span><span>Result</span><span>State</span>
+              </div>
+              <div class="trow">
+                <span class="mono wrap">bash tests/profile-layout.sh</span>
+                <span>Scratch HOME, folder fragment linked: the fragment loads,
+                  all 39 declared pins reach the merged config through
+                  <span class="mono">include</span>, and
+                  <span class="mono">[settings]</span> still applies</span>
+                <span class="tag ok">pass</span>
+              </div>
+              <div class="trow">
+                <span class="mono wrap">mise run doctor</span>
+                <span>Fails at
+                  <span class="mono">tests/ruby-security-steps-fixture.sh</span>
+                  — the system Ruby 2.6 cannot find bundler 2.5.0</span>
+                <span class="tag warn">pre-existing</span>
+              </div>
+              <div class="trow">
+                <span class="mono wrap"
+                >the same fixture on untouched main</span>
+                <span>Fails identically, so the red is the machine's Ruby, not
+                  this change</span>
+                <span class="tag ok">proof</span>
+              </div>
+              <div class="trow">
+                <span class="mono wrap">pre-commit hook on the new commit</span>
+                <span>Ran your live hk config over all 20 files: dprint,
+                  shellcheck, newlines, no-commit-to-default-branch, all
+                  green</span>
+                <span class="tag ok">pass</span>
+              </div>
+              <div class="trow">
+                <span class="mono wrap">git log -1 --format=%G?</span>
+                <span>The commit is signed</span>
+                <span class="tag ok">G</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>What is left</h2>
+        <ul>
+          <li>
+            <strong>Nothing on your Mac changed.</strong> The live link
+            <span class="mono">~/.config/mise/conf.d/dev-profile.toml</span>
+            still points at main's <span class="mono">config/tools.toml</span>.
+            At the cutover, <span class="mono">mise dot apply</span> has to drop
+            that stale link before the folder one takes its place.
+          </li>
+          <li>
+            <strong>The branch is not merged.</strong> It sits on
+            <span class="mono">feat/mise-split-per-language</span> off
+            <span class="mono">main</span> at
+            <span class="mono">ac6c2ac</span>, with your 49 unpushed main
+            commits untouched.
+          </li>
+          <li>
+            <strong>The ruby check is red for a machine reason.</strong>
+            <span class="mono">bundle-audit</span> runs under the system Ruby
+            2.6 and cannot find bundler 2.5.0. That blocks
+            <span class="mono">mise run doctor</span> from going green on any
+            branch, including main.
+          </li>
+          <li>
+            <strong>Your earlier branch still exists.</strong>
+            <span class="mono">feat/split-first-pass</span> has its own
+            <span class="mono">languages/*</span> split, three days old and 30
+            commits behind main. It was left alone; this branch can be
+            cherry-picked into it or it can be dropped.
+          </li>
+        </ul>
+      </section>
+    </main>
+  </body>
+</html>
