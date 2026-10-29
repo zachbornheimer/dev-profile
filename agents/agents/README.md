@@ -4,7 +4,7 @@ One agent definition per file, in a harness-neutral format. Each harness renders
 it into its own artifact; no harness is the source of truth and none is
 hand-edited.
 
-```
+```text
 ~/.agents/agents/<name>.yaml   the master (this format, schema: agents/v1)
 ~/.agents/agents/render.py     the renderers (currently: omp)
 ```
@@ -20,24 +20,24 @@ second authoring job.
 
 ## Schema (`agents/v1`)
 
-| Field | Type | Meaning |
-|---|---|---|
-| `schema` | string | Always `agents/v1`. A renderer refuses a version it does not know. |
-| `name` | string | Slug. The rendered file is named after it. |
-| `description` | string | One sentence a routing model reads. No first person. |
-| `whenToUse` | string | When to pick this agent, in the delegator's words. |
-| `tags` | string[] | Free-form grouping for listings. Not behaviour. |
-| `model.role` | enum | `default` \| `smol` \| `slow` \| `plan` \| `task`. `default` means the session's own model; the renderer emits no model. |
-| `model.thinkingLevel` | enum | `auto` \| `low` \| `medium` \| `high`. A hint, not a guarantee. |
-| `workspace` | enum | `machine` (any absolute path), `repo` (this checkout only), `none` (no files). |
-| `tools.all` | bool | `true` gives the agent every tool the harness mounts (omp: no `tools:` key). When set, `always`/`searchable` are documentation for the prompt, not a filter. |
-| `tools.always` | string[] | Canonical capabilities mounted up front. |
-| `tools.searchable` | string[] | Canonical capabilities found through the harness's tool search; never preloaded. |
-| `tools.denied` | string[] | Canonical capabilities the harness must withhold even if it has them. |
-| `spawns` | string[] \| `"*"` | Subagent names this agent may delegate to. `[]` = none. |
-| `output` | `none` \| object | `none`, or `{ schema: <name> }` once the agent needs a structured answer. The schema itself lives beside the master (`<name>.output.json`) so every harness reads one definition. |
-| `prompt` | string | The system prompt. Names capabilities, never a harness's tool names. |
-| `harnesses` | map | Name overrides only — never behaviour. See below. |
+| Field                 | Type              | Meaning                                                                                                                                                                           |
+| --------------------- | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `schema`              | string            | Always `agents/v1`. A renderer refuses a version it does not know.                                                                                                                |
+| `name`                | string            | Slug. The rendered file is named after it.                                                                                                                                        |
+| `description`         | string            | One sentence a routing model reads. No first person.                                                                                                                              |
+| `whenToUse`           | string            | When to pick this agent, in the delegator's words.                                                                                                                                |
+| `tags`                | string[]          | Free-form grouping for listings. Not behaviour.                                                                                                                                   |
+| `model.role`          | enum              | `default` \| `smol` \| `slow` \| `plan` \| `task`. `default` means the session's own model; the renderer emits no model.                                                          |
+| `model.thinkingLevel` | enum              | `auto` \| `low` \| `medium` \| `high`. A hint, not a guarantee.                                                                                                                   |
+| `workspace`           | enum              | `machine` (any absolute path), `repo` (this checkout only), `none` (no files).                                                                                                    |
+| `tools.all`           | bool              | `true` gives the agent every tool the harness mounts (omp: no `tools:` key). When set, `always`/`searchable` are documentation for the prompt, not a filter.                      |
+| `tools.always`        | string[]          | Canonical capabilities mounted up front.                                                                                                                                          |
+| `tools.searchable`    | string[]          | Canonical capabilities found through the harness's tool search; never preloaded.                                                                                                  |
+| `tools.denied`        | string[]          | Canonical capabilities the harness must withhold even if it has them.                                                                                                             |
+| `spawns`              | string[] \| `"*"` | Subagent names this agent may delegate to. `[]` = none.                                                                                                                           |
+| `output`              | `none` \| object  | `none`, or `{ schema: <name> }` once the agent needs a structured answer. The schema itself lives beside the master (`<name>.output.json`) so every harness reads one definition. |
+| `prompt`              | string            | The system prompt. Names capabilities, never a harness's tool names.                                                                                                              |
+| `harnesses`           | map               | Name overrides only — never behaviour. See below.                                                                                                                                 |
 
 ### `harnesses`
 
@@ -50,8 +50,8 @@ override.
 ```yaml
 harnesses:
   omp:
-    name: code-improver      # rendered file name
-    model: ["@task"]         # explicit id instead of a role
+    name: code-improver # rendered file name
+    model: ["@task"] # explicit id instead of a role
   mastra:
     definitionPath: mastra/src/agents/code-improver/code-improver.yaml
 ```
@@ -61,30 +61,30 @@ harnesses:
 Masters name these ids. A renderer maps each to its harness's own tool; a
 capability a harness lacks is reported as missing, never silently dropped.
 
-| Canonical | Meaning | omp | Mastra | Claude Code |
-|---|---|---|---|---|
-| `read` | read a file or range | `read` | `agentmux_capability_read` | `Read` |
-| `write` | create or overwrite a file | `write` | `agentmux_capability_write` | `Write` |
-| `edit` | patch an existing file | `edit` | `agentmux_capability_edit` | `Edit` |
-| `glob` | find files by path shape | `glob` | `agentmux_capability_glob` | `Glob` |
-| `grep` | search file contents | `grep` | `agentmux_capability_grep` | `Grep` |
-| `list` | list a directory | `find` | `agentmux_capability_glob` | `LS` |
-| `stat` | file metadata | — | `agentmux_capability_glob` | `Bash(stat)` |
-| `run_command` | run a shell command | `bash` | `agentmux_capability_run_command` | `Bash` |
-| `run_tests` | the repo's focused test runner | `bash` | `run_tests` | `Bash` |
-| `search_tools` | find the rest of the catalog | — (native) | `search_tools` | — (native) |
-| `worktrunk` | worktree lifecycle | `bash` | `worktrunk` | `Bash` |
-| `atask_*` | task board verbs | MCP `atask_*` | `agentmux_capability_*` | via MCP |
-| `hindsight_*` | durable memory | MCP `hindsight_*` | `hindsight_*` | via MCP |
-| `web_search` / `web_fetch` | external facts | `web_search` / — | `web_search` / `web_fetch` | `WebSearch` / `WebFetch` |
-| `collect_failure_evidence` | bounded failure evidence | — | `agentmux_capability_collect_failure_evidence` | — |
+| Canonical                  | Meaning                        | omp               | Mastra                                         | Claude Code              |
+| -------------------------- | ------------------------------ | ----------------- | ---------------------------------------------- | ------------------------ |
+| `read`                     | read a file or range           | `read`            | `agentmux_capability_read`                     | `Read`                   |
+| `write`                    | create or overwrite a file     | `write`           | `agentmux_capability_write`                    | `Write`                  |
+| `edit`                     | patch an existing file         | `edit`            | `agentmux_capability_edit`                     | `Edit`                   |
+| `glob`                     | find files by path shape       | `glob`            | `agentmux_capability_glob`                     | `Glob`                   |
+| `grep`                     | search file contents           | `grep`            | `agentmux_capability_grep`                     | `Grep`                   |
+| `list`                     | list a directory               | `find`            | `agentmux_capability_glob`                     | `LS`                     |
+| `stat`                     | file metadata                  | —                 | `agentmux_capability_glob`                     | `Bash(stat)`             |
+| `run_command`              | run a shell command            | `bash`            | `agentmux_capability_run_command`              | `Bash`                   |
+| `run_tests`                | the repo's focused test runner | `bash`            | `run_tests`                                    | `Bash`                   |
+| `search_tools`             | find the rest of the catalog   | — (native)        | `search_tools`                                 | — (native)               |
+| `worktrunk`                | worktree lifecycle             | `bash`            | `worktrunk`                                    | `Bash`                   |
+| `atask_*`                  | task board verbs               | MCP `atask_*`     | `agentmux_capability_*`                        | via MCP                  |
+| `hindsight_*`              | durable memory                 | MCP `hindsight_*` | `hindsight_*`                                  | via MCP                  |
+| `web_search` / `web_fetch` | external facts                 | `web_search` / —  | `web_search` / `web_fetch`                     | `WebSearch` / `WebFetch` |
+| `collect_failure_evidence` | bounded failure evidence       | —                 | `agentmux_capability_collect_failure_evidence` | —                        |
 
 `—` means the harness has no equivalent: the renderer omits it and the prompt's
 instruction to search before assuming absence still holds.
 
 ## Rendering
 
-```
+```bash
 render.py code-improver            # write every harness it knows
 render.py code-improver --harness omp
 render.py --check code-improver    # exit 1 when an artifact is stale
@@ -110,7 +110,7 @@ never depends on `~/.agents`.
 
 ### Importing an existing Mastra agent
 
-```
+```bash
 import_mastra.py <repo>/mastra/src/agents/<name>/<name>.yaml --name <name>
 ```
 
