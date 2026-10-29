@@ -6,7 +6,8 @@
 set -euo pipefail
 export HK=0 # no global git hooks inside the fixture repo
 
-out="${1:?usage: pr-fixture.sh <generated-dir>}"
+# Absolute: the fixture cds into its own repo before running the scripts.
+out="$(cd "${1:?usage: pr-fixture.sh <generated-dir>}" && pwd -P)"
 work="$(cd "$(mktemp -d)" && pwd -P)"
 trap 'rm -rf "${work}"' EXIT
 
@@ -148,6 +149,26 @@ logged "--draft" && fail "plain pr must not be a draft"
 reset
 "$publish" --draft >/dev/null 2>&1 || fail "pr --draft must publish"
 logged "--base main --draft --repo me/repo" || fail "pr --draft must create a draft"
+
+# `git worktree add -b B origin/main` tracks the base it was cut from. The
+# push names refs/heads/B, so that upstream is replaced, not a reason to stop.
+git switch -q -c tracks-base --track origin/main
+git commit -q --allow-empty -m "cut from origin/main"
+reset
+"$publish" >/dev/null 2>&1 || fail "a branch tracking its base must publish"
+logged "gh pr create --fill --head tracks-base --base main --repo me/repo" || fail "a branch tracking its base must create a PR against main"
+[[ "$(git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}')" == origin/tracks-base ]] ||
+	fail "publishing must leave the branch tracking origin/tracks-base"
+
+# Any other upstream is someone else's branch: refuse, publish nothing.
+git switch -q -c tracks-other --track origin/feature
+git commit -q --allow-empty -m "tracking another branch"
+reset
+code=0
+"$publish" >/dev/null 2>&1 || code=$?
+[[ "$code" -eq 1 ]] || fail "a branch tracking another branch must exit 1, got ${code}"
+logged "pr create" && fail "a branch tracking another branch must not create a PR"
+git switch -q feature
 
 reset
 code=0

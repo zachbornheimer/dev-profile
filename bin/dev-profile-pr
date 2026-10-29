@@ -72,13 +72,6 @@ for operation in MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD rebase-merge rebase-app
 	fi
 done
 
-# Never replace a different upstream.
-upstream="$(git rev-parse --abbrev-ref --symbolic-full-name "@{upstream}" 2>/dev/null || :)"
-if [[ -n "${upstream}" && "${upstream}" != "origin/${branch}" ]]; then
-	echo "Unexpected upstream for ${branch}: ${upstream}" >&2
-	exit 1
-fi
-
 # Stacked PRs target the branch recorded by `gh pr create --base`.
 base="$(git config --get "branch.${branch}.gh-merge-base" || :)"
 base="${base:-${default_branch}}"
@@ -86,6 +79,15 @@ git rev-parse --verify --quiet "origin/${base}" >/dev/null || {
 	echo "origin/${base} not found; run git fetch origin" >&2
 	exit 1
 }
+
+# Never replace a different upstream. The base this branch was cut from is not
+# one: `git worktree add -b B origin/main` tracks origin/main, and the push
+# below names refs/heads/B and replaces that tracking with origin/B.
+upstream="$(git rev-parse --abbrev-ref --symbolic-full-name "@{upstream}" 2>/dev/null || :)"
+if [[ -n "${upstream}" && "${upstream}" != "origin/${branch}" && "${upstream}" != "origin/${base}" ]]; then
+	echo "Unexpected upstream for ${branch}: ${upstream}" >&2
+	exit 1
+fi
 
 if [[ $# -gt 0 ]]; then
 	"$@" || {
@@ -155,7 +157,7 @@ fi
 
 # Interactive in kitty: watch in a background tab. Loops and scripts: detach,
 # so a batch of PRs does not open a tab each; notifications still arrive.
-watcher="/Users/zbornheimer/.local/share/dev-profile/bin/dev-profile-pr-watch"
+watcher="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/dev-profile-pr-watch"
 where="${DEV_PROFILE_PR_WATCH:-}"
 if [[ -z "${where}" ]]; then
 	where=background
