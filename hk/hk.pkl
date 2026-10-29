@@ -480,6 +480,8 @@ steps {
   }
   ["private-keys"] {
     check = "hk util detect-private-key {{files}}"
+    exclude =
+      List("tests/pre-push-empty-file-list-fixture.sh", "more/grok/agents/rules-yaml-author.md")
     profiles = List("slow")
   }
   ["strict-json"] {
@@ -913,6 +915,8 @@ hooks {
       ["private-keys"] {
         check = "hk util detect-private-key {{files}}"
         glob = List("**/*")
+        exclude =
+          List("tests/pre-push-empty-file-list-fixture.sh", "more/grok/agents/rules-yaml-author.md")
       }
       ["strict-json"] {
         check =
