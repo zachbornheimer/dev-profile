@@ -9,9 +9,9 @@ enum ImageHeader {
   static func dimensions(of data: Data) -> (width: Int, height: Int)? {
     guard let src = CGImageSourceCreateWithData(data as CFData, nil),
       let props = CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any],
-      let w = props[kCGImagePropertyPixelWidth] as? Int,
-      let h = props[kCGImagePropertyPixelHeight] as? Int
+      let width = props[kCGImagePropertyPixelWidth] as? Int,
+      let height = props[kCGImagePropertyPixelHeight] as? Int
     else { return nil }
-    return (w, h)
+    return (width, height)
   }
 }

@@ -30,9 +30,9 @@ enum Commands {
   /// look blurry on a modern display; "small" (193-400px) is borderline.
   private static func photoAudit(_ store: ContactStore) throws {
     let rows = try store.auditPhotos()
-    func bucket(_ w: Int?, _ h: Int?) -> String {
-      guard let w, let h, w > 0, h > 0 else { return "missing" }
-      let min = Swift.min(w, h)
+    func bucket(_ width: Int?, _ height: Int?) -> String {
+      guard let width, let height, width > 0, height > 0 else { return "missing" }
+      let min = Swift.min(width, height)
       if min <= 192 { return "tiny" }
       if min <= 400 { return "small" }
       return "ok"
@@ -97,12 +97,14 @@ enum Commands {
 
   private static func members(_ args: [String], _ store: ContactStore) throws {
     guard let group = args.first, !group.isEmpty else { throw ContactError("members <group>") }
-    let rows = try store.members(of: group).map { m -> [String: Any] in
+    let rows = try store.members(of: group).map { member -> [String: Any] in
       let reviewed: Any =
-        m.reviewed.map {
+        member.reviewed.map {
           String(format: "%04d-%02d-%02d", $0.year ?? 0, $0.month ?? 0, $0.day ?? 0)
         } ?? NSNull()
-      return ["name": m.name, "id": m.id, "image": m.hasImage, "reviewed": reviewed]
+      return [
+        "name": member.name, "id": member.id, "image": member.hasImage, "reviewed": reviewed,
+      ]
     }
     Output.print(["group": group, "count": rows.count, "members": rows])
   }

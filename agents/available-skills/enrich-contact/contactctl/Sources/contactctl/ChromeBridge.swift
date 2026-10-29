@@ -106,8 +106,8 @@ enum ChromeBridge {
   }
 
   /// AppleScript string escaping — backslash first, then double-quotes.
-  private static func escape(_ s: String) -> String {
-    s.replacingOccurrences(of: "\\", with: "\\\\")
+  private static func escape(_ raw: String) -> String {
+    raw.replacingOccurrences(of: "\\", with: "\\\\")
       .replacingOccurrences(of: "\"", with: "\\\"")
   }
 

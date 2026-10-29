@@ -5,6 +5,7 @@
 !/mise.toml
 !/action.yml
 !/.gitleaks.toml
+!/.swiftlint.yml
 !/mise-tasks/
 !/mise-tasks/*
 !/.github/

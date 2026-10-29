@@ -1,0 +1,10 @@
+# Must live at the repo root: swiftlint discovers its config by walking up from the
+# process cwd, and the git hooks run at the root.
+#
+# trailing_comma is disabled on purpose. In 0.65.1 the rule and its fixer disagree:
+# `lint` reports "Collection literals should not have trailing commas" for a multi-line
+# literal that has one, while `--fix` writes one in. Each pre-commit run therefore
+# re-dirtied the same lines and no commit could settle. Neither mandatory_comma setting
+# resolved it, so the rule is off.
+disabled_rules:
+  - trailing_comma
