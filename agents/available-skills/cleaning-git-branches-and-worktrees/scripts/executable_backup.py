@@ -61,9 +61,7 @@ class Git:
             errors="replace",
         )
 
-    def out(
-        self, *args: str, cwd: Path | None = None, check: bool = True
-    ) -> str:
+    def out(self, *args: str, cwd: Path | None = None, check: bool = True) -> str:
         return self.run(*args, cwd=cwd, check=check).stdout.strip()
 
 
@@ -107,9 +105,7 @@ def parse_dirty_files(value: str, branch: str) -> int:
     try:
         count = int(value)
     except ValueError as exc:
-        raise ValueError(
-            f"invalid dirty_files for {branch!r}: {value!r}"
-        ) from exc
+        raise ValueError(f"invalid dirty_files for {branch!r}: {value!r}") from exc
     if count < 0:
         raise ValueError(
             f"unknown/negative dirty_files is not cleanup-safe for {branch!r}: {count}"
@@ -305,7 +301,9 @@ def main() -> int:
         validate_worktree_identity(git, row)
 
     saved = sum(save_worktree_edits(git, row, backup_dir) for row in valid)
-    expected_saved = sum(parse_dirty_files(row.dirty_files, row.branch) > 0 for row in valid)
+    expected_saved = sum(
+        parse_dirty_files(row.dirty_files, row.branch) > 0 for row in valid
+    )
     if saved != expected_saved:
         raise AssertionError(
             f"dirty worktree backup mismatch: saved {saved} != expected {expected_saved}"

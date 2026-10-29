@@ -69,7 +69,9 @@ def block(text: str, indent: str = "  ") -> str:
     return "\n".join(f"{indent}{line}" if line.strip() else "" for line in lines) + "\n"
 
 
-def convert(source: Path, name: str, description: str | None, when: str | None, role: str) -> tuple[str, list[str]]:
+def convert(
+    source: Path, name: str, description: str | None, when: str | None, role: str
+) -> tuple[str, list[str]]:
     doc = yaml.safe_load(source.read_text())
     # Byte for byte: the Mastra definition's own test proves the loaded prompt matches this file.
     prompt = normalize(str(doc.get("Prompt", "")))
@@ -92,7 +94,12 @@ def convert(source: Path, name: str, description: str | None, when: str | None, 
         "tags": ["mastra-import"],
         "model": {"role": role},
         "workspace": "machine",
-        "tools": {"all": True, "always": ALWAYS, "searchable": SEARCHABLE, "denied": []},
+        "tools": {
+            "all": True,
+            "always": ALWAYS,
+            "searchable": SEARCHABLE,
+            "denied": [],
+        },
         "spawns": [],
         "output": "none",
     }
@@ -111,7 +118,9 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--description", help="override the mastra Description")
     parser.add_argument("--when", help="override the mastra 'Use when'")
     parser.add_argument("--role", default="task", help="model role (default: task)")
-    parser.add_argument("--force", action="store_true", help="overwrite an existing master")
+    parser.add_argument(
+        "--force", action="store_true", help="overwrite an existing master"
+    )
     args = parser.parse_args(argv)
 
     if not args.source.exists():
@@ -120,7 +129,9 @@ def main(argv: list[str]) -> int:
     if target.exists() and not args.force:
         raise SystemExit(f"{target} exists; pass --force to overwrite")
 
-    text, unknown = convert(args.source, args.name, args.description, args.when, args.role)
+    text, unknown = convert(
+        args.source, args.name, args.description, args.when, args.role
+    )
     target.write_text(text)
     print(f"{target}: written")
     for tool in unknown:

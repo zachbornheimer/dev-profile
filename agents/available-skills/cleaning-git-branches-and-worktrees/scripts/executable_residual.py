@@ -64,9 +64,7 @@ class Git:
             check=check,
         )
 
-    def out(
-        self, *args: str, cwd: Path | None = None, check: bool = False
-    ) -> str:
+    def out(self, *args: str, cwd: Path | None = None, check: bool = False) -> str:
         return self.run(*args, cwd=cwd, check=check).stdout.strip()
 
     def exists(self, ref: str, path: str) -> bool:
@@ -186,7 +184,9 @@ def top_level_dirs(paths: list[str]) -> list[str]:
 
 def merge_conflicts(git: Git, base: str, sha: str) -> tuple[bool, list[str], str]:
     """Return (conflicts, conflicted_paths, merged_tree_or_empty)."""
-    result = git.run("merge-tree", "--write-tree", "--name-only", base, sha, check=False)
+    result = git.run(
+        "merge-tree", "--write-tree", "--name-only", base, sha, check=False
+    )
     if result.returncode == 0:
         tokens = result.stdout.split()
         return False, [], tokens[0] if tokens else ""
@@ -500,7 +500,9 @@ def build_targets(
     for target in results_by_name.values():
         target.hint = classify_branch_hint(target)
 
-    return sorted(results_by_name.values(), key=lambda target: (target.hint, target.name))
+    return sorted(
+        results_by_name.values(), key=lambda target: (target.hint, target.name)
+    )
 
 
 def summarize(targets: list[ResidualTarget]) -> dict:
@@ -509,8 +511,7 @@ def summarize(targets: list[ResidualTarget]) -> dict:
         "hints": dict(Counter(target.hint for target in targets)),
         "dirty_worktrees": len(dirty_targets),
         "dirty_worktrees_only_noise": sum(
-            target.uncommitted is not None
-            and target.uncommitted.hint == "noise-only"
+            target.uncommitted is not None and target.uncommitted.hint == "noise-only"
             for target in dirty_targets
         ),
         "unresolved_worktree_state": sum(

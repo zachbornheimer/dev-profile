@@ -22,7 +22,21 @@ from pathlib import Path
 SKILLS = Path.home() / ".agents" / "available-skills"
 
 # Words that carry no mechanism: every skill name has some of these.
-GENERIC = frozenset({"skill", "skills", "tool", "tools", "recovery", "the", "and", "or", "for", "of", "a"})
+GENERIC = frozenset(
+    {
+        "skill",
+        "skills",
+        "tool",
+        "tools",
+        "recovery",
+        "the",
+        "and",
+        "or",
+        "for",
+        "of",
+        "a",
+    }
+)
 
 TOKEN = re.compile(r"[a-z0-9]+")
 
@@ -65,7 +79,10 @@ def main(argv: list[str]) -> int:
     proposed = argv[1].strip()
     words = mechanism_words(proposed)
     if not words:
-        print(f"{proposed}: every word is generic, so it names no mechanism", file=sys.stderr)
+        print(
+            f"{proposed}: every word is generic, so it names no mechanism",
+            file=sys.stderr,
+        )
         return 2
 
     collision = find_collision(proposed)

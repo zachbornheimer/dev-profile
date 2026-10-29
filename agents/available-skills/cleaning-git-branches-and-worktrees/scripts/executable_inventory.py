@@ -54,9 +54,7 @@ class Git:
             errors="replace",
         )
 
-    def out(
-        self, *args: str, cwd: Path | None = None, check: bool = True
-    ) -> str:
+    def out(self, *args: str, cwd: Path | None = None, check: bool = True) -> str:
         return self.run(*args, cwd=cwd, check=check).stdout.strip()
 
     def ok(self, *args: str, cwd: Path | None = None) -> bool:

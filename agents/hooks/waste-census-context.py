@@ -72,7 +72,11 @@ def render(path: Path, findings: dict[str, list[str]]) -> str:
     for name in CLASS_ORDER:
         refs = findings.get(name, [])
         shown = ", ".join(refs[:REFS_PER_CLASS])
-        more = "" if len(refs) <= REFS_PER_CLASS else f" (+{len(refs) - REFS_PER_CLASS} more)"
+        more = (
+            ""
+            if len(refs) <= REFS_PER_CLASS
+            else f" (+{len(refs) - REFS_PER_CLASS} more)"
+        )
         lines.append(f"- {name}: {len(refs)}" + (f" — {shown}{more}" if refs else ""))
     lines.append(
         "A diagnosis that explains only tool_error has not explained this run: "

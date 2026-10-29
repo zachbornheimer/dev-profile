@@ -109,11 +109,17 @@ def pick_skill(
             reply.get("usage"),
             in_flight,
             has_context=bool(
-                context and (context.get("current_task") or context.get("durable_project_context"))
+                context
+                and (
+                    context.get("current_task")
+                    or context.get("durable_project_context")
+                )
             ),
         )
     except (JudgmentError, ValueError, TypeError, KeyError) as exc:
-        reason = exc.reason if isinstance(exc, JudgmentError) else pick.fallback().reason
+        reason = (
+            exc.reason if isinstance(exc, JudgmentError) else pick.fallback().reason
+        )
         return pick.local_pick(prompt, roster, reason)
     settled = pick.gate(wide, roster)
     if settled is not None:
@@ -238,7 +244,9 @@ def judge_or_fallback(
         )
         return gate.decide(result["answers"], state, result.get("usage"))
     except (JudgmentError, ValueError, TypeError, KeyError) as exc:
-        reason = exc.reason if isinstance(exc, JudgmentError) else gate.fallback().reason
+        reason = (
+            exc.reason if isinstance(exc, JudgmentError) else gate.fallback().reason
+        )
         return gate.fallback(reason)
 
 
@@ -262,7 +270,9 @@ def classify_findings(
         request = classify.build_request(finding, tickets)
         try:
             result = systemone.ask(request, api_key, getenv=getenv, urlopen=urlopen)
-            classified.append(classify.apply_answers(finding, result["answers"], tickets))
+            classified.append(
+                classify.apply_answers(finding, result["answers"], tickets)
+            )
         except (JudgmentError, ValueError, TypeError, KeyError):
             api_key = None
             classified.append(classify.stamp_fallback(finding))
@@ -313,7 +323,9 @@ def classify_files(
         if file_taxonomy is not None:
             try:
                 results.append(
-                    _classify_one_taxonomy(observation, file_taxonomy, api_key, getenv, urlopen)
+                    _classify_one_taxonomy(
+                        observation, file_taxonomy, api_key, getenv, urlopen
+                    )
                 )
             except (JudgmentError, ValueError, TypeError, KeyError) as exc:
                 api_key = None
@@ -322,7 +334,9 @@ def classify_files(
                     if isinstance(exc, JudgmentError)
                     else classify_file.REASON_UNAVAILABLE
                 )
-                results.append(_taxonomy_fallback(observation["path"], file_taxonomy, reason))
+                results.append(
+                    _taxonomy_fallback(observation["path"], file_taxonomy, reason)
+                )
             continue
         # One batched call (typesafe-skills rule 4): a deterministic shortlist decides
         # what to ask about, not what to answer — `strong_project_match` pre-empts the
@@ -412,7 +426,11 @@ def add_json_flag(parser: argparse.ArgumentParser) -> None:
 
 
 def interrogate(
-    raw: str, *, getenv: Getenv, urlopen: Urlopen | None, read_keychain: ReadKeychain | None
+    raw: str,
+    *,
+    getenv: Getenv,
+    urlopen: Urlopen | None,
+    read_keychain: ReadKeychain | None,
 ) -> dict[str, Any]:
     request = json.loads(raw or "{}")
     if (
@@ -442,7 +460,11 @@ def interrogate(
         getenv=getenv,
         urlopen=urlopen,
     )
-    return {"answers": result["answers"], "usage": result.get("usage", {}), "source": "typesafe"}
+    return {
+        "answers": result["answers"],
+        "usage": result.get("usage", {}),
+        "source": "typesafe",
+    }
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -453,7 +475,9 @@ def build_parser() -> argparse.ArgumentParser:
         )
     )
     sub = parser.add_subparsers(dest="command")
-    pick_parser = sub.add_parser("pick-skill", help="Choose at most one skill for a prompt.")
+    pick_parser = sub.add_parser(
+        "pick-skill", help="Choose at most one skill for a prompt."
+    )
     pick_parser.add_argument("--prompt", required=True, help="User prompt to route.")
     pick_parser.add_argument(
         "--in-flight",
@@ -579,7 +603,10 @@ def main(
     if args.command == "interrogate":
         try:
             result = interrogate(
-                incoming.read(), getenv=getenv, urlopen=urlopen, read_keychain=read_keychain
+                incoming.read(),
+                getenv=getenv,
+                urlopen=urlopen,
+                read_keychain=read_keychain,
             )
         except (OSError, TypeError, ValueError, systemone.JudgmentError) as exc:
             print(str(exc), file=sys.stderr)

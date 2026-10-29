@@ -48,7 +48,9 @@ def _clock_now() -> str:
     return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def load_inputs(data_dir: Path, developer_root: Path) -> tuple[BuildInputs, dict[str, Any]]:
+def load_inputs(
+    data_dir: Path, developer_root: Path
+) -> tuple[BuildInputs, dict[str, Any]]:
     catalog, catalog_sha = _load_json(data_dir / "repo-catalog.json")
     linear, linear_sha = _load_json(data_dir / "linear-projects.json")
     personal, personal_sha = _load_json(data_dir / "personal-areas.json")
@@ -71,8 +73,16 @@ def load_inputs(data_dir: Path, developer_root: Path) -> tuple[BuildInputs, dict
         "personal": {"path": "personal-areas.json", "sha256": personal_sha},
         "overrides": {"path": "taxonomy-overrides.json", "sha256": overrides_sha},
     }
-    inputs_by_name = {"catalog": catalog, "linear": linear, "personal": personal, "overrides": overrides}
-    return inputs, {"sources": sources, "version_hash": _canonical_inputs_hash(inputs_by_name)}
+    inputs_by_name = {
+        "catalog": catalog,
+        "linear": linear,
+        "personal": personal,
+        "overrides": overrides,
+    }
+    return inputs, {
+        "sources": sources,
+        "version_hash": _canonical_inputs_hash(inputs_by_name),
+    }
 
 
 def build_taxonomy(data_dir: Path, developer_root: Path) -> dict[str, Any]:
@@ -95,7 +105,9 @@ def _stable_view(document: dict[str, Any]) -> dict[str, Any]:
     return view
 
 
-def _print_node_diff(old_nodes: list[dict[str, Any]], new_nodes: list[dict[str, Any]]) -> None:
+def _print_node_diff(
+    old_nodes: list[dict[str, Any]], new_nodes: list[dict[str, Any]]
+) -> None:
     old_by_id = {n["id"]: n for n in old_nodes}
     new_by_id = {n["id"]: n for n in new_nodes}
     added = sorted(set(new_by_id) - set(old_by_id))
@@ -106,11 +118,20 @@ def _print_node_diff(old_nodes: list[dict[str, Any]], new_nodes: list[dict[str, 
         if old_by_id[node_id].get("parent") != new_by_id[node_id].get("parent")
     )
     if added:
-        print(f"  added ({len(added)}): {', '.join(added[:20])}" + (" ..." if len(added) > 20 else ""))
+        print(
+            f"  added ({len(added)}): {', '.join(added[:20])}"
+            + (" ..." if len(added) > 20 else "")
+        )
     if removed:
-        print(f"  removed ({len(removed)}): {', '.join(removed[:20])}" + (" ..." if len(removed) > 20 else ""))
+        print(
+            f"  removed ({len(removed)}): {', '.join(removed[:20])}"
+            + (" ..." if len(removed) > 20 else "")
+        )
     if moved:
-        print(f"  moved ({len(moved)}): {', '.join(moved[:20])}" + (" ..." if len(moved) > 20 else ""))
+        print(
+            f"  moved ({len(moved)}): {', '.join(moved[:20])}"
+            + (" ..." if len(moved) > 20 else "")
+        )
     if not (added or removed or moved):
         print("  (no node-level differences)")
 

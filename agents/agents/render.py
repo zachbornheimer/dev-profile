@@ -60,13 +60,19 @@ def load(name: str) -> dict:
     if doc.get("schema") != SCHEMA:
         raise SystemExit(f"{path}: schema must be {SCHEMA}, got {doc.get('schema')!r}")
     if doc.get("name") != name:
-        raise SystemExit(f"{path}: name must match the file name ({name}), got {doc.get('name')!r}")
+        raise SystemExit(
+            f"{path}: name must match the file name ({name}), got {doc.get('name')!r}"
+        )
     role = (doc.get("model") or {}).get("role", "default")
     if role not in MODEL_ROLES:
-        raise SystemExit(f"{path}: model.role must be one of {sorted(MODEL_ROLES)}, got {role!r}")
+        raise SystemExit(
+            f"{path}: model.role must be one of {sorted(MODEL_ROLES)}, got {role!r}"
+        )
     thinking = (doc.get("model") or {}).get("thinkingLevel")
     if thinking is not None and thinking not in THINKING:
-        raise SystemExit(f"{path}: model.thinkingLevel must be one of {sorted(THINKING)}, got {thinking!r}")
+        raise SystemExit(
+            f"{path}: model.thinkingLevel must be one of {sorted(THINKING)}, got {thinking!r}"
+        )
     return doc
 
 
@@ -100,7 +106,9 @@ def render_omp(doc: dict) -> str:
     if tools and not all_tools:
         front["tools"] = tools
     if doc.get("tools", {}).get("denied"):
-        raise SystemExit("omp cannot deny a tool by name; express the constraint in the prompt instead")
+        raise SystemExit(
+            "omp cannot deny a tool by name; express the constraint in the prompt instead"
+        )
     if doc.get("spawns") == "*":
         front["spawns"] = "*"
     elif doc.get("spawns"):
@@ -113,15 +121,18 @@ def render_omp(doc: dict) -> str:
     if thinking:
         front["thinkingLevel"] = thinking
     if (doc.get("output") or "none") != "none":
-        raise SystemExit("structured output is not rendered for omp yet; add it to the renderer first")
+        raise SystemExit(
+            "structured output is not rendered for omp yet; add it to the renderer first"
+        )
 
     if not all_tools:
         for capability in missing:
-            print(f"omp has no tool for {capability}; it is left out of the tool list", file=sys.stderr)
+            print(
+                f"omp has no tool for {capability}; it is left out of the tool list",
+                file=sys.stderr,
+            )
 
-    header = (
-        f"<!-- generated from ~/.agents/agents/{doc['name']}.yaml by render.py — do not edit -->\n\n"
-    )
+    header = f"<!-- generated from ~/.agents/agents/{doc['name']}.yaml by render.py — do not edit -->\n\n"
     body = doc["prompt"].rstrip() + "\n"
     return f"---\n{yaml.safe_dump(front, sort_keys=False)}---\n\n{header}{body}"
 
@@ -136,9 +147,15 @@ def target_for(doc: dict, harness: str) -> Path:
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description="Render master agent definitions.")
     parser.add_argument("name", help="master name, without .yaml")
-    parser.add_argument("--harness", default="omp", help="target harness (default: omp)")
-    parser.add_argument("--check", action="store_true", help="exit 1 when the artifact is stale")
-    parser.add_argument("--stdout", action="store_true", help="print instead of writing")
+    parser.add_argument(
+        "--harness", default="omp", help="target harness (default: omp)"
+    )
+    parser.add_argument(
+        "--check", action="store_true", help="exit 1 when the artifact is stale"
+    )
+    parser.add_argument(
+        "--stdout", action="store_true", help="print instead of writing"
+    )
     args = parser.parse_args(argv)
 
     doc = load(args.name)
