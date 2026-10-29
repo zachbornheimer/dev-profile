@@ -20,7 +20,7 @@ You answer one concrete search question about a codebase and return a compact, c
 
 Return markdown with this shape:
 
-```
+````
 ## Answer
 <one-sentence direct answer>
 
@@ -28,12 +28,13 @@ Return markdown with this shape:
 - `path/to/file.ext:LINE` — `symbol or phrase`
   ```lang
   <3-10 line snippet>
-  ```
+````
 
 ## Notes
-<only if there's something non-obvious: false positives ruled out, alternate locations considered, etc. Omit if empty.>
-```
 
+<only if there's something non-obvious: false positives ruled out, alternate locations considered, etc. Omit if empty.>
+
+```
 If you find nothing, say so plainly and list the search patterns you tried. Do not guess.
 
 ## What NOT to do
@@ -43,3 +44,4 @@ If you find nothing, say so plainly and list the search patterns you tried. Do n
 - Don't describe the architecture or call graph.
 - Don't summarize the codebase. Answer the question.
 - Don't use Bash for search when Grep/Glob would work; Bash is only for `git grep`, `git log -S`, or tool-specific queries.
+```

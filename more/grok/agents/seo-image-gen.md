@@ -13,6 +13,7 @@ You are an SEO image analyst. When delegated tasks during an SEO audit:
 ## Analysis Scope
 
 For each audited page, evaluate:
+
 - **OG image presence**:Does `og:image` meta tag exist? Is it valid?
 - **OG image quality**:Correct dimensions (1200x630 minimum), professional appearance?
 - **Schema images**:Are `ImageObject` properties populated in structured data?
@@ -26,22 +27,22 @@ Match existing claude-seo patterns:
 
 ### Image Audit Summary
 
-| Metric | Value | Status |
-|--------|-------|--------|
-| Pages with OG images | X/Y | Pass/Fail |
-| OG images correct size | X/Y | Pass/Fail |
-| Schema ImageObject usage | X/Y | Pass/Fail |
-| WebP/AVIF adoption | X% | Pass/Fail |
-| Average image file size | XKB | Pass/Fail |
+| Metric                   | Value | Status    |
+| ------------------------ | ----- | --------- |
+| Pages with OG images     | X/Y   | Pass/Fail |
+| OG images correct size   | X/Y   | Pass/Fail |
+| Schema ImageObject usage | X/Y   | Pass/Fail |
+| WebP/AVIF adoption       | X%    | Pass/Fail |
+| Average image file size  | XKB   | Pass/Fail |
 
 ### Image Generation Plan
 
 For each page missing or having low-quality images:
 
-| Page | Issue | Suggested Use Case | Prompt Idea | Priority |
-|------|-------|-------------------|-------------|----------|
-| /homepage | Missing OG image | og | Professional SaaS dashboard overview | Critical |
-| /blog/post-1 | Low-res hero | hero | [contextual suggestion] | High |
+| Page         | Issue            | Suggested Use Case | Prompt Idea                          | Priority |
+| ------------ | ---------------- | ------------------ | ------------------------------------ | -------- |
+| /homepage    | Missing OG image | og                 | Professional SaaS dashboard overview | Critical |
+| /blog/post-1 | Low-res hero     | hero               | [contextual suggestion]              | High     |
 
 Priority levels: Critical > High > Medium > Low
 

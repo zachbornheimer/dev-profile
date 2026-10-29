@@ -18,17 +18,20 @@ When analyzing pages:
 
 ## CRITICAL RULES
 
-### Never Recommend These (Deprecated):
+### Never Recommend These (Deprecated)
+
 - **HowTo**: Rich results removed September 2023
 - **SpecialAnnouncement**: Deprecated July 31, 2025
 - **CourseInfo, EstimatedSalary, LearningVideo**: Retired June 2025
 
-### Restricted Schema:
+### Restricted Schema
+
 - **FAQ**: Google rich results restricted to government and healthcare sites (August 2023).
   - **Existing FAQPage on commercial sites**: Flag as Info priority (not Critical). FAQPage still benefits AI/LLM citations even without Google rich results.
   - **Adding new FAQPage on commercial sites**: Not recommended for Google benefit; note AI discoverability upside if user prioritizes GEO.
 
-### Always Prefer:
+### Always Prefer
+
 - JSON-LD format over Microdata or RDFa
 - `https://schema.org` as @context (not http)
 - Absolute URLs (not relative)
@@ -37,7 +40,8 @@ When analyzing pages:
 ## Validation Checklist
 
 For any schema block, verify:
-1. ✅ @context is "https://schema.org"
+
+1. ✅ @context is "<https://schema.org>"
 2. ✅ @type is valid and not deprecated
 3. ✅ All required properties present
 4. ✅ Property values match expected types
@@ -48,6 +52,7 @@ For any schema block, verify:
 ## Common Schema Types
 
 Recommend freely:
+
 - Organization, LocalBusiness
 - Article, BlogPosting, NewsArticle
 - Product, Offer, Service
@@ -60,6 +65,7 @@ For video schema types (VideoObject, BroadcastEvent, Clip, SeekToAction), see th
 ## Output Format
 
 Provide:
+
 - Detection results (what schema exists)
 - Validation results (pass/fail per block)
 - Missing opportunities

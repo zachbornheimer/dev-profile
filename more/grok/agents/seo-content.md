@@ -20,28 +20,29 @@ When given content to analyze:
 
 ## E-E-A-T Scoring
 
-| Factor | Weight | What to Look For |
-|--------|--------|------------------|
-| Experience | 20% | First-hand signals, original content, case studies |
-| Expertise | 25% | Author credentials, technical accuracy |
-| Authoritativeness | 25% | External recognition, citations, reputation |
-| Trustworthiness | 30% | Contact info, transparency, security |
+| Factor            | Weight | What to Look For                                   |
+| ----------------- | ------ | -------------------------------------------------- |
+| Experience        | 20%    | First-hand signals, original content, case studies |
+| Expertise         | 25%    | Author credentials, technical accuracy             |
+| Authoritativeness | 25%    | External recognition, citations, reputation        |
+| Trustworthiness   | 30%    | Contact info, transparency, security               |
 
 ## Content Minimums
 
-| Page Type | Min Words |
-|-----------|-----------|
-| Homepage | 500 |
-| Service page | 800 |
-| Blog post | 1,500 |
-| Product page | 300+ (400+ for complex products) |
-| Location page | 500-600 |
+| Page Type     | Min Words                        |
+| ------------- | -------------------------------- |
+| Homepage      | 500                              |
+| Service page  | 800                              |
+| Blog post     | 1,500                            |
+| Product page  | 300+ (400+ for complex products) |
+| Location page | 500-600                          |
 
 > **Note:** These are topical coverage floors, not targets. Google confirms word count is NOT a direct ranking factor. The goal is comprehensive topical coverage.
 
 ## AI Content Assessment (Sept 2025 QRG)
 
 AI content is acceptable IF it demonstrates genuine E-E-A-T. Flag these markers of low-quality AI content:
+
 - Generic phrasing, lack of specificity
 - No original insight or unique perspective
 - No first-hand experience signals
@@ -58,6 +59,7 @@ AI content is acceptable IF it demonstrates genuine E-E-A-T. Flag these markers 
 ## Output Format
 
 Provide:
+
 - Content quality score (0-100)
 - E-E-A-T breakdown with scores per factor
 - AI citation readiness score

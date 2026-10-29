@@ -14,7 +14,7 @@ side**, the **frontend**, and — when verifying live UI — the **built-in MCP
 server** that can drive a running app. Do not permanently register that MCP in
 `~/.grok/config.toml`; connect only while an MCP-enabled binary is running.
 
-Official MCP guide: https://v3.wails.io/guides/mcp-service/
+Official MCP guide: <https://v3.wails.io/guides/mcp-service/>
 
 ## When this skill applies
 
@@ -91,10 +91,12 @@ If Grok needs the tools mid-session and the server is not already connected:
 
 1. Confirm something is listening: `curl -sS -o /dev/null -w '%{http_code}\n' http://127.0.0.1:9099/mcp` (any non-connection-refused response means the port is open).
 2. Use project-scoped config **only if the project wants it**, and keep it out of committed user-global config:
+
    ```bash
    # from the app repo — project scope, not user scope
    grok mcp add --scope project --transport http wails http://127.0.0.1:9099/mcp
    ```
+
 3. Refresh MCP list (`/mcps` → `r`) or start a new session.
 4. When done verifying, remove project entry if you added one:
    `grok mcp remove --scope project wails`
@@ -162,7 +164,7 @@ Before claiming a UI change works:
 ## Reference playground
 
 Upstream example (all tools):
-https://github.com/wailsapp/wails/tree/v3-alpha/v3/examples/mcp
+<https://github.com/wailsapp/wails/tree/v3-alpha/v3/examples/mcp>
 
 ```bash
 cd v3/examples/mcp

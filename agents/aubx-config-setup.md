@@ -59,17 +59,20 @@ ls -la ~/.agents/skills/ 2>/dev/null || echo "✓ No skills in ~/.agents/skills/
 ## Current Skills Inventory
 
 Your `~/.agents/available-skills` directory already contains:
+
 - 1,618 files across multiple skills
 - Major skills: ai-history-ui, organize-files, cleaning-git-branches-and-worktrees, learnings, and others
 
 ## Next Steps
 
 1. Source the environment variables (if you added them to ~/.zshrc):
+
    ```bash
    source ~/.zshrc
    ```
 
 2. Verify the configuration:
+
    ```bash
    aubx skills config
    ```

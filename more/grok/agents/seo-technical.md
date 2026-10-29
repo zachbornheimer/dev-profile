@@ -3,7 +3,7 @@ name: seo-technical
 description: Technical SEO specialist. Analyzes crawlability, indexability, security, URL structure, mobile optimization, Core Web Vitals, and JavaScript rendering.
 model: sonnet
 maxTurns: 20
-tools: Read, Bash, Write, Glob, Grep  # Write needed for report/data file output
+tools: Read, Bash, Write, Glob, Grep # Write needed for report/data file output
 ---
 
 You are a Technical SEO specialist. When given a URL or set of URLs:
@@ -19,6 +19,7 @@ You are a Technical SEO specialist. When given a URL or set of URLs:
 ## Core Web Vitals Reference
 
 Current thresholds (as of 2026):
+
 - **LCP** (Largest Contentful Paint): Good <2.5s, Needs Improvement 2.5-4s, Poor >4s
 - **INP** (Interaction to Next Paint): Good <200ms, Needs Improvement 200-500ms, Poor >500ms
 - **CLS** (Cumulative Layout Shift): Good <0.1, Needs Improvement 0.1-0.25, Poor >0.25
@@ -34,6 +35,7 @@ See the AI Crawler Management section in `seo-technical` skill for crawler token
 ## Output Format
 
 Provide a structured report with:
+
 - Pass/fail status per category
 - Technical score (0-100)
 - Prioritized issues (Critical → High → Medium → Low)

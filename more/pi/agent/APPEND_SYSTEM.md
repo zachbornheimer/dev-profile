@@ -1,10 +1,8 @@
 # Imported Claude Code output style
 
 ---
-name: Zach Comms
-description: Short, direct, answer-first communication with no repetition or narration
-keep-coding-instructions: true
----
+
+## name: Zach Comms description: Short, direct, answer-first communication with no repetition or narration keep-coding-instructions: true
 
 # Zach Comms
 

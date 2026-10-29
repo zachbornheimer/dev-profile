@@ -11,7 +11,7 @@ Use this skill when you call a tool and receive "No such tool available", "disab
 
 1. **Extract capability category**: What does the denied tool do?
    - Bash/sh/zsh/exec → "command execution"
-   - WebSearch/GoogleSearch → "web search"  
+   - WebSearch/GoogleSearch → "web search"
    - Read/Write/Edit → "file operations"
    - WebFetch → "web operations"
 
@@ -35,6 +35,7 @@ Use this skill when you call a tool and receive "No such tool available", "disab
 **Transcript**: claude:2ed0c871-6035-437f-b0a4-99497db72f96
 
 ❌ **Anti-pattern** (what actually happened):
+
 1. Call Bash → denied "No such tool available"
 2. Call Bash again 4 minutes later → denied again
 3. Call Bash again 9 minutes later → denied again
@@ -46,6 +47,7 @@ Use this skill when you call a tool and receive "No such tool available", "disab
 **Waste**: 4 denials, 0 discovery attempts, 38-minute delay, 3 user escalations
 
 ✅ **Correct pattern**:
+
 1. Call Bash → denied "No such tool available"
 2. **Immediately** call ToolSearch("command execution") → found run_command
 3. Use run_command

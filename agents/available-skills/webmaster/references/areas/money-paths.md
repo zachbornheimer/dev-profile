@@ -5,6 +5,7 @@ Donation, registration, checkout, subscriptions, memberships.
 **Check:** subscription states, retry config, Action Scheduler backlog and memberships sync via wp-cli; Stripe webhook health and dispute rate via the Stripe dashboard (read-only); synthetic checkout in Stripe test mode (finding IDs are `site:commerce:kind:subject`).
 
 ## Facts
+
 - An **on-hold** subscription means the renewal failed or the subscription was paused. Count and age of on-hold subscriptions is the leading indicator.
 - The Subscriptions **retry system is opt-in** (default 5 retries at 12h, 12h, 24h, 48h, 72h). If it is off, failed renewals go straight to on-hold; confirm the setting.
 - **Stripe disables a webhook endpoint after 3 days of failing deliveries.** Alert on any failure, not just disablement.
@@ -13,6 +14,7 @@ Donation, registration, checkout, subscriptions, memberships.
 - Synthetic tests use Stripe **test mode, admin-only**, never real cards or real customer orders.
 
 ## Triage
+
 - Webhook failing: Sev1 if payments are not creating orders; fix endpoint, resend failed events, reconcile orders against Stripe charges.
 - On-hold spike: check gateway errors, expired cards, retry setting, Action Scheduler.
 - Dispute rate rising: list disputes, check descriptor clarity and refund policy; report to Zach.

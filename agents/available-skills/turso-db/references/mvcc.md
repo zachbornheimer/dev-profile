@@ -40,15 +40,16 @@ COMMIT;
 
 ## Transaction Types Comparison
 
-| Type | Syntax | Behavior |
-|------|--------|----------|
-| Deferred (default) | `BEGIN` | No locks until first read/write |
-| Immediate | `BEGIN IMMEDIATE` | Exclusive write lock immediately |
-| Concurrent | `BEGIN CONCURRENT` | MVCC snapshot isolation, no locks |
+| Type               | Syntax             | Behavior                          |
+| ------------------ | ------------------ | --------------------------------- |
+| Deferred (default) | `BEGIN`            | No locks until first read/write   |
+| Immediate          | `BEGIN IMMEDIATE`  | Exclusive write lock immediately  |
+| Concurrent         | `BEGIN CONCURRENT` | MVCC snapshot isolation, no locks |
 
 ## Conflict Detection
 
 Write-write conflicts occur when:
+
 - The row was modified by another active transaction
 - The row was modified by a transaction that committed after this transaction's begin timestamp
 
@@ -70,4 +71,3 @@ COMMIT;
 - Use `BEGIN IMMEDIATE` only when you need exclusive access (e.g., schema changes)
 
 **Best practice:** For maximum concurrency, use `BEGIN CONCURRENT` for all write transactions.
-

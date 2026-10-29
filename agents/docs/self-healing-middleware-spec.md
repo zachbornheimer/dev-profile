@@ -7,6 +7,7 @@
 ## Problem (from forensic analysis)
 
 Transcript claude:2ed0c871-6035-437f-b0a4-99497db72f96:
+
 - 4 Bash calls, all denied "No such tool available"
 - Zero discovery attempts for 38 minutes
 - User had to say "run command is the way"
@@ -39,10 +40,10 @@ class ToolMiddleware {
 inferCapability(toolName: string, args: any): string {
   // Static map: Bash → command_execution
   if (CAPABILITY_MAP[toolName]) return CAPABILITY_MAP[toolName];
-  
+
   // Arg analysis: {command: "ls"} → command_execution
   if (args.command || args.shell) return 'command_execution';
-  
+
   // LLM classify (cached)
   return llmClassify(toolName, args);
 }
@@ -54,13 +55,13 @@ inferCapability(toolName: string, args: any): string {
 discover(capability: string): Tool[] {
   // 1. MCP server catalog
   candidates.push(...mcpSearch(capability));
-  
-  // 2. Local registry  
+
+  // 2. Local registry
   candidates.push(...localRegistry(capability));
-  
+
   // 3. Web search (cached)
   if (!candidates.length) candidates.push(...webSearch(capability));
-  
+
   return rank(candidates); // by availability, match, reliability
 }
 ```
@@ -71,13 +72,13 @@ discover(capability: string): Tool[] {
 retryWith(alternative: Tool, originalArgs: any): Result {
   // Translate args to alternative's schema
   translated = translateArgs(originalArgs, alternative.schema);
-  
+
   // Execute
   result = alternative.execute(translated);
-  
+
   // Log substitution (not shown to agent)
   logSubstitution(original, alternative, result.ok);
-  
+
   return result;
 }
 ```
@@ -89,10 +90,10 @@ class AdaptiveCatalog {
   recordSubstitution(original: string, alternative: string, success: bool) {
     db.insert({original, alternative, success, timestamp, environment});
   }
-  
+
   getPreferredAlternative(tool: string): string {
     return db.query(
-      "SELECT alternative FROM subs WHERE original=? AND success=true 
+      "SELECT alternative FROM subs WHERE original=? AND success=true
        ORDER BY COUNT(*) DESC LIMIT 1", tool
     ).one();
   }
@@ -104,6 +105,7 @@ class AdaptiveCatalog {
 ### Phase 1: Pragmatic Hooks ✅
 
 **Implemented** (2024-10-21):
+
 - `missing-tool-discovery.py`: Injects ToolSearch after denial
 - `escalation-budget.py`: Prevents repeated asks
 - `tool-denial-recovery` skill
@@ -157,6 +159,7 @@ interface MCPDiscoveryProtocol {
 ## Metrics
 
 Per session:
+
 - `tool_denials`: Unavailable tool calls
 - `auto_discoveries`: Successful automatic substitutions
 - `discovery_latency_ms`: Denial to retry time
@@ -164,15 +167,17 @@ Per session:
 - `user_escalations_prevented`: Escalations avoided
 
 **Target**:
+
 - `auto_discoveries / tool_denials > 0.95` (95%+ auto-recovery)
 - `discovery_latency_ms < 1000`
 - `user_escalations_prevented > 0`
 
 ## Current State
 
-**Implemented**: Hooks, skill, instruction  
-**Next**: Phase 2 middleware in mcp-agent  
+**Implemented**: Hooks, skill, instruction
+**Next**: Phase 2 middleware in mcp-agent
 **Open**:
+
 1. Sync vs async discovery?
 2. Schema mismatch handling?
 3. Expose discovery or keep transparent?
@@ -182,5 +187,5 @@ Per session:
 
 Transparent middleware at **harness layer**, not agent layer.
 
-**Prior art**: Langchain (instruction-based), AutoGPT (plugin management)  
+**Prior art**: Langchain (instruction-based), AutoGPT (plugin management)
 **This**: System-level, transparent, learning-enabled

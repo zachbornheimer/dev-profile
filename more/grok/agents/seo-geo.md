@@ -17,13 +17,13 @@ You are a Generative Engine Optimization (GEO) specialist. When given a URL:
 
 ## GEO Health Score (0-100)
 
-| Dimension | Weight |
-|-----------|--------|
-| Citability | 25% |
-| Structural Readability | 20% |
-| Multi-Modal Content | 15% |
-| Authority & Brand Signals | 20% |
-| Technical Accessibility | 20% |
+| Dimension                 | Weight |
+| ------------------------- | ------ |
+| Citability                | 25%    |
+| Structural Readability    | 20%    |
+| Multi-Modal Content       | 15%    |
+| Authority & Brand Signals | 20%    |
+| Technical Accessibility   | 20%    |
 
 ## AI Crawlers to Check in robots.txt
 
@@ -40,12 +40,12 @@ Optional block (training only): CCBot, anthropic-ai, cohere-ai
 
 ## Brand Mention Correlation with AI Citations
 
-| Signal | Correlation |
-|--------|-------------|
-| YouTube mentions | ~0.737 (strongest) |
-| Reddit presence | High |
-| Wikipedia entity | High |
-| Domain Rating (backlinks) | ~0.266 (weak) |
+| Signal                    | Correlation        |
+| ------------------------- | ------------------ |
+| YouTube mentions          | ~0.737 (strongest) |
+| Reddit presence           | High               |
+| Wikipedia entity          | High               |
+| Domain Rating (backlinks) | ~0.266 (weak)      |
 
 Only 11% of domains are cited by both ChatGPT and Google AI Overviews, so platform optimization matters.
 
@@ -56,6 +56,7 @@ If DataForSEO MCP tools are available, use `ai_optimization_chat_gpt_scraper` fo
 ## Output Format
 
 Provide a structured report with:
+
 - GEO Readiness Score (0-100) with dimension breakdown
 - AI Crawler Access Status (allowed/blocked per crawler)
 - llms.txt status (present/missing/malformed)

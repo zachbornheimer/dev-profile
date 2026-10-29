@@ -7,6 +7,7 @@ Turso supports bidirectional sync between a local embedded database and a remote
 **A synced database file MUST only be opened through the sync SDK** (e.g., `turso::sync::Builder` in Rust, `turso.sync.connect()` in Python, `tursogo.NewTursoSyncDb()` in Go, etc.).
 
 **NEVER open a synced database with:**
+
 - The `tursodb` CLI
 - A non-sync SDK (e.g., plain `turso::Builder` / `turso.connect()`)
 - SQLite directly (`sqlite3`, `better-sqlite3`, etc.)
@@ -54,16 +55,16 @@ Compacts the local WAL by transferring synced frames back to the main database f
 
 Returns current sync engine statistics:
 
-| Field | Description |
-|-------|-------------|
-| `cdcOperations` | Number of pending CDC operations (since last push) |
-| `mainWalSize` | Current main WAL file size in bytes |
-| `revertWalSize` | Current revert WAL file size in bytes |
-| `networkSentBytes` | Total bytes uploaded to remote |
-| `networkReceivedBytes` | Total bytes downloaded from remote |
-| `lastPullUnixTime` | Unix timestamp of last pull (null if never pulled) |
-| `lastPushUnixTime` | Unix timestamp of last push (null if never pushed) |
-| `revision` | Current synced revision (opaque token, null if not yet synced) |
+| Field                  | Description                                                    |
+| ---------------------- | -------------------------------------------------------------- |
+| `cdcOperations`        | Number of pending CDC operations (since last push)             |
+| `mainWalSize`          | Current main WAL file size in bytes                            |
+| `revertWalSize`        | Current revert WAL file size in bytes                          |
+| `networkSentBytes`     | Total bytes uploaded to remote                                 |
+| `networkReceivedBytes` | Total bytes downloaded from remote                             |
+| `lastPullUnixTime`     | Unix timestamp of last pull (null if never pulled)             |
+| `lastPushUnixTime`     | Unix timestamp of last push (null if never pushed)             |
+| `revision`             | Current synced revision (opaque token, null if not yet synced) |
 
 ## TypeScript Sync Examples
 
@@ -82,15 +83,15 @@ const db = await connect({
 
 The `connect()` options:
 
-| Option | Description |
-|--------|-------------|
-| `path` | Local file path for the database (required) |
-| `url` | Remote Turso Cloud URL. Omit for local-only. Can be a `() => string \| null` function for deferred sync |
-| `authToken` | Auth token string, or `() => Promise<string>` for short-lived credentials |
-| `remoteEncryption` | `{ key: string, cipher: string }` for encrypted remote databases |
-| `transform` | Callback to transform mutations before push (conflict resolution) |
+| Option              | Description                                                                                                                                                                                      |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `path`              | Local file path for the database (required)                                                                                                                                                      |
+| `url`               | Remote Turso Cloud URL. Omit for local-only. Can be a `() => string \| null` function for deferred sync                                                                                          |
+| `authToken`         | Auth token string, or `() => Promise<string>` for short-lived credentials                                                                                                                        |
+| `remoteEncryption`  | `{ key: string, cipher: string }` for encrypted remote databases                                                                                                                                 |
+| `transform`         | Callback to transform mutations before push (conflict resolution)                                                                                                                                |
 | `longPollTimeoutMs` | When set, `pull()` holds the connection open until changes arrive or timeout. Max effective value is **5000ms** (server caps it). **Recommended** — set this to `5000` to avoid wasteful polling |
-| `tracing` | `'error' \| 'warn' \| 'info' \| 'debug' \| 'trace'` |
+| `tracing`           | `'error' \| 'warn' \| 'info' \| 'debug' \| 'trace'`                                                                                                                                              |
 
 ### Push After Writes
 
@@ -202,22 +203,22 @@ Set `bootstrapIfEmpty: false` to skip the automatic bootstrap on first pull. The
 
 Partial sync is experimental and available in JavaScript, WASM, React Native, Python, and Go SDKs. Configuration options:
 
-| Parameter | Description |
-|-----------|-------------|
-| `bootstrapStrategy` | How to select initial data: `prefix` (load first N bytes) or `query` (load pages touched by a SQL statement) |
-| `segmentSize` | Load pages in batches of this many bytes. E.g., with `segmentSize=131072` (128KB), accessing page 1 loads pages 1–32 together |
-| `prefetch` | When `true`, the sync engine proactively fetches pages that are likely to be accessed soon based on access patterns |
+| Parameter           | Description                                                                                                                   |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `bootstrapStrategy` | How to select initial data: `prefix` (load first N bytes) or `query` (load pages touched by a SQL statement)                  |
+| `segmentSize`       | Load pages in batches of this many bytes. E.g., with `segmentSize=131072` (128KB), accessing page 1 loads pages 1–32 together |
+| `prefetch`          | When `true`, the sync engine proactively fetches pages that are likely to be accessed soon based on access patterns           |
 
 ## SDK Availability
 
-| SDK | Sync Support | Sync Package/Feature |
-|-----|-------------|---------------------|
-| Rust | Yes | `turso` crate with `sync` feature |
-| Python | Yes | `turso.sync` / `turso.aio.sync` modules |
-| Go | Yes | `tursogo.NewTursoSyncDb()` |
-| WASM | Yes | `@tursodatabase/sync-wasm` (separate package) |
-| React Native | Yes | Built into `@tursodatabase/sync-react-native` |
-| JavaScript (Node.js) | Yes | `@tursodatabase/sync` (separate package) |
+| SDK                  | Sync Support | Sync Package/Feature                          |
+| -------------------- | ------------ | --------------------------------------------- |
+| Rust                 | Yes          | `turso` crate with `sync` feature             |
+| Python               | Yes          | `turso.sync` / `turso.aio.sync` modules       |
+| Go                   | Yes          | `tursogo.NewTursoSyncDb()`                    |
+| WASM                 | Yes          | `@tursodatabase/sync-wasm` (separate package) |
+| React Native         | Yes          | Built into `@tursodatabase/sync-react-native` |
+| JavaScript (Node.js) | Yes          | `@tursodatabase/sync` (separate package)      |
 
 ## Important Notes
 

@@ -20,11 +20,13 @@ You apply the same mechanical transformation across multiple files. Your contrac
 ## Verification
 
 If the caller provides a build or test command (`go build ./...`, `npm run typecheck`, `make test`), run it:
+
 - **Before** the first edit (baseline — must pass).
 - **After each wave** (must still pass).
 - **At the end** (final confirmation).
 
 If no verification command is given, use these sensible defaults only if the tooling is obviously present:
+
 - `go build ./...` for Go projects
 - `npx tsc --noEmit` for TypeScript projects with a `tsconfig.json`
 - `python -m py_compile <changed files>` for Python

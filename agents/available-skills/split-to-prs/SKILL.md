@@ -14,10 +14,12 @@ a recoverable snapshot.
 - **No branch, commit, push, or PR until the user approves the plan.** Propose first; act after.
 - **Snapshot before moving anything.** Even when work is dirty on `main`, save a
   recoverable ref before touching the tree:
+
   ```bash
   SHA=$(git stash create "pre-split")
   [ -n "$SHA" ] && git update-ref "refs/backup/pre-split-$(date +%s)" "$SHA"
   ```
+
 - **Stage with `wt step commit`, never `git add PATH`.** `git add .` / `git add -A`
   is forbidden — it silently includes unintended files.
 - **Independent PRs off the default branch by default.** Stack only when the

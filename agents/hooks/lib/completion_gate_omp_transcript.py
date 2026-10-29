@@ -136,11 +136,27 @@ def _device_call(arguments: dict[str, Any]) -> tuple[str, Any] | None:
     path = arguments.get("path")
     if not isinstance(path, str) or not path.startswith(DEVICE_PREFIX):
         return None
+    return path.removeprefix(DEVICE_PREFIX), _device_args(arguments.get("content"))
+
+
+def _device_args(content: Any) -> Any:
+    """The arguments a device ``write`` carried, whatever shape the row holds.
+
+    omp usually writes the tool's JSON args as a string, but a turn may pass them
+    already decoded (an object), and older turns pass ``null``. Decoding only the
+    string case and letting the rest through unchanged is the difference between a
+    decoded call and a ``TypeError`` that fails the whole Stop gate open: the gate
+    reads every row of the log, so one object-shaped row silenced it for the rest
+    of the session (2026-10-29, omp:01a169a2).
+    """
+    if isinstance(content, (dict, list)):
+        return content
+    if not isinstance(content, str) or not content.strip():
+        return None
     try:
-        device_args = json.loads(arguments.get("content") or "")
+        return json.loads(content)
     except ValueError:
-        device_args = None
-    return path.removeprefix(DEVICE_PREFIX), device_args
+        return None
 
 
 def _canonical_tool(name: str) -> str:

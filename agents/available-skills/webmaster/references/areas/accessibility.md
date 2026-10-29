@@ -3,10 +3,12 @@
 **Check:** No mounted capability measures this yet: report it as unmeasured, never healthy. Intended scope (axe-core on key templates, keyboard traversal, contrast, forms).
 
 ## Facts
+
 - Automated axe testing finds roughly 57% of issues. A manual keyboard and screen-reader pass is needed on the money pages (donate, register, checkout, login) at least quarterly.
 - ADA Title II (public entities) does not cover private nonprofits. The exposure is Title III lawsuits (3,117 filed in 2025), so the goal is a documented good-faith effort.
 
 ## Checks
+
 - axe on home, donate, register, a post, a form page: serious and critical violations are findings.
 - Keyboard: tab order, visible focus, no traps, skip link, forms operable, modals closable.
 - Screen reader spot check (VoiceOver): landmarks, headings, form labels, error messages, image alt text.

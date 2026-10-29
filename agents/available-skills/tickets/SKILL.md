@@ -77,11 +77,11 @@ transfer. Filing into the wrong account is a real failure mode.
 Linear is reached only through whatever MCP server **this agent harness** has
 connected and authenticated:
 
-| Fact                                                                  | Implication                                                                |
-| --------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| Grok / Claude Code / Cursor / etc. may each wire Linear differently   | Never assume the same workspace as a previous session or another tool      |
-| OAuth tokens live per MCP connection                                  | The connected server is the only workspace you can see                     |
-| `linear-sah` may be enabled in one harness and disabled in another | Absence of tools ≠ “no tickets needed” — draft for paste or switch harness |
+| Fact                                                                       | Implication                                                                |
+| -------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Grok / Claude Code / Cursor / etc. may each wire Linear differently        | Never assume the same workspace as a previous session or another tool      |
+| OAuth tokens live per MCP connection                                       | The connected server is the only workspace you can see                     |
+| `linear-sah` may be enabled in one harness and disabled in another         | Absence of tools ≠ “no tickets needed” — draft for paste or switch harness |
 | Server name may be `linear-sah`, `linear-personal`, plugin-qualified, etc. | Discover via tool search; don’t hardcode a server prefix                   |
 
 **Never hardcode a team** (including `Zysys`). **Never reuse labels/projects** remembered from another workspace.
@@ -91,13 +91,14 @@ connected and authenticated:
 Run **before** drafting or creating any issue:
 
 1. **Repo / work context → expected account class**
-   | Path / context | Expected Linear class |
-   |----------------|------------------------|
-   | `~/Developer/Personal/…` | **Personal** |
-   | `~/Developer/Software-Automation-Holdings/…` | **Work / SAH** |
-   | Dropbox `Zysys/Software/…` legacy work trees | **Work / SAH** (confirm if mixed) |
+
+   | Path / context                               | Expected Linear class                            |
+   | -------------------------------------------- | ------------------------------------------------ |
+   | `~/Developer/Personal/…`                     | **Personal**                                     |
+   | `~/Developer/Software-Automation-Holdings/…` | **Work / SAH**                                   |
+   | Dropbox `Zysys/Software/…` legacy work trees | **Work / SAH** (confirm if mixed)                |
    | User names a project (“agentmux”, “eapp”, …) | Resolve project **after** account class is known |
-   | Ambiguous / no repo | **Ask** which Linear account |
+   | Ambiguous / no repo                          | **Ask** which Linear account                     |
 
 2. **Probe the connected MCP** (live discovery only)
 
@@ -232,7 +233,6 @@ mise run lint
 - ADR / design / prior PR:
 
 ````text
-
 ### Bug
 
 ```markdown
@@ -269,7 +269,6 @@ mise run lint
 - Logs / screenshots / customer quote (verbatim):
 
 ````text
-
 ### Feature
 
 ```markdown
@@ -292,15 +291,13 @@ mise run lint
 
 ## Verify
 ```bash
-
 ````
 
 ## Evidence & links (feature)
 
 - Spec / design / mock:
 
-```text
-
+````text
 ### Ops / decision (renewal, deletion deadline, keep-or-lapse)
 
 ```markdown
@@ -322,7 +319,7 @@ mise run lint
 - **Chosen:**
 - **On:** YYYY-MM-DD by <who>
 - **Evidence:** <!-- link to the confirming record; not "confirmed via Slack" -->
-```
+````
 
 No schedule commentary, no "held for the morning pass", no deliberation narrative.
 
@@ -331,19 +328,19 @@ No schedule commentary, no "held for the morning pass", no deliberation narrativ
 Tool names vary by harness (`linear-sah__save_issue`, `mcp__linear-sah__*`, plugin
 ids). Resolve via tool search. Semantic fields:
 
-| Ticket concept | Typical parameter |
-|----------------|-------------------|
-| Title | `title` |
-| Body | `description` (markdown, real newlines) |
-| Team | `team` (required on create; **discovered**, not hardcoded) |
-| Project | `project` |
-| Labels | `labels: [...]` (replaces full set on update — workspace-local names only) |
-| Priority | `priority`: 0–4 |
-| Parent | `parentId`: issue id/identifier from **this** workspace |
-| Blocks | `blocks` / `blockedBy` (append-only) |
-| Related | `relatedTo` (append-only) |
-| Estimate | `estimate` if team uses estimates |
-| Assignee | `assignee`: `"me"` or name |
+| Ticket concept | Typical parameter                                                          |
+| -------------- | -------------------------------------------------------------------------- |
+| Title          | `title`                                                                    |
+| Body           | `description` (markdown, real newlines)                                    |
+| Team           | `team` (required on create; **discovered**, not hardcoded)                 |
+| Project        | `project`                                                                  |
+| Labels         | `labels: [...]` (replaces full set on update — workspace-local names only) |
+| Priority       | `priority`: 0–4                                                            |
+| Parent         | `parentId`: issue id/identifier from **this** workspace                    |
+| Blocks         | `blocks` / `blockedBy` (append-only)                                       |
+| Related        | `relatedTo` (append-only)                                                  |
+| Estimate       | `estimate` if team uses estimates                                          |
+| Assignee       | `assignee`: `"me"` or name                                                 |
 
 **Create:** omit `id`. **Update:** pass `id` as the identifier returned by **this** workspace.
 
@@ -370,7 +367,7 @@ clean, template-shaped body.
 Procedure:
 
 1. **Read the issue** — description, state, labels, comments, and any children/relations.
-2. **Classify** it into one template from *Description templates* (bug, feature, tech
+2. **Classify** it into one template from _Description templates_ (bug, feature, tech
    debt/architecture, ops/decision). If the body mixes motives, say so and propose a split; do not
    silently drop a motive.
 3. **Extract the facts** into the template sections. Facts are dates, deadlines,
@@ -386,14 +383,14 @@ Procedure:
 
 ### Noise to strip from ticket bodies
 
-| Noise | Why it does not belong | Where it goes instead |
-|-------|------------------------|-----------------------|
-| Personal policy, schedule, or working preference ("no work on weekends", "weekday morning pass", "do not page me before 9") | Ticket readers are the team and future agents; the owner's calendar is not ticket content | Nowhere — it is a standing rule, already recorded outside Linear |
-| Intake provenance ("filed by the morning email-secretary pass", "mail archived in Zoho", "source: Zoho, forwarded by X") | Explains how the row was created, not what is wrong | At most a one-line `Source:` link to the original message |
-| Deliberation and hedging ("the default is to…", "unless someone objects", "very likely unused") | A ticket states the decision or the open question; it does not narrate the author's thinking | A decision comment, or one explicit `## Open question` line |
-| Duplicated headers/boilerplate from the source email or tool | Adds reading cost, hides the ask | Delete |
-| Restated product strategy | Already in the project or spec | Link it |
-| "TBD", "investigate", "look into" as the whole ask | Not an outcome | Rewrite as the question that must be answered, with who answers it |
+| Noise                                                                                                                       | Why it does not belong                                                                       | Where it goes instead                                              |
+| --------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Personal policy, schedule, or working preference ("no work on weekends", "weekday morning pass", "do not page me before 9") | Ticket readers are the team and future agents; the owner's calendar is not ticket content    | Nowhere — it is a standing rule, already recorded outside Linear   |
+| Intake provenance ("filed by the morning email-secretary pass", "mail archived in Zoho", "source: Zoho, forwarded by X")    | Explains how the row was created, not what is wrong                                          | At most a one-line `Source:` link to the original message          |
+| Deliberation and hedging ("the default is to…", "unless someone objects", "very likely unused")                             | A ticket states the decision or the open question; it does not narrate the author's thinking | A decision comment, or one explicit `## Open question` line        |
+| Duplicated headers/boilerplate from the source email or tool                                                                | Adds reading cost, hides the ask                                                             | Delete                                                             |
+| Restated product strategy                                                                                                   | Already in the project or spec                                                               | Link it                                                            |
+| "TBD", "investigate", "look into" as the whole ask                                                                          | Not an outcome                                                                               | Rewrite as the question that must be answered, with who answers it |
 
 Keep every fact even when it sounds like noise — a date that has passed stays, as
 `deadline: <date> (passed)`, because it is the record of the commitment.
@@ -402,28 +399,28 @@ Keep every fact even when it sounds like noise — a date that has passed stays,
 
 ## Decomposition
 
-| Situation | Structure |
-|-----------|-----------|
-| One shippable outcome | Single issue |
-| Same outcome, multiple independent slices | Parent + sub-issues (`parentId`) |
-| Hard dependency | `blockedBy` / `blocks` |
-| Soft context only | `relatedTo` |
-| Multi-week multi-person theme | Linear **Project**, not a mega-issue |
+| Situation                                 | Structure                            |
+| ----------------------------------------- | ------------------------------------ |
+| One shippable outcome                     | Single issue                         |
+| Same outcome, multiple independent slices | Parent + sub-issues (`parentId`)     |
+| Hard dependency                           | `blockedBy` / `blocks`               |
+| Soft context only                         | `relatedTo`                          |
+| Multi-week multi-person theme             | Linear **Project**, not a mega-issue |
 
 ## Quality bar — reject / rewrite before filing
 
-| Anti-pattern | Fix |
-|--------------|-----|
-| User-story cosplay for internal work | Plain task language |
-| Title = theme (“Architecture”) | Title = concrete outcome |
-| No non-goals | Agents expand scope — list exclusions |
-| No verify-how | “Looks done” is not done |
-| AC as only implementation steps | AC = observable outcomes; approach optional |
-| “Clean up / improve / consider” | Verbs with end-states |
-| Kitchen-sink (bug + refactor + feature) | One motive; relate the rest |
-| Epic in one issue | Parent/subs or Project |
-| Context only in Slack | Paste evidence + links in the issue |
-| Hardcoded team / cross-account assumptions | Live discovery + path→account class |
+| Anti-pattern                               | Fix                                         |
+| ------------------------------------------ | ------------------------------------------- |
+| User-story cosplay for internal work       | Plain task language                         |
+| Title = theme (“Architecture”)             | Title = concrete outcome                    |
+| No non-goals                               | Agents expand scope — list exclusions       |
+| No verify-how                              | “Looks done” is not done                    |
+| AC as only implementation steps            | AC = observable outcomes; approach optional |
+| “Clean up / improve / consider”            | Verbs with end-states                       |
+| Kitchen-sink (bug + refactor + feature)    | One motive; relate the rest                 |
+| Epic in one issue                          | Parent/subs or Project                      |
+| Context only in Slack                      | Paste evidence + links in the issue         |
+| Hardcoded team / cross-account assumptions | Live discovery + path→account class         |
 
 An acceptance criterion that cannot be checked by a human, a test, or a command is **not** an acceptance criterion — rewrite until it is.
 
@@ -454,8 +451,7 @@ An acceptance criterion that cannot be checked by a human, a test, or a command 
 
 ## Example (filing discipline, not a default target)
 
-```
-
+````
 Workspace lock: personal (repo ~/Developer/Personal/agentmux)
 teams visible: <from list_teams>
 project: agentmux (from list_projects)
@@ -468,4 +464,4 @@ Body: Problem → Goal → Non-goals → blast radius → Approach → AC → Ve
 ```text
 
 Do **not** treat any team key (e.g. `ZYS-…`) as universal — prefixes are workspace-specific.
-```
+````

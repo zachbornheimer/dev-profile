@@ -23,13 +23,13 @@ CREATE INDEX idx_tags ON articles USING fts (tag) WITH (tokenizer = 'raw');
 
 ### Available Tokenizers
 
-| Tokenizer | Description | Use Case |
-|-----------|-------------|----------|
-| `default` | Lowercase, punctuation/whitespace split, drops tokens longer than 40 chars | General English text |
-| `raw` | No tokenization — exact match only | IDs, UUIDs, tags |
-| `simple` | Basic whitespace/punctuation split | Text without lowercasing |
-| `whitespace` | Split on whitespace only | Space-separated tokens |
-| `ngram` | 2-3 character n-grams | Autocomplete, substring matching |
+| Tokenizer    | Description                                                                | Use Case                         |
+| ------------ | -------------------------------------------------------------------------- | -------------------------------- |
+| `default`    | Lowercase, punctuation/whitespace split, drops tokens longer than 40 chars | General English text             |
+| `raw`        | No tokenization — exact match only                                         | IDs, UUIDs, tags                 |
+| `simple`     | Basic whitespace/punctuation split                                         | Text without lowercasing         |
+| `whitespace` | Split on whitespace only                                                   | Space-separated tokens           |
+| `ngram`      | 2-3 character n-grams                                                      | Autocomplete, substring matching |
 
 ### Tokenizer Examples
 
@@ -89,6 +89,7 @@ WHERE fts_match(title, body, 'database');
 ```
 
 Notes on `fts_highlight`:
+
 - Supports multiple text columns (concatenated with spaces)
 - Case-insensitive matching
 - Returns original text if no matches found
@@ -97,16 +98,16 @@ Notes on `fts_highlight`:
 
 ## Query Syntax (Tantivy)
 
-| Syntax | Example | Description |
-|--------|---------|-------------|
-| Single term | `database` | Match "database" |
-| Multiple terms (OR) | `database sql` | Match "database" OR "sql" |
-| AND | `database AND sql` | Match both terms |
-| NOT | `database NOT nosql` | Exclude "nosql" |
-| Phrase | `"full text search"` | Exact phrase match |
-| Prefix | `data*` | Terms starting with "data" |
-| Column filter | `title:database` | Match only in title field |
-| Boosting | `title:database^2` | Boost title matches 2x |
+| Syntax              | Example              | Description                |
+| ------------------- | -------------------- | -------------------------- |
+| Single term         | `database`           | Match "database"           |
+| Multiple terms (OR) | `database sql`       | Match "database" OR "sql"  |
+| AND                 | `database AND sql`   | Match both terms           |
+| NOT                 | `database NOT nosql` | Exclude "nosql"            |
+| Phrase              | `"full text search"` | Exact phrase match         |
+| Prefix              | `data*`              | Terms starting with "data" |
+| Column filter       | `title:database`     | Match only in title field  |
+| Boosting            | `title:database^2`   | Boost title matches 2x     |
 
 ## Complex Queries
 
@@ -169,9 +170,9 @@ ORDER BY score DESC;
 
 ## Limitations
 
-| Limitation | Description |
-|------------|-------------|
-| No read-your-writes in transactions | FTS changes visible only after COMMIT |
-| No `snippet()` function | Use `fts_highlight()` instead |
-| No automatic segment merging | Use `OPTIMIZE INDEX` for manual merging |
-| Requires `fts` compile-time feature | Not available in all builds |
+| Limitation                          | Description                             |
+| ----------------------------------- | --------------------------------------- |
+| No read-your-writes in transactions | FTS changes visible only after COMMIT   |
+| No `snippet()` function             | Use `fts_highlight()` instead           |
+| No automatic segment merging        | Use `OPTIMIZE INDEX` for manual merging |
+| Requires `fts` compile-time feature | Not available in all builds             |

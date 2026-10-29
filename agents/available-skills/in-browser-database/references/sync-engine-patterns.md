@@ -47,6 +47,7 @@ Condensed from the reverse-engineering study (2025), the DevTools breakdown
 4. Models are fetched from the server and written to IndexedDB.
 5. Instant-strategy models are hydrated into memory; observability on.
 6. A WebSocket is opened for delta packets.
+
 - One IndexedDB database per logged-in workspace. Its metadata holds
   `lastSyncId`, `firstSyncId` (the `lastSyncId` captured at full bootstrap —
   the start point for incremental sync), `subscribedSyncGroups`,

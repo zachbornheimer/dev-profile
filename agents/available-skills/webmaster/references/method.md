@@ -58,6 +58,7 @@ A check that failed on a network error ("fetch failed") is re-run once before it
 Label every claim with one: **measured** (a tool recorded it), **observed** (saw it happen), **source-confirmed** (read in code or config), **computed** (derived from measured data), **inferred** (reasoned from other facts), **hypothesis** (untested guess).
 
 Never:
+
 - promote a hypothesis to fact;
 - promote source-confirmed to runtime-verified;
 - treat an axe scan as WCAG conformance;
@@ -73,19 +74,19 @@ Coverage ledger, per area or journey: `TESTED_HEALTHY | TESTED_FINDINGS | PARTIA
 
 ## Finding shape
 
-| Field | Content |
-|---|---|
-| What | The problem in one sentence |
-| Where | URL, page, component, setting |
-| Evidence | The proof, with its class |
-| Impact | Who is affected and how |
-| Cause | Root cause, or "unknown" |
-| Action | What to do |
-| Implementation | The concrete steps or plan reference |
-| Verification | The check that proves it worked (see below) |
-| Prevention | What stops it recurring |
-| Severity | Critical / High / Medium / Low, by impact not effort |
-| Confidence | High / Medium / Low; low means ask |
+| Field          | Content                                              |
+| -------------- | ---------------------------------------------------- |
+| What           | The problem in one sentence                          |
+| Where          | URL, page, component, setting                        |
+| Evidence       | The proof, with its class                            |
+| Impact         | Who is affected and how                              |
+| Cause          | Root cause, or "unknown"                             |
+| Action         | What to do                                           |
+| Implementation | The concrete steps or plan reference                 |
+| Verification   | The check that proves it worked (see below)          |
+| Prevention     | What stops it recurring                              |
+| Severity       | Critical / High / Medium / Low, by impact not effort |
+| Confidence     | High / Medium / Low; low means ask                   |
 
 Do not invent effort estimates or owners. One component bug is one finding with its scope, not 47 findings.
 
@@ -103,15 +104,15 @@ Each needs: change, expected effect, verification, rollback. And a backup first 
 
 ## Verification by problem type
 
-| Problem | Verify by |
-|---|---|
-| Broken link | Re-request the URL; re-crawl the referring pages |
-| User journey | Repeat the task as a user (Playwright, test mode for payments) |
-| Header or redirect | Inspect the production response |
-| Backup | Controlled restore to a scratch target |
-| Monitoring | Simulate the failure; confirm the alert path fires |
-| Email | Send and receive a real message; check SPF/DKIM/DMARC results in headers |
-| Performance | Repeat measurement; note lab vs field |
+| Problem            | Verify by                                                                |
+| ------------------ | ------------------------------------------------------------------------ |
+| Broken link        | Re-request the URL; re-crawl the referring pages                         |
+| User journey       | Repeat the task as a user (Playwright, test mode for payments)           |
+| Header or redirect | Inspect the production response                                          |
+| Backup             | Controlled restore to a scratch target                                   |
+| Monitoring         | Simulate the failure; confirm the alert path fires                       |
+| Email              | Send and receive a real message; check SPF/DKIM/DMARC results in headers |
+| Performance        | Repeat measurement; note lab vs field                                    |
 
 "Looks correct" is not verification.
 

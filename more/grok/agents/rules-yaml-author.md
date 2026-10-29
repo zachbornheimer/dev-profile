@@ -126,6 +126,7 @@ A bad prompt is 20 lines. A good prompt is 60-100 lines, heavy on concrete examp
 ## examples-good and examples-bad (the YAML fields)
 
 Separate from inline examples in the prompt, the rule also has top-level `examples-good` and `examples-bad` arrays. These are:
+
 - Short (3-8 lines each)
 - Redundant with the inline prompt examples, but formatted for extraction
 - Used by `quality-guard test` for fixture verification
@@ -134,6 +135,7 @@ Separate from inline examples in the prompt, the rule also has top-level `exampl
 ## rationale quality
 
 The `rationale` field is read by the LLM every time the rule fires. Invest in it:
+
 - **Don't write**: "This rule ensures errors are wrapped with %w."
 - **Write**: "Go's fmt.Errorf supports %w, which wraps the inner error so callers can later recover it with errors.Is and errors.As. The other verbs (%v, %s) format the error as text, losing the type and sentinel information — callers can only match on message strings, which is brittle. Wrapping with %w preserves the full chain: a handler at the top of the stack can still say `errors.Is(err, sql.ErrNoRows)` after the error has been wrapped five times with contextual prefixes. This is the bedrock pattern for Go error handling since Go 1.13."
 
@@ -178,23 +180,29 @@ For each item, produce a complete rule YAML following the schema above.
 1. **One rule per file.** Filename matches the rule's last segment: `errors-wrap-with-percent-w.yml` for `id: go/errors-wrap-with-percent-w`.
 
 2. **Check for ID collisions** before writing:
+
    ```bash
    grep -rn "^id: <proposed-id>" rules/ || echo "clear"
    ```
 
 3. **After writing each file, validate it parses**:
+
    ```bash
    python3 -c "import yaml; yaml.safe_load(open('rules/<target>/<name>.yml'))" && echo ok
    ```
+
    If it fails, fix and retry.
 
 4. **After writing all files in a batch, build the binary** to catch schema errors that pass yaml.safe_load but fail the rule engine's stricter validation:
+
    ```bash
    cd /Users/zbornheimer/Dropbox/Zysys/Software/quality-guard && make build 2>&1 | tail -5
    ```
+
    If the build fails with a rule validation error, fix the offending rule and retry.
 
 5. **Report at the end** with the list of files written, their final line counts, and any validation failures:
+
    ```
    Wrote 5 rules to rules/go/baseline/:
    - errors-wrap-with-percent-w.yml (142 lines)

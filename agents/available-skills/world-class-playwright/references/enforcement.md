@@ -76,22 +76,22 @@ Start from `eslint-plugin-playwright`'s recommended set — verify rule names
 against your installed version, they change between majors — then add house
 rules. Rules that map directly onto SKILL.md:
 
-| Rule                                            | Prevents                              |
-| ----------------------------------------------- | ------------------------------------- |
-| `playwright/no-wait-for-timeout`                | Sleeps                                |
-| `playwright/no-networkidle`                     | False readiness                       |
-| `playwright/no-wait-for-selector`               | Pre-locator waiting                   |
-| `playwright/no-element-handle`                  | Handles that go stale                 |
-| `playwright/no-eval`                            | Bypassing the user contract           |
-| `playwright/no-force-option`                    | Hiding overlays and disabled controls |
-| `playwright/no-nth-methods`                     | Positional locators                   |
-| `playwright/no-raw-locators`                    | CSS in specs                          |
+| Rule                                            | Prevents                                                           |
+| ----------------------------------------------- | ------------------------------------------------------------------ |
+| `playwright/no-wait-for-timeout`                | Sleeps                                                             |
+| `playwright/no-networkidle`                     | False readiness                                                    |
+| `playwright/no-wait-for-selector`               | Pre-locator waiting                                                |
+| `playwright/no-element-handle`                  | Handles that go stale                                              |
+| `playwright/no-eval`                            | Bypassing the user contract                                        |
+| `playwright/no-force-option`                    | Hiding overlays and disabled controls                              |
+| `playwright/no-nth-methods`                     | Positional locators                                                |
+| `playwright/no-raw-locators`                    | CSS in specs                                                       |
 | `playwright/no-conditional-in-test`             | Branching that hides untested paths or optionalizes required state |
-| `playwright/no-conditional-expect`              | Assertions that may not run           |
-| `playwright/expect-expect`                      | Tests that assert nothing             |
-| `playwright/prefer-web-first-assertions`        | Snapshot assertions racing the app    |
-| `playwright/no-skipped-test`, `no-focused-test` | Committed `.only` / `.skip`           |
-| `@typescript-eslint/no-floating-promises`       | Unawaited assertions                  |
+| `playwright/no-conditional-expect`              | Assertions that may not run                                        |
+| `playwright/expect-expect`                      | Tests that assert nothing                                          |
+| `playwright/prefer-web-first-assertions`        | Snapshot assertions racing the app                                 |
+| `playwright/no-skipped-test`, `no-focused-test` | Committed `.only` / `.skip`                                        |
+| `@typescript-eslint/no-floating-promises`       | Unawaited assertions                                               |
 
 House rules via `no-restricted-syntax`. These correspond to defects found in real
 suites, not speculative hygiene:
@@ -160,7 +160,6 @@ Ship the check as a repository script so local hooks and CI use the same rule.
 ```bash
 node scripts/reject-characterization-tests.mjs tests
 ```
-
 
 ```bash
 playwright test --forbid-only --fail-on-flaky-tests

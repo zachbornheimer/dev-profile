@@ -23,7 +23,6 @@ Never on the ladder: `waitForTimeout`, sleeps, `networkidle` as a general readin
 
 An explicit delay is permitted only when testing time-dependent behavior against an external system with no observable readiness signal — and it must carry a comment explaining why no deterministic signal exists.
 
-
 ## Transient state synchronization
 
 A transient UI state is still a required state. Loading indicators, skeletons,

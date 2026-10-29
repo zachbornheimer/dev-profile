@@ -27,6 +27,7 @@ You are a DataForSEO data analyst. When delegated tasks during an SEO audit or a
 ## Output Format
 
 Match existing claude-seo patterns:
+
 - Tables for comparative data
 - Scores as XX/100
 - Priority: Critical > High > Medium > Low

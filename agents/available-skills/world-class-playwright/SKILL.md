@@ -53,16 +53,16 @@ or mark it explicitly unenforceable so everyone knows where trust is required.
 
 Core rules below apply to every Playwright task. Then read the matching file:
 
-| Task                                                                                                                                                                                 | Read                                        |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------- |
-| Writing/refactoring specs, fixtures, page objects, components, workflows, API clients, builders                                                                                      | `references/architecture.md`                |
-| Designing regression tests, turning tickets into scenarios, reviewing generated/bulk test changes, avoiding false positives                                           | `references/test-design.md`                 |
-| Standing up guardrails, lint rules, CI gates, escape-hatch policy, adopting this in a legacy suite                                                                                   | `references/enforcement.md`                 |
-| A recurring situation: popups, downloads, uploads, auth, feature flags, dynamic tables, virtualized lists, eventual consistency, third-party widgets, clock control, background jobs | `references/golden-paths.md`                |
-| Slow suite, parallelism, sharding, auth reuse, mocking strategy, playwright.config                                                                                                   | `references/performance.md`      |
-| Multi-step wizards, variable page sequences, dynamic flows                                                                                                                           | `references/dynamic-wizards.md`             |
-| Flaky test, intermittent failure, timeout debugging, diagnostics setup                                                                                                               | `references/stability.md` |
-| Reviewing a PR, auditing a suite, judging "is this done?"                                                                                                                            | `references/review.md`            |
+| Task                                                                                                                                                                                 | Read                            |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------- |
+| Writing/refactoring specs, fixtures, page objects, components, workflows, API clients, builders                                                                                      | `references/architecture.md`    |
+| Designing regression tests, turning tickets into scenarios, reviewing generated/bulk test changes, avoiding false positives                                                          | `references/test-design.md`     |
+| Standing up guardrails, lint rules, CI gates, escape-hatch policy, adopting this in a legacy suite                                                                                   | `references/enforcement.md`     |
+| A recurring situation: popups, downloads, uploads, auth, feature flags, dynamic tables, virtualized lists, eventual consistency, third-party widgets, clock control, background jobs | `references/golden-paths.md`    |
+| Slow suite, parallelism, sharding, auth reuse, mocking strategy, playwright.config                                                                                                   | `references/performance.md`     |
+| Multi-step wizards, variable page sequences, dynamic flows                                                                                                                           | `references/dynamic-wizards.md` |
+| Flaky test, intermittent failure, timeout debugging, diagnostics setup                                                                                                               | `references/stability.md`       |
+| Reviewing a PR, auditing a suite, judging "is this done?"                                                                                                                            | `references/review.md`          |
 
 Example starting points live in `assets/`: `eslint.config.example.mjs`,
 `timeouts.example.ts`, `fixtures/base.example.ts`, `ci/playwright.example.yml`, `scripts/new-spec.example.mjs`.
@@ -302,7 +302,7 @@ test-id type.
   formats, and `A | B | C` expectations are appropriate only when each allowed
   variation is a documented product behavior.
 - For absence, first assert a positive readiness signal so "not found" cannot mean
-  "the page was not ready yet." 
+  "the page was not ready yet."
 - `expect.soft` reports several independent facets of one outcome; it never lets
   a broken precondition slide.
 - `toMatchAriaSnapshot` when the _structure_ of a region is the contract (menus,

@@ -44,21 +44,22 @@ file:<path>?cipher=<cipher>&hexkey=<hex_key>
 ```
 
 Parameters:
+
 - `cipher` — cipher algorithm name (see table below)
 - `hexkey` — encryption key in hexadecimal (32 or 64 hex characters depending on cipher)
 
 ## Supported Ciphers
 
-| Cipher Name | Algorithm | Key Size |
-|-------------|-----------|----------|
-| `aes256gcm` | AES-GCM (256-bit) | 32 bytes (64 hex chars) |
-| `aes128gcm` | AES-GCM (128-bit) | 16 bytes (32 hex chars) |
-| `aegis256` | AEGIS-256 | 32 bytes (64 hex chars) |
-| `aegis256x2` | AEGIS-256-X2 | 32 bytes (64 hex chars) |
-| `aegis256x4` | AEGIS-256-X4 | 32 bytes (64 hex chars) |
-| `aegis128l` | AEGIS-128L | 16 bytes (32 hex chars) |
-| `aegis128x2` | AEGIS-128-X2 | 16 bytes (32 hex chars) |
-| `aegis128x4` | AEGIS-128-X4 | 16 bytes (32 hex chars) |
+| Cipher Name  | Algorithm         | Key Size                |
+| ------------ | ----------------- | ----------------------- |
+| `aes256gcm`  | AES-GCM (256-bit) | 32 bytes (64 hex chars) |
+| `aes128gcm`  | AES-GCM (128-bit) | 16 bytes (32 hex chars) |
+| `aegis256`   | AEGIS-256         | 32 bytes (64 hex chars) |
+| `aegis256x2` | AEGIS-256-X2      | 32 bytes (64 hex chars) |
+| `aegis256x4` | AEGIS-256-X4      | 32 bytes (64 hex chars) |
+| `aegis128l`  | AEGIS-128L        | 16 bytes (32 hex chars) |
+| `aegis128x2` | AEGIS-128-X2      | 16 bytes (32 hex chars) |
+| `aegis128x4` | AEGIS-128-X4      | 16 bytes (32 hex chars) |
 
 ## How It Works
 
