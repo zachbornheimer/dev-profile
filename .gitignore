@@ -4,6 +4,7 @@
 !/README.md
 !/mise.toml
 !/action.yml
+!/.gitleaks.toml
 !/mise-tasks/
 !/mise-tasks/*
 !/.github/

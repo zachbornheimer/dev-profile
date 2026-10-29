@@ -1,0 +1,20 @@
+# Extends the default rules; allows only the patterns below, never a whole rule.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Documentation placeholders, generated hashes and taxonomy token lists"
+paths = [
+  # curl examples with `authorization: your-api-key` and `$API_KEY`.
+  '''agents/available-skills/opik/references/tracing-rest-api\.md''',
+  # Token lists whose keywords ("api", "key") trip generic-api-key.
+  '''agents/available-skills/organize-files/data/taxonomy\.json''',
+  # Generated SHA-256 manifest and its stylesheet header.
+  '''agents/available-skills/adopt-style-contract/references/contract/shas\.json''',
+  '''agents/available-skills/adopt-style-contract/references/contract/contract\.gen\.css''',
+]
+
+[[allowlists]]
+description = "GPG signing key ID in home/gitconfig is public, not a credential"
+regexTarget = "line"
+regexes = ['''signingkey = [0-9A-F]{40}''']
