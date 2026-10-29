@@ -9,16 +9,17 @@ Usage: uv run harvest-corrections.py [--days N] [--tool claude|codex|cursor|open
 from __future__ import annotations
 
 import argparse
+import contextlib
 import hashlib
 import json
 import re
 import sqlite3
 import sys
+from collections.abc import Iterator
 from dataclasses import asdict, dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Iterator, Protocol
-
+from typing import Protocol
 
 # Patterns ordered from strongest signal to weakest; the first match wins.
 _CORRECTION_RE = re.compile(
@@ -47,7 +48,7 @@ class _Env(Protocol):
 
 class _SystemEnv:
     def now(self) -> datetime:
-        return datetime.now(tz=timezone.utc)
+        return datetime.now(tz=UTC)
 
     def home(self) -> Path:
         return Path.home()
@@ -55,11 +56,11 @@ class _SystemEnv:
 
 @dataclass
 class Correction:
-    text: str             # full correction text (capped at _MAX_TEXT)
-    context: str          # first _CTX_LEN chars, newlines collapsed
-    tool: str             # claude-code | codex | cursor | opencode
+    text: str  # full correction text (capped at _MAX_TEXT)
+    context: str  # first _CTX_LEN chars, newlines collapsed
+    tool: str  # claude-code | codex | cursor | opencode
     repo_or_project: str  # best available project path or identifier
-    approx_date: str      # YYYY-MM-DD or "unknown"
+    approx_date: str  # YYYY-MM-DD or "unknown"
 
 
 def _is_correction(text: str) -> bool:
@@ -75,7 +76,11 @@ def _normalize(content: str | list) -> str:
     if isinstance(content, list):
         parts: list[str] = []
         for item in content:
-            if isinstance(item, dict) and item.get("type") in ("text", "input_text", None):
+            if isinstance(item, dict) and item.get("type") in (
+                "text",
+                "input_text",
+                None,
+            ):
                 parts.append(item.get("text", ""))
         return " ".join(parts).strip()
     return ""
@@ -84,24 +89,26 @@ def _normalize(content: str | list) -> str:
 def _ctx(text: str) -> str:
     return text[:_CTX_LEN].replace("\n", " ")
 
+
 def _fp(text: str) -> str:
     return hashlib.sha256(text.encode()).hexdigest()[:16]
 
+
 def _mtime(p: Path) -> datetime:
-    return datetime.fromtimestamp(p.stat().st_mtime, tz=timezone.utc)
+    return datetime.fromtimestamp(p.stat().st_mtime, tz=UTC)
+
 
 def _skip(msg: str) -> None:
     print(f"skip: {msg}", file=sys.stderr)
+
 
 def _jsonl(path: Path) -> Iterator[dict]:
     """Stream parsed JSON objects; skip malformed lines."""
     with path.open(encoding="utf-8", errors="replace") as fh:
         for raw in fh:
             if raw := raw.strip():
-                try:
+                with contextlib.suppress(json.JSONDecodeError):
                     yield json.loads(raw)
-                except json.JSONDecodeError:
-                    pass
 
 
 def harvest_claude(env: _Env, cutoff: datetime) -> Iterator[Correction]:
@@ -121,11 +128,15 @@ def harvest_claude(env: _Env, cutoff: datetime) -> Iterator[Correction]:
                     if obj.get("type") != "user":
                         continue
                     msg = obj.get("message") or {}
-                    text = _normalize(msg.get("content", "") if isinstance(msg, dict) else "")
+                    text = _normalize(
+                        msg.get("content", "") if isinstance(msg, dict) else ""
+                    )
                     if not _is_correction(text):
                         continue
                     ts = (obj.get("timestamp") or "")[:10] or "unknown"
-                    yield Correction(text[:_MAX_TEXT], _ctx(text), "claude-code", repo, ts)
+                    yield Correction(
+                        text[:_MAX_TEXT], _ctx(text), "claude-code", repo, ts
+                    )
             except Exception as exc:
                 _skip(f"claude-code {jsonl.name}: {exc}")
 
@@ -151,7 +162,13 @@ def harvest_codex(env: _Env, cutoff: datetime) -> Iterator[Correction]:
                     if not _is_correction(text):
                         continue
                     ts = (obj.get("timestamp") or "")[:10] or "unknown"
-                    yield Correction(text[:_MAX_TEXT], _ctx(text), "codex", cwd or jsonl.parent.name, ts)
+                    yield Correction(
+                        text[:_MAX_TEXT],
+                        _ctx(text),
+                        "codex",
+                        cwd or jsonl.parent.name,
+                        ts,
+                    )
         except Exception as exc:
             _skip(f"codex {jsonl.name}: {exc}")
 
@@ -165,7 +182,9 @@ def harvest_cursor(env: _Env, cutoff: datetime) -> Iterator[Correction]:
         if db.stat().st_size < 512 or _mtime(db) < cutoff:
             continue
         try:
-            conn = sqlite3.connect(f"file:{db}?mode=ro", uri=True, check_same_thread=False)
+            conn = sqlite3.connect(
+                f"file:{db}?mode=ro", uri=True, check_same_thread=False
+            )
             try:
                 rows = conn.execute("SELECT data FROM blobs").fetchall()
             finally:
@@ -184,7 +203,13 @@ def harvest_cursor(env: _Env, cutoff: datetime) -> Iterator[Correction]:
                 if m := _CURSOR_QUERY_RE.search(text):
                     text = m.group(1).strip()
                 if _is_correction(text):
-                    yield Correction(text[:_MAX_TEXT], _ctx(text), "cursor", db.parent.parent.name, "unknown")
+                    yield Correction(
+                        text[:_MAX_TEXT],
+                        _ctx(text),
+                        "cursor",
+                        db.parent.parent.name,
+                        "unknown",
+                    )
         except Exception as exc:
             _skip(f"cursor {db.parent.name}: {exc}")
 
@@ -196,13 +221,17 @@ def harvest_opencode(env: _Env, cutoff: datetime) -> Iterator[Correction]:
         return
     try:
         cutoff_ms = int(cutoff.timestamp() * 1_000)
-        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, check_same_thread=False)
-        _SQL = ("SELECT m.time_created, p.data, pr.worktree FROM message m "
-                "JOIN part p ON p.message_id = m.id "
-                "LEFT JOIN session s ON s.id = m.session_id "
-                "LEFT JOIN project pr ON pr.id = s.project_id "
-                "WHERE json_extract(m.data,'$.role')='user' "
-                "AND json_extract(p.data,'$.type')='text' AND m.time_created>=?")
+        conn = sqlite3.connect(
+            f"file:{db_path}?mode=ro", uri=True, check_same_thread=False
+        )
+        _SQL = (
+            "SELECT m.time_created, p.data, pr.worktree FROM message m "
+            "JOIN part p ON p.message_id = m.id "
+            "LEFT JOIN session s ON s.id = m.session_id "
+            "LEFT JOIN project pr ON pr.id = s.project_id "
+            "WHERE json_extract(m.data,'$.role')='user' "
+            "AND json_extract(p.data,'$.type')='text' AND m.time_created>=?"
+        )
         try:
             rows = conn.execute(_SQL, (cutoff_ms,)).fetchall()
         finally:
@@ -214,15 +243,19 @@ def harvest_opencode(env: _Env, cutoff: datetime) -> Iterator[Correction]:
                 continue
             if not _is_correction(text):
                 continue
-            approx = datetime.fromtimestamp(ts_ms / 1_000, tz=timezone.utc).date().isoformat()
-            yield Correction(text[:_MAX_TEXT], _ctx(text), "opencode", worktree or "unknown", approx)
+            approx = datetime.fromtimestamp(ts_ms / 1_000, tz=UTC).date().isoformat()
+            yield Correction(
+                text[:_MAX_TEXT], _ctx(text), "opencode", worktree or "unknown", approx
+            )
     except Exception as exc:
         _skip(f"opencode: {exc}")
 
 
 _HARVESTERS = {
-    "claude": harvest_claude, "codex": harvest_codex,
-    "cursor": harvest_cursor, "opencode": harvest_opencode,
+    "claude": harvest_claude,
+    "codex": harvest_codex,
+    "cursor": harvest_cursor,
+    "opencode": harvest_opencode,
 }
 
 
@@ -235,9 +268,22 @@ def _dedup(it: Iterator[Correction]) -> Iterator[Correction]:
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--days", type=int, default=7, metavar="N", help="Look-back window in days (default: 7)")
-    ap.add_argument("--tool", choices=[*_HARVESTERS, "all"], default="all", help="Restrict to one tool")
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    ap.add_argument(
+        "--days",
+        type=int,
+        default=7,
+        metavar="N",
+        help="Look-back window in days (default: 7)",
+    )
+    ap.add_argument(
+        "--tool",
+        choices=[*_HARVESTERS, "all"],
+        default="all",
+        help="Restrict to one tool",
+    )
     args = ap.parse_args()
 
     env = _SystemEnv()
@@ -252,7 +298,10 @@ def main() -> None:
     for c in _dedup(_stream()):
         print(json.dumps(asdict(c), ensure_ascii=False))
         count += 1
-    print(f"done: {count} unique candidates from the last {args.days} day(s)", file=sys.stderr)
+    print(
+        f"done: {count} unique candidates from the last {args.days} day(s)",
+        file=sys.stderr,
+    )
 
 
 if __name__ == "__main__":

@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import json
-from pathlib import Path
 import shutil
 import subprocess
 import time
-from typing import Sequence
-
+from collections.abc import Sequence
+from dataclasses import dataclass
+from pathlib import Path
 
 DEFAULT_TIMEOUT_SECONDS = 30 * 60
 DEFAULT_MAX_TURNS = 64
@@ -115,15 +114,12 @@ def run_grok(
             argv,
             cwd=str(cwd),
             text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             timeout=timeout_seconds,
             check=False,
         )
     except subprocess.TimeoutExpired as exc:
-        raise TimeoutError(
-            f"Grok Build exceeded {timeout_seconds}s deadline"
-        ) from exc
+        raise TimeoutError(f"Grok Build exceeded {timeout_seconds}s deadline") from exc
 
     return GrokResult(
         argv=tuple(argv),

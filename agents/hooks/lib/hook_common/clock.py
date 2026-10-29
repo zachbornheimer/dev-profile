@@ -11,7 +11,7 @@ import re
 import time
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 ISO_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
@@ -34,7 +34,7 @@ class Clock:
     def now_iso(self) -> str:
         if self.iso_override:
             return self.iso_override
-        return datetime.now(timezone.utc).strftime(ISO_FORMAT)
+        return datetime.now(UTC).strftime(ISO_FORMAT)
 
     def now_epoch(self) -> float:
         return time.time()

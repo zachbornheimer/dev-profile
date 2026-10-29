@@ -24,7 +24,7 @@ import json
 import re
 import shlex
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
@@ -63,7 +63,7 @@ SCOPE_HINT = (
 def log(decision: str, detail: str) -> None:
     try:
         HOOKS_LOG.parent.mkdir(parents=True, exist_ok=True)
-        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
         with HOOKS_LOG.open("a") as f:
             f.write(f"{now}\t{HOOK_NAME}\t{decision}\t{detail}\n")
     except OSError:

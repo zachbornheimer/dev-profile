@@ -157,6 +157,7 @@ steps {
     fix =
       "ruff check --force-exclude --fix-only --unsafe-fixes --extend-select UP,FURB,SIM,PERF,C4,PIE {{files}}"
     glob = List("**/*.py", "**/*.pyi")
+    exclude = List("vim/bundle/**")
   }
   ["check-shebang-scripts-are-executable"] {
     fix = "dev-profile-shebang-scripts-executable {{files}}"
@@ -383,6 +384,7 @@ steps {
     check_diff =
       "ruff check --force-exclude --diff --exit-non-zero-on-fix {{ files }} && ruff check --force-exclude {{ files }}"
     glob = List("**/*.py", "**/*.pyi")
+    exclude = List("vim/bundle/**")
     profiles = List("slow")
   }
   ["ty"] {
@@ -825,6 +827,7 @@ hooks {
         check_diff =
           "ruff check --force-exclude --diff --exit-non-zero-on-fix {{ files }} && ruff check --force-exclude {{ files }}"
         glob = List("**/*.py", "**/*.pyi")
+        exclude = List("vim/bundle/**")
       }
       ["ty"] {
         check = "dev-profile-ty {{files}}"

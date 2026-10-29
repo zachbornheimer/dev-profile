@@ -21,45 +21,47 @@ from pathlib import Path
 
 _DEEP = re.compile(
     r"\bdeep research\b|\bdeep web research\b|\bextensive research\b|\bsynthesize\b|\b10 options\b",
-    re.I,
+    re.IGNORECASE,
 )
 _DISCUSS = re.compile(
     r"then we should discuss|we should discuss|let'?s discuss|let us discuss|\bbrainstorm\b",
-    re.I,
+    re.IGNORECASE,
 )
 _ACT = re.compile(
     r"\bset it up\b|\bset this up\b|\bmigrate\b|\bcommit\b|\bopen a pr\b|"
     r"\bimplement\b|\bfix it\b|\bland it\b|\bupdate the\b|\bupdate it\b|"
     r"\bcontinue the implementation\b|\bwrite it\b|\bdo it\b",
-    re.I,
+    re.IGNORECASE,
 )
 _DEICTIC = re.compile(
     r"\bon this\b|\bonthis\b|\bresearch this\b|\bresearch it\b|\bdo the research\b|"
     r"\bthe notes\b|\bi don't think you're right\b|\bare you sure\b",
-    re.I,
+    re.IGNORECASE,
 )
 _OBJECTLESS = re.compile(
     r"(?:do|please do|can you do)(?: some| a bit more)? web research(?: please)?[.?!]?$",
-    re.I,
+    re.IGNORECASE,
 )
 _PATH = re.compile(r"~/|https?://|/Users/|\.md\b")
 _CHALLENGE = re.compile(
     r"\bi don't think you're right\b|\bare you sure\b|\bthose notes are true\b|"
     r"\bi don't know if those notes\b",
-    re.I,
+    re.IGNORECASE,
 )
 _THIS_YEAR = re.compile(
     r"\bbest practices?\b|\bknown issue\b|\bcurrent\b|\blatest\b|\bofficial\b",
-    re.I,
+    re.IGNORECASE,
 )
-_SUBAGENT = re.compile(r"\bsubagents?\b", re.I)
-_ONE_SUBAGENT = re.compile(r"\b(?:a|one) subagent\b", re.I)
-_CHEAP = re.compile(r"\bcheaper model\b|\bcheap model\b|\bcheaper\b", re.I)
+_SUBAGENT = re.compile(r"\bsubagents?\b", re.IGNORECASE)
+_ONE_SUBAGENT = re.compile(r"\b(?:a|one) subagent\b", re.IGNORECASE)
+_CHEAP = re.compile(r"\bcheaper model\b|\bcheap model\b|\bcheaper\b", re.IGNORECASE)
 _PARENT = re.compile(
     r"instead of waiting|continue the implementation|while we wait",
-    re.I,
+    re.IGNORECASE,
 )
-_WRITE = re.compile(r"~/Downloads/|write (?:a |the )?(?:report|brief|file)\b", re.I)
+_WRITE = re.compile(
+    r"~/Downloads/|write (?:a |the )?(?:report|brief|file)\b", re.IGNORECASE
+)
 _MONTHS = {
     "jan": 1,
     "january": 1,
@@ -90,7 +92,7 @@ _FLOOR = re.compile(
     r"(?:since|from|after)\s+(?:(?P<mon1>[A-Za-z]+)\s+)?(?P<year1>20\d{2})"
     r"|(?P<mon2>[A-Za-z]+)\s+(?P<year2>20\d{2})\s+and newer"
     r"|(?P<year3>20\d{2})\s+and newer",
-    re.I,
+    re.IGNORECASE,
 )
 _MIN_QUOTE = 24
 
@@ -124,7 +126,11 @@ def route_message(text: str, today: date) -> Route:
     else:
         after = "answer"
     has_path = _PATH.search(text) is not None
-    bind = "thread" if not has_path and (_DEICTIC.search(text) or _OBJECTLESS.search(text.strip())) else "stated"
+    bind = (
+        "thread"
+        if not has_path and (_DEICTIC.search(text) or _OBJECTLESS.search(text.strip()))
+        else "stated"
+    )
     if _ONE_SUBAGENT.search(text):
         workers = 1
     elif _SUBAGENT.search(text):
@@ -148,7 +154,11 @@ def route_message(text: str, today: date) -> Route:
         recency = "dated"
         not_before = floor.isoformat()
     write_file = depth == "deep" or _WRITE.search(text) is not None
-    parent_continues = workers >= 1 and after != "discuss" and (after == "act" or _PARENT.search(text) is not None)
+    parent_continues = (
+        workers >= 1
+        and after != "discuss"
+        and (after == "act" or _PARENT.search(text) is not None)
+    )
     return Route(
         depth=depth,
         after=after,
@@ -216,7 +226,9 @@ def _cmd_quote(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Route a web-research ask or check a quote.")
+    parser = argparse.ArgumentParser(
+        description="Route a web-research ask or check a quote."
+    )
     sub = parser.add_subparsers(dest="cmd", required=True)
     route = sub.add_parser("route")
     route.add_argument("--text", default=None)

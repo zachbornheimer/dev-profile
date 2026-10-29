@@ -1,5 +1,5 @@
-from pathlib import Path
 import unittest
+from pathlib import Path
 
 from chatgpt_control_claude.files_list import (
     FileRow,
@@ -38,7 +38,9 @@ class RequireProviderTests(unittest.TestCase):
     def test_grok_command_shape(self) -> None:
         from unittest.mock import patch
 
-        with patch("chatgpt_control_claude.provider.shutil.which", return_value="/bin/grok"):
+        with patch(
+            "chatgpt_control_claude.provider.shutil.which", return_value="/bin/grok"
+        ):
             command = harness_command(
                 prompt="Do the bounded task.",
                 cwd=Path("/tmp/repo"),
@@ -59,7 +61,10 @@ class VisibleRowsTests(unittest.TestCase):
             _row("run-5a0b318b-a970-4380-85bd-9959d3b5b5ff.py", 671),
         ]
         visible = visible_rows(rows)
-        self.assertEqual([r.name for r in visible], ["a.zip", "run-5a0b318b-a970-4380-85bd-9959d3b5b5ff.py", "b.zip", "c.zip"])
+        self.assertEqual(
+            [r.name for r in visible],
+            ["a.zip", "run-5a0b318b-a970-4380-85bd-9959d3b5b5ff.py", "b.zip", "c.zip"],
+        )
 
 
 class PickRunnerTests(unittest.TestCase):
@@ -128,7 +133,9 @@ class PickRunnerTests(unittest.TestCase):
         self.assertFalse(is_executable_runner(f"run-{uid}.txt"))
 
     def test_zip_runs_as_uv_run_python(self) -> None:
-        path = Path.home() / "Downloads" / "run-dddddddd-dddd-dddd-dddd-dddddddddddd.zip"
+        path = (
+            Path.home() / "Downloads" / "run-dddddddd-dddd-dddd-dddd-dddddddddddd.zip"
+        )
         self.assertEqual(
             runner_argv("/opt/uv", path),
             ["/opt/uv", "run", "python", str(path)],

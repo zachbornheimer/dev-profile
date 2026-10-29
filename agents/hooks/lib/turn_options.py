@@ -16,7 +16,7 @@ MAX_BODY_CHARS = 24_000
 # Hermes tool names. The canary prompt is "Please do deep web research onthis".
 HERMES_RESEARCH_TOOLS = (
     (
-        re.compile(r"web research|deep research|deep web research", re.I),
+        re.compile(r"web research|deep research|deep web research", re.IGNORECASE),
         (
             ("hermes_web_search", "Search the web."),
             ("web_extract", "Fetch a page as text."),
@@ -39,13 +39,13 @@ def description_of(path: Path) -> str:
     if not text.startswith("---"):
         return ""
     end = text.find("\n---", 3)
-    front = text[3:end if end != -1 else 800]
+    front = text[3 : end if end != -1 else 800]
     lines = front.splitlines()
     for index, line in enumerate(lines):
         if not line.startswith("description:"):
             continue
         rest = line.split(":", 1)[1].strip()
-        if rest in {">", "|", ">-", "|-", ">-", "|+"}:
+        if rest in {">", "|", ">-", "|-", "|+"}:
             parts = []
             for nxt in lines[index + 1 :]:
                 if nxt and not nxt.startswith((" ", "\t")):
@@ -73,7 +73,9 @@ def _higher_fit(choice: str, fits: dict) -> str:
     return best_name
 
 
-def matching_tools(prompt: str, rules: tuple = HERMES_RESEARCH_TOOLS) -> list[tuple[str, str]]:
+def matching_tools(
+    prompt: str, rules: tuple = HERMES_RESEARCH_TOOLS
+) -> list[tuple[str, str]]:
     found: list[tuple[str, str]] = []
     seen = set()
     for pattern, tools in rules:
@@ -100,7 +102,9 @@ def render_turn_context(
     choice = str(pick.get("choice") or "")
     if choice == "none":
         choice = ""
-    shortlist = [name for name in pick.get("shortlist") or [] if isinstance(name, str) and name]
+    shortlist = [
+        name for name in pick.get("shortlist") or [] if isinstance(name, str) and name
+    ]
     if choice and choice not in shortlist:
         shortlist.insert(0, choice)
     paths = [Path(item) for item in pick.get("paths") or [] if isinstance(item, str)]

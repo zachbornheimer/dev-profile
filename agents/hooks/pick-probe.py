@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -57,7 +57,7 @@ def event_name_of(payload: dict[str, Any]) -> str:
 def append_log(event: str, token: str) -> None:
     try:
         LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
         marker = token or "-"
         with LOG_PATH.open("a", encoding="utf-8") as handle:
             handle.write(f"{now}\t{event or 'unknown'}\t{marker}\n")

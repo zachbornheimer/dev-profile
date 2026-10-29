@@ -48,9 +48,13 @@ def main() -> None:
     def report_progress(count: int) -> None:
         print(f"  fetched {count} issues so far...", file=sys.stderr)
 
-    all_issues = fetch_all_issues(team_id, on_page=report_progress, issue_fields=ISSUE_FIELDS)
+    all_issues = fetch_all_issues(
+        team_id, on_page=report_progress, issue_fields=ISSUE_FIELDS
+    )
     issues = [i for i in all_issues if i["state"]["name"] == "Pull Request"]
-    print(f"\n{len(issues)} tickets in 'Pull Request' state to check\n", file=sys.stderr)
+    print(
+        f"\n{len(issues)} tickets in 'Pull Request' state to check\n", file=sys.stderr
+    )
 
     closed, skipped, failed = 0, 0, 0
 
@@ -89,13 +93,15 @@ def main() -> None:
             if close_issue(internal_id, done_state_id):
                 closed += 1
             else:
-                print(f"  FAIL: issueUpdate did not report success", file=sys.stderr)
+                print("  FAIL: issueUpdate did not report success", file=sys.stderr)
                 failed += 1
         except EvidenceError as exc:
             print(f"  FAIL: {exc}", file=sys.stderr)
             failed += 1
 
-    print(f"\n{'Would close' if dry_run else 'Closed'}: {closed}   skipped (no merged PR): {skipped}   failed: {failed}")
+    print(
+        f"\n{'Would close' if dry_run else 'Closed'}: {closed}   skipped (no merged PR): {skipped}   failed: {failed}"
+    )
 
 
 if __name__ == "__main__":

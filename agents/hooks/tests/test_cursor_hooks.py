@@ -12,8 +12,6 @@ import os
 import subprocess
 from pathlib import Path
 
-import pytest
-
 CURSOR_HOOKS_DIR = Path.home() / ".cursor" / "hooks"
 RUN_TIMEOUT_SECS = 30
 

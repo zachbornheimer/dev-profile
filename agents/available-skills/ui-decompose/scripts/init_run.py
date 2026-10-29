@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import argparse
 import secrets
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 
@@ -20,7 +20,7 @@ def main() -> int:
     root = project_dir / ".ui-decompose"
     root.mkdir(parents=True, exist_ok=True)
 
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     for _ in range(16):
         candidate = root / f"run-{stamp}-{secrets.token_hex(3)}"
         try:

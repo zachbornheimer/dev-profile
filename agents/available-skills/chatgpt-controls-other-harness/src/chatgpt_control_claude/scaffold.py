@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from importlib.resources import files as resource_files
 
 from .protocol import new_run_id, runner_filename
 

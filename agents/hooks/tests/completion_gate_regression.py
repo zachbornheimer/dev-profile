@@ -22,7 +22,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-TYPESAFE_SCRIPTS = Path.home() / ".agents" / "available-skills" / "typesafe-ai" / "scripts"
+TYPESAFE_SCRIPTS = (
+    Path.home() / ".agents" / "available-skills" / "typesafe-ai" / "scripts"
+)
 HOOKS_LIB = Path.home() / ".agents" / "hooks" / "lib"
 for _path in (str(TYPESAFE_SCRIPTS), str(HOOKS_LIB)):
     if _path not in sys.path:
@@ -99,23 +101,31 @@ def claim_answers() -> dict:
 
 
 def case_action_ask_still_blocks() -> tuple[bool, str]:
-    verdict = turn_judge.decide_turn(deferral_answers(), NO_EVIDENCE, None, user_request=ACTION_ASK)
+    verdict = turn_judge.decide_turn(
+        deferral_answers(), NO_EVIDENCE, None, user_request=ACTION_ASK
+    )
     return (
-        verdict.action == turn_judge.ACTION_BLOCK and verdict.block_kind == turn_judge.BLOCK_DEFERRED,
+        verdict.action == turn_judge.ACTION_BLOCK
+        and verdict.block_kind == turn_judge.BLOCK_DEFERRED,
         f"{verdict.action}/{verdict.block_kind}",
     )
 
 
 def case_mixed_ask_still_blocks() -> tuple[bool, str]:
-    verdict = turn_judge.decide_turn(deferral_answers(), NO_EVIDENCE, None, user_request=MIXED_ASK)
+    verdict = turn_judge.decide_turn(
+        deferral_answers(), NO_EVIDENCE, None, user_request=MIXED_ASK
+    )
     return (
-        verdict.action == turn_judge.ACTION_BLOCK and verdict.block_kind == turn_judge.BLOCK_DEFERRED,
+        verdict.action == turn_judge.ACTION_BLOCK
+        and verdict.block_kind == turn_judge.BLOCK_DEFERRED,
         f"{verdict.action}/{verdict.block_kind}",
     )
 
 
 def case_h1_with_known_ask_still_blocks() -> tuple[bool, str]:
-    verdict = turn_judge.decide_turn(claim_answers(), INVALID_EVIDENCE, None, user_request="Ship it")
+    verdict = turn_judge.decide_turn(
+        claim_answers(), INVALID_EVIDENCE, None, user_request="Ship it"
+    )
     return (
         verdict.action == turn_judge.ACTION_BLOCK
         and verdict.block_kind == turn_judge.BLOCK_INVALID_EVIDENCE_BLOCK,
@@ -124,14 +134,17 @@ def case_h1_with_known_ask_still_blocks() -> tuple[bool, str]:
 
 
 def case_h1_without_ask_is_vetoed() -> tuple[bool, str]:
-    verdict = turn_judge.decide_turn(claim_answers(), INVALID_EVIDENCE, None, user_request="")
+    verdict = turn_judge.decide_turn(
+        claim_answers(), INVALID_EVIDENCE, None, user_request=""
+    )
     return (
-        verdict.action == turn_judge.ACTION_ALLOW and verdict.block_kind == turn_judge.BLOCK_NONE,
+        verdict.action == turn_judge.ACTION_ALLOW
+        and verdict.block_kind == turn_judge.BLOCK_NONE,
         f"{verdict.action}/{verdict.block_kind}",
     )
 
 
-def _stub_judge_returning_deferred_block() -> "completion_gate_turn_judge.TurnJudge":
+def _stub_judge_returning_deferred_block() -> completion_gate_turn_judge.TurnJudge:
     verdict = {
         "action": "block",
         "block_kind": "deferred",
@@ -142,7 +155,9 @@ def _stub_judge_returning_deferred_block() -> "completion_gate_turn_judge.TurnJu
     }
 
     def run(cmd: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
-        return subprocess.CompletedProcess(cmd, 0, stdout=json.dumps(verdict), stderr="")
+        return subprocess.CompletedProcess(
+            cmd, 0, stdout=json.dumps(verdict), stderr=""
+        )
 
     return completion_gate_turn_judge.TurnJudge(
         cli=completion_gate_turn_judge.TYPESAFE_CLI, timeout_secs=5, run=run
@@ -151,18 +166,29 @@ def _stub_judge_returning_deferred_block() -> "completion_gate_turn_judge.TurnJu
 
 def case_facade_vetoes_deferral_without_ask() -> tuple[bool, str]:
     judgment = _stub_judge_returning_deferred_block().judge(
-        {"message": "Run that from this worktree.", "user_prompt": "", "history": [], "evidence": {}}
+        {
+            "message": "Run that from this worktree.",
+            "user_prompt": "",
+            "history": [],
+            "evidence": {},
+        }
     )
     return (
         not judgment.blocks
-        and judgment.verdict.get("reason") == completion_gate_turn_judge.NO_ASK_CONTEXT_REASON,
+        and judgment.verdict.get("reason")
+        == completion_gate_turn_judge.NO_ASK_CONTEXT_REASON,
         f"action={judgment.verdict.get('action')} reason={judgment.verdict.get('reason')}",
     )
 
 
 def case_facade_passes_deferral_with_ask() -> tuple[bool, str]:
     judgment = _stub_judge_returning_deferred_block().judge(
-        {"message": "I'll run it now.", "user_prompt": "Run the review.", "history": [], "evidence": {}}
+        {
+            "message": "I'll run it now.",
+            "user_prompt": "Run the review.",
+            "history": [],
+            "evidence": {},
+        }
     )
     return (judgment.blocks, f"blocks={judgment.blocks}")
 

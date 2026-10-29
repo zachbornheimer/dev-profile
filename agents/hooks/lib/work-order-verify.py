@@ -42,7 +42,7 @@ import fnmatch
 import json
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 ORDER_ID_RE = None
@@ -171,7 +171,9 @@ def _run_acceptance(worktree: str, item: dict) -> dict:
             failures.append("stdout is not valid JSON, cannot check json_keys_absent")
         else:
             present = [
-                k for k in expect["json_keys_absent"] if isinstance(parsed, dict) and k in parsed
+                k
+                for k in expect["json_keys_absent"]
+                if isinstance(parsed, dict) and k in parsed
             ]
             if present:
                 failures.append(f"json keys present that must be absent: {present}")
@@ -212,7 +214,10 @@ def verify() -> dict:
     agent_id = envelope.get("agent_id") or None
 
     if not transcript_path_raw:
-        return {"applicable": False, "reason": "no agent_transcript_path on SubagentStop input"}
+        return {
+            "applicable": False,
+            "reason": "no agent_transcript_path on SubagentStop input",
+        }
     transcript_path = Path(transcript_path_raw)
     order_id, worktree = _find_order_id_and_cwd(transcript_path)
     if not order_id:
@@ -248,12 +253,14 @@ def verify() -> dict:
     changed = _changed_paths(worktree)
     undeclared = _undeclared_writes(changed, allowed_writes)
 
-    acceptance_items = order_state.get("work_order", {}).get("work_order", {}).get("acceptance", [])
+    acceptance_items = (
+        order_state.get("work_order", {}).get("work_order", {}).get("acceptance", [])
+    )
     acceptance_results = [_run_acceptance(worktree, item) for item in acceptance_items]
 
     verification_record = {
         "agent_id": agent_id,
-        "verified_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "verified_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "worktree": worktree,
         "changed_paths": changed,
         "undeclared_writes": undeclared,

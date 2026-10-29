@@ -1,5 +1,6 @@
 """Bounded cached routing-context adapters for the skill-pick hook."""
 
+import contextlib
 import hashlib
 import json
 import os
@@ -8,8 +9,9 @@ import shlex
 import subprocess
 import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Dict, List
+from typing import Any
 
 TIMEOUT_SECONDS = 0.25
 HISTORY_TURNS = 2
@@ -19,11 +21,11 @@ HOME_ENV = "TYPESAFE_CONTEXT_HOME"
 
 
 def _cache_path(cache_dir: Path, session_id: str, harness: str) -> Path:
-    identity = f"{harness}:{session_id}".encode("utf-8")
+    identity = f"{harness}:{session_id}".encode()
     return cache_dir / f"{hashlib.sha256(identity).hexdigest()}.json"
 
 
-def _read_cache(cache_dir: Path, session_id: str, harness: str) -> Dict[str, Any]:
+def _read_cache(cache_dir: Path, session_id: str, harness: str) -> dict[str, Any]:
     if not session_id:
         return {}
     try:
@@ -45,7 +47,7 @@ def _write_cache(
     cache_dir: Path,
     session_id: str,
     harness: str,
-    context: Dict[str, Any],
+    context: dict[str, Any],
 ) -> None:
     if not session_id or not context:
         return
@@ -56,10 +58,8 @@ def _write_cache(
         temporary.write_text(json.dumps(context), encoding="utf-8")
         temporary.replace(path)
     except (OSError, TypeError):
-        try:
+        with contextlib.suppress(OSError, TypeError):
             temporary.unlink(missing_ok=True)
-        except (OSError, TypeError):
-            pass
 
 
 def _observe(name: str, operation: Callable[[], Any], observed: queue.Queue) -> None:
@@ -74,10 +74,10 @@ def routing_context(
     harness: str,
     prompt: str,
     *,
-    durable: Callable[[], Dict[str, Any]],
+    durable: Callable[[], dict[str, Any]],
     cache_dir: Path,
     wait_seconds: float,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Observe independent context in parallel and fall back to prior facts."""
     context = _read_cache(cache_dir, session_id, harness)
     observed = queue.Queue()
@@ -113,7 +113,7 @@ def history(
     harness: str,
     prompt: str,
     run: Callable[..., Any] = subprocess.run,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Retrieve paired turns; never block a prompt on a missing capability."""
     if not session_id or harness not in HARNESSES:
         return []
@@ -126,8 +126,11 @@ def history(
     try:
         result = run(
             ["/bin/zsh", "-lic", command],
-            cwd=str(home), capture_output=True, text=True,
-            timeout=TIMEOUT_SECONDS, check=False,
+            cwd=str(home),
+            capture_output=True,
+            text=True,
+            timeout=TIMEOUT_SECONDS,
+            check=False,
         )
         if result.returncode != 0:
             return []
@@ -139,11 +142,11 @@ def history(
         return []
 
 
-def prior_turns(turns: Any, prompt: str) -> List[Dict[str, Any]]:
+def prior_turns(turns: Any, prompt: str) -> list[dict[str, Any]]:
     """Keep paired turn order, dropping the current prompt and anything after it."""
     if not isinstance(turns, list):
         return []
-    prior: List[Dict[str, Any]] = []
+    prior: list[dict[str, Any]] = []
     for turn in turns:
         if not isinstance(turn, dict) or not isinstance(turn.get("conversation"), list):
             return []

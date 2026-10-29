@@ -1,96 +1,96 @@
 import json
 
-TAXONOMY_PATH = '/Users/zbornheimer/.agents/skills/organize-files/data/taxonomy.json'
+TAXONOMY_PATH = "/Users/zbornheimer/.agents/skills/organize-files/data/taxonomy.json"
 
-with open('/tmp/organize/desktop-tree.jsonl') as f:
+with open("/tmp/organize/desktop-tree.jsonl") as f:
     rows = [json.loads(line) for line in f if line.strip()]
 
 with open(TAXONOMY_PATH) as f:
     taxonomy = json.load(f)
 
-NODES_BY_ID = {n['id']: n for n in taxonomy['nodes']}
+NODES_BY_ID = {n["id"]: n for n in taxonomy["nodes"]}
 
 
 def leaf_label(node):
     """Derive a human label for a leaf node (label is always null in taxonomy.json)."""
-    kind = node.get('leaf_kind')
-    key = node.get('project_key', '') or ''
-    if kind == 'repo':
-        name = key.rsplit('/', 1)[-1]
+    kind = node.get("leaf_kind")
+    key = node.get("project_key", "") or ""
+    if kind == "repo":
+        name = key.rsplit("/", 1)[-1]
         return f"{name} repo"
-    if kind == 'linear':
-        return key[len('linear:'):] if key.startswith('linear:') else key
-    if kind == 'personal':
-        name = key[len('personal:'):] if key.startswith('personal:') else key
-        return name.replace('-', ' ').replace('_', ' ').title()
-    return node['id'].split(':', 1)[-1]
+    if kind == "linear":
+        return key.removeprefix("linear:")
+    if kind == "personal":
+        name = key.removeprefix("personal:")
+        return name.replace("-", " ").replace("_", " ").title()
+    return node["id"].split(":", 1)[-1]
 
 
 def node_label(node_id):
     node = NODES_BY_ID.get(node_id)
     if not node:
         return node_id
-    if node.get('type') == 'leaf':
+    if node.get("type") == "leaf":
         return leaf_label(node)
-    return node.get('label') or node_id
+    return node.get("label") or node_id
 
 
 def readable_tree_path(tree_path):
     if not tree_path:
-        return ''
-    return ' › '.join(node_label(n) for n in tree_path)
+        return ""
+    return " › ".join(node_label(n) for n in tree_path)
 
 
 def leaf_tooltip(row):
-    node_id = row.get('node') or (row.get('tree_path') or [None])[-1]
+    node_id = row.get("node") or (row.get("tree_path") or [None])[-1]
     node = NODES_BY_ID.get(node_id) if node_id else None
-    return (node or {}).get('criteria', '')
+    return (node or {}).get("criteria", "")
 
 
 def area_and_product_labels(tree_path):
     area_label = None
     product_label = None
     for node_id in tree_path or []:
-        if node_id.startswith('area:') and area_label is None:
+        if node_id.startswith("area:") and area_label is None:
             area_label = node_label(node_id)
-        elif node_id.startswith('product:') and product_label is None:
+        elif node_id.startswith("product:") and product_label is None:
             product_label = node_label(node_id)
     return area_label, product_label
 
 
 def provisional_archive_dest(row):
-    area_label, product_label = area_and_product_labels(row.get('tree_path') or [])
+    area_label, product_label = area_and_product_labels(row.get("tree_path") or [])
     if not area_label:
-        return ''
-    parts = ['~/Documents/Archive', area_label]
+        return ""
+    parts = ["~/Documents/Archive", area_label]
     if product_label:
         parts.append(product_label)
-    return '/'.join(parts)
+    return "/".join(parts)
 
 
 def annotate(row):
     row = dict(row)
-    row.setdefault('node', None)
-    row.setdefault('tree_path', [])
-    row.setdefault('resolved_depth', 0)
-    row.setdefault('needs_triage', False)
-    row.setdefault('needs_ticket', False)
-    row.setdefault('needs_redaction', False)
-    flags = row.get('flags') or {}
-    row['flags'] = flags
-    row['tree_path_readable'] = readable_tree_path(row['tree_path'])
-    row['leaf_tooltip'] = leaf_tooltip(row)
-    row['is_private'] = flags.get('private', 0) >= 0.5
+    row.setdefault("node", None)
+    row.setdefault("tree_path", [])
+    row.setdefault("resolved_depth", 0)
+    row.setdefault("needs_triage", False)
+    row.setdefault("needs_ticket", False)
+    row.setdefault("needs_redaction", False)
+    flags = row.get("flags") or {}
+    row["flags"] = flags
+    row["tree_path_readable"] = readable_tree_path(row["tree_path"])
+    row["leaf_tooltip"] = leaf_tooltip(row)
+    row["is_private"] = flags.get("private", 0) >= 0.5
 
-    if row['disposition'] == 'archive' and not row.get('destination_hint'):
+    if row["disposition"] == "archive" and not row.get("destination_hint"):
         provisional = provisional_archive_dest(row)
         if provisional:
-            row['destination_hint'] = provisional
-            row['destination_provisional'] = True
-    row.setdefault('destination_provisional', False)
+            row["destination_hint"] = provisional
+            row["destination_provisional"] = True
+    row.setdefault("destination_provisional", False)
 
     # legacy field some existing UI logic relies on
-    row['low_conf'] = row.get('resolved_depth', 0) == 0
+    row["low_conf"] = row.get("resolved_depth", 0) == 0
 
     return row
 
@@ -757,7 +757,7 @@ html = html.replace("__GROUP_LABELS_JSON__", json.dumps(GROUP_LABELS))
 html = html.replace("__KEEP_SUBGROUP_ORDER_JSON__", json.dumps(KEEP_SUBGROUP_ORDER))
 html = html.replace("__KEEP_SUBGROUP_LABELS_JSON__", json.dumps(KEEP_SUBGROUP_LABELS))
 
-with open('/tmp/organize/review.html', 'w') as f:
+with open("/tmp/organize/review.html", "w") as f:
     f.write(html)
 
 print("wrote", len(html), "bytes")

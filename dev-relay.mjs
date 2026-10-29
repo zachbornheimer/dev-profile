@@ -7,7 +7,7 @@
 //     listens waits up to DEV_PROFILE_DEV_BOOT_SECONDS for it, not a 502;
 //   - that nobody uses the stack: after DEV_PROFILE_DEV_IDLE_SECONDS (a day)
 //     without a request it runs `dev-profile-dev stop` for the checkout, and
-//     the next `cd` starts the stack again. An open connection that sends
+//     the next `mise run dev` starts it again. An open connection that sends
 //     nothing (a forgotten tab's event stream) is not use.
 // Usage: node dev-relay.mjs <command> [args...]
 import { spawn } from "node:child_process";

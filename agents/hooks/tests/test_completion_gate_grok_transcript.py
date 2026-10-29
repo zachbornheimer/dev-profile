@@ -8,8 +8,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "lib"))
 
-from completion_gate_transcript import read_transcript_facts  # noqa: E402
-from completion_gate_turn_evidence import build_envelope  # noqa: E402
+from completion_gate_transcript import read_transcript_facts
+from completion_gate_turn_evidence import build_envelope
 
 FIRST_TIMESTAMP = 1_700_000_000
 SECOND_TIMESTAMP = 1_700_000_060
@@ -37,7 +37,9 @@ def _agent(text: str) -> dict:
 
 
 def _call(call_id: str, title: str, command: str) -> dict:
-    return _update("tool_call", toolCallId=call_id, title=title, rawInput={"command": command})
+    return _update(
+        "tool_call", toolCallId=call_id, title=title, rawInput={"command": command}
+    )
 
 
 def _done(call_id: str, output: str, exit_code: int) -> dict:
@@ -51,7 +53,9 @@ def _done(call_id: str, output: str, exit_code: int) -> dict:
 
 def _grok_session(tmp_path: Path, records: list[dict]) -> str:
     updates = tmp_path / "updates.jsonl"
-    updates.write_text("\n".join(json.dumps(r, separators=(",", ":")) for r in records) + "\n")
+    updates.write_text(
+        "\n".join(json.dumps(r, separators=(",", ":")) for r in records) + "\n"
+    )
     return str(updates)
 
 
@@ -73,8 +77,12 @@ def test_grok_update_stream_reads_prompt_history_and_commands(tmp_path: Path) ->
     facts = read_transcript_facts(path)
     assert facts is not None
     assert facts.user_prompt == "okay, so that's all good now?"
-    assert [(t.prompt, t.reply) for t in facts.history] == [("fix the face cap", "Fixed; 14 passed.")]
-    assert [(r.tool, r.command, r.failed) for r in facts.turn_runs] == [("Bash", "git log -1", True)]
+    assert [(t.prompt, t.reply) for t in facts.history] == [
+        ("fix the face cap", "Fixed; 14 passed.")
+    ]
+    assert [(r.tool, r.command, r.failed) for r in facts.turn_runs] == [
+        ("Bash", "git log -1", True)
+    ]
 
 
 def test_grok_hook_annotation_is_not_a_prompt(tmp_path: Path) -> None:

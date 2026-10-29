@@ -69,7 +69,7 @@ DEFAULT_ISSUE_FIELDS = "identifier state { name type } labels { nodes { name } }
 
 def fetch_all_issues(
     team_id: str,
-    on_page: "callable | None" = None,
+    on_page: callable | None = None,
     issue_fields: str = DEFAULT_ISSUE_FIELDS,
 ) -> list[dict]:
     """Paginate every issue for a team, requesting the given GraphQL field

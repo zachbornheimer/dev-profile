@@ -7,10 +7,10 @@ flips that without touching AX.
 
 from __future__ import annotations
 
+import re
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
-import re
-from typing import Callable, Iterable, Mapping
 
 RUN_ARTIFACT_RE = re.compile(
     r"^run-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.[^./]+$",

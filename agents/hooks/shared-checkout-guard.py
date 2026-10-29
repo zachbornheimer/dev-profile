@@ -36,7 +36,7 @@ import os
 import shlex
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
@@ -46,7 +46,9 @@ from hook_common import run_fail_open
 STDIN_TIMEOUT_SECS = 5
 HOOKS_LOG = Path.home() / ".claude" / "hooks" / "state" / "hooks.log"
 HOOK_NAME = "shared-checkout-guard"
-WORKTREE_HINT = "work in a git worktree (~/Developer/<Org>/.worktrees/...) or ask the orchestrator"
+WORKTREE_HINT = (
+    "work in a git worktree (~/Developer/<Org>/.worktrees/...) or ask the orchestrator"
+)
 
 MUTATING_SUBCOMMANDS = {
     "commit",
@@ -68,7 +70,7 @@ def log(decision: str, detail: str) -> None:
     """Append to the shared hooks.log in hook-common.sh's tab format."""
     try:
         HOOKS_LOG.parent.mkdir(parents=True, exist_ok=True)
-        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
         with HOOKS_LOG.open("a") as f:
             f.write(f"{now}\t{HOOK_NAME}\t{decision}\t{detail}\n")
     except Exception:
@@ -302,8 +304,10 @@ def track_cwd_per_git_index(tokens, session_cwd: str) -> dict:
     while i < n:
         tok = tokens[i]
         m = ASSIGNMENT_RE.match(tok)
-        if m and tok not in ("cd",):
-            env_assignments[m.group(1)] = substitute_literal_vars(m.group(2), env_assignments)
+        if m and tok != "cd":
+            env_assignments[m.group(1)] = substitute_literal_vars(
+                m.group(2), env_assignments
+            )
             i += 1
             continue
         if tok == "cd" and i + 1 < n:
@@ -317,7 +321,9 @@ def track_cwd_per_git_index(tokens, session_cwd: str) -> dict:
                 elif os.path.isabs(resolved):
                     current_dir = resolved
                 else:
-                    current_dir = os.path.normpath(os.path.join(current_dir or ".", resolved))
+                    current_dir = os.path.normpath(
+                        os.path.join(current_dir or ".", resolved)
+                    )
             i += 2
             continue
         if tok == "git":
@@ -402,7 +408,9 @@ def main() -> int:
         target_dir = repo_dir or tracked_cwd or session_cwd or "."
         resolved = resolve_toplevel(target_dir)
 
-        if path_is_worktree_or_scratch(resolved) or path_is_worktree_or_scratch(target_dir):
+        if path_is_worktree_or_scratch(resolved) or path_is_worktree_or_scratch(
+            target_dir
+        ):
             continue
 
         if agent_id:

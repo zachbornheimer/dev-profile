@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
 import shutil
-from typing import Mapping, Sequence
+from collections.abc import Mapping, Sequence
+from pathlib import Path
 
 from chatgpt_control_claude.grok import DEFAULT_MAX_TURNS, grok_command
 

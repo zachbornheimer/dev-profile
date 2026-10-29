@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Union component preview CSS into one sheet. Cover's canvas rules lose to the page shell."""
+
 import pathlib
 import re
 
@@ -8,6 +9,7 @@ decls = {}
 order = []
 
 COVER_CANVAS = {"html,body", "body", "h1", "p", "svg"}
+
 
 def add(sel, body, source):
     sel = " ".join(sel.split())
@@ -19,11 +21,14 @@ def add(sel, body, source):
         decls[sel] = body
         return
     if decls[sel] != body:
-        raise SystemExit(f"conflict {sel} from {source}:\n  kept {decls[sel]}\n  new  {body}")
+        raise SystemExit(
+            f"conflict {sel} from {source}:\n  kept {decls[sel]}\n  new  {body}"
+        )
+
 
 for path in sorted(root.glob("*/preview.html")):
     text = path.read_text()
-    match = re.search(r"<style[^>]*>(.*?)</style>", text, re.S)
+    match = re.search(r"<style[^>]*>(.*?)</style>", text, re.DOTALL)
     if not match:
         continue
     for sel, body in re.findall(r"([^{}]+)\{([^{}]+)\}", match.group(1)):

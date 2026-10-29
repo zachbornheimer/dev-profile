@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from pathlib import Path
 import json
 import zipfile
+from pathlib import Path
 
 
 def read_report(zip_path: Path) -> dict:

@@ -24,7 +24,8 @@ from typing import Self
 FAKE_ENV = "TURN_JUDGE_FAKE"
 HANG_SECS = 60
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "lib"))
-from typesafe_location import TYPESAFE_SCRIPTS_DIR as TYPESAFE_SCRIPTS  # noqa: E402
+from typesafe_location import TYPESAFE_SCRIPTS_DIR as TYPESAFE_SCRIPTS
+
 FAKE_KEY = "fake-judge-key"
 _FALLBACK = {"action": "allow", "block_kind": "none", "source": "fallback"}
 FALLBACK_VERDICTS = {

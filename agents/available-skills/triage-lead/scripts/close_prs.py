@@ -19,9 +19,8 @@ import json
 import subprocess
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-
 
 # GitHub's secondary rate limit rejects comments "submitted too quickly";
 # pacing every close keeps a long run under it.
@@ -74,18 +73,25 @@ def main() -> None:
             if number in done:
                 continue
             ok, detail = close_one(repo, number, comment)
-            out.write(json.dumps({
-                "ts": datetime.now(timezone.utc).isoformat(),
-                "repo": repo,
-                "number": number,
-                "closed": ok,
-                "detail": "" if ok else detail,
-            }) + "\n")
+            out.write(
+                json.dumps(
+                    {
+                        "ts": datetime.now(UTC).isoformat(),
+                        "repo": repo,
+                        "number": number,
+                        "closed": ok,
+                        "detail": "" if ok else detail,
+                    }
+                )
+                + "\n"
+            )
             out.flush()
             closed += ok
             failed += not ok
             time.sleep(PACE_SECONDS)
-    print(f"{repo}: closed {closed}, failed {failed}, skipped {len(done)} already logged")
+    print(
+        f"{repo}: closed {closed}, failed {failed}, skipped {len(done)} already logged"
+    )
     raise SystemExit(1 if failed else 0)
 
 

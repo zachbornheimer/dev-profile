@@ -12,7 +12,7 @@ import sys
 import tempfile
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -132,7 +132,9 @@ def load_context() -> Context:
     default_state = Path.home() / ".local" / "state" / "harness-efficiency"
     state = Path(os.environ.get("HE_STATE", str(default_state)))
     bundled = Path(__file__).resolve().parent.parent / "references" / "research.json"
-    return Context(home=home, state=state, bundled_research=bundled, now=datetime.now(timezone.utc))
+    return Context(
+        home=home, state=state, bundled_research=bundled, now=datetime.now(UTC)
+    )
 
 
 def connect_index(ctx: Context) -> sqlite3.Connection:
@@ -192,7 +194,9 @@ def discover(ctx: Context, harness: str | None = None) -> list[dict[str, Any]]:
             try:
                 conn = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
                 try:
-                    count = int(conn.execute("SELECT count(*) FROM session").fetchone()[0])
+                    count = int(
+                        conn.execute("SELECT count(*) FROM session").fetchone()[0]
+                    )
                 finally:
                     conn.close()
             except sqlite3.Error as exc:
@@ -429,12 +433,20 @@ def cluster_events(
         if ngram == 1:
             window = values
         else:
-            window = [" && ".join(values[i : i + ngram]) for i in range(len(values) - ngram + 1)]
+            window = [
+                " && ".join(values[i : i + ngram])
+                for i in range(len(values) - ngram + 1)
+            ]
         session = meta.get(sid)
         for item in window:
-            if finding_kind == "repeated_tool_seq" and parse.skip_repeated_tool_seq(item):
+            if finding_kind == "repeated_tool_seq" and parse.skip_repeated_tool_seq(
+                item
+            ):
                 continue
-            if finding_kind == "repeated_shell" and len(item) > MAX_REPEATED_SHELL_TITLE_LEN:
+            if (
+                finding_kind == "repeated_shell"
+                and len(item) > MAX_REPEATED_SHELL_TITLE_LEN
+            ):
                 continue
             group = groups.setdefault(
                 item,
@@ -482,7 +494,9 @@ def cluster_corrections(
     ]
 
 
-def _sessions_finding(kind: str, title: str, chosen: list[parse.Session]) -> dict[str, Any]:
+def _sessions_finding(
+    kind: str, title: str, chosen: list[parse.Session]
+) -> dict[str, Any]:
     group = {
         "sessions": {s.session_id for s in chosen},
         "count": len(chosen),
@@ -495,7 +509,11 @@ def _sessions_finding(kind: str, title: str, chosen: list[parse.Session]) -> dic
 
 def cluster_session_flags(sessions: list[parse.Session]) -> list[dict[str, Any]]:
     findings: list[dict[str, Any]] = []
-    long = [s for s in sessions if (s.user_turns + s.agent_turns) >= parse.LONG_SESSION_TURNS]
+    long = [
+        s
+        for s in sessions
+        if (s.user_turns + s.agent_turns) >= parse.LONG_SESSION_TURNS
+    ]
     if len(long) >= parse.MIN_FINDING_SESSIONS:
         findings.append(_sessions_finding("long_session", "long sessions", long))
     over: list[parse.Session] = []
@@ -552,7 +570,9 @@ def cluster_instruction_bloat(
     for path, group in groups.items():
         lines = _line_count(path)
         severe = (
-            lines is not None and lines >= parse.INSTRUCTION_BLOAT_LINES and group["count"] >= 1
+            lines is not None
+            and lines >= parse.INSTRUCTION_BLOAT_LINES
+            and group["count"] >= 1
         )
         if len(group["sessions"]) < parse.MIN_FINDING_SESSIONS and not severe:
             continue
@@ -603,7 +623,9 @@ def load_prior_ids(ctx: Context) -> set[str]:
     return ids
 
 
-def join_prior(findings: list[dict[str, Any]], prior_ids: set[str]) -> list[dict[str, Any]]:
+def join_prior(
+    findings: list[dict[str, Any]], prior_ids: set[str]
+) -> list[dict[str, Any]]:
     current = {f["id"] for f in findings}
     for finding in findings:
         finding["status"] = "still_present" if finding["id"] in prior_ids else "new"
@@ -638,7 +660,9 @@ def write_outputs(
             str(item.get("id") or ""),
         ),
     )
-    (run_dir / "patterns.json").write_text(json.dumps(ranked, indent=2) + "\n", encoding="utf-8")
+    (run_dir / "patterns.json").write_text(
+        json.dumps(ranked, indent=2) + "\n", encoding="utf-8"
+    )
     total = len(ranked)
     shown = ranked[:REPORT_TOP_N]
     lines = [
@@ -716,7 +740,9 @@ def research_status(ctx: Context) -> dict[str, Any]:
     age = (ctx.now.date() - checked).days
     fresh = age < ttl
     stale_reason = (
-        None if fresh else f"checked_at {checked.isoformat()} is {age} days old (ttl {ttl})"
+        None
+        if fresh
+        else f"checked_at {checked.isoformat()} is {age} days old (ttl {ttl})"
     )
     return {
         "fresh": fresh,
@@ -733,7 +759,9 @@ def append_prior(ctx: Context, findings: list[dict[str, Any]]) -> None:
         for finding in findings:
             if finding.get("status") == "gone" or finding["id"] in existing:
                 continue
-            handle.write(json.dumps({"id": finding["id"], "kind": finding.get("kind")}) + "\n")
+            handle.write(
+                json.dumps({"id": finding["id"], "kind": finding.get("kind")}) + "\n"
+            )
 
 
 def new_run_dir(ctx: Context) -> Path:
@@ -755,7 +783,9 @@ def audit(
         stamp_research(ctx)
     disc = discover(ctx, harness=harness)
     research = research_status(ctx)
-    indexed = index_sessions(ctx, days=days, since_last=since_last, limit=limit, harness=harness)
+    indexed = index_sessions(
+        ctx, days=days, since_last=since_last, limit=limit, harness=harness
+    )
     run_dir = new_run_dir(ctx)
     findings = analyze(ctx, run_dir=run_dir)
     manifest = {
@@ -766,7 +796,9 @@ def audit(
         "research": research,
         "finding_count": len(findings),
     }
-    (run_dir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    (run_dir / "manifest.json").write_text(
+        json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
+    )
     (ctx.state / "last_run.json").write_text(
         json.dumps(
             {"ran_at": ctx.now.isoformat(), "days": days, "run_dir": str(run_dir)},
@@ -787,7 +819,9 @@ def _write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
 def write_eval_fixtures(home: Path) -> Path:
     claude_md = home / ".claude" / "CLAUDE.md"
     claude_md.parent.mkdir(parents=True, exist_ok=True)
-    claude_md.write_text("\n".join(f"# rule {i}" for i in range(210)) + "\n", encoding="utf-8")
+    claude_md.write_text(
+        "\n".join(f"# rule {i}" for i in range(210)) + "\n", encoding="utf-8"
+    )
     for index in range(3):
         path = home / ".claude" / "projects" / "repo" / f"sess-{index}.jsonl"
         _write_jsonl(
@@ -863,7 +897,13 @@ def write_eval_fixtures(home: Path) -> Path:
         ],
     )
     _write_jsonl(
-        home / ".cursor" / "projects" / "repo" / "agent-transcripts" / "t1" / "chat.jsonl",
+        home
+        / ".cursor"
+        / "projects"
+        / "repo"
+        / "agent-transcripts"
+        / "t1"
+        / "chat.jsonl",
         [
             {
                 "role": "user",
@@ -949,7 +989,7 @@ def write_eval_fixtures(home: Path) -> Path:
             );
             """
         )
-        now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+        now_ms = int(datetime.now(UTC).timestamp() * 1000)
         conn.execute(
             "INSERT INTO session VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
             (
@@ -1002,7 +1042,10 @@ def eval_discover(disc: list[dict[str, Any]]) -> dict[str, Any]:
     missing = [
         name
         for name in required
-        if not (by_name.get(name, {}).get("present") and by_name[name].get("session_count", 0) >= 1)
+        if not (
+            by_name.get(name, {}).get("present")
+            and by_name[name].get("session_count", 0) >= 1
+        )
     ]
     wind = by_name.get("windsurf")
     wind_ok = (

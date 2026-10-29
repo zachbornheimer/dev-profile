@@ -18,7 +18,7 @@
 import os
 import select
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 STDIN_TIMEOUT_SECS = 5
@@ -57,7 +57,7 @@ def log(decision: str, detail: str) -> None:
     """Append to the shared hooks.log in hook-common.sh's tab format."""
     try:
         HOOKS_LOG.parent.mkdir(parents=True, exist_ok=True)
-        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
         with HOOKS_LOG.open("a") as f:
             f.write(f"{now}\tcomms-recall\t{decision}\t{detail}\n")
     except Exception:

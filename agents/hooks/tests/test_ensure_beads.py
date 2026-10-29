@@ -12,16 +12,13 @@ import tempfile
 import time
 from pathlib import Path
 
-import pytest
 from hook_harness import HookRunner, HookSession
 
 HOOK = "ensure-beads.py"
 INIT_RECORD = "init-record"
 INIT_WAIT_SECS = 10
 NO_INIT_SETTLE_SECS = 1.0
-EXPECTED_INIT_ARGV = (
-    "init --quiet --stealth --skip-agents --skip-hooks --role maintainer --init-if-missing"
-)
+EXPECTED_INIT_ARGV = "init --quiet --stealth --skip-agents --skip-hooks --role maintainer --init-if-missing"
 LOCK_PATH = ".git/ensure-beads.lock"
 
 FAKE_BD = """#!/bin/sh
@@ -49,7 +46,18 @@ def _make_repo(parent: Path, name: str = "repo") -> Path:
     repo = parent / name
     repo.mkdir(parents=True)
     _git(repo, "init", "-q")
-    _git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "i")
+    _git(
+        repo,
+        "-c",
+        "user.name=t",
+        "-c",
+        "user.email=t@t",
+        "commit",
+        "-q",
+        "--allow-empty",
+        "-m",
+        "i",
+    )
     return repo.resolve()
 
 
@@ -75,7 +83,8 @@ def _session(hooks: HookRunner, tmp_path: Path, *, with_bd: bool = True) -> Hook
     record = tmp_path / INIT_RECORD
     path = f"{_bin_dir(tmp_path, with_bd=with_bd)}:/usr/bin:/bin"
     return hooks.session(
-        "ensure-beads", {"PATH": path, "FAKE_BD_RECORD": str(record), "HOME": str(tmp_path / "home")}
+        "ensure-beads",
+        {"PATH": path, "FAKE_BD_RECORD": str(record), "HOME": str(tmp_path / "home")},
     )
 
 
@@ -125,7 +134,9 @@ def test_repo_with_beads_is_a_no_op(hooks: HookRunner, tmp_path: Path) -> None:
     assert _init_record(tmp_path, expect=False) is None
 
 
-def test_worktree_of_repo_with_beads_is_a_no_op(hooks: HookRunner, tmp_path: Path) -> None:
+def test_worktree_of_repo_with_beads_is_a_no_op(
+    hooks: HookRunner, tmp_path: Path
+) -> None:
     repo = _make_repo(tmp_path)
     (repo / ".beads").mkdir()
     worktree = tmp_path / "wt"
@@ -185,7 +196,9 @@ def test_tmp_repo_is_a_no_op_by_default(hooks: HookRunner, tmp_path: Path) -> No
         shutil.rmtree(scratch, ignore_errors=True)
 
 
-def test_init_in_progress_blocks_a_second_init(hooks: HookRunner, tmp_path: Path) -> None:
+def test_init_in_progress_blocks_a_second_init(
+    hooks: HookRunner, tmp_path: Path
+) -> None:
     repo = _make_repo(tmp_path)
     (repo / LOCK_PATH).write_text("")
     run = _session(hooks, tmp_path).run_payload(HOOK, _session_start(repo))
@@ -207,7 +220,9 @@ def test_lock_is_released_after_init(hooks: HookRunner, tmp_path: Path) -> None:
 
 def test_missing_bd_is_a_no_op(hooks: HookRunner, tmp_path: Path) -> None:
     repo = _make_repo(tmp_path)
-    run = _session(hooks, tmp_path, with_bd=False).run_payload(HOOK, _session_start(repo))
+    run = _session(hooks, tmp_path, with_bd=False).run_payload(
+        HOOK, _session_start(repo)
+    )
 
     _assert_clean(run)
     assert _init_record(tmp_path, expect=False) is None
@@ -215,6 +230,8 @@ def test_missing_bd_is_a_no_op(hooks: HookRunner, tmp_path: Path) -> None:
 
 
 def test_missing_cwd_is_a_no_op(hooks: HookRunner, tmp_path: Path) -> None:
-    run = _session(hooks, tmp_path).run_payload(HOOK, {"hook_event_name": "SessionStart"})
+    run = _session(hooks, tmp_path).run_payload(
+        HOOK, {"hook_event_name": "SessionStart"}
+    )
 
     _assert_clean(run)

@@ -7,14 +7,16 @@ Code owns the loop. TypeSafe returns typed judgments; this script composes them.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import subprocess
 import sys
 import urllib.error
 import urllib.request
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 SYSTEMONE_URL = "https://api.typesafe.ai/v1/systemone"
 SYSTEMONE_MODEL = "jev-latest"
@@ -95,7 +97,8 @@ SPLIT_LAYER_CRITERIA = {
         "A later hop already explains the snapshot",
     ),
     "edge": contrast(
-        "Proxy, TLS, auth, or ingress is the hop to split", "The request is already past the edge"
+        "Proxy, TLS, auth, or ingress is the hop to split",
+        "The request is already past the edge",
     ),
     "app": contrast(
         "The application process is the hop to split",
@@ -117,7 +120,9 @@ SPLIT_LAYER_CRITERIA = {
         "An upstream, DB, cache, or NAS is the hop to split",
         "Dependencies answered; the fault is local",
     ),
-    "unknown": contrast("The snapshot does not locate a hop", "A named hop already fits"),
+    "unknown": contrast(
+        "The snapshot does not locate a hop", "A named hop already fits"
+    ),
 }
 
 
@@ -157,7 +162,9 @@ def is_guessed_runtime_restart(board: dict[str, Any]) -> bool:
     return has_runtime and has_verb
 
 
-def _choice(instructions: str | dict[str, Any], criteria: dict[str, Any]) -> dict[str, Any]:
+def _choice(
+    instructions: str | dict[str, Any], criteria: dict[str, Any]
+) -> dict[str, Any]:
     return {"type": "choice", "instructions": instructions, "criteria": criteria}
 
 
@@ -252,14 +259,20 @@ def _choice_answer(answers: dict[str, Any], question_id: str) -> dict[str, Any]:
 
 def _noul_answer(answers: dict[str, Any], question_id: str) -> float:
     answer = answers.get(question_id)
-    if not isinstance(answer, dict) or answer.get("type") != "noul" or "noul" not in answer:
+    if (
+        not isinstance(answer, dict)
+        or answer.get("type") != "noul"
+        or "noul" not in answer
+    ):
         raise ValueError(f"TypeSafe answer {question_id!r} missing noul")
     return float(answer["noul"])
 
 
 def cheapest_read_only_test(board: dict[str, Any]) -> dict[str, Any] | None:
     candidates = [
-        item for item in listed_tests(board) if str(item.get("blast") or "") == READ_ONLY_BLAST
+        item
+        for item in listed_tests(board)
+        if str(item.get("blast") or "") == READ_ONLY_BLAST
     ]
     if not candidates:
         return None
@@ -299,11 +312,15 @@ def compose_move(board: dict[str, Any], answers: dict[str, Any]) -> dict[str, An
     snapshot_enough = _noul_answer(answers, "snapshot_enough")
     mitigation_proven = _noul_answer(answers, "mitigation_proven")
     layer = _choice_answer(answers, "split_layer")
-    fits = {item["id"]: _noul_answer(answers, f"fits__{item['id']}") for item in open_items(board)}
+    fits = {
+        item["id"]: _noul_answer(answers, f"fits__{item['id']}")
+        for item in open_items(board)
+    }
 
     action = next_move["choice"]
     if action == MOVE_MITIGATE and (
-        mitigation_proven < MITIGATION_PROVEN_THRESHOLD or is_guessed_runtime_restart(board)
+        mitigation_proven < MITIGATION_PROVEN_THRESHOLD
+        or is_guessed_runtime_restart(board)
     ):
         action = MOVE_RUN_TEST
     if action == MOVE_DECLARE_CAUSE and (
@@ -442,10 +459,8 @@ def resolve_typesafe_key(
     stripped = from_onepassword.strip()
     if not stripped:
         return None
-    try:
+    with contextlib.suppress(RuntimeError):
         write_keychain(stripped)
-    except RuntimeError:
-        pass
     return stripped
 
 
@@ -461,7 +476,9 @@ def main(
     parser = argparse.ArgumentParser(
         description="Pick the next diagnose move via TypeSafe System One."
     )
-    parser.add_argument("--board", metavar="PATH", help="Board JSON path. Default: stdin.")
+    parser.add_argument(
+        "--board", metavar="PATH", help="Board JSON path. Default: stdin."
+    )
     parser.add_argument(
         "--print-request",
         action="store_true",
@@ -485,7 +502,9 @@ def main(
         api_key = resolve_typesafe_key(
             getenv,
             read_keychain if read_keychain is not None else from_keychain,
-            read_onepassword if read_onepassword is not None else default_read_onepassword,
+            read_onepassword
+            if read_onepassword is not None
+            else default_read_onepassword,
             write_keychain if write_keychain is not None else persist_key,
         )
         if not api_key:

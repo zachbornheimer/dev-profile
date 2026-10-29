@@ -6,10 +6,10 @@ The layout pass reports a 1-cell width so kitty does not reserve space. The
 draw pass paints equal shares of the whole bar, with a fixed-width + button.
 """
 
+import re
 from configparser import ConfigParser
 from os.path import basename
 from pathlib import Path
-import re
 
 from kitty.fast_data_types import (
     Screen,
@@ -19,8 +19,9 @@ from kitty.fast_data_types import (
     split_into_graphemes,
     wcswidth,
 )
-from kitty.tab_bar import DrawData, ExtraData, TabBarData, apply_title_template, as_rgb
 from kitty.utils import log_error
+
+from kitty.tab_bar import DrawData, ExtraData, TabBarData, apply_title_template, as_rgb
 
 ICONS_CONF = Path(__file__).with_name("tab-icons.conf")
 
@@ -73,7 +74,7 @@ def _cwd_or_fallback(tab: object, title: str, exe: str) -> str:
 def _parse_glyph(value: str) -> str:
     text = value.strip()
     if text.lower().startswith("u+"):
-        return chr(int(text[2:], 16))
+        return chr(int(text, 0))
     if text and len(text) <= 2 and not text.isascii():
         return text
     return ""

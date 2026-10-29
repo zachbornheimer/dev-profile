@@ -26,7 +26,9 @@ import json
 import sys
 from pathlib import Path
 
-TYPESAFE_SCRIPTS = Path.home() / ".agents" / "available-skills" / "typesafe-ai" / "scripts"
+TYPESAFE_SCRIPTS = (
+    Path.home() / ".agents" / "available-skills" / "typesafe-ai" / "scripts"
+)
 if str(TYPESAFE_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(TYPESAFE_SCRIPTS))
 
@@ -40,13 +42,17 @@ EXTRACT_HINT = (
 
 
 def load_fixtures(path: Path = DEFAULT_FIXTURES) -> list[dict]:
-    entries = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    entries = [
+        json.loads(line)
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
     if not entries:
         raise ValueError(f"no fixtures in {path}")
     return entries
 
 
-def replay(entry: dict) -> "turn_judge.TurnVerdict":
+def replay(entry: dict) -> turn_judge.TurnVerdict:
     """Judge one logged turn: its logged answers, evidence digest, and ask."""
     request = entry.get("request") or {}
     return turn_judge.decide_turn(
@@ -80,7 +86,9 @@ def main(argv: list[str]) -> int:
     failures = 0
     for number, entry in enumerate(entries, 1):
         allowed, detail = check(entry)
-        print(f"fixture {number}: {'ALLOW (pass)' if allowed else 'BLOCKED (fail)'} | {detail}")
+        print(
+            f"fixture {number}: {'ALLOW (pass)' if allowed else 'BLOCKED (fail)'} | {detail}"
+        )
         failures += 0 if allowed else 1
     print(f"{len(entries) - failures}/{len(entries)} misfires now allow")
     return 0 if failures == 0 else 1

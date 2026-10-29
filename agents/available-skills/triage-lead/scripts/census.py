@@ -16,7 +16,7 @@ from __future__ import annotations
 import json
 import sys
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from linear_client import fetch_all_issues, linear_team_id
@@ -27,7 +27,7 @@ def main() -> None:
     out_path = (
         sys.argv[2]
         if len(sys.argv) > 2
-        else f"census-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.json"
+        else f"census-{datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ')}.json"
     )
 
     team_id = linear_team_id(team_name)
@@ -39,7 +39,7 @@ def main() -> None:
 
     snapshot = {
         "team": team_name,
-        "capturedAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "capturedAt": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "issues": issues,
     }
     Path(out_path).write_text(json.dumps(snapshot, indent=2))

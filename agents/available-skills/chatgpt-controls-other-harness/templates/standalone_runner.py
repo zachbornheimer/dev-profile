@@ -8,15 +8,16 @@ from ~/Downloads.
 
 from __future__ import annotations
 
+import contextlib
 import datetime as dt
 import json
 import os
-from pathlib import Path
 import shutil
 import subprocess
 import time
 import traceback
 import zipfile
+from pathlib import Path
 
 RUN_ID = "REPLACE-WITH-FRESH-UUID"
 REPO = Path("/absolute/path/to/repo")
@@ -45,7 +46,7 @@ DOWNLOADS.mkdir(parents=True, exist_ok=True)
 
 
 def now() -> str:
-    return dt.datetime.now(dt.timezone.utc).isoformat()
+    return dt.datetime.now(dt.UTC).isoformat()
 
 
 def write_evidence(relative_path: str, text: str) -> None:
@@ -59,14 +60,15 @@ def run_command(argv: list[str], relative_path: str, *, cwd: Path, timeout: int)
         argv,
         cwd=str(cwd),
         text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         timeout=timeout,
         check=False,
     )
     write_evidence(
         relative_path,
-        "$ " + " ".join(argv) + "\n"
+        "$ "
+        + " ".join(argv)
+        + "\n"
         + f"exit_code={completed.returncode}\n\n"
         + (completed.stdout or "")
         + ("\n=== STDERR ===\n" + completed.stderr if completed.stderr else ""),
@@ -131,14 +133,15 @@ def run_harness(prompt: str, *, cwd: Path) -> subprocess.CompletedProcess[str]:
         argv,
         cwd=str(cwd),
         text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         timeout=GROK_TIMEOUT_SECONDS,
         check=False,
     )
     write_evidence(
         "harness/run.txt",
-        "$ " + " ".join(argv) + "\n"
+        "$ "
+        + " ".join(argv)
+        + "\n"
         + f"duration_seconds={time.monotonic() - started:.3f}\n"
         + f"exit_code={completed.returncode}\n\n"
         + (completed.stdout or "")
@@ -163,10 +166,8 @@ def package(report: dict) -> None:
             if path.is_file():
                 archive.write(path, str(Path("evidence") / path.relative_to(EVIDENCE)))
 
-        try:
+        with contextlib.suppress(Exception):
             archive.write(Path(__file__).resolve(), Path(__file__).name)
-        except Exception:
-            pass
 
     shutil.copyfile(temporary, OUT)
 
@@ -188,7 +189,9 @@ def main() -> int:
         if not REPO.is_dir():
             raise FileNotFoundError(f"repository does not exist: {REPO}")
 
-        run_command(["git", "status", "--short"], "git/before-status.txt", cwd=REPO, timeout=30)
+        run_command(
+            ["git", "status", "--short"], "git/before-status.txt", cwd=REPO, timeout=30
+        )
         run_command(["git", "diff", "--"], "git/before-diff.txt", cwd=REPO, timeout=30)
 
         harness = run_harness(TASK_PROMPT, cwd=REPO)
@@ -200,9 +203,16 @@ def main() -> int:
         # acceptance_proved=True when those checks establish the requested state.
         report["outcome"] = "IMPLEMENTED-NOT-YET-PROVED"
 
-        run_command(["git", "status", "--short"], "git/after-status.txt", cwd=REPO, timeout=30)
+        run_command(
+            ["git", "status", "--short"], "git/after-status.txt", cwd=REPO, timeout=30
+        )
         run_command(["git", "diff", "--"], "git/after-diff.txt", cwd=REPO, timeout=30)
-        run_command(["git", "diff", "--name-only", "--"], "git/after-names.txt", cwd=REPO, timeout=30)
+        run_command(
+            ["git", "diff", "--name-only", "--"],
+            "git/after-names.txt",
+            cwd=REPO,
+            timeout=30,
+        )
 
     except subprocess.TimeoutExpired as exc:
         report["outcome"] = "RUNNER-TIMEOUT"
@@ -212,10 +222,8 @@ def main() -> int:
         report["error"] = traceback.format_exc()
     finally:
         report["finished_at"] = now()
-        try:
+        with contextlib.suppress(Exception):
             package(report)
-        except Exception:
-            pass
 
     # Deliberate: controller must receive failure evidence too.
     return 0

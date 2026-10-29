@@ -42,7 +42,7 @@ import json
 import re
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 DEFAULT_MIN_AGE_HOURS = 24
 TICKET_ID_RE = re.compile(r"\bSAH-\d+\b")
@@ -68,7 +68,9 @@ def gh_api_paginated(path: str) -> list[dict]:
 
 
 def gh_api(path: str) -> dict:
-    result = subprocess.run(["gh", "api", path], capture_output=True, text=True, check=True)
+    result = subprocess.run(
+        ["gh", "api", path], capture_output=True, text=True, check=True
+    )
     return json.loads(result.stdout)
 
 
@@ -87,7 +89,7 @@ def fetch_open_prs(repo: str) -> list[dict]:
 
 def age_hours(created_at: str) -> float:
     created = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
-    return (datetime.now(timezone.utc) - created).total_seconds() / 3600
+    return (datetime.now(UTC) - created).total_seconds() / 3600
 
 
 def would_change_nothing(repo: str, base: str, head_sha: str) -> bool:
@@ -182,15 +184,25 @@ def main() -> None:
                 all_moot.append((repo, pr))
                 repo_moot += 1
             if n % 100 == 0:
-                print(f"  {repo}: checked {n}/{len(prs)}, {repo_moot} moot so far", file=sys.stderr)
-        print(f"  {repo}: {len(prs)} open, {repo_moot} moot (age >= {min_age_hours}h)", file=sys.stderr)
+                print(
+                    f"  {repo}: checked {n}/{len(prs)}, {repo_moot} moot so far",
+                    file=sys.stderr,
+                )
+        print(
+            f"  {repo}: {len(prs)} open, {repo_moot} moot (age >= {min_age_hours}h)",
+            file=sys.stderr,
+        )
 
     if limit:
         all_moot = all_moot[:limit]
 
-    print(f"\n{len(all_moot)} moot PRs found (zero-diff against current default branch, age >= {min_age_hours}h)\n")
+    print(
+        f"\n{len(all_moot)} moot PRs found (zero-diff against current default branch, age >= {min_age_hours}h)\n"
+    )
     for repo, pr in all_moot:
-        print(f"{repo}#{pr['number']}  {pr['title']}  (draft={pr['draft']}, created={pr['created_at']})")
+        print(
+            f"{repo}#{pr['number']}  {pr['title']}  (draft={pr['draft']}, created={pr['created_at']})"
+        )
 
     if not execute:
         print("\nDry run -- no PRs closed. Re-run with --execute to close these.")
@@ -208,12 +220,21 @@ def main() -> None:
         if link_linear:
             ticket_id = find_ticket_id(pr)
             if not ticket_id:
-                print(f"  no SAH-#### found in {repo}#{pr['number']}, skipping Linear link")
+                print(
+                    f"  no SAH-#### found in {repo}#{pr['number']}, skipping Linear link"
+                )
                 continue
             try:
                 print(f"  {comment_on_ticket(ticket_id, repo, pr['number'])}")
-            except (KeyError, ValueError, subprocess.CalledProcessError, SystemExit) as linear_error:
-                print(f"  FAIL commenting on {ticket_id}: {linear_error}", file=sys.stderr)
+            except (
+                KeyError,
+                ValueError,
+                subprocess.CalledProcessError,
+                SystemExit,
+            ) as linear_error:
+                print(
+                    f"  FAIL commenting on {ticket_id}: {linear_error}", file=sys.stderr
+                )
     print(f"Closed {closed}/{len(all_moot)}")
 
 

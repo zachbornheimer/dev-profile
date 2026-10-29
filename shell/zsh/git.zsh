@@ -118,7 +118,8 @@ repo-reports() {
 _git_repair() (
 	emulate -L zsh
 
-	local log status head_before head_after
+	# `status` is a read-only zsh special parameter (alias of `$?`); use `rc`.
+	local log rc head_before head_after
 	local worktree_before worktree_after
 	local -a quoted_args
 
@@ -127,20 +128,20 @@ _git_repair() (
 	trap 'rm -f -- "$log"' EXIT
 
 	command git "$@" 2>&1 | tee "$log"
-	status=${pipestatus[1]}
+	rc=${pipestatus[1]}
 
-	((status == 0)) && return 0
+	((rc == 0)) && return 0
 
 	# 2. Preserve the original failure when OMP is unavailable.
 	if ((!$+commands[omp])); then
 		print -u2 -- "git repair: omp not found"
-		return "$status"
+		return "$rc"
 	fi
 
 	# 3. Record repository state before AI-assisted repair.
-	head_before=$(command git rev-parse HEAD 2>/dev/null) || return "$status"
+	head_before=$(command git rev-parse HEAD 2>/dev/null) || return "$rc"
 	worktree_before=$(command git status --porcelain=v1 --untracked-files=all) ||
-		return "$status"
+		return "$rc"
 
 	# 4. Build a safely quoted command description.
 	quoted_args=("${(@q)argv}")
@@ -150,18 +151,18 @@ _git_repair() (
 	print -u2 -- "git repair: invoking OMP..."
 
 	omp --model "${GIT_REPAIR_MODEL:-@task}" -p \
-		"$git_cmd failed (exit $status). Read $log. Diagnose and fix the root cause with minimal changes. Run relevant checks. Do not push, pull, commit, reset, rebase, force, or rewrite history. Report blockers." ||
-		return "$status"
+		"$git_cmd failed (exit $rc). Read $log. Diagnose and fix the root cause with minimal changes. Run relevant checks. Do not push, pull, commit, reset, rebase, force, or rewrite history. Report blockers." ||
+		return "$rc"
 
 	# 6. Avoid retrying when the repair requires review or a new commit.
-	head_after=$(command git rev-parse HEAD 2>/dev/null) || return "$status"
+	head_after=$(command git rev-parse HEAD 2>/dev/null) || return "$rc"
 	worktree_after=$(command git status --porcelain=v1 --untracked-files=all) ||
-		return "$status"
+		return "$rc"
 
 	if [[ "$head_before" != "$head_after" ||
 		"$worktree_before" != "$worktree_after" ]]; then
 		print -u2 -- "git repair: repository changed; review before retrying"
-		return "$status"
+		return "$rc"
 	fi
 
 	# 7. Retry exactly once and return Git's exit status.

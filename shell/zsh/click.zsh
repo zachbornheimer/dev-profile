@@ -121,9 +121,9 @@ click-1pwd() {
 	fi
 
 	local end=$(($(date +%s) + hours * 3600))
-	__ "click-1pwd: clicking 1091,586 every 60s for ${hours}h (until $(date -r "$end" '+%H:%M:%S'))"
+	__ "click-1pwd: clicking 1101,596 every 30s for ${hours}h (until $(date -r "$end" '+%H:%M:%S'))"
 	while [[ $(date +%s) -lt $end ]]; do
-		cliclick c:1091,586
-		sleep 60
+		cliclick c:1101,596
+		sleep 30
 	done
 }

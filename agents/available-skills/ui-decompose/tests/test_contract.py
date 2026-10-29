@@ -10,7 +10,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 VALIDATOR = ROOT / "scripts" / "validate.py"
 RENDERER = ROOT / "scripts" / "render.py"
@@ -30,7 +29,13 @@ class ContractTests(unittest.TestCase):
 
     def test_valid_decomposition_certifies(self) -> None:
         result = self.run_command(
-            "python3", str(VALIDATOR), "decomposition", str(DECOMPOSITION), "--certify", "--request", str(REQUEST)
+            "python3",
+            str(VALIDATOR),
+            "decomposition",
+            str(DECOMPOSITION),
+            "--certify",
+            "--request",
+            str(REQUEST),
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("certified=yes", result.stdout)
@@ -74,7 +79,8 @@ class ContractTests(unittest.TestCase):
     def test_review_rejects_incomplete_surface_audit(self) -> None:
         review = json.loads(PASSING_REVIEW.read_text(encoding="utf-8"))
         review["surfaceAudits"][0]["nodeAudits"] = [
-            item for item in review["surfaceAudits"][0]["nodeAudits"]
+            item
+            for item in review["surfaceAudits"][0]["nodeAudits"]
             if item["matchedId"] != "node.button"
         ]
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -91,7 +97,9 @@ class ContractTests(unittest.TestCase):
                 str(REQUEST),
             )
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("did not independently audit node ids: node.button", result.stderr)
+        self.assertIn(
+            "did not independently audit node ids: node.button", result.stderr
+        )
 
     def test_decomposition_requires_exactly_one_default_surface_state(self) -> None:
         data = json.loads(DECOMPOSITION.read_text(encoding="utf-8"))
@@ -118,7 +126,9 @@ class ContractTests(unittest.TestCase):
             after_path = temp / "after.json"
             review_path = temp / "review.json"
             correction_path = temp / "correction.json"
-            before_path.write_text(json.dumps(before, indent=2) + "\n", encoding="utf-8")
+            before_path.write_text(
+                json.dumps(before, indent=2) + "\n", encoding="utf-8"
+            )
             before_hash = hashlib.sha256(before_path.read_bytes()).hexdigest()
 
             review = {
@@ -139,26 +149,48 @@ class ContractTests(unittest.TestCase):
                         "observedType": "page",
                         "matchedSurfaceId": "surface.main",
                         "evidence": [
-                            {"kind": "selector", "source": "example.html", "locator": "body"}
+                            {
+                                "kind": "selector",
+                                "source": "example.html",
+                                "locator": "body",
+                            }
                         ],
                         "nodeAudits": [
                             {
                                 "auditKey": "audit.node.root",
                                 "observedName": "MainPage",
                                 "matchedId": "node.root",
-                                "evidence": [{"kind": "selector", "source": "example.html", "locator": "body"}],
+                                "evidence": [
+                                    {
+                                        "kind": "selector",
+                                        "source": "example.html",
+                                        "locator": "body",
+                                    }
+                                ],
                             },
                             {
                                 "auditKey": "audit.node.heading",
                                 "observedName": "Heading",
                                 "matchedId": "node.heading",
-                                "evidence": [{"kind": "selector", "source": "example.html", "locator": "h1"}],
+                                "evidence": [
+                                    {
+                                        "kind": "selector",
+                                        "source": "example.html",
+                                        "locator": "h1",
+                                    }
+                                ],
                             },
                             {
                                 "auditKey": "audit.node.button",
                                 "observedName": "ActionButton",
                                 "matchedId": "node.button",
-                                "evidence": [{"kind": "selector", "source": "example.html", "locator": "button"}],
+                                "evidence": [
+                                    {
+                                        "kind": "selector",
+                                        "source": "example.html",
+                                        "locator": "button",
+                                    }
+                                ],
                             },
                         ],
                         "stateAudits": [
@@ -166,7 +198,13 @@ class ContractTests(unittest.TestCase):
                                 "auditKey": "audit.state.default",
                                 "observedName": "Default",
                                 "matchedId": "state.main.default",
-                                "evidence": [{"kind": "selector", "source": "example.html", "locator": "body"}],
+                                "evidence": [
+                                    {
+                                        "kind": "selector",
+                                        "source": "example.html",
+                                        "locator": "body",
+                                    }
+                                ],
                             }
                         ],
                         "interactionAudits": [
@@ -174,7 +212,13 @@ class ContractTests(unittest.TestCase):
                                 "auditKey": "audit.interaction.button",
                                 "observedName": "Activate continue",
                                 "matchedId": "interaction.button.click",
-                                "evidence": [{"kind": "selector", "source": "example.html", "locator": "button"}],
+                                "evidence": [
+                                    {
+                                        "kind": "selector",
+                                        "source": "example.html",
+                                        "locator": "button",
+                                    }
+                                ],
                             }
                         ],
                     }
@@ -187,19 +231,25 @@ class ContractTests(unittest.TestCase):
                         "description": "Heading text differs from source.",
                         "affectedIds": ["node.heading"],
                         "evidence": [
-                            {"kind": "selector", "source": "example.html", "locator": "h1"}
+                            {
+                                "kind": "selector",
+                                "source": "example.html",
+                                "locator": "h1",
+                            }
                         ],
                         "requiredChanges": [
                             {
                                 "operation": "update",
                                 "targetId": "node.heading",
-                                "instructions": "Correct the heading text from source evidence."
+                                "instructions": "Correct the heading text from source evidence.",
                             }
                         ],
                     }
                 ],
             }
-            review_path.write_text(json.dumps(review, indent=2) + "\n", encoding="utf-8")
+            review_path.write_text(
+                json.dumps(review, indent=2) + "\n", encoding="utf-8"
+            )
 
             after = copy.deepcopy(before)
             after["nodes"][1]["visibleText"] = ["Example corrected"]
@@ -218,7 +268,11 @@ class ContractTests(unittest.TestCase):
                         "rationale": "Updated the source-observed heading text.",
                         "affectedIds": ["node.heading"],
                         "evidence": [
-                            {"kind": "selector", "source": "example.html", "locator": "h1"}
+                            {
+                                "kind": "selector",
+                                "source": "example.html",
+                                "locator": "h1",
+                            }
                         ],
                     }
                 ],

@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import re
 import sqlite3
 from collections.abc import Iterator
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -39,9 +40,7 @@ SECRET_RE = re.compile(
 TMP_PATH_RE = re.compile(r"/tmp/\S+|/var/folders/\S+")
 USER_QUERY_RE = re.compile(r"<user_query>(.*?)</user_query>", re.DOTALL)
 SLUG_RE = re.compile(r"[^a-z0-9]+")
-TEST_CMD_RE = re.compile(
-    r"(go test|pytest|mise run test|npm test|vitest|cargo test)"
-)
+TEST_CMD_RE = re.compile(r"(go test|pytest|mise run test|npm test|vitest|cargo test)")
 WS_RE = re.compile(r"\s+")
 
 SHELL_NAMES = frozenset({"bash", "shell", "run_terminal_command", "command"})
@@ -226,8 +225,9 @@ def _pairs(existing_titles: list[Any]) -> Iterator[tuple[str, str]]:
             else:
                 yield "", item
         elif isinstance(item, dict):
-            yield str(item.get("id") or item.get("identifier") or ""), str(
-                item.get("title") or ""
+            yield (
+                str(item.get("id") or item.get("identifier") or ""),
+                str(item.get("title") or ""),
             )
         else:
             yield str(item[0]), str(item[1])
@@ -302,9 +302,7 @@ def _as_dict(inp: Any) -> dict[str, Any]:
 
 def _input_command(inp: Any) -> str:
     data = _as_dict(inp)
-    return str(
-        data.get("command") or data.get("cmd") or data.get("commandLine") or ""
-    )
+    return str(data.get("command") or data.get("cmd") or data.get("commandLine") or "")
 
 
 def _input_path(inp: Any) -> str:
@@ -369,9 +367,7 @@ def apply_error(session: Session, track: _ToolTrack, text: str = "") -> None:
         session.permission_stops += 1
 
 
-def _walk_tool_blocks(
-    session: Session, track: _ToolTrack, content: list[Any]
-) -> None:
+def _walk_tool_blocks(session: Session, track: _ToolTrack, content: list[Any]) -> None:
     for block in content:
         if not isinstance(block, dict):
             continue
@@ -389,9 +385,7 @@ def _walk_tool_blocks(
                 apply_error(session, track, text)
 
 
-def _ingest_tool_results(
-    session: Session, track: _ToolTrack, content: Any
-) -> None:
+def _ingest_tool_results(session: Session, track: _ToolTrack, content: Any) -> None:
     if not isinstance(content, list):
         return
     for block in content:
@@ -550,9 +544,7 @@ def parse_cursor(path: Path) -> Session:
 
 def parse_grok(summary_path: Path) -> Session | None:
     try:
-        summary = json.loads(
-            summary_path.read_text(encoding="utf-8", errors="replace")
-        )
+        summary = json.loads(summary_path.read_text(encoding="utf-8", errors="replace"))
     except (OSError, json.JSONDecodeError):
         return None
     if not isinstance(summary, dict):
@@ -623,7 +615,9 @@ def parse_gemini(path: Path) -> Session:
             session.user_turns += 1
             _note_user_text(
                 session,
-                flatten_text(obj.get("content") or obj.get("text") or obj.get("message")),
+                flatten_text(
+                    obj.get("content") or obj.get("text") or obj.get("message")
+                ),
             )
         elif role in {"assistant", "model", "ai"}:
             session.agent_turns += 1
@@ -642,9 +636,7 @@ def parse_gemini(path: Path) -> Session:
 
 
 def parse_copilot(path: Path) -> Session:
-    session = Session(
-        harness="copilot", session_id=path.parent.name, path=str(path)
-    )
+    session = Session(harness="copilot", session_id=path.parent.name, path=str(path))
     meta = path.parent / "vscode.metadata.json"
     if meta.is_file():
         try:
@@ -689,7 +681,7 @@ def _ms_iso(ms: Any) -> str | None:
         return None
     if value > 10_000_000_000:
         value = value / 1000.0
-    return datetime.fromtimestamp(value, tz=timezone.utc).isoformat()
+    return datetime.fromtimestamp(value, tz=UTC).isoformat()
 
 
 def _table_cols(conn: sqlite3.Connection, table: str) -> set[str]:
@@ -812,20 +804,16 @@ def parse_opencode_db(db_path: Path, cutoff_ms: int) -> list[Session]:
             if rec.get("model"):
                 session.model = str(rec["model"])
             if rec.get("cost") is not None:
-                try:
+                with contextlib.suppress(TypeError, ValueError):
                     session.cost = float(rec["cost"])
-                except (TypeError, ValueError):
-                    pass
             for field_name, attr in (
                 ("tokens_input", "tokens_input"),
                 ("tokens_output", "tokens_output"),
                 ("tokens_cache_read", "tokens_cache_read"),
             ):
                 if rec.get(field_name) is not None:
-                    try:
+                    with contextlib.suppress(TypeError, ValueError):
                         setattr(session, attr, int(rec[field_name]))
-                    except (TypeError, ValueError):
-                        pass
             created = rec.get("time_created")
             updated = rec.get("time_updated")
             if created:
@@ -833,12 +821,10 @@ def parse_opencode_db(db_path: Path, cutoff_ms: int) -> list[Session]:
             if updated:
                 session.ended_at = _ms_iso(updated)
             if created is not None and updated is not None:
-                try:
+                with contextlib.suppress(TypeError, ValueError):
                     session.duration_s = max(
                         0.0, (float(updated) - float(created)) / 1000.0
                     )
-                except (TypeError, ValueError):
-                    pass
             if rec.get("time_compacting"):
                 session.compactions += 1
             _fill_opencode_messages(conn, session)

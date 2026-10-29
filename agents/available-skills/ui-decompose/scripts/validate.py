@@ -13,11 +13,11 @@ import hashlib
 import json
 import sys
 from collections import defaultdict
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from jsonschema import Draft202012Validator
-
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 SKILL_DIR = SCRIPT_DIR.parent
@@ -71,7 +71,9 @@ def schema_issues(data: Any, schema_path: Path) -> list[str]:
 
     schema = load_json(schema_path)
     validator = Draft202012Validator(schema)
-    errors = sorted(validator.iter_errors(data), key=lambda error: list(error.absolute_path))
+    errors = sorted(
+        validator.iter_errors(data), key=lambda error: list(error.absolute_path)
+    )
 
     result: list[str] = []
     for error in errors:
@@ -116,7 +118,9 @@ def detect_parent_cycle(
             current = entity.get(parent_field)
 
 
-def exact_set(label: str, declared: Iterable[str], actual: Iterable[str], issues: Issues) -> None:
+def exact_set(
+    label: str, declared: Iterable[str], actual: Iterable[str], issues: Issues
+) -> None:
     """Require a coverage declaration to equal the actual entity set."""
 
     declared_set = set(declared)
@@ -148,7 +152,9 @@ def surface_entity_sets(
 ) -> tuple[set[str], set[str], set[str]]:
     """Return node/state/interaction IDs belonging to one surface."""
 
-    node_ids = {node_id for node_id, node in nodes.items() if node["surfaceId"] == surface_id}
+    node_ids = {
+        node_id for node_id, node in nodes.items() if node["surfaceId"] == surface_id
+    }
     state_ids = {
         state_id
         for state_id, state in states.items()
@@ -196,7 +202,9 @@ def validate_decomposition_invariants(
         for entity_id in collection:
             previous = global_ids.get(entity_id)
             if previous is not None:
-                issues.add(f"global id collision: {entity_id} is both {previous} and {label}")
+                issues.add(
+                    f"global id collision: {entity_id} is both {previous} and {label}"
+                )
             else:
                 global_ids[entity_id] = label
 
@@ -227,17 +235,28 @@ def validate_decomposition_invariants(
     exact_set("coverage.surfaceIds", coverage["surfaceIds"], surfaces, issues)
     exact_set("coverage.nodeIds", coverage["nodeIds"], nodes, issues)
     exact_set("coverage.stateIds", coverage["stateIds"], states, issues)
-    exact_set("coverage.interactionIds", coverage["interactionIds"], interactions, issues)
+    exact_set(
+        "coverage.interactionIds", coverage["interactionIds"], interactions, issues
+    )
 
     # Scope roots must exactly match the roots of the surface parent graph.
-    actual_root_surfaces = {sid for sid, surface in surfaces.items() if surface["parentSurfaceId"] is None}
-    exact_set("scope.rootSurfaceIds", data["scope"]["rootSurfaceIds"], actual_root_surfaces, issues)
+    actual_root_surfaces = {
+        sid for sid, surface in surfaces.items() if surface["parentSurfaceId"] is None
+    }
+    exact_set(
+        "scope.rootSurfaceIds",
+        data["scope"]["rootSurfaceIds"],
+        actual_root_surfaces,
+        issues,
+    )
 
     # Validate surface hierarchy, roots, and trigger edges.
     for surface_id, surface in surfaces.items():
         parent_id = surface["parentSurfaceId"]
         if parent_id is not None and parent_id not in surfaces:
-            issues.add(f"surface {surface_id} references missing parentSurfaceId {parent_id}")
+            issues.add(
+                f"surface {surface_id} references missing parentSurfaceId {parent_id}"
+            )
         if parent_id == surface_id:
             issues.add(f"surface {surface_id} cannot parent itself")
 
@@ -251,12 +270,16 @@ def validate_decomposition_invariants(
                     f"surface {surface_id} root node {root_id} belongs to {root['surfaceId']}"
                 )
             if root["parentId"] is not None:
-                issues.add(f"surface {surface_id} root node {root_id} must have parentId=null")
+                issues.add(
+                    f"surface {surface_id} root node {root_id} must have parentId=null"
+                )
 
         for interaction_id in surface["triggerInteractionIds"]:
             interaction = interactions.get(interaction_id)
             if interaction is None:
-                issues.add(f"surface {surface_id} references missing trigger interaction {interaction_id}")
+                issues.add(
+                    f"surface {surface_id} references missing trigger interaction {interaction_id}"
+                )
             elif interaction["targetSurfaceId"] != surface_id:
                 issues.add(
                     f"surface {surface_id} trigger {interaction_id} does not target that surface"
@@ -284,9 +307,13 @@ def validate_decomposition_invariants(
                 issues.add(f"node {node_id} references missing parent {parent_id}")
             else:
                 if parent["surfaceId"] != surface_id:
-                    issues.add(f"node {node_id} parent {parent_id} belongs to another surface")
+                    issues.add(
+                        f"node {node_id} parent {parent_id} belongs to another surface"
+                    )
                 if node_id not in parent["childIds"]:
-                    issues.add(f"node {node_id} parent {parent_id} does not list it in childIds")
+                    issues.add(
+                        f"node {node_id} parent {parent_id} does not list it in childIds"
+                    )
 
         if node["atomic"] and node["childIds"]:
             issues.add(f"atomic node {node_id} must not have children")
@@ -296,7 +323,9 @@ def validate_decomposition_invariants(
             issues.add(f"atomic text node {node_id} must contain visibleText")
 
         if node["interactive"] and not node["interactionIds"]:
-            issues.add(f"interactive node {node_id} must define at least one interaction")
+            issues.add(
+                f"interactive node {node_id} must define at least one interaction"
+            )
         if not node["interactive"] and node["interactionIds"]:
             issues.add(f"non-interactive node {node_id} must not list interactions")
 
@@ -306,9 +335,13 @@ def validate_decomposition_invariants(
                 issues.add(f"node {node_id} references missing child {child_id}")
             else:
                 if child["surfaceId"] != surface_id:
-                    issues.add(f"node {node_id} child {child_id} belongs to another surface")
+                    issues.add(
+                        f"node {node_id} child {child_id} belongs to another surface"
+                    )
                 if child["parentId"] != node_id:
-                    issues.add(f"node {node_id} child {child_id} has parentId={child['parentId']!r}")
+                    issues.add(
+                        f"node {node_id} child {child_id} has parentId={child['parentId']!r}"
+                    )
 
         for state_id in node["stateIds"]:
             state = states.get(state_id)
@@ -320,7 +353,9 @@ def validate_decomposition_invariants(
         for interaction_id in node["interactionIds"]:
             interaction = interactions.get(interaction_id)
             if interaction is None:
-                issues.add(f"node {node_id} references missing interaction {interaction_id}")
+                issues.add(
+                    f"node {node_id} references missing interaction {interaction_id}"
+                )
             elif interaction["sourceNodeId"] != node_id:
                 issues.add(
                     f"node {node_id} interaction {interaction_id} has sourceNodeId={interaction['sourceNodeId']}"
@@ -349,10 +384,14 @@ def validate_decomposition_invariants(
                 stack.extend(node["childIds"])
 
         for orphan_id in sorted(surface_node_ids - reachable):
-            issues.add(f"node {orphan_id} is not reachable from surface {surface_id} root")
+            issues.add(
+                f"node {orphan_id} is not reachable from surface {surface_id} root"
+            )
 
         null_parent_nodes = sorted(
-            node_id for node_id in surface_node_ids if nodes[node_id]["parentId"] is None
+            node_id
+            for node_id in surface_node_ids
+            if nodes[node_id]["parentId"] is None
         )
         if null_parent_nodes != [root_id]:
             issues.add(
@@ -366,7 +405,9 @@ def validate_decomposition_invariants(
         owner_id = state["ownerId"]
         if state["ownerType"] == "surface":
             if owner_id not in surfaces:
-                issues.add(f"state {state_id} references missing surface owner {owner_id}")
+                issues.add(
+                    f"state {state_id} references missing surface owner {owner_id}"
+                )
             if state["kind"] == "default":
                 surface_default_states[owner_id] += 1
         else:
@@ -379,7 +420,9 @@ def validate_decomposition_invariants(
     for surface_id in surfaces:
         count = surface_default_states[surface_id]
         if count != 1:
-            issues.add(f"surface {surface_id} must define exactly one default surface state; found {count}")
+            issues.add(
+                f"surface {surface_id} must define exactly one default surface state; found {count}"
+            )
 
     # Validate interaction sources, result-specific targets, and reciprocal surface edges.
     unresolved_interaction_ids = {
@@ -393,22 +436,32 @@ def validate_decomposition_invariants(
         source = nodes.get(source_id)
         source_surface_id = source["surfaceId"] if source is not None else None
         if source is None:
-            issues.add(f"interaction {interaction_id} references missing source node {source_id}")
+            issues.add(
+                f"interaction {interaction_id} references missing source node {source_id}"
+            )
         elif interaction_id not in source["interactionIds"]:
-            issues.add(f"interaction {interaction_id} is not listed by source node {source_id}")
+            issues.add(
+                f"interaction {interaction_id} is not listed by source node {source_id}"
+            )
 
         target_surface_id = interaction["targetSurfaceId"]
         target_state_id = interaction["targetStateId"]
         result = interaction["result"]
 
         if target_surface_id is not None and target_surface_id not in surfaces:
-            issues.add(f"interaction {interaction_id} references missing target surface {target_surface_id}")
+            issues.add(
+                f"interaction {interaction_id} references missing target surface {target_surface_id}"
+            )
         if target_state_id is not None and target_state_id not in states:
-            issues.add(f"interaction {interaction_id} references missing target state {target_state_id}")
+            issues.add(
+                f"interaction {interaction_id} references missing target state {target_state_id}"
+            )
 
         if result in {"opens-surface", "navigates-surface"}:
             if target_surface_id is None:
-                issues.add(f"interaction {interaction_id} result={result} requires targetSurfaceId")
+                issues.add(
+                    f"interaction {interaction_id} result={result} requires targetSurfaceId"
+                )
             elif target_surface_id in surfaces:
                 target = surfaces[target_surface_id]
                 if interaction_id not in target["triggerInteractionIds"]:
@@ -423,25 +476,40 @@ def validate_decomposition_invariants(
 
         if result == "closes-surface":
             if target_surface_id is None:
-                issues.add(f"interaction {interaction_id} result=closes-surface requires targetSurfaceId")
-            elif source_surface_id is not None and target_surface_id != source_surface_id:
+                issues.add(
+                    f"interaction {interaction_id} result=closes-surface requires targetSurfaceId"
+                )
+            elif (
+                source_surface_id is not None and target_surface_id != source_surface_id
+            ):
                 issues.add(
                     f"interaction {interaction_id} closes {target_surface_id}, but its source is on {source_surface_id}"
                 )
 
         if result == "state-change" and target_state_id is None:
-            issues.add(f"interaction {interaction_id} result=state-change requires targetStateId")
+            issues.add(
+                f"interaction {interaction_id} result=state-change requires targetStateId"
+            )
 
         if result in {"none", "data-change", "external"}:
             if target_surface_id is not None:
-                issues.add(f"interaction {interaction_id} result={result} must not target a UI surface")
+                issues.add(
+                    f"interaction {interaction_id} result={result} must not target a UI surface"
+                )
             if target_state_id is not None:
-                issues.add(f"interaction {interaction_id} result={result} must not target a UI state")
+                issues.add(
+                    f"interaction {interaction_id} result={result} must not target a UI state"
+                )
 
         if target_state_id is not None and target_state_id in states:
             target_state_surface = state_surface_id(states[target_state_id], nodes)
-            allowed_surfaces = {sid for sid in (source_surface_id, target_surface_id) if sid is not None}
-            if target_state_surface is not None and target_state_surface not in allowed_surfaces:
+            allowed_surfaces = {
+                sid for sid in (source_surface_id, target_surface_id) if sid is not None
+            }
+            if (
+                target_state_surface is not None
+                and target_state_surface not in allowed_surfaces
+            ):
                 issues.add(
                     f"interaction {interaction_id} targets state {target_state_id} on unrelated surface {target_state_surface}"
                 )
@@ -463,28 +531,44 @@ def validate_decomposition_invariants(
         scope_id = item["scopeId"]
         if scope_type == "source":
             if scope_id is not None:
-                issues.add(f"unresolved {unresolved_id} with scopeType=source must use scopeId=null")
+                issues.add(
+                    f"unresolved {unresolved_id} with scopeType=source must use scopeId=null"
+                )
             continue
         if scope_id is None:
-            issues.add(f"unresolved {unresolved_id} with scopeType={scope_type} requires scopeId")
+            issues.add(
+                f"unresolved {unresolved_id} with scopeType={scope_type} requires scopeId"
+            )
             continue
         if scope_id not in type_indexes[scope_type]:
-            issues.add(f"unresolved {unresolved_id} references missing {scope_type} {scope_id}")
+            issues.add(
+                f"unresolved {unresolved_id} references missing {scope_type} {scope_id}"
+            )
 
     # Certification forbids known uncertainty and unknown interaction outcomes.
     if certify:
-        uninspected = sorted(record["path"] for record in file_records if not record["inspected"])
+        uninspected = sorted(
+            record["path"] for record in file_records if not record["inspected"]
+        )
         if uninspected:
-            issues.add("certification forbids uninspected source files: " + ", ".join(uninspected))
+            issues.add(
+                "certification forbids uninspected source files: "
+                + ", ".join(uninspected)
+            )
         if unresolved:
-            issues.add(f"certification requires unresolved=[]; found {len(unresolved)} item(s)")
+            issues.add(
+                f"certification requires unresolved=[]; found {len(unresolved)} item(s)"
+            )
         unknown = sorted(
             interaction_id
             for interaction_id, interaction in interactions.items()
             if interaction["result"] == "unknown"
         )
         if unknown:
-            issues.add("certification forbids interactions with result=unknown: " + ", ".join(unknown))
+            issues.add(
+                "certification forbids interactions with result=unknown: "
+                + ", ".join(unknown)
+            )
 
     return issues
 
@@ -501,19 +585,25 @@ def validate_review_invariants(
     issues = Issues()
 
     if pass_number is not None and data["reviewPass"] != pass_number:
-        issues.add(f"reviewPass mismatch: expected {pass_number}, found {data['reviewPass']}")
+        issues.add(
+            f"reviewPass mismatch: expected {pass_number}, found {data['reviewPass']}"
+        )
 
     if decomposition_path is not None:
         expected = sha256_file(decomposition_path)
         actual = data["reviewedArtifacts"]["decompositionSha256"]
         if actual != expected:
-            issues.add(f"review decomposition digest mismatch: expected {expected}, found {actual}")
+            issues.add(
+                f"review decomposition digest mismatch: expected {expected}, found {actual}"
+            )
 
     if request_path is not None:
         expected = sha256_file(request_path)
         actual = data["reviewedArtifacts"]["requestSha256"]
         if actual != expected:
-            issues.add(f"review request digest mismatch: expected {expected}, found {actual}")
+            issues.add(
+                f"review request digest mismatch: expected {expected}, found {actual}"
+            )
 
     finding_ids: set[str] = set()
     for finding in data["findings"]:
@@ -546,14 +636,19 @@ def validate_review_invariants(
     states = {item["id"]: item for item in decomposition["states"]}
     interactions = {item["id"]: item for item in decomposition["interactions"]}
     unresolved = {item["id"]: item for item in decomposition["unresolved"]}
-    global_ids = set(surfaces) | set(nodes) | set(states) | set(interactions) | set(unresolved)
+    global_ids = (
+        set(surfaces) | set(nodes) | set(states) | set(interactions) | set(unresolved)
+    )
 
     # Reviewer must inspect every source file the decomposition claims to depend on.
     required_files = {record["path"] for record in decomposition["source"]["filesRead"]}
     inspected_files = set(data["sourceFilesInspected"])
     missing_files = sorted(required_files - inspected_files)
     if missing_files:
-        issues.add("review sourceFilesInspected missing decomposition source files: " + ", ".join(missing_files))
+        issues.add(
+            "review sourceFilesInspected missing decomposition source files: "
+            + ", ".join(missing_files)
+        )
 
     # Each decomposition surface and every entity on it must have one independent source audit.
     audit_keys: set[str] = set()
@@ -631,10 +726,14 @@ def validate_review_invariants(
             continue
 
         if surface_id not in surfaces:
-            issues.add(f"surface audit {audit_key} references missing matchedSurfaceId {surface_id}")
+            issues.add(
+                f"surface audit {audit_key} references missing matchedSurfaceId {surface_id}"
+            )
             continue
         if surface_id in matched_surfaces:
-            issues.add(f"surface {surface_id} is matched by more than one surface audit")
+            issues.add(
+                f"surface {surface_id} is matched by more than one surface audit"
+            )
             continue
         matched_surfaces[surface_id] = audit
 
@@ -677,21 +776,27 @@ def validate_review_invariants(
     for finding in data["findings"]:
         for affected_id in finding["affectedIds"]:
             if affected_id not in global_ids:
-                issues.add(f"finding {finding['id']} affectedIds references unknown id {affected_id}")
+                issues.add(
+                    f"finding {finding['id']} affectedIds references unknown id {affected_id}"
+                )
         for change in finding["requiredChanges"]:
             target_id = change["targetId"]
             if target_id is not None and target_id not in global_ids:
                 issues.add(
                     f"finding {finding['id']} change targetId references unknown id {target_id}"
                 )
-            if change["operation"] in {
-                "update",
-                "remove",
-                "split-node",
-                "merge-nodes",
-                "reparent",
-                "resolve-unresolved",
-            } and target_id is None:
+            if (
+                change["operation"]
+                in {
+                    "update",
+                    "remove",
+                    "split-node",
+                    "merge-nodes",
+                    "reparent",
+                    "resolve-unresolved",
+                }
+                and target_id is None
+            ):
                 issues.add(
                     f"finding {finding['id']} operation={change['operation']} requires targetId"
                 )
@@ -728,12 +833,16 @@ def validate_correction_invariants(
     if data["resultDecompositionSha256"] != after_digest:
         issues.add("correction resultDecompositionSha256 does not match --after")
     if review["reviewedArtifacts"]["decompositionSha256"] != before_digest:
-        issues.add("correction --before is not the decomposition reviewed by the supplied review")
+        issues.add(
+            "correction --before is not the decomposition reviewed by the supplied review"
+        )
     before = load_json(before_path)
     if before["requestSha256"] != after["requestSha256"]:
         issues.add("correction changed requestSha256")
     if review["reviewedArtifacts"]["requestSha256"] != after["requestSha256"]:
-        issues.add("corrected decomposition requestSha256 does not match reviewed request")
+        issues.add(
+            "corrected decomposition requestSha256 does not match reviewed request"
+        )
 
     expected_findings = {finding["id"] for finding in review["findings"]}
     seen_findings: set[str] = set()
@@ -750,12 +859,18 @@ def validate_correction_invariants(
 
     missing = sorted(expected_findings - seen_findings)
     if missing:
-        issues.add("correction report missing finding resolutions: " + ", ".join(missing))
+        issues.add(
+            "correction report missing finding resolutions: " + ", ".join(missing)
+        )
     extra = sorted(seen_findings - expected_findings)
     if extra:
-        issues.add("correction report contains extra finding resolutions: " + ", ".join(extra))
+        issues.add(
+            "correction report contains extra finding resolutions: " + ", ".join(extra)
+        )
     if applied and before_digest == after_digest:
-        issues.add("at least one finding is marked applied but decomposition digest did not change")
+        issues.add(
+            "at least one finding is marked applied but decomposition digest did not change"
+        )
 
     # The corrected artifact must itself be structurally certifiable before the next review.
     issues.extend(validate_decomposition_invariants(after, certify=True).items)
@@ -806,7 +921,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="kind", required=True)
 
-    decomposition = subparsers.add_parser("decomposition", help="Validate a UI decomposition")
+    decomposition = subparsers.add_parser(
+        "decomposition", help="Validate a UI decomposition"
+    )
     decomposition.add_argument("path", type=Path)
     decomposition.add_argument(
         "--certify",
@@ -825,7 +942,9 @@ def build_parser() -> argparse.ArgumentParser:
     review.add_argument("--decomposition", type=Path)
     review.add_argument("--request", type=Path)
 
-    correction = subparsers.add_parser("correction", help="Validate a correction report")
+    correction = subparsers.add_parser(
+        "correction", help="Validate a correction report"
+    )
     correction.add_argument("path", type=Path)
     correction.add_argument("--review", type=Path, required=True)
     correction.add_argument("--before", type=Path, required=True)
@@ -849,13 +968,21 @@ def main() -> int:
 
     try:
         if args.kind == "decomposition":
-            issues.extend(schema_issues(data, SCHEMA_DIR / "ui-decomposition.schema.json"))
+            issues.extend(
+                schema_issues(data, SCHEMA_DIR / "ui-decomposition.schema.json")
+            )
             if not issues:
-                issues.extend(validate_decomposition_invariants(data, args.certify, args.request).items)
+                issues.extend(
+                    validate_decomposition_invariants(
+                        data, args.certify, args.request
+                    ).items
+                )
             print_result("decomposition", args.path, data, issues, certify=args.certify)
 
         elif args.kind == "review":
-            issues.extend(schema_issues(data, SCHEMA_DIR / "adversarial-review.schema.json"))
+            issues.extend(
+                schema_issues(data, SCHEMA_DIR / "adversarial-review.schema.json")
+            )
             decomposition_data: dict[str, Any] | None = None
             if args.decomposition is not None:
                 decomposition_data = load_json(args.decomposition)
@@ -863,7 +990,8 @@ def main() -> int:
                     decomposition_data, SCHEMA_DIR / "ui-decomposition.schema.json"
                 )
                 issues.extend(
-                    f"reviewed decomposition invalid: {message}" for message in decomposition_schema_errors
+                    f"reviewed decomposition invalid: {message}"
+                    for message in decomposition_schema_errors
                 )
             if not issues:
                 issues.extend(
@@ -878,13 +1006,23 @@ def main() -> int:
             print_result("review", args.path, data, issues)
 
         else:
-            issues.extend(schema_issues(data, SCHEMA_DIR / "correction-report.schema.json"))
+            issues.extend(
+                schema_issues(data, SCHEMA_DIR / "correction-report.schema.json")
+            )
             review_data = load_json(args.review)
             before_data = load_json(args.before)
             after_data = load_json(args.after)
-            issues.extend(schema_issues(review_data, SCHEMA_DIR / "adversarial-review.schema.json"))
-            issues.extend(schema_issues(before_data, SCHEMA_DIR / "ui-decomposition.schema.json"))
-            issues.extend(schema_issues(after_data, SCHEMA_DIR / "ui-decomposition.schema.json"))
+            issues.extend(
+                schema_issues(
+                    review_data, SCHEMA_DIR / "adversarial-review.schema.json"
+                )
+            )
+            issues.extend(
+                schema_issues(before_data, SCHEMA_DIR / "ui-decomposition.schema.json")
+            )
+            issues.extend(
+                schema_issues(after_data, SCHEMA_DIR / "ui-decomposition.schema.json")
+            )
             if not issues:
                 issues.extend(
                     validate_correction_invariants(
