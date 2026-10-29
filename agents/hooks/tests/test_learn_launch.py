@@ -12,7 +12,11 @@ TARGET = "01a163ee-d96e-7370-8136-b743e0bc1855"
 
 def launch(*args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [str(LAUNCHER), *args, "--dry-run"], capture_output=True, text=True, timeout=120
+        [str(LAUNCHER), *args, "--dry-run"],
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
     )
 
 

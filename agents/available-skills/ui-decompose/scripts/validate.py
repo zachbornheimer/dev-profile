@@ -468,11 +468,14 @@ def validate_decomposition_invariants(
                     issues.add(
                         f"interaction {interaction_id} targets {target_surface_id}, but that surface does not list it as a trigger"
                     )
-                if result == "opens-surface" and source_surface_id is not None:
-                    if target["parentSurfaceId"] != source_surface_id:
-                        issues.add(
-                            f"interaction {interaction_id} opens {target_surface_id}, whose parentSurfaceId must be {source_surface_id}"
-                        )
+                if (
+                    result == "opens-surface"
+                    and source_surface_id is not None
+                    and target["parentSurfaceId"] != source_surface_id
+                ):
+                    issues.add(
+                        f"interaction {interaction_id} opens {target_surface_id}, whose parentSurfaceId must be {source_surface_id}"
+                    )
 
         if result == "closes-surface":
             if target_surface_id is None:
@@ -800,11 +803,14 @@ def validate_review_invariants(
                 issues.add(
                     f"finding {finding['id']} operation={change['operation']} requires targetId"
                 )
-            if change["operation"] == "resolve-unresolved" and target_id is not None:
-                if target_id not in unresolved:
-                    issues.add(
-                        f"finding {finding['id']} resolve-unresolved target {target_id} is not unresolved"
-                    )
+            if (
+                change["operation"] == "resolve-unresolved"
+                and target_id is not None
+                and target_id not in unresolved
+            ):
+                issues.add(
+                    f"finding {finding['id']} resolve-unresolved target {target_id} is not unresolved"
+                )
 
     return issues
 

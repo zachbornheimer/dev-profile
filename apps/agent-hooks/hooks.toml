@@ -400,7 +400,12 @@ timeout = "15s"
 name = "stop-completion-gate-py"
 events = ["turn.stop"]
 command = ["/Users/zbornheimer/.agents/hooks/completion-gate.py"]
-timeout = "15s"
+# The gate's own budget is the TypeSafe judge plus up to three reads of the
+# session log, and a long session's log is large: on omp:01a169a2 (16 MB,
+# 5,016 rows) one Stop took 16.5 s and was killed at 15 s, which is a silent
+# allow. 26 s sits under the omp bridge's 28 s Stop deadline, so the gate
+# finishes or the bridge stops it deliberately.
+timeout = "26s"
 
 [[hooks]]
 name = "stop-duplicate-turn-breaker-py"

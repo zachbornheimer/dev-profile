@@ -18,9 +18,10 @@ def main() -> int:
     if len(sys.argv) < 3:
         print(__doc__, file=sys.stderr)
         return 2
+    with open(sys.argv[1]) as handle:
+        transcript = json.load(handle)
     segments = [
-        (s["offsets"]["from"], s["text"].strip())
-        for s in json.load(open(sys.argv[1]))["transcription"]
+        (s["offsets"]["from"], s["text"].strip()) for s in transcript["transcription"]
     ]
     missing = 0
     for phrase in sys.argv[2:]:

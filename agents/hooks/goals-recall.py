@@ -72,6 +72,7 @@ def _live_atask_block(cwd: str) -> str:
             capture_output=True,
             text=True,
             timeout=ATASK_TIMEOUT_SECONDS,
+            check=False,
         )
     except (OSError, subprocess.SubprocessError):
         return ""

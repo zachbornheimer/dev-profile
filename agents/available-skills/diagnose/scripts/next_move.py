@@ -132,21 +132,21 @@ def load_board(raw: str, source: str) -> dict[str, Any]:
     except json.JSONDecodeError as exc:
         raise ValueError(f"invalid board JSON from {source}: {exc.msg}") from exc
     if not isinstance(board, dict):
-        raise ValueError(f"board from {source} must be a JSON object")
+        raise TypeError(f"board from {source} must be a JSON object")
     return board
 
 
 def open_items(board: dict[str, Any]) -> list[dict[str, Any]]:
     items = board.get("open") or []
     if not isinstance(items, list):
-        raise ValueError("board.open must be a list")
+        raise TypeError("board.open must be a list")
     return [item for item in items if isinstance(item, dict) and item.get("id")]
 
 
 def listed_tests(board: dict[str, Any]) -> list[dict[str, Any]]:
     items = board.get("tests") or []
     if not isinstance(items, list):
-        raise ValueError("board.tests must be a list")
+        raise TypeError("board.tests must be a list")
     return [item for item in items if isinstance(item, dict) and item.get("id")]
 
 
@@ -380,7 +380,7 @@ def call_systemone(
     except json.JSONDecodeError as exc:
         raise ValueError(f"TypeSafe response was not JSON: {exc.msg}") from exc
     if not isinstance(parsed, dict) or not isinstance(parsed.get("answers"), dict):
-        raise ValueError("TypeSafe response missing answers")
+        raise TypeError("TypeSafe response missing answers")
     return parsed
 
 

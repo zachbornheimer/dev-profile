@@ -125,11 +125,13 @@ class NextMoveTests(unittest.TestCase):
     def test_mitigate_with_low_noul_becomes_run_test(self) -> None:
         payload = systemone_payload(next_move_choice="mitigate", mitigation_proven=0.1)
         stdout = io.StringIO()
-        with mock.patch(
-            "urllib.request.urlopen", return_value=FakeHTTPResponse(payload)
-        ) as urlopen:
-            with redirect_stdout(stdout):
-                code = next_move.main(["--board", str(FIXTURE)], getenv=getenv_with_key)
+        with (
+            mock.patch(
+                "urllib.request.urlopen", return_value=FakeHTTPResponse(payload)
+            ) as urlopen,
+            redirect_stdout(stdout),
+        ):
+            code = next_move.main(["--board", str(FIXTURE)], getenv=getenv_with_key)
         self.assertEqual(code, 0)
         result = json.loads(stdout.getvalue())
         self.assertEqual(result["do"], "run_test")
@@ -145,11 +147,13 @@ class NextMoveTests(unittest.TestCase):
             mitigation_proven=0.2,
         )
         stdout = io.StringIO()
-        with mock.patch(
-            "urllib.request.urlopen", return_value=FakeHTTPResponse(payload)
+        with (
+            mock.patch(
+                "urllib.request.urlopen", return_value=FakeHTTPResponse(payload)
+            ),
+            redirect_stdout(stdout),
         ):
-            with redirect_stdout(stdout):
-                code = next_move.main(["--board", str(FIXTURE)], getenv=getenv_with_key)
+            code = next_move.main(["--board", str(FIXTURE)], getenv=getenv_with_key)
         self.assertEqual(code, 0)
         result = json.loads(stdout.getvalue())
         self.assertEqual(result["do"], "run_test")
@@ -159,11 +163,13 @@ class NextMoveTests(unittest.TestCase):
     def test_guessed_colima_restart_never_mitigates(self) -> None:
         payload = systemone_payload(next_move_choice="mitigate", mitigation_proven=0.95)
         stdout = io.StringIO()
-        with mock.patch(
-            "urllib.request.urlopen", return_value=FakeHTTPResponse(payload)
+        with (
+            mock.patch(
+                "urllib.request.urlopen", return_value=FakeHTTPResponse(payload)
+            ),
+            redirect_stdout(stdout),
         ):
-            with redirect_stdout(stdout):
-                code = next_move.main(["--board", str(FIXTURE)], getenv=getenv_with_key)
+            code = next_move.main(["--board", str(FIXTURE)], getenv=getenv_with_key)
         self.assertEqual(code, 0)
         result = json.loads(stdout.getvalue())
         self.assertEqual(result["do"], "run_test")

@@ -22,7 +22,9 @@ from pathlib import Path
 
 DEFAULT_REF = "main"
 DEFAULT_BRANCH_NAME = "chore/pin-workflow-refs"
-DEFAULT_WORKDIR = Path.home() / "Developer/Software-Automation-Holdings/.worktrees/pin-refs"
+DEFAULT_WORKDIR = (
+    Path.home() / "Developer/Software-Automation-Holdings/.worktrees/pin-refs"
+)
 WORKFLOW_FILE_GLOBS = ("*.yml", "*.yaml")
 WORKFLOW_DIR = ".github/workflows"
 FLOATING_REF_SHAPE = r"main|master|v\d+"
@@ -40,7 +42,9 @@ class CommandFailedError(RuntimeError):
 
 def _run(command: list[str], cwd: Path | None = None) -> str:
     """Run a subprocess, returning stdout or raising CommandFailedError."""
-    result = subprocess.run(command, cwd=cwd, capture_output=True, text=True)
+    result = subprocess.run(
+        command, cwd=cwd, capture_output=True, text=True, check=False
+    )
     if result.returncode != 0:
         raise CommandFailedError(command, result.stderr)
     return result.stdout
@@ -57,7 +61,9 @@ def _floating_ref_line_pattern(source: str) -> re.Pattern[str]:
     )
 
 
-def rewrite(text: str, source: str, floating_refs: set[str], sha: str) -> tuple[str, int]:
+def rewrite(
+    text: str, source: str, floating_refs: set[str], sha: str
+) -> tuple[str, int]:
     """Pin every `uses: source/...@ref` line where ref is in floating_refs to sha.
 
     Returns the rewritten text and the number of lines changed. Lines already
@@ -78,8 +84,10 @@ def rewrite(text: str, source: str, floating_refs: set[str], sha: str) -> tuple[
     rewritten_lines = []
     for line in text.splitlines(keepends=True):
         stripped = line.rstrip("\n")
-        line_ending = line[len(stripped):]
-        rewritten_lines.append(line_pattern.sub(pin_matched_ref, stripped) + line_ending)
+        line_ending = line[len(stripped) :]
+        rewritten_lines.append(
+            line_pattern.sub(pin_matched_ref, stripped) + line_ending
+        )
     return "".join(rewritten_lines), replacement_count
 
 
@@ -146,7 +154,9 @@ def create_pr(owner_repo: str, branch: str, title: str, body: str) -> str:
     ).strip()
 
 
-def _pr_body(source: str, ref: str, sha: str, changed_files: list[Path], repo_dir: Path) -> str:
+def _pr_body(
+    source: str, ref: str, sha: str, changed_files: list[Path], repo_dir: Path
+) -> str:
     file_list = "\n".join(f"- {f.relative_to(repo_dir)}" for f in changed_files)
     return (
         f"Pins reusable workflow refs to `{source}@{sha}` (was `@{ref}`).\n\n"
@@ -207,7 +217,9 @@ def process_repo(
         return RepoResult(repo, f"{outcome_prefix} dry-run")
 
     if pr_already_exists(repo, branch_name):
-        return RepoResult(repo, f"{outcome_prefix} skipped: PR already open for {branch_name}")
+        return RepoResult(
+            repo, f"{outcome_prefix} skipped: PR already open for {branch_name}"
+        )
 
     push_branch(repo_dir, branch_name)
     pr_url = create_pr(

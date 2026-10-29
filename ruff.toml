@@ -1,5 +1,10 @@
-# Hooks fail open by design: a hook that raises on its own logging or stdin handling
-# breaks the user's turn, so `except Exception: pass` there is the intended shape.
-# S110 asks for logging; a hook's logger is the thing being protected.
+# Hooks fail open by design: a hook that raises on its own logging, stdin handling or
+# an optional side effect breaks the user's turn, so the broad catch is the intended
+# shape. S110 (pass inside except) and BLE001 (blind except) ask for narrower handling.
+# harvest-corrections.py and standalone_runner.py skip unreadable inputs one file at a
+# time for the same reason: one bad log must not end the run.
 [lint.per-file-ignores]
-"agents/hooks/*.py" = ["S110"]
+"agents/hooks/**" = ["S110", "BLE001"]
+"kitty/*.py" = ["BLE001"]
+"agents/available-skills/self-improve/scripts/harvest-corrections.py" = ["BLE001"]
+"agents/available-skills/chatgpt-controls-other-harness/templates/standalone_runner.py" = ["BLE001"]

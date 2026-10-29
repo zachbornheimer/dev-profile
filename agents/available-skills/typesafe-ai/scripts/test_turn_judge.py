@@ -35,7 +35,10 @@ QUESTIONS = (
     turn_judge.QUESTION_USER_WITHHELD_ACTION,
     turn_judge.QUESTION_CLOSING_ASKS_PREFERENCE,
 )
-NO_EVIDENCE: dict = {"unmatched_test_failures": [], "evidence_block": {"present": False}}
+NO_EVIDENCE: dict = {
+    "unmatched_test_failures": [],
+    "evidence_block": {"present": False},
+}
 
 
 def noul(value: float) -> dict:
@@ -100,9 +103,16 @@ class QuestionTests(unittest.TestCase):
         self.assertEqual(request["state"]["evidence"], NO_EVIDENCE)
 
     def test_the_request_carries_the_earlier_exchanges(self) -> None:
-        history = [{"user_request": "look at session 33eb", "response": "Two problems found."}]
+        history = [
+            {"user_request": "look at session 33eb", "response": "Two problems found."}
+        ]
         request = turn_judge.build_request(
-            {"message": "Done.", "user_prompt": "go", "history": history, "evidence": NO_EVIDENCE}
+            {
+                "message": "Done.",
+                "user_prompt": "go",
+                "history": history,
+                "evidence": NO_EVIDENCE,
+            }
         )
         self.assertEqual(request["state"]["history"], history)
 
@@ -121,7 +131,9 @@ class QuestionTests(unittest.TestCase):
 
     def test_turn_outcome_examples_include_the_known_miss(self) -> None:
         deferred_examples = " ".join(
-            turn_judge.TURN_OUTCOME_LEVELS[turn_judge.OUTCOME_DEFERRED_LEVEL]["examples"]
+            turn_judge.TURN_OUTCOME_LEVELS[turn_judge.OUTCOME_DEFERRED_LEVEL][
+                "examples"
+            ]
         )
         self.assertIn("fix split now", deferred_examples)
 
@@ -146,10 +158,15 @@ class DecideTurnTests(unittest.TestCase):
         self.assertEqual(verdict.action, "allow")
 
     def test_uninvestigated_failure_blocks_without_offered_work(self) -> None:
-        self.assertEqual(self.decide(doable=0.1, investigation=0.9).block_kind, "deferred")
+        self.assertEqual(
+            self.decide(doable=0.1, investigation=0.9).block_kind, "deferred"
+        )
 
     def test_ask_with_nothing_doable_and_nothing_to_investigate_allows(self) -> None:
-        self.assertEqual(self.decide(outcome=WAITS_ON_USER, doable=0.3, investigation=0.2).action, "allow")
+        self.assertEqual(
+            self.decide(outcome=WAITS_ON_USER, doable=0.3, investigation=0.2).action,
+            "allow",
+        )
 
     def test_a_genuine_question_cannot_excuse_doable_work(self) -> None:
         """The real miss: reply "go" and I'll commit, plus a separate exit-code question."""
@@ -158,7 +175,9 @@ class DecideTurnTests(unittest.TestCase):
 
     def test_thresholds_are_inclusive_at_the_bar(self) -> None:
         self.assertEqual(
-            self.decide(doable=constants.TURN_DOABLE_WORK_THRESHOLD, investigation=0.0).block_kind,
+            self.decide(
+                doable=constants.TURN_DOABLE_WORK_THRESHOLD, investigation=0.0
+            ).block_kind,
             "deferred",
         )
         self.assertEqual(
@@ -170,19 +189,31 @@ class DecideTurnTests(unittest.TestCase):
 
     def test_leftover_work_blocks_even_without_a_handoff(self) -> None:
         """'It's a ~10-minute add.' never frames itself as asking for a go-ahead."""
-        verdict = self.decide(handoff=0.2, doable=0.1, investigation=0.1, leaves=0.9, running=0.08)
+        verdict = self.decide(
+            handoff=0.2, doable=0.1, investigation=0.1, leaves=0.9, running=0.08
+        )
         self.assertEqual((verdict.action, verdict.block_kind), ("block", "deferred"))
         self.assertEqual(verdict.signals["leaves_doable_work"], 0.9)
 
     def test_leftover_work_already_running_in_background_allows(self) -> None:
         verdict = self.decide(
-            outcome=FINISHED_OUTCOME, handoff=0.2, doable=0.1, investigation=0.1, leaves=0.9, running=0.9
+            outcome=FINISHED_OUTCOME,
+            handoff=0.2,
+            doable=0.1,
+            investigation=0.1,
+            leaves=0.9,
+            running=0.9,
         )
         self.assertEqual(verdict.action, "allow")
 
     def test_leftover_work_below_threshold_allows(self) -> None:
         verdict = self.decide(
-            outcome=FINISHED_OUTCOME, handoff=0.2, doable=0.1, investigation=0.1, leaves=0.5, running=0.0
+            outcome=FINISHED_OUTCOME,
+            handoff=0.2,
+            doable=0.1,
+            investigation=0.1,
+            leaves=0.5,
+            running=0.0,
         )
         self.assertEqual(verdict.action, "allow")
 
@@ -211,9 +242,13 @@ class DecideTurnTests(unittest.TestCase):
         self.assertEqual(self.decide(evidence, **CLAIM, unproven=0.95).action, "allow")
 
     def test_claim_with_unmatched_failure_blocks_first(self) -> None:
-        evidence = {"unmatched_test_failures": ["TestX"], "evidence_block": {"present": False}}
+        evidence = {
+            "unmatched_test_failures": ["TestX"],
+            "evidence_block": {"present": False},
+        }
         self.assertEqual(
-            self.decide(evidence, **CLAIM, unproven=0.0).block_kind, "unmatched_failures"
+            self.decide(evidence, **CLAIM, unproven=0.0).block_kind,
+            "unmatched_failures",
         )
 
     def test_claim_with_malformed_evidence_block_blocks(self) -> None:
@@ -221,15 +256,22 @@ class DecideTurnTests(unittest.TestCase):
             "unmatched_test_failures": [],
             "evidence_block": {"present": True, "valid": False},
         }
-        self.assertEqual(self.decide(evidence, **CLAIM).block_kind, "invalid_evidence_block")
+        self.assertEqual(
+            self.decide(evidence, **CLAIM).block_kind, "invalid_evidence_block"
+        )
 
     def test_unmatched_failure_without_a_claim_allows(self) -> None:
-        evidence = {"unmatched_test_failures": ["TestX"], "evidence_block": {"present": False}}
+        evidence = {
+            "unmatched_test_failures": ["TestX"],
+            "evidence_block": {"present": False},
+        }
         self.assertEqual(self.decide(evidence, **FINISHED).action, "allow")
 
     def test_logged_answers_drop_echoed_legends(self) -> None:
         verdict = self.decide()
-        self.assertNotIn("legend", verdict.as_json()["answers"][turn_judge.QUESTION_TURN_OUTCOME])
+        self.assertNotIn(
+            "legend", verdict.as_json()["answers"][turn_judge.QUESTION_TURN_OUTCOME]
+        )
 
     def test_malformed_answer_raises(self) -> None:
         broken = answers()
@@ -253,14 +295,23 @@ class OutcomeGatingTests(unittest.TestCase):
     def test_user_handed_over_the_turn_is_not_uninvestigated_work(self) -> None:
         """27c0e624: 'send the rest of what you have' after 'I'll provide more' was blocked at 0.83."""
         verdict = self.decide(
-            outcome=WAITS_ON_USER, handoff=0.91, doable=0.77, investigation=0.83, leaves=0.69
+            outcome=WAITS_ON_USER,
+            handoff=0.91,
+            doable=0.77,
+            investigation=0.83,
+            leaves=0.69,
         )
         self.assertEqual(verdict.action, "allow")
 
     def test_question_only_the_user_can_answer_is_not_leftover_work(self) -> None:
         """33eb44f5 'answer question 3' and 81b793b8 'is this file synthetic?'."""
         verdict = self.decide(
-            outcome=WAITS_ON_USER, handoff=0.2, doable=0.1, investigation=0.1, leaves=0.9, running=0.05
+            outcome=WAITS_ON_USER,
+            handoff=0.2,
+            doable=0.1,
+            investigation=0.1,
+            leaves=0.9,
+            running=0.05,
         )
         self.assertEqual(verdict.action, "allow")
 
@@ -271,13 +322,22 @@ class OutcomeGatingTests(unittest.TestCase):
     def test_handing_the_user_a_command_the_agent_can_run_blocks(self) -> None:
         """fed60255 'Next, about 2 minutes on your Mac: cd ... && go build': allowed before."""
         verdict = self.decide(
-            outcome=HANDS_OFF, handoff=0.3, doable=0.2, investigation=0.1, leaves=0.2, running=0.1
+            outcome=HANDS_OFF,
+            handoff=0.3,
+            doable=0.2,
+            investigation=0.1,
+            leaves=0.2,
+            running=0.1,
         )
         self.assertEqual((verdict.action, verdict.block_kind), ("block", "deferred"))
 
     def test_hands_off_below_the_confidence_bar_allows(self) -> None:
         verdict = self.decide(
-            outcome=(0.3, 0.1, 0.6), handoff=0.3, doable=0.2, investigation=0.1, leaves=0.2
+            outcome=(0.3, 0.1, 0.6),
+            handoff=0.3,
+            doable=0.2,
+            investigation=0.1,
+            leaves=0.2,
         )
         self.assertEqual(verdict.action, "allow")
 
@@ -288,7 +348,9 @@ class OutcomeGatingTests(unittest.TestCase):
         self.assertEqual(verdict.signals["prework_before_handoff"], 0.92)
 
     def test_waiting_turn_that_did_its_prep_allows(self) -> None:
-        self.assertEqual(self.decide(outcome=WAITS_ON_USER, doable=0.2, prework=0.3).action, "allow")
+        self.assertEqual(
+            self.decide(outcome=WAITS_ON_USER, doable=0.2, prework=0.3).action, "allow"
+        )
 
     def test_prep_bar_is_inclusive(self) -> None:
         verdict = self.decide(
@@ -299,7 +361,9 @@ class OutcomeGatingTests(unittest.TestCase):
     def test_asking_for_a_go_ahead_the_user_already_gave_blocks(self) -> None:
         """18fa3bd1: 'reply push' after the user said 'Go ahead ... have a worker set up the repo'."""
         verdict = self.decide(outcome=WAITS_ON_USER, doable=0.2, authorized=0.9)
-        self.assertEqual((verdict.action, verdict.block_kind), ("block", "already_authorized"))
+        self.assertEqual(
+            (verdict.action, verdict.block_kind), ("block", "already_authorized")
+        )
         self.assertEqual(verdict.signals["asks_permission_already_given"], 0.9)
 
     def test_already_authorized_outranks_the_deferred_paths(self) -> None:
@@ -307,7 +371,9 @@ class OutcomeGatingTests(unittest.TestCase):
 
     def test_already_authorized_bar_is_inclusive(self) -> None:
         verdict = self.decide(
-            outcome=WAITS_ON_USER, doable=0.2, authorized=constants.TURN_ALREADY_AUTHORIZED_THRESHOLD
+            outcome=WAITS_ON_USER,
+            doable=0.2,
+            authorized=constants.TURN_ALREADY_AUTHORIZED_THRESHOLD,
         )
         self.assertEqual(verdict.block_kind, "already_authorized")
 
@@ -317,7 +383,9 @@ class OutcomeGatingTests(unittest.TestCase):
         self.assertEqual(verdict.signals["user_withheld_action"], 0.88)
 
     def test_hold_off_bar_is_inclusive(self) -> None:
-        self.assertEqual(self.decide(withheld=constants.TURN_USER_WITHHELD_THRESHOLD).action, "allow")
+        self.assertEqual(
+            self.decide(withheld=constants.TURN_USER_WITHHELD_THRESHOLD).action, "allow"
+        )
 
     def test_a_weak_hold_off_signal_does_not_excuse_the_deferral(self) -> None:
         verdict = self.decide(withheld=constants.TURN_USER_WITHHELD_THRESHOLD - 0.01)
@@ -339,11 +407,14 @@ class OutcomeGatingTests(unittest.TestCase):
 
     def test_preference_bar_is_inclusive(self) -> None:
         self.assertEqual(
-            self.decide(preference=constants.TURN_CLOSING_PREFERENCE_THRESHOLD).action, "allow"
+            self.decide(preference=constants.TURN_CLOSING_PREFERENCE_THRESHOLD).action,
+            "allow",
         )
 
     def test_a_weak_preference_signal_does_not_excuse_the_deferral(self) -> None:
-        verdict = self.decide(preference=constants.TURN_CLOSING_PREFERENCE_THRESHOLD - 0.01)
+        verdict = self.decide(
+            preference=constants.TURN_CLOSING_PREFERENCE_THRESHOLD - 0.01
+        )
         self.assertEqual(verdict.block_kind, "deferred")
 
     def test_excuse_answers_are_not_read_for_a_finished_turn(self) -> None:
@@ -353,7 +424,9 @@ class OutcomeGatingTests(unittest.TestCase):
         self.assertEqual(turn_judge.decide_turn(partial, NO_EVIDENCE).action, "allow")
 
     def test_the_hold_off_question_names_the_held_back_action_first(self) -> None:
-        question = turn_judge.build_questions()[turn_judge.QUESTION_USER_WITHHELD_ACTION]
+        question = turn_judge.build_questions()[
+            turn_judge.QUESTION_USER_WITHHELD_ACTION
+        ]
         self.assertIn("identify the one action", question["instructions"])
 
     def test_outcome_answer_is_required(self) -> None:
@@ -407,7 +480,9 @@ ENVELOPE = json.dumps(
 class JudgeTurnCliTests(unittest.TestCase):
     def test_live_shaped_answers_block_a_deferral(self) -> None:
         urlopen = mock.Mock(
-            return_value=FakeHTTPResponse({"answers": answers(), "usage": {"input_tokens": 9}})
+            return_value=FakeHTTPResponse(
+                {"answers": answers(), "usage": {"input_tokens": 9}}
+            )
         )
         result = run_cli(ENVELOPE, urlopen)
         self.assertEqual(
@@ -416,7 +491,8 @@ class JudgeTurnCliTests(unittest.TestCase):
         )
         self.assertEqual(result["usage"], {"input_tokens": 9})
         self.assertEqual(
-            urlopen.call_args.kwargs["timeout"], constants.TURN_JUDGE_REQUEST_TIMEOUT_SECONDS
+            urlopen.call_args.kwargs["timeout"],
+            constants.TURN_JUDGE_REQUEST_TIMEOUT_SECONDS,
         )
         body = json.loads(urlopen.call_args.args[0].data.decode("utf-8"))
         self.assertEqual(set(body["questions"]), set(QUESTIONS))
@@ -426,7 +502,8 @@ class JudgeTurnCliTests(unittest.TestCase):
         urlopen = mock.Mock()
         result = run_cli(ENVELOPE, urlopen, getenv=getenv_without_key)
         self.assertEqual(
-            (result["source"], result["reason"]), ("fallback", constants.REASON_MISSING_KEY)
+            (result["source"], result["reason"]),
+            ("fallback", constants.REASON_MISSING_KEY),
         )
         urlopen.assert_not_called()
 
@@ -438,7 +515,9 @@ class JudgeTurnCliTests(unittest.TestCase):
 
     def test_failure_names_every_hop_in_detail_not_in_reason(self) -> None:
         def refused(code: int) -> urllib.error.HTTPError:
-            return urllib.error.HTTPError("http://x", code, "refused", {}, io.BytesIO(b""))
+            return urllib.error.HTTPError(
+                "http://x", code, "refused", {}, io.BytesIO(b"")
+            )
 
         result = run_cli(ENVELOPE, mock.Mock(side_effect=[refused(429), refused(400)]))
         self.assertEqual(
@@ -448,11 +527,17 @@ class JudgeTurnCliTests(unittest.TestCase):
 
     def test_detail_appears_only_when_a_request_failed(self) -> None:
         result = run_cli(ENVELOPE, mock.Mock(side_effect=TimeoutError("timed out")))
-        self.assertEqual(result["detail"], "api.typesafe.ai timeout > localhost timeout")
-        self.assertNotIn("detail", run_cli(ENVELOPE, mock.Mock(), getenv=getenv_without_key))
+        self.assertEqual(
+            result["detail"], "api.typesafe.ai timeout > localhost timeout"
+        )
+        self.assertNotIn(
+            "detail", run_cli(ENVELOPE, mock.Mock(), getenv=getenv_without_key)
+        )
 
     def test_malformed_answers_fall_back(self) -> None:
-        result = run_cli(ENVELOPE, mock.Mock(return_value=FakeHTTPResponse({"answers": {}})))
+        result = run_cli(
+            ENVELOPE, mock.Mock(return_value=FakeHTTPResponse({"answers": {}}))
+        )
         self.assertEqual(result["source"], "fallback")
         self.assertIn("missing", result["reason"])
 
@@ -465,7 +550,7 @@ class JudgeTurnCliTests(unittest.TestCase):
 class NoAskContextTests(unittest.TestCase):
     """No user_request — a subagent's turn — has no ask to leave work against."""
 
-    NO_ASK_EVIDENCE = {
+    NO_ASK_EVIDENCE: dict = {  # noqa: RUF012 — a read-only test fixture, never mutated
         "unmatched_test_failures": [],
         "evidence_block": {"present": True, "valid": False},
     }
@@ -484,7 +569,11 @@ class NoAskContextTests(unittest.TestCase):
         verdict = turn_judge.decide_turn(answers(), NO_EVIDENCE, None, user_request="")
         self.assertEqual(
             (verdict.action, verdict.block_kind, verdict.source),
-            (turn_judge.ACTION_ALLOW, turn_judge.BLOCK_NONE, turn_judge.SOURCE_TYPESAFE),
+            (
+                turn_judge.ACTION_ALLOW,
+                turn_judge.BLOCK_NONE,
+                turn_judge.SOURCE_TYPESAFE,
+            ),
         )
 
     def test_vetoed_signals_stay_computed_for_the_log(self) -> None:
@@ -497,7 +586,9 @@ class NoAskContextTests(unittest.TestCase):
         )
 
     def test_deferral_with_ask_still_blocks(self) -> None:
-        verdict = turn_judge.decide_turn(answers(), NO_EVIDENCE, None, user_request="fix it")
+        verdict = turn_judge.decide_turn(
+            answers(), NO_EVIDENCE, None, user_request="fix it"
+        )
         self.assertEqual(
             (verdict.action, verdict.block_kind),
             (turn_judge.ACTION_BLOCK, turn_judge.BLOCK_DEFERRED),
@@ -526,8 +617,12 @@ class NoAskContextTests(unittest.TestCase):
             turn_judge.QUESTION_LEAVES_DOABLE_WORK,
         ):
             with self.subTest(question=key):
-                self.assertIn("addressed to the user", questions[key]["criteria"]["true"])
-        deferred_level = turn_judge.TURN_OUTCOME_LEVELS[turn_judge.OUTCOME_DEFERRED_LEVEL]["what"]
+                self.assertIn(
+                    "addressed to the user", questions[key]["criteria"]["true"]
+                )
+        deferred_level = turn_judge.TURN_OUTCOME_LEVELS[
+            turn_judge.OUTCOME_DEFERRED_LEVEL
+        ]["what"]
         self.assertIn("addressed to the user", deferred_level)
 
 
