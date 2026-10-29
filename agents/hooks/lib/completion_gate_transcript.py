@@ -4,21 +4,22 @@ Only what a tool actually returned counts as evidence: a tool call and its
 result, paired by id. A test result line that appears in a Read, in printed
 source code, or in the assistant's own prose is not a test run.
 
-Claude JSONL transcripts and Grok ``updates.jsonl`` update streams are read. Anything else, such as legacy
-plain-text fixtures, yields ``None``; callers keep their raw-text behavior
-for it. Only the log's tail is read, so a FAIL older than that no longer counts.
+Claude JSONL transcripts, omp session logs and Grok ``updates.jsonl`` update
+streams are read. Anything else, such as legacy plain-text fixtures, yields
+``None``; callers keep their raw-text behavior for it. Only the log's tail is read, so a FAIL older than that no longer counts.
 """
 
 from __future__ import annotations
 
 import contextlib
 import os
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
 from completion_gate_claude_transcript import claude_events
 from completion_gate_grok_transcript import grok_events, is_grok_update_stream
+from completion_gate_omp_transcript import is_omp_session, omp_events
 from completion_gate_transcript_events import (
     Notification,
     Prompt,
@@ -87,7 +88,7 @@ def read_transcript_facts(path: str) -> TranscriptFacts | None:
     long session's transcript runs to hundreds of MB.
     """
     log = Path(path)
-    decode = grok_events if is_grok_update_stream(log) else claude_events
+    decode = _decoder_for(log)
     with contextlib.suppress(OSError), log.open("rb") as handle:
         size = handle.seek(0, os.SEEK_END)
         start = max(0, size - TRANSCRIPT_TAIL_BYTES)
@@ -95,6 +96,13 @@ def read_transcript_facts(path: str) -> TranscriptFacts | None:
         lines = handle.read().decode("utf-8", errors="replace").splitlines()
         return _fold(decode(lines[1:] if start else lines))
     return None
+
+
+def _decoder_for(log: Path) -> Callable[[Iterable[str]], Iterator[TranscriptEvent]]:
+    """The decoder for ``log``'s format, named by its head: the tail read drops the header."""
+    if is_grok_update_stream(log):
+        return grok_events
+    return omp_events if is_omp_session(log) else claude_events
 
 
 def _fold(events: Iterable[TranscriptEvent]) -> TranscriptFacts | None:
