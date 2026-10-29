@@ -4,7 +4,8 @@
 # Usage: done-fixture.sh <generated-dir>
 set -euo pipefail
 
-out="${1:?usage: done-fixture.sh <generated-dir>}"
+# Absolute: the fixture cds into its own repo before running the scripts.
+out="$(cd "${1:?usage: done-fixture.sh <generated-dir>}" && pwd -P)"
 done="${out}/bin/dev-profile-done"
 [[ -x "$done" ]] || {
 	echo "FAIL done fixture: missing ${done}" >&2
