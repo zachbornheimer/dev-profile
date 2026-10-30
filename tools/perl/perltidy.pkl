@@ -9,15 +9,6 @@ on {
   }
 }
 
-local perltidyFormat =
-  #"""
-  \#(bash)
-  \#(perlTools)
-  # The dprint exec command: perltidy on stdin, in the style of the repo holding the file at $1.
-  require_perl_tool perltidy
-  exec perltidy --profile="$(perl_config perltidy "$(dirname "${1:-.}")")" -q
-  """#
-
 files {
   ["perltidyrc"] =
     let (r = read?("perltidyrc")) if (r is String) r else if (r == null) "" else r.text
@@ -26,5 +17,6 @@ files {
 scripts {
   ["dev-profile-perltidy-fix"] =
     let (r = read?("perltidy-fix.sh")) if (r is String) r else if (r == null) "" else r.text
-  ["dev-profile-perltidy-format"] = perltidyFormat
+  ["dev-profile-perltidy-format"] =
+    let (r = read?("perltidy-format.sh")) if (r is String) r else if (r == null) "" else r.text
 }
