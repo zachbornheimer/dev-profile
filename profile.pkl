@@ -817,6 +817,7 @@ shellLibraries: Listing<String> = new {
   "contract-adapter"
   "nearest-up"
   "perl-tools"
+  "real-wt"
   "remove-merged"
   "repo-facts"
   "snapshot-tools"
