@@ -9,21 +9,12 @@ on {
   }
 }
 
-local perlcritic =
-  #"""
-  \#(bash)
-  \#(perlTools)
-  # perlcritic with the profile's (or the repo's own) policy set.
-  (($#)) || exit 0
-  require_perl_tool perlcritic
-  exec perlcritic --profile="$(perl_config perlcritic .)" "$@"
-  """#
-
 files {
   ["perlcriticrc"] =
     let (r = read?("perlcriticrc")) if (r is String) r else if (r == null) "" else r.text
 }
 
 scripts {
-  ["dev-profile-perlcritic"] = perlcritic
+  ["dev-profile-perlcritic"] =
+    let (r = read?("perlcritic.sh")) if (r is String) r else if (r == null) "" else r.text
 }
