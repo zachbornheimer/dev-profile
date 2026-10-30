@@ -10,5 +10,5 @@ on {
 }
 
 scripts {
-  ["dev-profile-shebang-scripts-executable"] = read("shebang-scripts-executable.sh").text
+  ["dev-profile-shebang-scripts-executable"] = read?("shebang-scripts-executable.sh")?.text ?? ""
 }

@@ -4,5 +4,5 @@ doc =
   "The dprint exec command for C and C++: clang-format on stdin, or in place on files. Passes input through when clang-format is absent."
 
 scripts {
-  ["dev-profile-clang-format"] = read("clang-format.sh").text
+  ["dev-profile-clang-format"] = read?("clang-format.sh")?.text ?? ""
 }

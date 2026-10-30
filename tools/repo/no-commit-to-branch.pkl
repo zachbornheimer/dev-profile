@@ -9,5 +9,5 @@ on {
 }
 
 scripts {
-  ["dev-profile-no-commit-to-default-branch"] = read("no-commit-to-default-branch.sh").text
+  ["dev-profile-no-commit-to-default-branch"] = read?("no-commit-to-default-branch.sh")?.text ?? ""
 }

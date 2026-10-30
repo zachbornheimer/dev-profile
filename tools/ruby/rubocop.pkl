@@ -7,5 +7,5 @@ on {
 }
 
 scripts {
-  ["dev-profile-rubocop-fix"] = read("rubocop-fix.sh").text
+  ["dev-profile-rubocop-fix"] = read?("rubocop-fix.sh")?.text ?? ""
 }

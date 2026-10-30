@@ -4,5 +4,5 @@ doc =
   "Runs a command only when its tool is on PATH (mise shims count). A missing scanner is not a failure."
 
 scripts {
-  ["dev-profile-if-installed"] = read("if-installed.sh").text
+  ["dev-profile-if-installed"] = read?("if-installed.sh")?.text ?? ""
 }

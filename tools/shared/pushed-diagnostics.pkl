@@ -4,5 +4,5 @@ doc =
   "Whole-program linters with no new-issues mode (go vet, cargo clippy): run them, then fail only on diagnostics located in the pushed files."
 
 scripts {
-  ["dev-profile-pushed-diagnostics"] = read("pushed-diagnostics.sh").text
+  ["dev-profile-pushed-diagnostics"] = read?("pushed-diagnostics.sh")?.text ?? ""
 }

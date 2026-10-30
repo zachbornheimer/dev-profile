@@ -9,5 +9,5 @@ on {
 }
 
 scripts {
-  ["dev-profile-identity-guard"] = read("identity-guard.sh").text
+  ["dev-profile-identity-guard"] = read?("identity-guard.sh")?.text ?? ""
 }

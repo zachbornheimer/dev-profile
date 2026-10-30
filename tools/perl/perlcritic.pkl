@@ -20,7 +20,7 @@ local perlcritic =
   """#
 
 files {
-  ["perlcriticrc"] = read("perlcriticrc").text
+  ["perlcriticrc"] = read?("perlcriticrc")?.text ?? ""
 }
 
 scripts {

@@ -97,6 +97,12 @@ facts {
     profile.history.tracked["~/.config/mise"].exclude.toList().contains("age.txt")
     profile.liveTargets.keys.every((link) -> !profile.history.tracked.keys.any((dir) -> link == dir))
   }
+  // Script files are read with read? so hk's own evaluator, which resolves a
+  // relative read from the wrong directory, can load the tool files. A real
+  // render must still find every one.
+  ["every generated script has a body"] {
+    render.wrappers.toMap().every((_, body) -> body.startsWith("#!"))
+  }
   ["commit-unstaged commits in the new worktree, not the invoking shell"] {
     render.worktrunk.aliases.prune == "wt step prune --min-age=0s"
     let (alias = render.worktrunk.aliases["commit-unstaged"])

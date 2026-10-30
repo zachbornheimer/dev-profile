@@ -4,5 +4,5 @@ doc =
   "Doctor warning, no hook: names files and runtime pins in a repo that the profile already owns (README \"Repo contract\"). Run by the contract doctor; warns and exits 0."
 
 scripts {
-  ["dev-profile-owned-files"] = read("owned-files.sh").text
+  ["dev-profile-owned-files"] = read?("owned-files.sh")?.text ?? ""
 }

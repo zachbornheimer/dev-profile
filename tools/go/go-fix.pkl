@@ -11,5 +11,5 @@ on {
 }
 
 scripts {
-  ["dev-profile-go-fix"] = read("go-fix.sh").text
+  ["dev-profile-go-fix"] = read?("go-fix.sh")?.text ?? ""
 }

@@ -4,5 +4,5 @@ doc =
   "Worktrunk's single post-start entry: copy the source worktree's ignored files (and repair the copied Composer autoloader), then start this checkout's dev stack through `mise run dev` — in that order, because post-start entries run concurrently and a stack that starts before the copy lands cannot load its own classes; through mise, so each code root's own profile picks the dispatcher."
 
 scripts {
-  ["dev-profile-worktree-start"] = read("worktree-start.sh").text
+  ["dev-profile-worktree-start"] = read?("worktree-start.sh")?.text ?? ""
 }

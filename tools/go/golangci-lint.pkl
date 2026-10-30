@@ -15,5 +15,5 @@ on {
 }
 
 scripts {
-  ["dev-profile-golangci-ratchet"] = read("golangci-ratchet.sh").text
+  ["dev-profile-golangci-ratchet"] = read?("golangci-ratchet.sh")?.text ?? ""
 }

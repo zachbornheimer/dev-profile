@@ -8,7 +8,7 @@ import "pr.pkl"
 import "script.pkl"
 
 wrappers: Mapping<String, String> = new {
-  ["dev-profile-done"] = read("done.sh").text
+  ["dev-profile-done"] = read?("done.sh")?.text ?? ""
 }
 
 aliases: Mapping<String, String> = new {

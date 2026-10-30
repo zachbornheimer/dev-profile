@@ -11,5 +11,5 @@ on {
 }
 
 scripts {
-  ["dev-profile-swift-format"] = read("swift-format.sh").text
+  ["dev-profile-swift-format"] = read?("swift-format.sh")?.text ?? ""
 }

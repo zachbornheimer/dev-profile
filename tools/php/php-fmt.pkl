@@ -11,5 +11,5 @@ on {
 }
 
 scripts {
-  ["dev-profile-php-fmt"] = read("php-fmt.sh").text
+  ["dev-profile-php-fmt"] = read?("php-fmt.sh")?.text ?? ""
 }

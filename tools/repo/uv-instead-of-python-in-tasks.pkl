@@ -10,5 +10,6 @@ on {
 }
 
 scripts {
-  ["dev-profile-uv-instead-of-python-in-tasks"] = read("uv-instead-of-python-in-tasks.sh").text
+  ["dev-profile-uv-instead-of-python-in-tasks"] =
+    read?("uv-instead-of-python-in-tasks.sh")?.text ?? ""
 }

@@ -4,5 +4,5 @@ doc =
   "No hook: builds an isolated mise config dir from the rendered profile and runs a command in it, so any directory (a /tmp clone, a CI runner) gets the full profile context. The CI action uses the same script."
 
 scripts {
-  ["dev-profile-env"] = read("env.sh").text
+  ["dev-profile-env"] = read?("env.sh")?.text ?? ""
 }

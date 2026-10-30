@@ -4,5 +4,5 @@ doc =
   "Runs a fixer and treats exit 1 as issues left for push to judge, not a failure. Commit fixers wrap themselves in it."
 
 scripts {
-  ["dev-profile-fix"] = read("fix.sh").text
+  ["dev-profile-fix"] = read?("fix.sh")?.text ?? ""
 }
