@@ -4,57 +4,9 @@
 module pr
 
 import "../profile.pkl"
-import "script.pkl"
 
 /// Absolute path of a generated script, so aliases and kitty work without PATH.
 function bin(name: String): String = "\(profile.installPath)/bin/\(name)"
-
-/// Script fragment: `slug` (origin's owner/name) and `ghr <gh args>`, gh scoped
-/// to it. In a fork clone gh alone resolves to the parent repo, but origin is
-/// where this clone publishes. A non-GitHub origin leaves gh to its own lookup.
-scope: String =
-  #"""
-  origin_url="$(git config --get remote.origin.url || :)"
-  origin_url="${origin_url%/}"
-  slug="$(sed -En 's#^(https?://([^/@]+@)?|ssh://([^/@]+@)?|[^/@]+@)[^/:]+[:/]([^/]+/[^/]+)$#\4#p' <<<"${origin_url%.git}")"
-  ghr() { gh "$@" ${slug:+--repo "${slug}"}; }
-  """#
-
-/// Script fragment: `ghr` (see `scope`), `owner`, `default_branch` and
-/// `branch_prs <branch> <state>`.
-github: String =
-  #"""
-  command -v gh >/dev/null || {
-    echo "GitHub CLI (gh) is required" >&2
-    exit 1
-  }
-  \#(scope)
-  repo_json="$(gh repo view ${slug:+"${slug}"} --json owner,defaultBranchRef)"
-  owner="$(jq -r .owner.login <<<"${repo_json}")"
-  default_branch="$(jq -r .defaultBranchRef.name <<<"${repo_json}")"
-
-  # This repo's own PRs (not forks') for branch $1 in state $2, newest first.
-  branch_prs() {
-    ghr pr list --head "$1" --state "$2" \
-      --json number,url,state,isDraft,headRefOid,headRepositoryOwner \
-      --jq "[.[] | select(.headRepositoryOwner.login == \"${owner}\")]"
-  }
-  """#
-
-/// Script fragment: `remove_merged <branch> <merged-oid>`.
-removeMerged: String =
-  #"""
-  # Remove branch $1 and its worktree, given $2: the head commit GitHub merged.
-  # Force-deletes only when the local tip is exactly that commit, so work made
-  # after the merge survives. A dirty worktree makes wt refuse; that is kept.
-  remove_merged() {
-    if [[ "$(git rev-parse --verify --quiet "refs/heads/$1")" == "$2" ]]; then
-      wt remove --foreground --force-delete "$1"
-    else
-      wt remove --foreground "$1"
-    fi
-  }
-  """#
 
 /// Generated bin/ scripts the worktrunk aliases run.
 wrappers: Mapping<String, String> = new {

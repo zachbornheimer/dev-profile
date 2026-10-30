@@ -5,7 +5,6 @@
 module done
 
 import "pr.pkl"
-import "script.pkl"
 
 wrappers: Mapping<String, String> = new {
   ["dev-profile-done"] =

@@ -3,10 +3,6 @@
 /// is the clone command. The script stays so the fixture can still call it.
 module retire
 
-import "pr.pkl"
-import "script.pkl"
-import "sync.pkl"
-
 /// Generated bin/ script the worktrunk alias runs.
 wrappers: Mapping<String, String> = new {
   ["dev-profile-retire"] =
