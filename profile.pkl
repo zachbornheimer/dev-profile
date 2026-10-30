@@ -505,8 +505,9 @@ bootstrapHooks: Mapping<String, String> = new {
   ["post-tools"] = "\(installPath)/bin/dev-profile-perl-tools-install"
 }
 
-/// The only absolute path allowed in generated files.
-llmCommand: String = "/Users/zbornheimer/.local/bin/_llm"
+/// The commit-message LLM, in this machine's home: generate runs on the machine
+/// that uses it, so no other user's path is ever rendered.
+llmCommand: String = "\(read("env:HOME"))/.local/bin/_llm"
 
 worktreePath: String = "{{ repo_path }}/../.worktrees/{{ repo }}-{{ branch | sanitize }}"
 

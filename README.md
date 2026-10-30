@@ -92,30 +92,44 @@ formats. `history-secrets.yml` runs gitleaks over the branch hourly, as a late
 alarm. The global hk `pre-push` hook does not run: mise pushes history with hooks
 off. If something leaks, rotate it first, then `mise dot history purge <path>`.
 
+### Templates
+
+There is one template engine per file. Everything under the render is Pkl: it
+runs on each machine at `generate`, so per-machine values (`HOME`, the install
+path) are already resolved there. Do not add a mise `mode = "template"` (Tera)
+layer on top of a rendered file, and never run Tera over shell code or the
+Worktrunk config: both use `{{ }}` themselves (`{{.Dir}}`, `{{ args }}`).
+
+mise templates fit files outside the render, such as tracked dotfiles that
+differ per machine: a `~/.gitconfig` whose email comes from `vars`, or a
+work-only file with `remove_empty = true` that disappears on other machines.
+
 `mise run rollback` leaves a regular file it has no backup of, such as the
 Worktrunk config with your keys, in place: its history holds every version.
 
 ## Layout
 
-| Path                       | Role                                                               |
-| -------------------------- | ------------------------------------------------------------------ |
-| `mise.toml`                | kernel: Pkl pin and verb tasks; the rest are in `mise-tasks/`      |
-| `profile.pkl`              | languages, runtime pins, live paths; derives the hooks             |
-| `tools/<category>/`        | one file per tool: doc, pin, scripts, its step per hook            |
-| `lib/Tool.pkl`             | the template every tool file amends                                |
-| `lib/hk.pkl`               | the hk config, assembled from the tools                            |
-| `lib/script.pkl`           | bash fragments the tool scripts share                              |
-| `lib/render.pkl`           | one renderer per generated file                                    |
-| `lib/contract.pkl`         | the repo task contract (`mise run lint`, `test`, `scan`...)        |
-| `lib/pr.pkl`               | `wt pr`, `wt pr-draft`, `wt pr-auto`                               |
-| `lib/done.pkl`             | `wt done`: restack, push, pull requests, prune, drop               |
-| `lib/sync.pkl`             | backup scripts the fixtures call; no worktrunk alias               |
-| `lib/retire.pkl`           | retire script the fixture calls; no worktrunk alias                |
-| `tests/profile.test.pkl`   | invariants and a snapshot of what each hook runs                   |
-| `tests/*-fixture.sh`       | the generated scripts against real git and go                      |
-| `mise-tasks/bump`          | bump every outdated pin to its latest release                      |
-| `mise-tasks/detach-merged` | turn a merged config still linked to the render into a file        |
-| `.github/workflows/`       | `ci` on every push and PR; `bump` weekly; `history-secrets` hourly |
+| Path                        | Role                                                               |
+| --------------------------- | ------------------------------------------------------------------ |
+| `mise.toml`                 | kernel: Pkl pin and verb tasks; the rest are in `mise-tasks/`      |
+| `profile.pkl`               | languages, runtime pins, live paths; derives the hooks             |
+| `tools/<category>/`         | one file per tool: doc, pin, scripts, its step per hook            |
+| `lib/Tool.pkl`              | the template every tool file amends                                |
+| `lib/hk.pkl`                | the hk config, assembled from the tools                            |
+| `lib/script.pkl`            | the generated-file banner and the `lib/facts.sh` renderer          |
+| `lib/sh/*.sh`               | shell libraries the bin/ scripts source from `../lib/`             |
+| `lib/*.sh`, `lib/adapters/` | the profile-wide scripts (contract, pr, done, sync, wt)            |
+| `lib/render.pkl`            | one renderer per generated file                                    |
+| `lib/contract.pkl`          | the repo task contract (`mise run lint`, `test`, `scan`...)        |
+| `lib/pr.pkl`                | `wt pr`, `wt pr-draft`, `wt pr-auto`                               |
+| `lib/done.pkl`              | `wt done`: restack, push, pull requests, prune, drop               |
+| `lib/sync.pkl`              | backup scripts the fixtures call; no worktrunk alias               |
+| `lib/retire.pkl`            | retire script the fixture calls; no worktrunk alias                |
+| `tests/profile.test.pkl`    | invariants and a snapshot of what each hook runs                   |
+| `tests/*-fixture.sh`        | the generated scripts against real git and go                      |
+| `mise-tasks/bump`           | bump every outdated pin to its latest release                      |
+| `mise-tasks/detach-merged`  | turn a merged config still linked to the render into a file        |
+| `.github/workflows/`        | `ci` on every push and PR; `bump` weekly; `history-secrets` hourly |
 
 ## What runs when
 
@@ -397,9 +411,14 @@ The template's fields:
   `depends` orders a step after others in the same hook, by hk step name.
 - `afterFixers`: a pre-commit `check` that must see the result of every fixer
   runs after all of them, as go-vet does after go fix.
-- `scripts`: generated `bin/dev-profile-<x>` scripts, called by name from the
-  commands. The hidden `bash`, `nearestUp`, `goModules` and `goPackages`
-  fragments are available inside them.
+- `scripts`: `bin/dev-profile-<x>` scripts, called by name from the commands.
+  Each is a real file beside the tool (`tools/<category>/<x>.sh`), read by the
+  tool file (see the example below). Shared shell code is a library in
+  `lib/sh/`, sourced from `../lib/`; never paste it in.
+- `facts`: profile values a script reads at run time (a pin, a list of globs):
+  `facts { ["PROFILE_X"] = value }`. Every fact lands in `lib/facts.sh` as a
+  readonly, single-quoted assignment; the script sources it and reads
+  `${PROFILE_X:?}`. A value is data, so it is never spliced into a script.
 - A tool in both hooks with different steps is `<name>-fix` or
   `<name>-staged` at commit and `<name>` at push; a tool with the same step in
   both keeps one name.
@@ -426,9 +445,9 @@ what a real tool needs. Tidy must run after every fixer that can change an
 import, not just goimports: go fix and golangci's `exptostd` swap a third-party
 package for stdlib, which leaves a stale `require`. And a module that a parent
 `go.work` omits must run with `GOWORK=off`, as the other Go steps do. So the
-shipped `tools/go/go-mod-tidy.pkl` adds a small wrapper script on the shared
-`goModules` fragment, which groups the given files by module and knows each
-module's workspace membership:
+shipped tool adds a small wrapper script, `tools/go/go-mod-tidy.sh`, on the
+shared `lib/sh/go-modules.sh` library, which groups the given files by module
+and knows each module's workspace membership:
 
 ```pkl
 glob = List("**/*.go", "**/go.mod", "**/go.sum")
@@ -441,23 +460,35 @@ on {
   ["pre-push"] { check = "dev-profile-go-mod-tidy --diff {{files}}" }
 }
 
-local goModTidy = #"""
-  \#(bash)
-  (($#)) || exit 0
-  \#(goModules)
-  ...
-  """#
-
-scripts { ["dev-profile-go-mod-tidy"] = goModTidy }
+scripts {
+  ["dev-profile-go-mod-tidy"] =
+    let (r = read?("go-mod-tidy.sh")) if (r is String) r else if (r == null) "" else r.text
+}
 ```
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+# Edit tools/go/go-mod-tidy.sh: `mise run generate` copies it into bin/.
+(($#)) || exit 0
+# shellcheck source=lib/sh/go-modules.sh
+source "$(dirname "${BASH_SOURCE[0]}")/../lib/go-modules.sh"
+...
+```
+
+The `let … read?` form is deliberate. hk evaluates the shipped Pkl with its own
+evaluator, which returns a String from `read` and resolves a relative path from
+the render's root; there the scripts are unused, so any value will do. `pkl
+eval` gets the file's text.
 
 Step by step, that was:
 
 1. Create `tools/go/go-mod-tidy.pkl` with `doc`, `glob` and the two `on`
    entries. `depends` names the fixers it must follow.
-2. Write the script as a `local` raw string and register it under `scripts`.
-   `mise run doctor` fails if a step names a `dev-profile-*` command that no
-   tool renders.
+2. Write the script as `tools/go/go-mod-tidy.sh` and register it under
+   `scripts`. `mise run doctor` fails if a step names a `dev-profile-*` command
+   that no tool renders, and `pkl test` fails if a script renders without its
+   shebang (a missing file).
 3. Add `tests/go-mod-tidy-fixture.sh` (real go and git, no network) and its
    line in the doctor task.
 4. `mise run test`. `pkl test` fails on the snapshot, as it should: review the
