@@ -806,6 +806,20 @@ languages: Listing<types.Spec> = new {
   }
 }
 
+/// lib/sh/<name>.sh, rendered to lib/<name>.sh beside bin/ for the scripts that
+/// source it. A script finds them from its own path, never PATH.
+shellLibraries: Listing<String> = new {
+  "gh-scope"
+  "github"
+  "go-modules"
+  "go-packages"
+  "nearest-up"
+  "perl-tools"
+  "remove-merged"
+  "repo-facts"
+  "snapshot-tools"
+}
+
 // Rendered outputs: `mise run generate` evaluates this into installDir.
 output {
   files {
@@ -847,5 +861,8 @@ output {
     for (name, body in render.wrappers) {
       ["bin/\(name)"] { text = body }
     }
+    // Shell libraries the bin/ scripts source from ../lib/. Listed, not globbed:
+    // hk's evaluator has no read*.
+    for (name in shellLibraries) { ["lib/\(name).sh"] { text = read("lib/sh/\(name).sh").text } }
   }
 }
