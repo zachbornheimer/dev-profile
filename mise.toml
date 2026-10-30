@@ -35,6 +35,10 @@ run = "mise run doctor"
 description = "Check the installed files"
 run = "mise run doctor"
 
+[tasks."test:kitty-tabs"]
+description = "Render custom tab labels with the installed Kitty engine (no UI)"
+run = "kitty +runpy \"import runpy; runpy.run_path('tests/kitty_tabs.py', run_name='__main__')\""
+
 [tasks.ci]
 description = "lint, then the file check"
 run = ["mise run lint", "mise run test"]

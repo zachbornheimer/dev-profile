@@ -26,6 +26,7 @@
 !/tests/*.sh
 !/tests/*.pkl
 !/tests/*.pcf
+!/tests/kitty_tabs.py
 !/tests/contract/
 !/tests/contract/*.sh
 !/tests/guards/

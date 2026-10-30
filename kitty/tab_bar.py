@@ -74,7 +74,8 @@ def _cwd_or_fallback(tab: object, title: str, exe: str) -> str:
 def _parse_glyph(value: str) -> str:
     text = value.strip()
     if text.lower().startswith("u+"):
-        return chr(int(text, 0))
+        hexadecimal_codepoint = text[2:]
+        return chr(int(hexadecimal_codepoint, 16))
     if text and len(text) <= 2 and not text.isascii():
         return text
     return ""

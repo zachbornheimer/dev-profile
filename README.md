@@ -17,3 +17,5 @@ SSH private keys, home/ssh/config, known_hosts, the opencode password, and agent
 ## Checks
 
 Run mise run doctor. Run mise dot apply --dry-run before changing live links.
+
+Run `mise run test:kitty-tabs` with Kitty installed to check custom tab labels, icons, equal widths, and the new-tab button using Kitty's renderer without opening a window. Tab icons in `kitty/tab-icons.conf` accept hexadecimal Unicode codepoints such as `U+E73C` or literal glyphs.
