@@ -365,6 +365,88 @@ def _task_of(facts: Any) -> str:
     return _clip("\n".join(prompts), TASK_CHARS)
 
 
+CAPABILITY_CLI_ENV = "HC_CAPABILITY_CLI"
+CAPABILITY_TURNS = 3
+CAPABILITY_TIMEOUT_SECS = 3.0
+# Hooks run with a PATH that carries neither `node` nor `bun`, so the CLI's
+# `#!/usr/bin/env node` shebang exits 127 there. The interpreter is resolved here
+# and its directory put on the child's PATH. bun is tried first: it starts in tens
+# of milliseconds, where node costs roughly a second on every tool call.
+CAPABILITY_RUNNERS = (
+    ".local/share/mise/installs/bun/*/bin/bun",
+    ".local/share/mise/installs/node/*/bin/node",
+)
+
+
+def _newest_runner(pattern: str) -> Path | None:
+    found = sorted(path for path in Path.home().glob(pattern) if path.is_file())
+    return found[-1] if found else None
+
+
+def _recent_turns(session_id: str, env: Mapping[str, str]) -> tuple[str, ...]:
+    """The session's newest turns, as the harness reports them.
+
+    The transcript reader yields the user's asks and the tool calls, but not what
+    the agent itself has been saying. The judge needs that to tell "continuing the
+    work" from "started something else". A missing CLI, a missing interpreter, a
+    timeout or a malformed reply returns nothing — the guard then falls back to the
+    transcript, never to a guess.
+    """
+    override = env.get(CAPABILITY_CLI_ENV, "").strip()
+    cli = (
+        Path(override) if override else Path.home() / ".local/share/aube/bin/capability"
+    )
+    if not cli.is_file() or not session_id:
+        return ()
+    runner = next(
+        (found for pattern in CAPABILITY_RUNNERS if (found := _newest_runner(pattern))),
+        None,
+    )
+    if runner is None:
+        return ()
+    payload = json.dumps(
+        {"conversation": f"omp:{session_id}", "turns": CAPABILITY_TURNS}
+    )
+    child_env = dict(os.environ)
+    child_env["PATH"] = f"{runner.parent}:{child_env.get('PATH', '/usr/bin:/bin')}"
+    try:
+        done = subprocess.run(
+            [str(runner), str(cli), "run", "get_recent_turns", "--input", payload],
+            capture_output=True,
+            text=True,
+            timeout=CAPABILITY_TIMEOUT_SECS,
+            check=False,
+            env=child_env,
+        )
+    except (subprocess.SubprocessError, OSError):
+        return ()
+    if done.returncode != 0:
+        return ()
+    try:
+        reply = json.loads(done.stdout)
+    except ValueError:
+        return ()
+    if not isinstance(reply, dict):
+        return ()
+    lines = []
+    for turn in (reply.get("turns") or [])[-CAPABILITY_TURNS:]:
+        if not isinstance(turn, dict):
+            continue
+        for message in turn.get("messages") or []:
+            if not isinstance(message, dict):
+                continue
+            speaker = str(message.get("from") or "").strip()
+            text = " ".join(str(message.get("content") or "").split())
+            if speaker and text:
+                lines.append(
+                    _clip(
+                        f"Earlier in this session, {speaker} said: {text}",
+                        CONTEXT_CHARS,
+                    )
+                )
+    return tuple(lines)
+
+
 def _context(facts: Any) -> tuple[str, ...]:
     """Make relevant prior instructions and the current trajectory visible to Jev."""
     if facts is None:
@@ -478,8 +560,11 @@ def _observe(
         )
 
     try:
+        # The harness's recent turns first, then the transcript's asks and tool
+        # runs: the historical state plus this call, which is what the judge needs.
+        context = _recent_turns(request.session_id, env) + _context(facts)
         judgment = ScopeJudge.from_env(env).judge(
-            task, candidate, request.kind, _context(facts)
+            task, candidate, request.kind, context
         )
     except (OSError, ValueError, yaml.YAMLError) as exc:
         return Observation(
