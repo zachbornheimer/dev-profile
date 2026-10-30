@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# Edit tools/swift/swift-format.sh: `mise run generate` copies it into bin/.
+
+# Apple swift-format 6 reads stdin from `-` or from no paths. It has no
+# `--stdin` flag (that exits 64). It reads `.swift-format` only from the
+# working directory, and dprint's is the config dir, so the file's config
+# has to be passed. nicklockwood/swiftformat is the other installed command.
+# Usage: dev-profile-swift-format --stdin-path FILE   stdin to stdout (dprint)
+#        dev-profile-swift-format FILE...             in place (hk)
+config_for() {
+	local dir
+	dir="$(cd "$(dirname "$1")" && pwd)"
+	while [[ "${dir}" != "/" ]]; do
+		if [[ -f "${dir}/.swift-format" ]]; then
+			echo "${dir}/.swift-format"
+			return 0
+		fi
+		dir="$(dirname "${dir}")"
+	done
+}
+
+if command -v swift-format >/dev/null 2>&1; then
+	if [[ "${1:-}" == "--stdin-path" ]]; then
+		args=(format --assume-filename "$(basename "$2")" -)
+		cfg="$(config_for "$2")"
+		[[ -z "${cfg}" ]] || args=(format --configuration "${cfg}" --assume-filename "$(basename "$2")" -)
+		swift-format "${args[@]}"
+		exit 0
+	fi
+	if [[ $# -eq 0 ]]; then
+		swift-format format -
+		exit 0
+	fi
+	cfg="$(config_for "$1")"
+	if [[ -n "${cfg}" ]]; then
+		swift-format format --configuration "${cfg}" --in-place "$@"
+	else
+		swift-format format --in-place "$@"
+	fi
+	exit 0
+fi
+if command -v swiftformat >/dev/null 2>&1; then
+	if [[ "${1:-}" == "--stdin-path" ]]; then
+		swiftformat --quiet --stdin-path "$2" stdin
+		exit 0
+	fi
+	if [[ $# -eq 0 ]]; then
+		swiftformat --quiet stdin
+		exit 0
+	fi
+	swiftformat --quiet "$@"
+	exit 0
+fi
+[[ $# -gt 0 ]] || cat
