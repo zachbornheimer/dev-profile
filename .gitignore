@@ -17,6 +17,8 @@
 !/tools/
 !/tools/*/
 !/tools/*/*.pkl
+!/tools/*/*.sh
+!/tools/*/*.py
 !/tests/
 !/tests/*.sh
 !/tests/*.pkl
