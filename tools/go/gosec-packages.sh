@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# Edit tools/go/gosec-packages.sh: `mise run generate` copies it into bin/.
+
+# dev-profile-gosec-packages <files…>: gosec the Go packages that contain the
+# given files, but fail only on findings located in those files, so findings
+# already sitting in untouched files never block a push.
+# A system boundary is exempt from the rule that describes its job, and from
+# nothing else: the subprocess rules (G204 variable argv, G702 syscall exec)
+# do not apply in a file named facade.go/facades.go or in a package directory
+# named process; the file-inclusion rule (G304 path from a variable) does not
+# apply in a facade file or in a package directory named fs. Every other rule
+# still applies there, and every rule applies everywhere else.
+# Skips when gosec is not installed or no Go file is given.
+command -v gosec >/dev/null 2>&1 || exit 0
+root="$(pwd -P)"
+packages=()
+changed=()
+for file in "$@"; do
+	[[ "${file}" == *.go ]] || continue
+	packages+=("./$(dirname "${file}")")
+	changed+=("${root}/${file#./}")
+done
+((${#packages[@]})) || exit 0
+# gosec exits 1 on any finding; the verdict comes from the report below.
+report="$(printf '%s\n' "${packages[@]}" | sort -u | xargs gosec -fmt json 2>/dev/null || true)"
+if ! jq -e .Issues >/dev/null 2>&1 <<<"${report}"; then
+	echo "gosec produced no readable report:" >&2
+	echo "${report}" >&2
+	exit 1
+fi
+findings="$(jq -r --arg root "${root}/" '
+  .Issues[]
+  | select(.file as $path | $ARGS.positional | index($path))
+  | select(((.file | test("/facades?\\.go$|/process/[^/]+\\.go$")) and (.rule_id | IN("G204", "G702"))) | not)
+  | select(((.file | test("/facades?\\.go$|/fs/[^/]+\\.go$")) and .rule_id == "G304") | not)
+  | "\(.file | ltrimstr($root)):\(.line) \(.rule_id) \(.details)"
+' --args "${changed[@]}" <<<"${report}")"
+[[ -z "${findings}" ]] || {
+	echo "${findings}" >&2
+	exit 1
+}
