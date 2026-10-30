@@ -178,7 +178,6 @@ local syncScript =
     fi
   }
 
-
   # Rebase branch $1 onto origin/$1. Returns 1, with nothing changed, when the
   # rebase conflicts or the branch's worktree has uncommitted changes.
   # Runs as a condition, where set -e is off, so every step checks itself.
@@ -272,28 +271,6 @@ local syncScript =
   else
     echo "Everything unique in this clone is on GitHub"
   fi
-  """#
-
-local reconcileScript =
-  #"""
-  \#(script.bash)
-  # Rebase the current branch onto GitHub's copy and push the result. On a
-  # conflict, stop mid-rebase in this worktree for a person to resolve.
-  branch="$(git symbolic-ref --quiet --short HEAD)" || {
-    echo "Detached HEAD; check out the branch to reconcile" >&2
-    exit 1
-  }
-  git fetch --quiet origin
-  if ! git rev-parse --verify --quiet "refs/remotes/origin/${branch}" >/dev/null; then
-    echo "origin/${branch} does not exist; nothing to reconcile. Publish it with: wt sync"
-    exit 0
-  fi
-  if ! git rebase "origin/${branch}"; then
-    echo "Resolve the conflicts in $(pwd), then: git rebase --continue && wt sync" >&2
-    exit 1
-  fi
-  git push origin "HEAD:refs/heads/${branch}"
-  echo "Reconciled ${branch} with GitHub"
   """#
 
 local pruneScript =
@@ -442,7 +419,7 @@ local pruneScript =
 /// Generated bin/ scripts the worktrunk aliases run.
 wrappers: Mapping<String, String> = new {
   ["dev-profile-sync"] = syncScript
-  ["dev-profile-reconcile"] = reconcileScript
+  ["dev-profile-reconcile"] = read("reconcile.sh").text
   ["dev-profile-prune"] = pruneScript
 }
 
