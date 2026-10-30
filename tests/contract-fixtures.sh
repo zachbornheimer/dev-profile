@@ -274,6 +274,18 @@ fixture_failure_runs_every_adapter() {
 	expect_call "aube|${repo}|run test" "failure"
 }
 
+# Renders the enforcing variant's suppressions script into dir $1 as a render
+# lays it out (bin/ and the lib/facts.sh it sources); prints the script path.
+render_enforcing() { # <dir>
+	mkdir -p "$1/bin" "$1/lib"
+	local file
+	for file in bin/dev-profile-suppressions lib/facts.sh; do
+		DEV_PROFILE_OUT="$out" pkl eval -p suppressionMode=enforce \
+			-x "output.files[\"${file}\"].text" "$profile" >"$1/${file}"
+	done
+	echo "$1/bin/dev-profile-suppressions"
+}
+
 fixture_suppressions() {
 	local repo enforce="${work}/enforce-suppressions"
 	repo="$(new_repo suppressions)"
@@ -285,8 +297,7 @@ fixture_suppressions() {
 	expect_output "s.go:3:" "suppressions report"
 	expect_output "report mode: 1 inline suppression(s)" "suppressions report"
 
-	DEV_PROFILE_OUT="$out" pkl eval -p suppressionMode=enforce \
-		-x 'output.files["bin/dev-profile-suppressions"].text' "$profile" >"$enforce"
+	enforce="$(render_enforcing "$enforce")"
 	for mode in --tree --unpushed; do
 		if (cd "$repo" && bash "$enforce" "$mode") >"$output" 2>&1; then
 			fail "suppressions: enforce mode must block (${mode})"
@@ -300,8 +311,7 @@ fixture_suppressions_language_scope() {
 	repo="$(new_repo suppressions-scope)"
 	# Directives are assembled at runtime so this file never contains them.
 	local noqa="# no""qa" tsi="// @ts-""ignore" nol="//no""lint"
-	DEV_PROFILE_OUT="$out" pkl eval -p suppressionMode=enforce \
-		-x 'output.files["bin/dev-profile-suppressions"].text' "$profile" >"$enforce"
+	enforce="$(render_enforcing "$enforce")"
 
 	# Prose that forbids suppressions, in files of no suppressing language.
 	printf 'Never write %s or %s or %s.\n' "$noqa" "$tsi" "$nol" >"${repo}/prompt.templ"
@@ -329,8 +339,7 @@ fixture_suppressions_semgrep() {
 	repo="$(new_repo suppressions-semgrep)"
 	# Directives are assembled at runtime so this file never contains them.
 	local slash="// no""semgrep" hash="# no""semgrep"
-	DEV_PROFILE_OUT="$out" pkl eval -p suppressionMode=enforce \
-		-x 'output.files["bin/dev-profile-suppressions"].text' "$profile" >"$enforce"
+	enforce="$(render_enforcing "$enforce")"
 
 	printf 'Never write %s or %s.\n' "$slash" "$hash" >"${repo}/guide.md"
 	printf 'Never write %s or %s.\n' "$slash" "$hash" >"${repo}/prompt.templ"
