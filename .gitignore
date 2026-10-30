@@ -20,6 +20,9 @@
 !/tools/*/*.pkl
 !/tools/*/*.sh
 !/tools/*/*.py
+!/tools/*/*.mjs
+!/tools/perl/perltidyrc
+!/tools/perl/perlcriticrc
 !/tests/
 !/tests/*.sh
 !/tests/*.pkl

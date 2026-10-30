@@ -20,20 +20,7 @@ local perlcritic =
   """#
 
 files {
-  ["perlcriticrc"] =
-    #"""
-    [-BuiltinFunctions::ProhibitStringyEval]
-    [-ControlStructures::ProhibitMutatingListFunctions]
-    [-ControlStructures::ProhibitUnreachableCode]
-    [-Modules::RequireExplicitPackage]
-    [-RegularExpressions::RequireExtendedFormatting]
-    [-Subroutines::RequireArgUnpacking]
-    [-TestingAndDebugging::ProhibitNoStrict]
-    [-TestingAndDebugging::RequireUseStrict]
-    [-TestingAndDebugging::RequireUseWarnings]
-    [-ValuesAndExpressions::ProhibitLeadingZeros]
-
-    """#
+  ["perlcriticrc"] = read("perlcriticrc").text
 }
 
 scripts {
