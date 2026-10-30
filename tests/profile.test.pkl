@@ -107,6 +107,9 @@ facts {
     script.shellWord("it's") == #"'it'\''s'"#
     script.shellWord("a\nb") == "'a\nb'"
     render.facts.toMap().keys.every((k) -> k.startsWith("PROFILE_"))
+    contract.facts.toMap().keys.every((k) -> k.startsWith("PROFILE_"))
+    // One owner per name: `+` would silently keep the contract's value.
+    render.facts.toMap().keys.intersect(contract.facts.toMap().keys).isEmpty
   }
   ["every generated script has a body"] {
     render.wrappers.toMap().every((_, body) -> body.startsWith("#!"))

@@ -18,26 +18,6 @@ local pytestNoTests = 5
 
 local bash = "#!/usr/bin/env bash\nset -euo pipefail\n" + render.header("#") + "\n"
 
-// ---- Root overlay tasks
-/// A bin script, not an inline task `run`: mise renders task scripts through Tera,
-/// which reads the `#` of bash's array-length expansion as a comment opener.
-local ciScript =
-  """
-  #!/usr/bin/env bash
-  set -uo pipefail
-  \(render.header("#"))
-  # Run every ci verb (repo overrides included), then fail if any failed.
-  failed=()
-  for verb in \(profile.ciVerbs.join(" ")); do
-    mise run "${verb}" || failed+=("${verb}")
-  done
-  if [[ "${#failed[@]}" -gt 0 ]]; then
-    echo "ci failed: ${failed[*]}" >&2
-    exit 1
-  fi
-  echo "ci ok"
-  """
-
 /// `profile:<verb>` runs the dispatcher from the invoking directory (mise would
 /// otherwise run a parent-defined task in the code root); `<verb>` depends on it.
 tasks: Dynamic = new {
@@ -511,37 +491,6 @@ local repo =
   esac
   """
 
-/// Doctor warning: the machine's active kernel and runtime tools against the
-/// profile's pins. A pin matches an installed version that starts with it
-/// (`go = "1.27"` accepts 1.27.3). Warns and exits 0; mise ls is the machine truth.
-local kernelPins =
-  """
-  \(bash)
-  # mise ls --global lists what the rendered profile config requests, installed or not.
-  active="$(mise ls --global --json 2>/dev/null || echo '{}')"
-
-  # Neovim saves run the profile's dprint whatever this directory pins, so a
-  # different pin here makes `mise run fmt` and the editor format with different builds.
-  warn_dprint_here() { # <profile pin>
-    local here
-    here="$(mise ls --json dprint 2>/dev/null </dev/null | jq -r 'map(select(.active))[0].version // empty')" || return 0
-    [[ -z "${here}" || "${here}" == "$1" || "${here}" == "$1".* ]] ||
-      echo "doctor: this directory pins dprint ${here}; Neovim saves run the profile's ${1}, so they can format differently from mise run fmt" >&2
-  }
-
-  while read -r id pin; do
-    if ! jq -e --arg id "${id}" --arg pin "${pin}" \
-      '(.[$id] // []) | any(.installed and .active and (.version == $pin or (.version | startswith($pin + "."))))' \
-      <<<"${active}" >/dev/null; then
-      echo "doctor: ${id} ${pin} is pinned by the profile but is not the active installed version; run mise install" >&2
-    fi
-    [[ "${id}" != dprint ]] || warn_dprint_here "${pin}"
-  done <<'PINS'
-  \(kernelPinLines)
-  PINS
-  exit 0
-  """
-
 local kernelPinLines: String =
   List(profile.kernelTools.toList(), profile.tools.toList())
     .flatten()
@@ -691,63 +640,33 @@ local suppressions =
   echo "report mode: ${found} inline suppression(s), not blocking. Set suppressionMode = 'enforce' in profile.pkl to block." >&2
   """
 
-// ---- commit-msg hook
-local commitMsg =
-  """
-  \(bash)
-  # commit-msg hook: the subject must be a Conventional Commit.
-  file="${1:?usage: dev-profile-commit-msg <message-file>}"
-  subject="$(sed -n '/^#/d; /./{p;q;}' "${file}")"
-  case "${subject}" in
-    "Merge "* | "Revert "* | "fixup! "* | "squash! "* | "amend! "*) exit 0 ;;
-  esac
-  pattern='^(\(profile.conventionalCommitTypes.join("|")))([(][^)]+[)])?!?: .+'
-  if [[ "${subject}" =~ ${pattern} ]]; then
-    exit 0
-  fi
-  echo "commit-msg: subject must be 'type(scope): description'." >&2
-  echo "  types: \(profile.conventionalCommitTypes.join(", "))" >&2
-  echo "  got:   ${subject}" >&2
-  exit 1
-  """
-
-// ---- pre-push: the contract verbs hooks would otherwise never run
-local contractPush =
-  """
-  \(bash)
-  # git exports GIT_DIR, GIT_INDEX_FILE, … to hooks; clear them so tests that
-  # create their own throwaway repos do not act on the repo being pushed.
-  while IFS= read -r var; do unset "${var}"; done < <(git rev-parse --local-env-vars)
-  # Run the push-time contract verbs. A repo outside a profile code root has no
-  # contract tasks; say so instead of failing every push there.
-  if ! mise tasks info \(namespace):test >/dev/null 2>&1; then
-    echo "contract: no profile tasks here (not under a profile code root); skipped" >&2
-    exit 0
-  fi
-  failed=()
-  for verb in \(pushVerbs.join(" ")); do
-    mise run "${verb}" || failed+=("${verb}")
-  done
-  if [[ "${#failed[@]}" -gt 0 ]]; then
-    echo "pre-push contract failed: ${failed[*]}" >&2
-    exit 1
-  fi
-  """
-
 /// Contract verbs every push runs (lint is the hk checks that run beside them).
 pushVerbs: Listing<String> = new { "test"; "scan" }
 
+/// Values the contract scripts read from lib/facts.sh.
+facts: Mapping<String, String> = new {
+  ["PROFILE_CI_VERBS"] = profile.ciVerbs.join(" ")
+  ["PROFILE_PUSH_VERBS"] = pushVerbs.join(" ")
+  ["PROFILE_TASK_NAMESPACE"] = namespace
+  ["PROFILE_KERNEL_PINS"] = kernelPinLines
+  ["PROFILE_COMMIT_TYPES"] = profile.conventionalCommitTypes.join(" ")
+}
+
 /// Generated bin/ scripts for the contract.
 wrappers: Mapping<String, String> = new {
-  ["dev-profile-kernel-pins"] = kernelPins
+  ["dev-profile-kernel-pins"] =
+    let (r = read?("kernel-pins.sh")) if (r is String) r else if (r == null) "" else r.text
   ["dev-profile-contract"] = dispatcher
   ["dev-profile-hk"] =
     let (r = read?("hk.sh")) if (r is String) r else if (r == null) "" else r.text
-  ["dev-profile-ci"] = ciScript
-  ["dev-profile-contract-push"] = contractPush
+  ["dev-profile-ci"] =
+    let (r = read?("ci.sh")) if (r is String) r else if (r == null) "" else r.text
+  ["dev-profile-contract-push"] =
+    let (r = read?("contract-push.sh")) if (r is String) r else if (r == null) "" else r.text
   for (adapter in profile.contractAdapters) {
     ["dev-profile-contract-\(adapter.id)"] = adapterScript(adapter.id, adapterBodies[adapter.id])
   }
   ["dev-profile-suppressions"] = suppressions
-  ["dev-profile-commit-msg"] = commitMsg
+  ["dev-profile-commit-msg"] =
+    let (r = read?("commit-msg.sh")) if (r is String) r else if (r == null) "" else r.text
 }
