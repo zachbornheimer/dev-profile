@@ -50,7 +50,8 @@ The Worktrunk config is a regular file with a mise `merge` entry: each apply set
 the keys `worktrunk.toml` renders and leaves the rest alone, so an alias you add
 with `wt` or an editor survives `generate`. A key the profile drops stays in the
 live file until you delete it. When an alias earns a place in the profile, move it
-into `lib/render.pkl`.
+into `lib/render.pkl`. A pull or merge that moves `main` re-renders and then
+applies the dotfiles, so the profile's keys follow `main` as the links do.
 
 The history watcher (`mise-history`, a bootstrap service) saves each edit to
 mise's local history, so `mise dot history`, `mise dot rollback` and
