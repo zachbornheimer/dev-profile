@@ -27,6 +27,12 @@ from hook_common.event import RUN_COMMAND_TOOL, TOOL_NAME_ALIASES
 SESSION_ROW = "session"
 MESSAGE_ROW = "message"
 USER_ATTRIBUTION = "user"
+# The attributions that count as a prompt. omp marks a message a human typed as "user" and
+# everything the harness delivers as "agent" — including the work order a parent agent
+# delegated and that parent's later redirects. The harness's own injected context is not a
+# message row at all (`custom_message`), so a consumer that wants the delegated task passes
+# both; the completion gate keeps the default, where a subagent's turn has no ask of its own.
+PROMPT_ATTRIBUTIONS = frozenset({USER_ATTRIBUTION})
 TOOL_CALL_BLOCK = "toolCall"
 TEXT_BLOCK = "text"
 SHELL_TOOL_NAMES = frozenset({"bash"})
@@ -60,7 +66,9 @@ def _is_session_header(line: bytes) -> bool:
     return isinstance(row, dict) and row.get("type") == SESSION_ROW
 
 
-def omp_events(lines: Iterable[str]) -> Iterator[TranscriptEvent]:
+def omp_events(
+    lines: Iterable[str], prompt_attributions: frozenset[str] = PROMPT_ATTRIBUTIONS
+) -> Iterator[TranscriptEvent]:
     for line in lines:
         row = _decode(line)
         if row is None:
@@ -68,7 +76,7 @@ def omp_events(lines: Iterable[str]) -> Iterator[TranscriptEvent]:
         message = row["message"]
         role, content = message.get("role"), message.get("content")
         if role == "user":
-            yield from _prompt(row, message, content)
+            yield from _prompt(row, message, content, prompt_attributions)
         elif role == "assistant":
             yield Reply(_text_of(content))
             yield from _tool_calls(content)
@@ -93,10 +101,13 @@ def _decode(line: str) -> dict[str, Any] | None:
 
 
 def _prompt(
-    row: dict[str, Any], message: dict[str, Any], content: Any
+    row: dict[str, Any],
+    message: dict[str, Any],
+    content: Any,
+    prompt_attributions: frozenset[str],
 ) -> Iterator[Prompt]:
     attribution = message.get("attribution")
-    if attribution is not None and attribution != USER_ATTRIBUTION:
+    if attribution is not None and attribution not in prompt_attributions:
         return
     text = content.strip() if isinstance(content, str) else _text_of(content)
     if text and not text.startswith(NON_PROMPT_PREFIXES):

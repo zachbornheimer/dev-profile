@@ -19,7 +19,11 @@ from pathlib import Path
 
 from completion_gate_claude_transcript import claude_events
 from completion_gate_grok_transcript import grok_events, is_grok_update_stream
-from completion_gate_omp_transcript import is_omp_session, omp_events
+from completion_gate_omp_transcript import (
+    PROMPT_ATTRIBUTIONS,
+    is_omp_session,
+    omp_events,
+)
 from completion_gate_transcript_events import (
     Notification,
     Prompt,
@@ -81,14 +85,18 @@ class TranscriptFacts:
         return self.runs[self.turn_start :]
 
 
-def read_transcript_facts(path: str) -> TranscriptFacts | None:
+def read_transcript_facts(
+    path: str, prompt_attributions: frozenset[str] = PROMPT_ATTRIBUTIONS
+) -> TranscriptFacts | None:
     """``None`` when ``path`` is unreadable or holds no decodable records.
 
     Reads only the last TRANSCRIPT_TAIL_BYTES: a Stop hook has seconds, and a
-    long session's transcript runs to hundreds of MB.
+    long session's transcript runs to hundreds of MB. ``prompt_attributions``
+    decides which user-role messages count as a prompt (see
+    ``completion_gate_omp_transcript.PROMPT_ATTRIBUTIONS``).
     """
     log = Path(path)
-    decode = _decoder_for(log)
+    decode = _decoder_for(log, prompt_attributions)
     with contextlib.suppress(OSError), log.open("rb") as handle:
         size = handle.seek(0, os.SEEK_END)
         start = max(0, size - TRANSCRIPT_TAIL_BYTES)
@@ -98,11 +106,15 @@ def read_transcript_facts(path: str) -> TranscriptFacts | None:
     return None
 
 
-def _decoder_for(log: Path) -> Callable[[Iterable[str]], Iterator[TranscriptEvent]]:
+def _decoder_for(
+    log: Path, prompt_attributions: frozenset[str] = PROMPT_ATTRIBUTIONS
+) -> Callable[[Iterable[str]], Iterator[TranscriptEvent]]:
     """The decoder for ``log``'s format, named by its head: the tail read drops the header."""
     if is_grok_update_stream(log):
         return grok_events
-    return omp_events if is_omp_session(log) else claude_events
+    if is_omp_session(log):
+        return lambda lines: omp_events(lines, prompt_attributions)
+    return claude_events
 
 
 def _fold(events: Iterable[TranscriptEvent]) -> TranscriptFacts | None:
