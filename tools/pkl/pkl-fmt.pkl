@@ -4,5 +4,6 @@ doc =
   "The dprint exec command for Pkl: pkl format on stdin. Exit 11 means it changed formatting, which is success here."
 
 scripts {
-  ["dev-profile-pkl-fmt"] = module.fileText(read?("pkl-fmt.sh"))
+  ["dev-profile-pkl-fmt"] =
+    let (r = read?("pkl-fmt.sh")) if (r is String) r else if (r == null) "" else r.text
 }

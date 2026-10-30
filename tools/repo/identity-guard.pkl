@@ -9,5 +9,6 @@ on {
 }
 
 scripts {
-  ["dev-profile-identity-guard"] = module.fileText(read?("identity-guard.sh"))
+  ["dev-profile-identity-guard"] =
+    let (r = read?("identity-guard.sh")) if (r is String) r else if (r == null) "" else r.text
 }

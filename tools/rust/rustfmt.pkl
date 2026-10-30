@@ -10,5 +10,6 @@ on {
 }
 
 scripts {
-  ["dev-profile-rustfmt"] = module.fileText(read?("rustfmt.sh"))
+  ["dev-profile-rustfmt"] =
+    let (r = read?("rustfmt.sh")) if (r is String) r else if (r == null) "" else r.text
 }

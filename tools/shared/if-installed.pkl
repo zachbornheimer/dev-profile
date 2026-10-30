@@ -4,5 +4,6 @@ doc =
   "Runs a command only when its tool is on PATH (mise shims count). A missing scanner is not a failure."
 
 scripts {
-  ["dev-profile-if-installed"] = module.fileText(read?("if-installed.sh"))
+  ["dev-profile-if-installed"] =
+    let (r = read?("if-installed.sh")) if (r is String) r else if (r == null) "" else r.text
 }

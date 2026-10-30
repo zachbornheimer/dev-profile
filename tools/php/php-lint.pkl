@@ -6,5 +6,6 @@ on {
 }
 
 scripts {
-  ["dev-profile-php-lint"] = module.fileText(read?("php-lint.sh"))
+  ["dev-profile-php-lint"] =
+    let (r = read?("php-lint.sh")) if (r is String) r else if (r == null) "" else r.text
 }

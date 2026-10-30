@@ -4,10 +4,13 @@ doc =
   "One checkout's local dev stack behind portless: `mise run dev` prints the state, starts it detached when it is down and prints the state again; `dev:status` is the only probe (it reads a pidfile, never a port or `ps`), `dev:start` is idempotent and never kills, `dev:stop` and `dev:restart` are the only verbs that stop, and `dev:attach` runs it in the foreground. A recorded pid counts as the stack only while its process is at least as old as the pidfile, so a pid a reboot handed to another process never passes for a running stack. When worktrunk is available the stack runs under its tether (`wt step tether`), which kills the whole process group when the worktree is removed; otherwise it is a plain detached spawn. Every process a stack starts carries `DEV_PROFILE_DEV_STACK=<checkout>`, so what leaves the group (`op run` leads one of its own) is still stopped by `dev:restart` and by `dev-profile-dev reap <worktree-path>`, which worktrunk's post-remove hook runs. Between portless and the serve command sits `dev-relay.mjs`, which records the last request in `<checkout>.touched`, holds a request that arrives while the app is still booting, and runs `dev:stop` once no request has come for `DEV_PROFILE_DEV_IDLE_SECONDS` (default 24 hours); the next `cd` starts it again. A repo declares its own serve command by shipping an executable `mise-tasks/dev-serve`."
 
 files {
-  ["dev-relay.mjs"] = module.fileText(read?("dev-relay.mjs"))
+  ["dev-relay.mjs"] =
+    let (r = read?("dev-relay.mjs")) if (r is String) r else if (r == null) "" else r.text
 }
 
 scripts {
-  ["dev-profile-dev"] = module.fileText(read?("dev.sh"))
-  ["dev-profile-enter"] = module.fileText(read?("enter.sh"))
+  ["dev-profile-dev"] =
+    let (r = read?("dev.sh")) if (r is String) r else if (r == null) "" else r.text
+  ["dev-profile-enter"] =
+    let (r = read?("enter.sh")) if (r is String) r else if (r == null) "" else r.text
 }

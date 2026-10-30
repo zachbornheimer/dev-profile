@@ -67,8 +67,12 @@ hidden builtins: Builtins = Builtins
 /// Script preamble: strict bash and the generated-file banner.
 hidden bash: String = script.bash
 
-/// A file beside the tool, read with `read?` there: `module.fileText(read?("x.sh"))`.
-function fileText(r: Any): String = script.fileText(r)
+// A file beside a tool is read in place as
+//   let (r = read?("x.sh")) if (r is String) r else if (r == null) "" else r.text
+// hk evaluates the shipped sources with pklr, whose read returns a String and
+// resolves a relative path against the root config's directory, and which has no
+// module methods. There the scripts are never used, so any value will do; under
+// `pkl eval` the Resource's text is the script.
 
 /// Script fragment for fixers that walk up from a staged file to a config or crate.
 hidden nearestUp: String = script.nearestUp

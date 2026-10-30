@@ -4,5 +4,6 @@ doc =
   "Whole-program linters with no new-issues mode (go vet, cargo clippy): run them, then fail only on diagnostics located in the pushed files."
 
 scripts {
-  ["dev-profile-pushed-diagnostics"] = module.fileText(read?("pushed-diagnostics.sh"))
+  ["dev-profile-pushed-diagnostics"] =
+    let (r = read?("pushed-diagnostics.sh")) if (r is String) r else if (r == null) "" else r.text
 }

@@ -11,5 +11,6 @@ on {
 }
 
 scripts {
-  ["dev-profile-swift-format"] = module.fileText(read?("swift-format.sh"))
+  ["dev-profile-swift-format"] =
+    let (r = read?("swift-format.sh")) if (r is String) r else if (r == null) "" else r.text
 }

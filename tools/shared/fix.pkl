@@ -4,5 +4,6 @@ doc =
   "Runs a fixer and treats exit 1 as issues left for push to judge, not a failure. Commit fixers wrap themselves in it."
 
 scripts {
-  ["dev-profile-fix"] = module.fileText(read?("fix.sh"))
+  ["dev-profile-fix"] =
+    let (r = read?("fix.sh")) if (r is String) r else if (r == null) "" else r.text
 }

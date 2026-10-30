@@ -10,5 +10,6 @@ on {
 
 scripts {
   ["dev-profile-no-commit-to-default-branch"] =
-    module.fileText(read?("no-commit-to-default-branch.sh"))
+    let (r = read?("no-commit-to-default-branch.sh"))
+      if (r is String) r else if (r == null) "" else r.text
 }

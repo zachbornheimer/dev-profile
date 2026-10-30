@@ -6,5 +6,6 @@ doc =
 pin { id = "conda:git"; version = "2.56.0" }
 
 scripts {
-  ["dev-profile-git-config-hooks"] = module.fileText(read?("git-config-hooks.sh"))
+  ["dev-profile-git-config-hooks"] =
+    let (r = read?("git-config-hooks.sh")) if (r is String) r else if (r == null) "" else r.text
 }

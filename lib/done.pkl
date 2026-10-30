@@ -8,7 +8,8 @@ import "pr.pkl"
 import "script.pkl"
 
 wrappers: Mapping<String, String> = new {
-  ["dev-profile-done"] = script.fileText(read?("done.sh"))
+  ["dev-profile-done"] =
+    let (r = read?("done.sh")) if (r is String) r else if (r == null) "" else r.text
 }
 
 aliases: Mapping<String, String> = new {

@@ -11,5 +11,6 @@ on {
 
 scripts {
   ["dev-profile-uv-instead-of-python-in-tasks"] =
-    module.fileText(read?("uv-instead-of-python-in-tasks.sh"))
+    let (r = read?("uv-instead-of-python-in-tasks.sh"))
+      if (r is String) r else if (r == null) "" else r.text
 }

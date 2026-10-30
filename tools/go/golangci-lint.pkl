@@ -15,5 +15,6 @@ on {
 }
 
 scripts {
-  ["dev-profile-golangci-ratchet"] = module.fileText(read?("golangci-ratchet.sh"))
+  ["dev-profile-golangci-ratchet"] =
+    let (r = read?("golangci-ratchet.sh")) if (r is String) r else if (r == null) "" else r.text
 }

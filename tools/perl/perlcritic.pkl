@@ -20,7 +20,8 @@ local perlcritic =
   """#
 
 files {
-  ["perlcriticrc"] = module.fileText(read?("perlcriticrc"))
+  ["perlcriticrc"] =
+    let (r = read?("perlcriticrc")) if (r is String) r else if (r == null) "" else r.text
 }
 
 scripts {

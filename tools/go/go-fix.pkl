@@ -11,5 +11,6 @@ on {
 }
 
 scripts {
-  ["dev-profile-go-fix"] = module.fileText(read?("go-fix.sh"))
+  ["dev-profile-go-fix"] =
+    let (r = read?("go-fix.sh")) if (r is String) r else if (r == null) "" else r.text
 }

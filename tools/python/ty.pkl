@@ -6,5 +6,6 @@ on {
 }
 
 scripts {
-  ["dev-profile-ty"] = module.fileText(read?("ty.sh"))
+  ["dev-profile-ty"] =
+    let (r = read?("ty.sh")) if (r is String) r else if (r == null) "" else r.text
 }

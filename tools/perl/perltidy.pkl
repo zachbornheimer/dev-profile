@@ -29,7 +29,8 @@ local perltidyFormat =
   """#
 
 files {
-  ["perltidyrc"] = module.fileText(read?("perltidyrc"))
+  ["perltidyrc"] =
+    let (r = read?("perltidyrc")) if (r is String) r else if (r == null) "" else r.text
 }
 
 scripts {

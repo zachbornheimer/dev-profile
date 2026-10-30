@@ -28,5 +28,6 @@ on {
 }
 
 scripts {
-  ["dev-profile-oxlint-fix"] = module.fileText(read?("oxlint-fix.sh"))
+  ["dev-profile-oxlint-fix"] =
+    let (r = read?("oxlint-fix.sh")) if (r is String) r else if (r == null) "" else r.text
 }

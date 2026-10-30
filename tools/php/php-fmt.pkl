@@ -11,5 +11,6 @@ on {
 }
 
 scripts {
-  ["dev-profile-php-fmt"] = module.fileText(read?("php-fmt.sh"))
+  ["dev-profile-php-fmt"] =
+    let (r = read?("php-fmt.sh")) if (r is String) r else if (r == null) "" else r.text
 }

@@ -11,5 +11,6 @@ on {
 
 scripts {
   ["dev-profile-shebang-scripts-executable"] =
-    module.fileText(read?("shebang-scripts-executable.sh"))
+    let (r = read?("shebang-scripts-executable.sh"))
+      if (r is String) r else if (r == null) "" else r.text
 }

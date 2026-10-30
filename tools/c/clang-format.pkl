@@ -4,5 +4,6 @@ doc =
   "The dprint exec command for C and C++: clang-format on stdin, or in place on files. Passes input through when clang-format is absent."
 
 scripts {
-  ["dev-profile-clang-format"] = module.fileText(read?("clang-format.sh"))
+  ["dev-profile-clang-format"] =
+    let (r = read?("clang-format.sh")) if (r is String) r else if (r == null) "" else r.text
 }

@@ -7,5 +7,6 @@ on {
 }
 
 scripts {
-  ["dev-profile-rubocop-fix"] = module.fileText(read?("rubocop-fix.sh"))
+  ["dev-profile-rubocop-fix"] =
+    let (r = read?("rubocop-fix.sh")) if (r is String) r else if (r == null) "" else r.text
 }
