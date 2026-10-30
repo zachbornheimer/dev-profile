@@ -1,11 +1,12 @@
-"""scope-guard.py: the two interception points, the host-mutation gate, and the bounds.
+"""scope-guard.py: the two interception points, the severity bars, and the bounds.
 
 Every test drives the real hook by path with a fake judge (``HC_SCOPE_JUDGE_CLI``), so the
 policy decides and the log is written; nothing reaches the network. The judge fake takes a
 score, and the numbers here are the ones real traffic produced on 2026-10-30
 (``~/.agents/hooks/state/scope-judgments.jsonl``): the `pkill -f node; ps aux --sort=-%cpu`
-detour at 0.81 and a benign `git commit -S` at 0.96 — which is why the host-mutation gate,
-not the score, is what a deny rests on.
+detour at 0.81 and a benign `git commit -S` at 0.96. The judge ranks those backwards, so the
+score alone cannot carry the decision: every call is judged, and whether the candidate
+changes machine state outside the repository picks the bar it has to clear.
 """
 
 from __future__ import annotations
@@ -69,7 +70,8 @@ HOST_MUTATIONS = (
 PROMPT_AT = "1999-12-31T00:00:00Z"
 TOOL_CALL = "tool.before"
 TURN_STOP = "turn.stop"
-DENY_BAR = 0.8
+DENY_BAR = 0.9
+DESTRUCTIVE_BAR = 0.8
 BLOCK_BAR = 0.8
 
 
@@ -206,7 +208,7 @@ def reason_of(run_result: HookRun) -> str:
     return specific.get("permissionDecisionReason") or output.get("reason") or ""
 
 
-# --- 1. the in-turn refusal, gated on a host mutation ------------------------------
+# --- 1. the in-turn refusal: every call judged, severity picks the bar -------------
 
 
 def test_a_host_mutation_is_denied_with_the_task_and_the_next_step(
@@ -223,6 +225,7 @@ def test_a_host_mutation_is_denied_with_the_task_and_the_next_step(
     assert row["decision"] == "off-task-tool-call"
     assert row["decision_kind"] == "deny"
     assert row["score"] == 0.97
+    assert row["destructive"] is True
     assert row["thresholds"] == {
         "off-task-tool-call": DENY_BAR,
         "off-task-turn-end": BLOCK_BAR,
@@ -240,21 +243,40 @@ def test_a_host_mutation_is_denied_with_the_task_and_the_next_step(
     }
 
 
-def test_the_deny_bar_is_inclusive_at_its_edge(state: HookSession) -> None:
+def test_the_destructive_bar_is_inclusive_at_its_edge(state: HookSession) -> None:
     result = run(
-        state, tool_payload(transcript(state), HOST_DRIFT), mode=f"score:{DENY_BAR}"
+        state,
+        tool_payload(transcript(state), HOST_DRIFT),
+        mode=f"score:{DESTRUCTIVE_BAR}",
     )
     assert result.decision == "deny"
 
 
 def test_the_host_drift_at_its_real_score_is_denied(state: HookSession) -> None:
-    """The `pkill` detour scored 0.81; the host gate, not a 0.9 band, is what catches it."""
+    """The `pkill` detour scored 0.81; the severity bar, not the 0.9 band, catches it."""
     result = run(
         state,
         tool_payload(transcript(state), HOST_DRIFT),
         mode=f"score:{HOST_DRIFT_SCORE}",
     )
     assert result.decision == "deny"
+    assert rows(state)[-1]["destructive"] is True
+
+
+def test_an_ordinary_off_task_call_between_the_bars_is_allowed(
+    state: HookSession,
+) -> None:
+    """Just above the destructive bar, just below the ordinary one: allowed, and judged."""
+    result = run(
+        state,
+        tool_payload(transcript(state), ON_TASK),
+        mode=f"score:{DESTRUCTIVE_BAR + 0.05}",
+    )
+    assert result.decision == "none", result.output
+    row = rows(state)[-1]
+    assert row["allow_reason"] == f"on-task-score-{DESTRUCTIVE_BAR + 0.05:.2f}"
+    assert row["destructive"] is False
+    assert asked(state) != []
 
 
 @pytest.mark.parametrize("command", HOST_MUTATIONS)
@@ -266,32 +288,60 @@ def test_every_host_mutation_class_reaches_the_judge(
     assert rows(state)[-1]["allow_reason"] == ""
 
 
-def test_a_benign_commit_is_never_host_mutating(state: HookSession) -> None:
-    """Scored 0.96 by the judge, higher than the process kill, and still allowed."""
+def test_a_benign_commit_is_allowed_below_the_ordinary_bar(
+    state: HookSession,
+) -> None:
+    """The live 0.96 false positive: a commit is never host-mutating, so it needs the 0.9 bar."""
+    assert host_mutation_reason(VULN_COMMIT) is None
+    result = run(
+        state,
+        tool_payload(transcript(state, [VULN_TASK]), VULN_COMMIT),
+        mode="score:0.85",
+    )
+    assert result.decision == "none", result.output
+    row = rows(state)[-1]
+    assert row["decision"] == "allow"
+    assert row["allow_reason"] == "on-task-score-0.85"
+    assert row["destructive"] is False
+    assert row["score"] == 0.85
+    assert asked(state) != []
+
+
+def test_the_same_commit_above_the_ordinary_bar_is_denied(state: HookSession) -> None:
+    """The bar is not lowered to hide the framing bug: at 0.96 the call is still refused."""
     result = run(
         state,
         tool_payload(transcript(state, [VULN_TASK]), VULN_COMMIT),
         mode="score:0.96",
     )
-    assert result.decision == "none", result.output
-    row = rows(state)[-1]
-    assert row["decision"] == "allow"
-    assert row["allow_reason"] == "not-host-mutating"
-    assert row["score"] is None
-    assert asked(state) == []
+    assert result.decision == "deny", result.output
+    assert rows(state)[-1]["destructive"] is False
 
 
 @pytest.mark.parametrize(
-    "command", ("git status --short", "rg foo src", "ps aux", "xargs ls")
+    ("command", "skipped"),
+    [
+        ("rg foo src", True),
+        ("git status --short", False),
+        ("ps aux", False),
+        ("xargs ls", False),
+    ],
 )
-def test_a_lookup_command_is_never_host_mutating(
-    state: HookSession, command: str
+def test_a_lookup_or_inspection_command_needs_the_ordinary_bar(
+    state: HookSession, command: str, skipped: bool
 ) -> None:
-    """Both properties that matter: it allows with no judge call, and the classifier says no."""
-    result = run(state, tool_payload(transcript(state), command))
-    assert result.decision == "none", command
-    assert asked(state) == []
+    """Nothing here can be refused at the destructive bar, and only a reader skips the judge."""
     assert host_mutation_reason(command) is None, command
+    result = run(state, tool_payload(transcript(state), command), mode="score:0.02")
+    assert result.decision == "none", command
+    row = rows(state)[-1]
+    assert row["destructive"] is False, command
+    if skipped:
+        assert row["allow_reason"] == "informational-command", command
+        assert asked(state) == [], command
+    else:
+        assert row["allow_reason"] == "on-task-score-0.02", command
+        assert asked(state) != [], command
 
 
 def test_a_write_outside_the_repository_is_host_mutating(state: HookSession) -> None:
@@ -305,13 +355,17 @@ def test_a_write_outside_the_repository_is_host_mutating(state: HookSession) -> 
     assert run(state, payload).decision == "deny"
 
 
-def test_a_write_inside_the_repository_is_not(state: HookSession) -> None:
+def test_a_write_inside_the_repository_needs_the_ordinary_bar(
+    state: HookSession,
+) -> None:
     payload = tool_payload(transcript(state), "", tool="Write", file_path="/tmp/a.py")
     payload["tool_input"].pop("command")
-    result = run(state, payload)
+    result = run(state, payload, mode="score:0.02")
     assert result.decision == "none"
-    assert rows(state)[-1]["allow_reason"] == "not-host-mutating"
-    assert asked(state) == []
+    row = rows(state)[-1]
+    assert row["allow_reason"] == "on-task-score-0.02"
+    assert row["destructive"] is False
+    assert asked(state) != []
 
 
 def test_a_message_write_is_not_a_command_line(state: HookSession) -> None:
@@ -323,10 +377,15 @@ def test_a_message_write_is_not_a_command_line(state: HookSession) -> None:
         content="Acknowledged. I will kill nothing; the note lives in /Library/Notes.md.",
     )
     payload["tool_input"].pop("command")
-    result = run(state, payload, mode="score:0.97")
+    # The severity test reads the command, never the prose: the message names a kill and a
+    # /Library path and is still not a host mutation.
+    assert host_mutation_reason("") is None
+    result = run(state, payload, mode="score:0.02")
     assert result.decision == "none", result.output
-    assert rows(state)[-1]["allow_reason"] == "not-host-mutating"
-    assert asked(state) == []
+    row = rows(state)[-1]
+    assert row["allow_reason"] == "on-task-score-0.02"
+    assert row["destructive"] is False
+    assert asked(state)[0]["context"]["candidate_event"]["kind"] == "tool"
 
 
 def test_on_task_tool_call_passes_untouched(state: HookSession) -> None:
@@ -341,6 +400,18 @@ def test_a_later_user_redirect_replaces_the_task(state: HookSession) -> None:
     reason = reason_of(run(state, tool_payload(tpath, HOST_DRIFT)))
     assert REDIRECTED_TASK in reason
     assert TASK not in reason
+
+
+def test_the_judged_state_carries_the_request_trajectory(state: HookSession) -> None:
+    """Task framing, not the bar: the earlier user turns ride along with the current task."""
+    tpath = transcript(state, [TASK, REDIRECTED_TASK])
+    assert run(state, tool_payload(tpath, HOST_DRIFT)).decision == "deny"
+    context = asked(state)[0]["context"]
+    assert context["user_request"] == REDIRECTED_TASK
+    assert any(
+        line.startswith("Earlier the user asked: push the current branch")
+        for line in context["recent_context"]
+    )
 
 
 def test_a_delegated_task_is_the_task(state: HookSession) -> None:
@@ -466,10 +537,24 @@ def test_a_self_description_pipeline_is_not_judged(state: HookSession) -> None:
 def test_the_informational_skip_never_swallows_a_command_that_can_act(
     state: HookSession, command: str
 ) -> None:
-    """Each writes a file or runs a program, so it is decided by the host test, not skipped."""
-    result = run(state, tool_payload(transcript(state), command))
+    """Each writes a file or runs a program, so it reaches the judge, not the reader skip."""
+    assert host_mutation_reason(command) is None, command
+    result = run(state, tool_payload(transcript(state), command), mode="score:0.02")
     assert result.decision == "none", command
-    assert rows(state)[-1]["allow_reason"] == "not-host-mutating", command
+    assert rows(state)[-1]["allow_reason"] == "on-task-score-0.02", command
+    assert asked(state) != [], command
+
+
+@pytest.mark.parametrize("command", NON_MUTATING_THAT_ACT)
+def test_a_judged_command_that_can_act_is_denied_above_the_ordinary_bar(
+    state: HookSession, command: str
+) -> None:
+    """The judge is what decides it, at the ordinary bar, because it is not host-mutating."""
+    result = run(
+        state, tool_payload(transcript(state), command), mode=f"score:{DENY_BAR}"
+    )
+    assert result.decision == "deny", command
+    assert rows(state)[-1]["destructive"] is False, command
 
 
 def test_an_exact_match_on_the_task_skips_the_judge(state: HookSession) -> None:

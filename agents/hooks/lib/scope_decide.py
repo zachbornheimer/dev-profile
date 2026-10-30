@@ -85,32 +85,16 @@ DEFAULT_JUDGE_TIMEOUT_SECS = 6.0
 # 12 trials) — the second correction catches that swap, and a third refusal in one turn has
 # no measured benefit.
 DEFAULT_CORRECTION_CAP = 2
-# Two bars, not one, because the two interventions cost wildly different things. Denying a
-# tool call can block legitimate work; blocking a turn end only keeps the agent going, and the
-# user sees it. Measured live on 2026-10-30, the first ~2 minutes after this guard went on:
-# 5 denials across the machine, at least 3 of them false positives — a legitimate
-# `git commit -S` fixing the very vulns the task named scored 0.81, a read-only `omp --help`
-# feeding the current goal scored 0.75, and a `git rev-parse --git-path hooks` lookup for the
-# same task scored 0.68. Real traffic therefore contains legitimate work in the 0.67-0.81 band
-# that the 32-case synthetic set never showed (its clean candidates scored 0.01-0.06).
-# A single 0.65 bar denied that work, and 0.8 would still have denied the vuln-fix commit.
+# Every tool call is judged; how destructive the candidate is picks the bar.
 #
-# So: a tool call is denied only in the high-confidence band, and a turn end is corrected from
-# the lower bar, where the only cost of a mistake is that the agent keeps working. The
-# load-inspection detour (push requested, host load 400) scores 0.65-0.76 and is therefore not
-# denied — its damaging second step (`terminate_unrelated`) scored in the deny band and is.
-# Retune from <state dir>/scope-judgments.jsonl, not from this comment.
-# Two bars, and one deterministic gate. A tool call is refused only when it is
-# host-mutating (see HOST_MUTATING_PROGRAMS below) AND the judge scores it at or above this
-# bar; a turn end is corrected from the same bar with no gate, because blocking a Stop
-# cannot destroy work.
-#
-# The bar is 0.8, not the 0.9 the live log first suggested, because the gate — not the bar —
-# is what keeps precision now. Measured on real traffic (2026-10-30): a `pkill -f node;
-# ps aux --sort=-%cpu` detour scored 0.81 while a benign `git commit -S` scored 0.96, so no
-# bar could separate them; with the host-mutation gate the commit is never judged at all and
-# the kill is, so 0.8 catches the detours (0.78-0.97) that the 0.9 band missed.
-DENY_THRESHOLD = 0.8
+# Measured on real traffic (2026-10-30): a `pkill -f node; ps aux --sort=-%cpu` detour scored
+# 0.81 while a benign `git commit -S` scored 0.96 — the judge ranks those backwards, so the
+# bar alone cannot carry the decision. Severity narrows the band the judge has to get right:
+# a host mutation is refused from the lower bar because a miss there costs machine state,
+# while an ordinary off-task call needs the higher bar because a wrong refusal blocks real
+# work. A turn end is corrected from the lower bar too: a wrong block only costs more work.
+DENY_THRESHOLD = 0.9
+DENY_THRESHOLD_DESTRUCTIVE = 0.8
 BLOCK_THRESHOLD = 0.8
 # `off_task` is the lower bar: it decides whether the candidate is worth acting on at all, and
 # the decision-specific bar in `_plan` decides which intervention it earns.
@@ -141,12 +125,19 @@ DEVICE_PREFIX = "xd://"
 TASK_ATTRIBUTIONS = frozenset({"user", "agent"})
 END_TURN_REASON = "end_turn"
 JUDGMENTS_LOG_NAME = "scope-judgments.jsonl"
-JUDGMENTS_LOG_MAX_BYTES = 1 * 1024 * 1024
 CORRECTIONS_LEDGER_NAME = "scope-corrections-{session}.tsv"
 TASK_CHARS = 400
 CANDIDATE_CHARS = 300
 RUNS_KEPT = 12
 RUN_CHARS = 160
+# The judged state is the request's trajectory, not the latest message alone. A signed commit
+# fixing the very pins its task named scored 0.96 off-task when the judge saw only that task,
+# so the earlier user turns and the work this request has already done go in with it: an
+# action that continues work in progress has to read as on-task.
+PROMPTS_IN_CONTEXT = 3
+RESULTS_KEPT = 4
+RESULT_CHARS = 160
+TRAJECTORY_CHARS = 240
 MIN_WORD_CHARS = 3
 MIN_WORDS_FOR_SUBSET_MATCH = 2
 # Best-effort masking for the log only; the judge still sees the real text. A log that
@@ -255,6 +246,9 @@ class Observation:
     candidate_hash: str = ""
     skip: str = ""
     judgment: ScopeJudgment | None = None
+    # Whether the proposed call can change machine state outside the repository.
+    # A severity input that picks the bar, never a reason to skip judging.
+    destructive: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -285,12 +279,12 @@ class ScopeJudge:
         )
 
     def judge(
-        self, task: str, candidate: Candidate, runs: tuple[str, ...]
+        self, task: str, candidate: Candidate, trajectory: tuple[str, ...]
     ) -> ScopeJudgment:
         if not self.cli.is_file():
             return ScopeJudgment(fallback_reason=f"cli-missing:{self.cli}")
         started = time.monotonic()
-        reason, reply = self._ask(task, candidate, runs)
+        reason, reply = self._ask(task, candidate, trajectory)
         elapsed = round((time.monotonic() - started) * MILLIS_PER_SECOND, 1)
         if reason:
             return ScopeJudgment(
@@ -315,12 +309,14 @@ class ScopeJudge:
         )
 
     def _ask(
-        self, task: str, candidate: Candidate, runs: tuple[str, ...]
+        self, task: str, candidate: Candidate, trajectory: tuple[str, ...]
     ) -> tuple[str, dict[str, Any]]:
         try:
             done = self.run(
                 [sys.executable, str(self.cli), "interrogate", "--json"],
-                input=json.dumps(judge_request(self.question, task, candidate, runs)),
+                input=json.dumps(
+                    judge_request(self.question, task, candidate, trajectory)
+                ),
                 capture_output=True,
                 text=True,
                 timeout=self.timeout_secs,
@@ -368,21 +364,27 @@ def load_question(path: Path = QUESTION_FILE) -> dict[str, Any]:
 
 
 def judge_request(
-    question: dict[str, Any], task: str, candidate: Candidate, runs: tuple[str, ...]
+    question: dict[str, Any],
+    task: str,
+    candidate: Candidate,
+    trajectory: tuple[str, ...],
 ) -> dict[str, Any]:
     """The request ``interrogate`` forwards: its ``conversation``, and the detector's state.
 
     The state keys are the ones the frozen checkpoints were measured with
-    (``detectorState`` in experiment.ts). ``applicable_directives`` is empty: the guard has
-    no source for the harness's standing directives, and omitting them can only miss drift
-    the detector would have flagged, never manufacture a correction.
+    (``detectorState`` in experiment.ts). ``recent_context`` is the request's trajectory —
+    the earlier user turns and the actions already taken in this request — because the task
+    text alone makes continuing work look like a fresh, unrelated action.
+    ``applicable_directives`` is empty: the guard has no source for the harness's standing
+    directives, and omitting them can only miss drift the detector would have flagged, never
+    manufacture a correction.
     """
     return {
         "conversation": task,
         "context": {
             "user_request": task,
             "applicable_directives": [],
-            "recent_context": list(runs),
+            "recent_context": list(trajectory),
             "candidate_event": {
                 "kind": candidate.kind,
                 "content": candidate.judged_text,
@@ -469,17 +471,23 @@ def _observe(
     proposed = _candidate_of(request, None)
     if not proposed.action:
         return Observation(request, skip="no-candidate")
-    # A tool call is judged only when it can change machine state outside the repository:
-    # that is the class the guard exists for, and it is what keeps the false positives —
-    # a commit, a lookup, an edit in the worktree, a `--help` — structurally out of the
-    # deny path. A turn end is always judged; blocking a Stop cannot destroy work.
+    # Every tool call is judged, not only the ones that can change machine state. An agent
+    # that wandered into unrelated repository work is still burning tokens, so scoping the
+    # deny path to host mutations answered the wrong half of the complaint.
+    #
+    # How destructive the candidate is decides the bar, not whether it is judged at all: a
+    # host mutation (kill, service control, package install, system config write) is denied
+    # from the lower bar, because there a miss costs machine state, while an ordinary
+    # off-task call needs the higher bar, because a wrong refusal blocks real work.
+    #
     # The command classified is the shell command the tool would run, never the JSON dump of
     # its arguments: a Write's prose is not a command line, and parsing it as one denied an
     # inter-agent message whose text happened to mention a kill and a /Library path.
-    if request.candidate_kind == CANDIDATE_TOOL and not host_mutation_reason(
-        command_of(request.tool_input), _file_path(request.tool_input)
-    ):
-        return Observation(request, candidate=proposed, skip="not-host-mutating")
+    destructive = bool(
+        host_mutation_reason(
+            command_of(request.tool_input), _file_path(request.tool_input)
+        )
+    )
     # Never correct twice for the same event, wherever in the session it repeats.
     candidate_hash = sha256_digest(f"{request.candidate_kind}:{proposed.judged_text}")
     if ledger is not None and ledger.hash_seen(candidate_hash):
@@ -495,6 +503,7 @@ def _observe(
         return Observation(request, candidate=proposed, skip="no-user-task")
     runs = _runs_of(facts)
     candidate = _candidate_of(request, runs)
+    trajectory = _trajectory_of(facts)
     since_iso = _task_at(facts)
     # The cap is per user request, so it needs the request's own timestamp: after the
     # transcript read, before the judge call it exists to save.
@@ -508,7 +517,7 @@ def _observe(
             request, task=task, candidate=candidate, skip="on-task-exact-match"
         )
 
-    judgment = ScopeJudge.from_env(environment).judge(task, candidate, runs)
+    judgment = ScopeJudge.from_env(environment).judge(task, candidate, trajectory)
     return Observation(
         request=request,
         task=task,
@@ -517,15 +526,17 @@ def _observe(
         since_iso=since_iso,
         candidate_hash=candidate_hash,
         judgment=judgment,
+        destructive=destructive,
     )
 
 
 def _plan(observation: Observation) -> Correction | None:
-    """Pure: the decision-specific bar, and the reason the agent reads.
+    """Pure: the severity-aware bar, and the reason the agent reads.
 
-    A tool call is refused only in the high-confidence band (`DENY_THRESHOLD`), because a
-    wrong refusal blocks legitimate work. A turn end is corrected from the lower bar
-    (`BLOCK_THRESHOLD`), because a wrong block only keeps the agent working.
+    Every tool call is judged. A host mutation is refused from `DENY_THRESHOLD_DESTRUCTIVE`,
+    because a miss there costs machine state; an ordinary off-task call needs
+    `DENY_THRESHOLD`, because a wrong refusal blocks legitimate work. A turn end is corrected
+    from `BLOCK_THRESHOLD`, because a wrong block only keeps the agent working.
     """
     judgment = observation.judgment
     candidate = observation.candidate
@@ -534,9 +545,10 @@ def _plan(observation: Observation) -> Correction | None:
     score = judgment.score or 0.0
     task = observation.task
     if candidate.kind == CANDIDATE_TOOL:
-        # The other half of the conjunction — host-mutating — was already required by the
-        # prefilter, so a candidate that reaches here can only be refused on its score.
-        if score < DENY_THRESHOLD:
+        # Severity picks the bar: a host mutation is refused from the lower bar, an ordinary
+        # off-task call from the higher one. Judging everything, gating nothing away.
+        bar = DENY_THRESHOLD_DESTRUCTIVE if observation.destructive else DENY_THRESHOLD
+        if score < bar:
             return None
         decision = DECISION_TOOL_CALL
         reason = "\n".join(
@@ -612,6 +624,8 @@ def _log(
             "decision_kind": decision.kind.value,
             "allow_reason": allow_reason,
             "score": None if judgment is None else judgment.score,
+            # Which bar the tool side applied: a host mutation is refused from the lower one.
+            "destructive": observation.destructive,
             "thresholds": THRESHOLDS,
             "model": JUDGE_MODEL,
             "hop": HOP_NONE if judgment is None else judgment.hop,
@@ -630,7 +644,12 @@ def _log(
 
 @dataclass(frozen=True, slots=True)
 class JudgmentLog:
-    """Append-only JSONL of every invocation; a write failure is never fatal."""
+    """Append-only JSONL of every invocation; a write failure is never fatal.
+
+    Never rotated, truncated or capped. This is the permanent record of what the guard
+    decided and why, so history is kept rather than dropped: the file grows without bound
+    and callers report its size instead of pruning it.
+    """
 
     path: Path
 
@@ -641,18 +660,8 @@ class JudgmentLog:
     def record(self, entry: dict[str, Any]) -> None:
         with contextlib.suppress(OSError, TypeError, ValueError):
             self.path.parent.mkdir(parents=True, exist_ok=True)
-            self._rotate()
             with self.path.open("a", encoding="utf-8") as handle:
                 handle.write(json.dumps(entry, sort_keys=True) + "\n")
-
-    def _rotate(self) -> None:
-        """Keep one previous file: the log is for tuning a threshold, not an audit trail."""
-        with contextlib.suppress(OSError):
-            if (
-                self.path.exists()
-                and self.path.stat().st_size >= JUDGMENTS_LOG_MAX_BYTES
-            ):
-                self.path.replace(self.path.with_name(self.path.name + ".1"))
 
 
 def bypass_requested(env: Mapping[str, str]) -> bool:
@@ -998,6 +1007,32 @@ def _runs_of(facts: Any) -> tuple[str, ...]:
         if run.command
     )
     return runs[-RUNS_KEPT:]
+
+
+def _trajectory_of(facts: Any) -> tuple[str, ...]:
+    """What this request has already been through: earlier user turns, then the work done.
+
+    The detector's ``recent_context``. One message in isolation cannot tell a fresh detour
+    from the next step of work in progress, which is the false positive that made a signed
+    commit on the task's own subject score as off-task.
+    """
+    if facts is None:
+        return ()
+    lines = [
+        _clip(f"Earlier the user asked: {' '.join(prompt.text.split())}", TASK_CHARS)
+        for prompt in facts.prompts[:-1][-PROMPTS_IN_CONTEXT:]
+        if prompt.text.strip()
+    ]
+    for run in facts.turn_runs[-RESULTS_KEPT:]:
+        outcome = "failed" if run.failed else "ok"
+        detail = _clip(" ".join(run.output.split()), RESULT_CHARS) if run.output else ""
+        lines.append(
+            _clip(
+                f"Ran {run.tool}: {run.command} -> {outcome}: {detail}",
+                TRAJECTORY_CHARS,
+            )
+        )
+    return tuple(lines)
 
 
 def _task_of(facts: Any) -> str:
