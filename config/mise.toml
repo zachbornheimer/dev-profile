@@ -120,6 +120,7 @@ process_type = "Background"
 "~/.gitconfig" = { source = "~/Developer/Personal/dev-profile/home/gitconfig" }
 "~/.local/share/dev-profile/bin" = { source = "~/Developer/Personal/dev-profile/bin" }
 "~/.local/share/dev-profile/shell.zsh" = { source = "~/Developer/Personal/dev-profile/shell/shell.zsh" }
+"~/.local/share/dev-profile/xdg" = { source = "~/Developer/Personal/dev-profile/xdg" }
 "~/.markdownlintrc" = { source = "~/Developer/Personal/dev-profile/config/markdownlintrc.json" }
 "~/.profile" = { source = "~/Developer/Personal/dev-profile/home/profile" }
 "~/.tmux.conf" = { source = "~/Developer/Personal/dev-profile/home/tmux.conf" }
