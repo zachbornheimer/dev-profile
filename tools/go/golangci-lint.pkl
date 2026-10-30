@@ -14,26 +14,7 @@ on {
   ["pre-push"] = (module.builtins.golangci_lint) { check = "dev-profile-golangci-ratchet" }
 }
 
-local golangciRatchet =
-  """
-  \(bash)
-  # Push gate: fail only on issues the branch adds relative to the upstream default
-  # branch, so old debt in untouched files never blocks a push. Without a base ref
-  # (no remote, fresh clone) fall back to the full tree. `mise run lint` runs the full-tree twin (fullTreeCheck) instead.
-  base=""
-  for ref in "$(git symbolic-ref -q --short refs/remotes/origin/HEAD || true)" origin/main origin/master; do
-    if [[ -n "${ref}" ]] && git rev-parse -q --verify "${ref}^{commit}" >/dev/null; then
-      base="${ref}"
-      break
-    fi
-  done
-  if [[ -z "${base}" ]]; then
-    echo "golangci-ratchet: no upstream default branch; linting the full tree" >&2
-    exec golangci-lint run --fix=false --allow-parallel-runners ./...
-  fi
-  exec golangci-lint run --fix=false --allow-parallel-runners --new-from-merge-base="${base}" ./...
-  """
-
 scripts {
-  ["dev-profile-golangci-ratchet"] = golangciRatchet
+  ["dev-profile-golangci-ratchet"] =
+    let (r = read?("golangci-ratchet.sh")) if (r is String) r else if (r == null) "" else r.text
 }

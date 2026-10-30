@@ -29,8 +29,9 @@ stub() { # <path> <name>
 	chmod +x "$1"
 }
 
-mkdir -p "${work}/out/bin" "${work}/path"
+mkdir -p "${work}/out/bin" "${work}/out/lib" "${work}/path"
 cp "${out}/bin/dev-profile-dprint" "${work}/out/bin/"
+cp "${out}/lib/facts.sh" "${work}/out/lib/" # the pin the wrapper runs
 printf '{"filetypes":{}}\n' >"${work}/out/profile.json"
 stub "${work}/data/installs/dprint/${pin}/dprint" pinned
 stub "${work}/data/shims/dprint" shim

@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# Edit tools/php/php-context.sh: `mise run generate` copies it into bin/.
+
+# Walk up from a path and print: wordpress | php-cs-fixer | phpcs | generic
+# Used by php fmt/lint so editor and hk share one detector.
+
+start="${1:-.}"
+if [[ -f "${start}" ]]; then
+	dir="$(cd "$(dirname "${start}")" && pwd)"
+else
+	dir="$(cd "${start}" && pwd)"
+fi
+
+has_wordpress_marker() {
+	local root="$1"
+	[[ -d "${root}/wp-content" || -f "${root}/wp-config.php" || -f "${root}/wp-load.php" ]] && return 0
+	local f
+	for f in phpcs.xml .phpcs.xml phpcs.xml.dist .phpcs.xml.dist; do
+		if [[ -f "${root}/${f}" ]] && grep -Eq 'WordPress(-Core|-Extra|-Docs|-VIP-Go)?' "${root}/${f}"; then
+			return 0
+		fi
+	done
+	return 1
+}
+
+has_phpcs() {
+	local root="$1" f
+	for f in phpcs.xml .phpcs.xml phpcs.xml.dist .phpcs.xml.dist; do
+		[[ -f "${root}/${f}" ]] && return 0
+	done
+	return 1
+}
+
+has_php_cs_fixer() {
+	local root="$1"
+	[[ -f "${root}/.php-cs-fixer.php" || -f "${root}/.php-cs-fixer.dist.php" ]]
+}
+
+while [[ "${dir}" != "/" ]]; do
+	if has_wordpress_marker "${dir}"; then
+		echo "wordpress ${dir}"
+		exit 0
+	fi
+	dir="$(dirname "${dir}")"
+done
+
+if [[ -f "${start}" ]]; then
+	dir="$(cd "$(dirname "${start}")" && pwd)"
+else
+	dir="$(cd "${start}" && pwd)"
+fi
+
+while [[ "${dir}" != "/" ]]; do
+	if has_php_cs_fixer "${dir}"; then
+		echo "php-cs-fixer ${dir}"
+		exit 0
+	fi
+	if has_phpcs "${dir}"; then
+		echo "phpcs ${dir}"
+		exit 0
+	fi
+	dir="$(dirname "${dir}")"
+done
+
+echo "generic ${PWD}"

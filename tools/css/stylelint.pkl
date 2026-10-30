@@ -9,25 +9,7 @@ on {
   }
 }
 
-local stylelintFix =
-  #"""
-  \#(bash)
-  # stylelint --fix. Exit 2 = problems left for push; 78 = no config here.
-  (($#)) || exit 0
-  \#(nearestUp)
-
-  if [[ -x "${root}/node_modules/.bin/stylelint" ]]; then
-    stylelint="${root}/node_modules/.bin/stylelint"
-  elif command -v stylelint >/dev/null 2>&1; then
-    stylelint="$(command -v stylelint)"
-  else
-    exit 0
-  fi
-  code=0
-  "${stylelint}" --fix --allow-empty-input "$@" || code=$?
-  [[ "${code}" -le 2 || "${code}" -eq 78 ]] || exit "${code}"
-  """#
-
 scripts {
-  ["dev-profile-stylelint-fix"] = stylelintFix
+  ["dev-profile-stylelint-fix"] =
+    let (r = read?("stylelint-fix.sh")) if (r is String) r else if (r == null) "" else r.text
 }

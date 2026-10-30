@@ -8,145 +8,16 @@
 module commitfix
 
 import "../profile.pkl"
-import "script.pkl"
-
-local task =
-  "We were unable to run wt step commit due to errors. please fix, and then commit with wt step commit."
-
-local notice = "wt step commit failed. Running: omp @task '\(task)'"
-
-/// Print the worktrunk binary, skipping the generated wrapper beside this script.
-local realWt =
-  #"""
-  real_wt() {
-    local dir cand self_dir rest
-    self_dir=$(cd "$(dirname "$0")" && pwd -P) || return 127
-    rest=$PATH
-    while [ -n "$rest" ]; do
-      dir=${rest%%:*}
-      case $rest in
-        *:*) rest=${rest#*:} ;;
-        *) rest= ;;
-      esac
-      [ -n "$dir" ] || continue
-      cand=$dir/wt
-      [ -x "$cand" ] || continue
-      [ "$cand" -ef "$self_dir/wt" ] && continue
-      printf '%s\n' "$cand"
-      return 0
-    done
-    printf '%s\n' 'wt: no worktrunk binary on PATH' >&2
-    return 127
-  }
-  """#
-
-/// Runs the real wt with the given arguments. On failure, says so and execs omp.
-/// Arguments are the real wt argv, including `step commit`.
-fixScript: String =
-  script.bash
-    + realWt
-    + "\n"
-    + #"""
-    real=$(real_wt) || exit $?
-    status=0
-    "$real" "$@" || status=$?
-    if [ "$status" -ne 0 ]; then
-      notice="\#(notice)"
-      zsh -fc 'print -ru2 -- "$1"' _ "$notice" || printf '%s\n' "$notice" >&2
-      exec omp @task '\#(task)'
-    fi
-    exit 0
-    """#
-
-/// PATH wrapper. `step commit --fix` becomes the fix script; every other
-/// invocation execs the real binary, including shell completion.
-wrapper: String =
-  script.bash
-    + realWt
-    + "\n"
-    + #"""
-    if [ -n "${COMPLETE:-}" ]; then
-      real=$(real_wt) || exit $?
-      exec "$real" "$@"
-    fi
-
-    # Sets WT_ARGS to the real wt argv with `--fix` removed. Returns 0 only
-    # when the command is `step commit` and `--fix` was present after it.
-    commit_fix_args() {
-      local arg fix
-      local -a kept
-      WT_ARGS=()
-      kept=()
-      fix=0
-      while [ $# -gt 0 ]; do
-        arg=$1
-        shift
-        case "$arg" in
-          --config=* | --config-set=*)
-            kept[${#kept[@]}]=$arg
-            ;;
-          -C | --config | --config-set)
-            kept[${#kept[@]}]=$arg
-            if [ $# -eq 0 ]; then
-              return 1
-            fi
-            kept[${#kept[@]}]=$1
-            shift
-            ;;
-          --)
-            return 1
-            ;;
-          -*)
-            kept[${#kept[@]}]=$arg
-            ;;
-          step)
-            if [ "${1:-}" != commit ]; then
-              return 1
-            fi
-            kept[${#kept[@]}]=step
-            kept[${#kept[@]}]=commit
-            shift
-            while [ $# -gt 0 ]; do
-              arg=$1
-              shift
-              if [ "$arg" = -- ]; then
-                kept[${#kept[@]}]=$arg
-                while [ $# -gt 0 ]; do
-                  kept[${#kept[@]}]=$1
-                  shift
-                done
-                break
-              fi
-              if [ "$arg" = --fix ]; then
-                fix=1
-                continue
-              fi
-              kept[${#kept[@]}]=$arg
-            done
-            [ "$fix" -eq 1 ] || return 1
-            WT_ARGS=("${kept[@]}")
-            return 0
-            ;;
-          *)
-            return 1
-            ;;
-        esac
-      done
-      return 1
-    }
-
-    if commit_fix_args "$@"; then
-      exec "${0%/*}/dev-profile-commit-fix" "${WT_ARGS[@]}"
-    fi
-    real=$(real_wt) || exit $?
-    exec "$real" "$@"
-    """#
 
 aliases: Mapping<String, String> = new {
   ["commit-fix"] = "\(profile.installPath)/bin/dev-profile-commit-fix step commit {{ args }}"
 }
 
 wrappers: Mapping<String, String> = new {
-  ["dev-profile-commit-fix"] = fixScript
-  ["wt"] = wrapper
+  // lib/commit-fix.sh: the real wt; on failure, says so and execs omp.
+  ["dev-profile-commit-fix"] =
+    let (r = read?("commit-fix.sh")) if (r is String) r else if (r == null) "" else r.text
+  // lib/wt.sh: the PATH wrapper. `step commit --fix` becomes the fix script; every
+  // other invocation execs the real binary, including shell completion.
+  ["wt"] = let (r = read?("wt.sh")) if (r is String) r else if (r == null) "" else r.text
 }

@@ -11,21 +11,7 @@ on {
   ["pre-push"] = (module.builtins.shellcheck) { check = "shellcheck --severity=warning {{files}}" }
 }
 
-local shellcheckFix =
-  """
-  \(bash)
-  # Apply the fixes shellcheck is sure of to the staged shell files. Its parser
-  # understands heredocs, and it leaves expansions that may split on purpose
-  # ($(seq 3), ${CMD:-mise latest}) as warnings for a person, so a fix never
-  # changes what the script does. The pre-push shellcheck reports the rest.
-  if [[ $# -eq 0 ]]; then
-    exit 0
-  fi
-  patch="$(shellcheck --format=diff "$@" 2>/dev/null || true)"
-  if [[ -z "${patch}" ]]; then
-    exit 0
-  fi
-  git apply --whitespace=nowarn <<<"${patch}"
-  """
-
-scripts { ["dev-profile-shellcheck-fix"] = shellcheckFix }
+scripts {
+  ["dev-profile-shellcheck-fix"] =
+    let (r = read?("shellcheck-fix.sh")) if (r is String) r else if (r == null) "" else r.text
+}

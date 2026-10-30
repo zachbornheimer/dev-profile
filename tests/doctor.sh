@@ -20,7 +20,7 @@ zsh -n "$out/shell.zsh" || fail shell.zsh
 node --check "$out/dev-relay.mjs" || fail dev-relay.mjs
 for f in "$out"/bin/*; do bash -n "$f" || fail "${f##*/}"; done
 # Same bar the profile sets for every repo's push: warnings block, info tips do not.
-shellcheck --severity=warning "$out"/bin/* tests/*.sh || fail shellcheck
+shellcheck --external-sources --severity=warning "$out"/bin/* tests/*.sh || fail shellcheck
 "$out/bin/dev-profile-git-config-hooks" || fail "git 2.54+ (config-based hooks) does not resolve"
 # Every generated script runs under pipefail: a reader that stops early (head)
 # kills its writer with SIGPIPE and the script with exit 141.
@@ -65,6 +65,7 @@ bash tests/kernel-pins-fixture.sh "$out" || fail "kernel-pins fixture"
 bash tests/retire-legacy-hooks-fixture.sh "$out" || fail "retire-legacy-hooks fixture"
 bash tests/ci-action-fixture.sh "$out" || fail "ci-action fixture"
 bash tests/out-dir-fixture.sh || fail "out-dir fixture"
+bash tests/live-files-fixture.sh || fail "live-files fixture"
 bash tests/conform-resolve-fixture.sh "$out" || fail "conform-resolve fixture"
 bash tests/lint-binding-fixture.sh "$out" || fail "lint-binding fixture"
 echo "doctor ok"

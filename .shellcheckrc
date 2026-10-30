@@ -1,0 +1,3 @@
+# bin/ scripts source the shared libraries in lib/sh/; follow them so a variable
+# a library sets is not reported as unassigned.
+external-sources=true

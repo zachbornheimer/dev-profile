@@ -7,18 +7,7 @@ on {
   ["pre-push"] = module.builtins.swiftlint
 }
 
-local swiftlintFix =
-  """
-  \(bash)
-  if ! command -v swiftlint >/dev/null 2>&1; then
-    exit 0
-  fi
-  if [[ $# -eq 0 ]]; then
-    exit 0
-  fi
-  exec dev-profile-fix swiftlint --fix --quiet "$@"
-  """
-
 scripts {
-  ["dev-profile-swiftlint-fix"] = swiftlintFix
+  ["dev-profile-swiftlint-fix"] =
+    let (r = read?("swiftlint-fix.sh")) if (r is String) r else if (r == null) "" else r.text
 }

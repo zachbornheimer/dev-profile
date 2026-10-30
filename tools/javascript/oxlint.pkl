@@ -27,16 +27,7 @@ on {
   }
 }
 
-local oxlintFix =
-  """
-  \(bash)
-  # Safe fixes plus suggestions (modernize); never --fix-dangerously.
-  # Exit 1 = diagnostics left for push; anything else is a real error.
-  code=0
-  oxlint --fix --fix-suggestions "$@" || code=$?
-  [[ "${code}" -le 1 ]] || exit "${code}"
-  """
-
 scripts {
-  ["dev-profile-oxlint-fix"] = oxlintFix
+  ["dev-profile-oxlint-fix"] =
+    let (r = read?("oxlint-fix.sh")) if (r is String) r else if (r == null) "" else r.text
 }

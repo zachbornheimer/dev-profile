@@ -5,3 +5,9 @@ set -euo pipefail
 default="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || echo origin/main)"
 [[ "$(git branch --show-current)" == "${default#origin/}" ]] || exit 0
 mise run generate
+# Links follow the render on their own; a merged target (worktrunk) is a regular
+# file, so its profile keys are set again here. No --force: a conflict is reported,
+# never overwritten, and does not fail the merge.
+mise run detach-merged
+MISE_GLOBAL_CONFIG_FILE="$DEV_PROFILE_OUT/mise-profile.toml" mise bootstrap dotfiles apply --yes ||
+	echo "post-merge: dotfiles apply reported a problem; run mise run diff-live" >&2

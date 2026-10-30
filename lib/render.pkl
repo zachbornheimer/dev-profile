@@ -109,21 +109,6 @@ dprint: Dynamic = new {
 local dprintVersion: String =
   profile.tools.toList().filter((pin) -> pin.id == "dprint").first.version
 
-/// What Neovim runs on save: the profile's dprint by absolute path. A PATH that
-/// predates a pin change cannot pick another build, and mise's shim (44 ms a
-/// call) is only the way to a pin that is not installed yet.
-local dprintWrapper =
-  #"""
-  #!/bin/sh
-  set -eu
-  \#(header("#"))
-  mise_data="${MISE_DATA_DIR:-${XDG_DATA_HOME:-${HOME}/.local/share}/mise}"
-  pinned="${mise_data}/installs/dprint/\#(dprintVersion)/dprint"
-  [ -x "${pinned}" ] && exec "${pinned}" "$@"
-  [ -x "${mise_data}/shims/dprint" ] && exec "${mise_data}/shims/dprint" "$@"
-  exec dprint "$@"
-  """#
-
 /// Second bootstrap pass loads this as the global config; install links it to
 /// ~/.config/mise/conf.d/dev-profile.toml.
 mise: Dynamic = new {
@@ -166,107 +151,63 @@ mise: Dynamic = new {
     for (target, file in profile.liveTargets) {
       [target] { source = "\(profile.installDir)/\(file)"; mode = "symlink" }
     }
+    // The id after the path names this edit; the whole-file key stays free for
+    // the tracking entry below.
+    for (target, file in profile.mergedTargets) {
+      ["\(target)/dev-profile"] { source = "\(profile.installDir)/\(file)"; merge = true }
+    }
+    ...trackedEntries
+  }
+  when (!profile.history.recipients.isEmpty) {
+    history { encryption { recipients = profile.history.recipients.toList() } }
   }
   deps = depsFor(null)
   bootstrap {
     packages { ...profile.brewPackages }
     hooks { ...profile.bootstrapHooks }
+    // Saves every edit to a tracked file, and syncs once an origin is set.
+    services { ["mise-history"] { builtin = "history-watch" } }
+  }
+}
+
+/// Live targets the profile links under a tracked directory, relative to it.
+/// History skips them: `generate` owns their contents.
+local function linkedUnder(dir: String): List<String> =
+  profile.liveTargets.keys
+    .toList()
+    .filter((t) -> t.startsWith(dir + "/"))
+    .map((t) -> t.drop(dir.length + 1))
+
+/// `mode = "track"` entries. An encrypted one waits for a recipient: mise refuses
+/// to save it without one, and never falls back to plaintext.
+local trackedEntries: Mapping<String, Dynamic> = new {
+  for (target, t in profile.history.tracked) {
+    when (!t.encrypt || !profile.history.recipients.isEmpty) {
+      [target] {
+        mode = "track"
+        when (t.encrypt) { encrypt = true }
+        when (!(t.exclude.toList() + linkedUnder(target)).isEmpty) {
+          exclude = t.exclude.toList() + linkedUnder(target)
+        }
+      }
+    }
   }
 }
 
 // Worktrunk default prompt structure, with Conventional Commits required even
 // when recent or folded subjects are not. Keep {{ user_guidance }} so
 // template-append restates the rule after <style>.
-local conventionalCommitRule =
-  """
-  Always Conventional Commits even when recent or folded commits are not.
-  Subject MUST be type(optional-scope): imperative description.
-  Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert.
-  Subject under 72 chars.
-  """
+local conventionalCommitRule: String =
+  let (r = read?("worktrunk/commit-rule.txt"))
+    if (r is String) r else if (r == null) "" else r.text.trimEnd()
 
-local commitGenerationTemplate =
-  """
-  <task>Write a commit message for the staged changes below.</task>
+local commitGenerationTemplate: String =
+  let (r = read?("worktrunk/commit-prompt.txt"))
+    if (r is String) r else if (r == null) "" else r.text.trimEnd()
 
-  <format>
-  - Subject MUST be `type(optional-scope): imperative description`
-  - Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert
-  - Subject under 72 chars
-  - For material changes, add a blank line then a body paragraph explaining the change
-  - Output only the commit message, no quotes or code blocks
-  </format>
-
-  <style>
-  - Imperative mood: "Add feature" not "Added feature"
-  - Always Conventional Commits even when recent commits are not
-  - Describe the change, not the intent or benefit
-  </style>
-  {% if user_guidance %}
-  <user-guidance>
-  {{ user_guidance }}
-  </user-guidance>
-  {% endif %}{% if project_guidance %}
-  <project-guidance>
-  {{ project_guidance }}
-  </project-guidance>
-  {% endif %}
-  <diffstat>
-  {{ git_diff_stat }}
-  </diffstat>
-
-  <diff>
-  {{ git_diff }}
-  </diff>
-
-  <context>
-  Branch: {{ branch }}
-  {% if recent_commits %}<recent_commits>
-  {% for commit in recent_commits %}- {{ commit }}
-  {% endfor %}</recent_commits>{% endif %}
-  </context>
-
-  """
-
-local squashGenerationTemplate =
-  """
-  <task>Write a commit message for the change in <diff>, which is everything the squash will record. <commits> lists what it folds in.</task>
-
-  <format>
-  - Subject MUST be `type(optional-scope): imperative description`
-  - Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert
-  - Subject under 72 chars
-  - For material changes, add a blank line then a body paragraph explaining the change
-  - Output only the commit message, no quotes or code blocks
-  </format>
-
-  <style>
-  - Imperative mood: "Add feature" not "Added feature"
-  - Always Conventional Commits even when folded commits are not
-  - Describe the change, not the intent or benefit
-  </style>
-  {% if user_guidance %}
-  <user-guidance>
-  {{ user_guidance }}
-  </user-guidance>
-  {% endif %}{% if project_guidance %}
-  <project-guidance>
-  {{ project_guidance }}
-  </project-guidance>
-  {% endif %}
-  <commits branch="{{ branch }}" target="{{ target_branch }}">
-  {% for detail in commit_details %}- {{ detail.subject }}
-  {% endfor %}</commits>
-
-  <diffstat>
-  {{ git_diff_stat }}
-  </diffstat>
-
-  <diff>
-  {{ git_diff }}
-  </diff>
-
-  """
+local squashGenerationTemplate: String =
+  let (r = read?("worktrunk/squash-prompt.txt"))
+    if (r is String) r else if (r == null) "" else r.text.trimEnd()
 
 worktrunk: Dynamic = new {
   ["worktree-path"] = profile.worktreePath
@@ -297,17 +238,10 @@ worktrunk: Dynamic = new {
     }
   }
   aliases {
+    // lib/worktrunk/up.sh
     up =
-      """
-      git fetch --all --prune; wt step for-each -- sh -c '
-        git rev-parse --verify -q @{u} >/dev/null || exit 0
-        g=$(git rev-parse --git-dir)
-        rebasing() { test -d "$g/rebase-merge" || test -d "$g/rebase-apply"; }
-        rebasing && exit 0
-        git diff --quiet HEAD || { git merge --ff-only --no-autostash @{u}; exit 0; }
-        git rebase @{u} --no-autostash || { rebasing || exit 0; git rebase --abort; }
-      '
-      """
+      let (r = read?("worktrunk/up.sh"))
+        if (r is String) r else if (r == null) "" else r.text.trimEnd()
     ...pr.aliases
     ...sync.aliases
     ...retire.aliases
@@ -323,23 +257,10 @@ worktrunk: Dynamic = new {
     // to the feature branch and exits non-zero. An existing branch is reused
     // so a retry after that failure pops the stash there instead of dying
     // on `--create`. The branch name is the one the hand alias already uses.
+    // lib/worktrunk/commit-unstaged.sh
     ["commit-unstaged"] =
-      """
-      git stash push -u || exit 1
-      cmd='git stash pop && wt step commit && wt merge'
-      if git show-ref --verify --quiet refs/heads/chore/uncommited; then
-        wt switch chore/uncommited --no-cd -x sh -- -c "$cmd"
-      else
-        wt switch --create chore/uncommited --no-cd -x sh -- -c "$cmd"
-      fi
-      status=$?
-      if [ "$status" -eq 0 ]; then
-        wt switch ^
-      else
-        wt switch chore/uncommited
-        exit "$status"
-      fi
-      """
+      let (r = read?("worktrunk/commit-unstaged.sh"))
+        if (r is String) r else if (r == null) "" else r.text.trimEnd()
     // `wt step commit --fix` is the PATH wrapper in bin/wt. This alias is the
     // same handoff for a direct `wt commit-fix`, and for the wrapper.
     ...commitfix.aliases
@@ -460,7 +381,9 @@ manifest: Manifest = new {
 // ---- wrapper scripts (generated bin/)
 /// Every tool's scripts, plus the contract and git-hook entry points.
 wrappers: Mapping<String, String> = new {
-  ["dev-profile-dprint"] = dprintWrapper
+  // lib/dprint.sh: what Neovim runs on save (it reads PROFILE_DPRINT_VERSION).
+  ["dev-profile-dprint"] =
+    let (r = read?("dprint.sh")) if (r is String) r else if (r == null) "" else r.text
   for (_, tool in profile.catalog) { ...tool.scripts }
   ...contract.wrappers
   ...githooks.wrappers
@@ -469,6 +392,12 @@ wrappers: Mapping<String, String> = new {
   ...retire.wrappers
   ...done.wrappers
   ...commitfix.wrappers
+}
+
+/// Every tool's facts, keyed by name, for lib/facts.sh.
+facts: Mapping<String, String> = new {
+  ["PROFILE_DPRINT_VERSION"] = dprintVersion
+  for (_, tool in profile.catalog) { ...tool.facts }
 }
 
 // ---- Personal directory overlay: linked as ~/Developer/Personal/mise.toml.
@@ -494,52 +423,7 @@ personalOverlay: Dynamic = new {
 // the fork but also delays an in-place mise.toml edit until the next cd, so the
 // guard below refreshes when either PWD or a config mtime changes.
 miseZsh: String =
-  #"""
-  # mise activation with a directory/config-change guard in front of the prompt
-  # hook: unchanged prompts cost only a few zstat calls, and an edited mise.toml
-  # applies on the next prompt without a cd.
-  [[ -o interactive ]] || return 0
-  command -v mise >/dev/null 2>&1 || return 0
-  eval "$(mise activate zsh)"
-
-  zmodload zsh/stat 2>/dev/null
-  autoload -Uz add-zsh-hook
-  typeset -g _DEV_PROFILE_MISE_PWD=$PWD
-  typeset -g _DEV_PROFILE_MISE_STAMP=0
-
-  _dev_profile_mise_config_stamp() {
-    local dir=$PWD file newest=0
-    local -a statbuf
-    while :; do
-      for file in "$dir"/mise.toml "$dir"/.mise.toml "$dir"/mise.local.toml; do
-        [[ -f $file ]] || continue
-        zstat -A statbuf +mtime -- "$file" 2>/dev/null || continue
-        (( statbuf[1] > newest )) && newest=$statbuf[1]
-      done
-      [[ $dir == / ]] && break
-      dir=${dir:h}
-    done
-    for file in "$HOME"/.config/mise/config.toml "$HOME"/.config/mise/conf.d/*.toml(N); do
-      [[ -f $file ]] || continue
-      zstat -A statbuf +mtime -- "$file" 2>/dev/null || continue
-      (( statbuf[1] > newest )) && newest=$statbuf[1]
-    done
-    typeset -g _DEV_PROFILE_MISE_NEW=$newest
-  }
-
-  _dev_profile_mise_refresh() {
-    _dev_profile_mise_config_stamp
-    [[ $PWD == $_DEV_PROFILE_MISE_PWD && $_DEV_PROFILE_MISE_NEW == $_DEV_PROFILE_MISE_STAMP ]] && return
-    _DEV_PROFILE_MISE_PWD=$PWD
-    _DEV_PROFILE_MISE_STAMP=$_DEV_PROFILE_MISE_NEW
-    (( $+functions[_mise_hook] )) && _mise_hook
-  }
-
-  _dev_profile_mise_config_stamp
-  _DEV_PROFILE_MISE_STAMP=$_DEV_PROFILE_MISE_NEW
-  add-zsh-hook -D precmd _mise_hook_precmd 2>/dev/null
-  add-zsh-hook precmd _dev_profile_mise_refresh
-  """#
+  let (r = read?("mise.zsh")) if (r is String) r else if (r == null) "" else r.text.trimEnd()
 
 shellZsh: String =
   new Listing<String> {

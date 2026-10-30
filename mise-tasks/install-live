@@ -7,4 +7,5 @@ set -euo pipefail
 	echo "refusing to link live configs to the scratch render ${DEV_PROFILE_OUT}: run this at the default branch tip, or set DEV_PROFILE_OUT" >&2
 	exit 1
 }
+mise run detach-merged
 MISE_GLOBAL_CONFIG_FILE="$DEV_PROFILE_OUT/mise-profile.toml" mise bootstrap dotfiles apply --yes --force

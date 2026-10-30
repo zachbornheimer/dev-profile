@@ -6,6 +6,7 @@ import "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pk
 
 import "lib/contract.pkl"
 import "lib/render.pkl"
+import "lib/script.pkl"
 import "lib/shared.pkl"
 import "lib/Tool.pkl"
 import "lib/types.pkl"
@@ -97,7 +98,6 @@ codeRoot: String = "~/Developer/Personal"
 liveTargets: Mapping<String, String> = new {
   ["~/.config/hk/config.pkl"] = "hk-config.pkl"
   ["~/.config/dprint/dprint.jsonc"] = "dprint.jsonc"
-  ["~/.config/worktrunk/config.toml"] = "worktrunk.toml"
   ["~/.config/mise/conf.d/dev-profile.toml"] = "mise-profile.toml"
   ["~/.config/nvim/lua/zach/plugins/conform.lua"] = "conform.lua"
   ["\(codeRoot)/dprint.jsonc"] = "dprint.jsonc"
@@ -109,6 +109,30 @@ liveTargets: Mapping<String, String> = new {
   // User-level defaults; a repo's own .markdownlint* / .yamllint still wins.
   ["~/.markdownlintrc"] = "markdownlintrc.json"
   ["~/.config/yamllint/config"] = "yamllint.yaml"
+}
+
+/// Live config path → generated file whose keys the profile owns (a mise `merge`
+/// entry). The live file stays a regular file: keys added by hand survive every
+/// apply, and history saves them. A key dropped here stays in the live file until
+/// it is removed by hand.
+mergedTargets: Mapping<String, String> = new {
+  ["~/.config/worktrunk/config.toml"] = "worktrunk.toml"
+}
+
+/// Live files mise saves in place and shares through this repo's `history` branch
+/// (README "Live files"). The branch is public: everything is encrypted except
+/// files meant to be read there.
+history: types.History = new {
+  tracked {
+    // Aliases and hooks: nothing secret, and readable on the branch.
+    ["~/.config/worktrunk/config.toml"] { encrypt = false }
+    ["~/.zshrc"] {}
+    ["~/.config/nvim"] {}
+    ["~/.config/mise"] {
+      // The identity that decrypts history.
+      exclude { "age.txt" }
+    }
+  }
 }
 
 phase: types.Policy = new {}
@@ -481,8 +505,9 @@ bootstrapHooks: Mapping<String, String> = new {
   ["post-tools"] = "\(installPath)/bin/dev-profile-perl-tools-install"
 }
 
-/// The only absolute path allowed in generated files.
-llmCommand: String = "/Users/zbornheimer/.local/bin/_llm"
+/// The commit-message LLM, in this machine's home: generate runs on the machine
+/// that uses it, so no other user's path is ever rendered.
+llmCommand: String = "\(read("env:HOME"))/.local/bin/_llm"
 
 worktreePath: String = "{{ repo_path }}/../.worktrees/{{ repo }}-{{ branch | sanitize }}"
 
@@ -783,6 +808,22 @@ languages: Listing<types.Spec> = new {
   }
 }
 
+/// lib/sh/<name>.sh, rendered to lib/<name>.sh beside bin/ for the scripts that
+/// source it. A script finds them from its own path, never PATH.
+shellLibraries: Listing<String> = new {
+  "gh-scope"
+  "github"
+  "go-modules"
+  "go-packages"
+  "contract-adapter"
+  "nearest-up"
+  "perl-tools"
+  "real-wt"
+  "remove-merged"
+  "repo-facts"
+  "snapshot-tools"
+}
+
 // Rendered outputs: `mise run generate` evaluates this into installDir.
 output {
   files {
@@ -824,5 +865,9 @@ output {
     for (name, body in render.wrappers) {
       ["bin/\(name)"] { text = body }
     }
+    // Shell libraries the bin/ scripts source from ../lib/. Listed, not globbed:
+    // hk's evaluator has no read*.
+    ["lib/facts.sh"] { text = script.factsFile(render.facts.toMap() + contract.facts.toMap()) }
+    for (name in shellLibraries) { ["lib/\(name).sh"] { text = read("lib/sh/\(name).sh").text } }
   }
 }

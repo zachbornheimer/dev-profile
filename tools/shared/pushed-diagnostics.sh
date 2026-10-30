@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# Edit tools/shared/pushed-diagnostics.sh: `mise run generate` copies it into bin/.
+
+# Whole-program linters with no new-issues mode (go vet, cargo clippy): run the command,
+# then fail only on diagnostics located in the pushed files. Usage: CMD ARGS... :: FILES...
+cmd=()
+while (($#)) && [[ "$1" != "::" ]]; do
+	cmd+=("$1")
+	shift
+done
+shift || true
+((${#cmd[@]})) || {
+	echo "usage: dev-profile-pushed-diagnostics CMD ARGS... :: FILES..." >&2
+	exit 2
+}
+out="$("${cmd[@]}" 2>&1)" && exit 0
+fail=0
+while IFS= read -r diag; do
+	path="${diag%%:*}"
+	path="${path#./}"
+	for f in "$@"; do
+		if [[ "${f}" == "${path}" || "${f}" == */"${path}" || "${path}" == */"${f}" ]]; then
+			echo "${diag}" >&2
+			fail=1
+		fi
+	done
+done < <(grep -E '^[^ :]+\.(go|rs):[0-9]+(:[0-9]+)?: ' <<<"${out}" || true)
+if [[ "${fail}" -eq 0 ]] && ! grep -Eq '^[^ :]+\.(go|rs):[0-9]+' <<<"${out}"; then
+	echo "${out}" >&2 # failure with no file diagnostics (build or setup error): surface it
+	exit 1
+fi
+exit "${fail}"

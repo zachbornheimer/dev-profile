@@ -14,7 +14,6 @@ module Tool
 import "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Builtins.pkl"
 import "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pkl" as hk
 
-import "script.pkl"
 import "types.pkl" as profileTypes
 
 /// The git hooks a tool can run in.
@@ -53,32 +52,31 @@ afterFixers: Boolean = false
 /// already covers every file it is given.
 fullTreeCheck: String?
 
+/// Values the tool's scripts read at run time, rendered once into lib/facts.sh:
+/// `PROFILE_<NAME>` → value (a list is one item per line). A script sources
+/// ../lib/facts.sh and reads `${PROFILE_<NAME>:?}`, so the value lives here, not in
+/// the script. Names are global: two tools that declare one name fail the render.
+facts: Mapping<String, String> = new {}
+
 /// Generated config files the tool's scripts pass explicitly: name in the output
 /// directory (`perltidyrc`) to file body.
 files: Mapping<String, String> = new {}
 
-/// Generated `bin/` scripts: full name (`dev-profile-<x>`) to bash body. Step
-/// commands call them by name; a tool may ship a script and no hook entry.
+/// Generated `bin/` scripts: full name (`dev-profile-<x>`) to body. Step commands
+/// call them by name; a tool may ship a script and no hook entry. The body is a
+/// real file beside the tool (`<x>.sh`), read as shown below: shared code comes
+/// from lib/sh/*.sh by `source`, and profile values from `facts`, never spliced in.
 scripts: Mapping<String, String> = new {}
 
 /// hk's builtin steps, for `on` entries.
 hidden builtins: Builtins = Builtins
 
-/// Script preamble: strict bash and the generated-file banner.
-hidden bash: String = script.bash
-
-/// Script fragment for fixers that walk up from a staged file to a config or crate.
-hidden nearestUp: String = script.nearestUp
-
-/// Script fragment for Go steps that group staged files by package and module.
-hidden goPackages: String = script.goPackages
-
-/// Script fragment for the Perl wrappers: the rc file the tool runs with, and a loud
-/// failure when the tool is missing.
-hidden perlTools: String = script.perlTools
-
-/// The same without `pattern`, for Go steps that work per module.
-hidden goModules: String = script.goModules
+// A file beside a tool is read in place as
+//   let (r = read?("x.sh")) if (r is String) r else if (r == null) "" else r.text
+// hk evaluates the shipped sources with pklr, whose read returns a String and
+// resolves a relative path against the root config's directory, and which has no
+// module methods. There the scripts are never used, so any value will do; under
+// `pkl eval` the Resource's text is the script.
 
 local function hasCheck(step: hk.Step): Boolean =
   step.check != null || step.check_diff != null || step.check_list_files != null
