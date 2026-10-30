@@ -2,6 +2,7 @@
 *
 !/.gitignore
 !/README.md
+!/.shellcheckrc
 !/mise.toml
 !/action.yml
 !/mise-tasks/
