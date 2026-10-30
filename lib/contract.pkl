@@ -9,8 +9,6 @@ import "types.pkl"
 /// Task namespace a repo extends: `depends = ["profile:test"]`.
 namespace: String = "profile"
 
-local bash = "#!/usr/bin/env bash\nset -euo pipefail\n" + render.header("#") + "\n"
-
 /// `profile:<verb>` runs the dispatcher from the invoking directory (mise would
 /// otherwise run a parent-defined task in the code root); `<verb>` depends on it.
 tasks: Dynamic = new {
@@ -59,134 +57,6 @@ local kernelPinLines: String =
     .join("\n")
 
 // ---- Suppression ban
-local function directiveLines(): String =
-  profile.suppressionDirectives
-    .toMap()
-    .entries
-    .map((e) -> "\(e.key)|\(profile.suppressionFiles[e.key])|\(e.value)")
-    .join("\n")
-
-local function exceptionLines(): String =
-  profile.suppressionExceptions.toList().map((x) -> "\(x.path)|\(x.rule)").join("\n")
-
-local function excludePathspecs(): String =
-  profile.exclude.toList().map((d) -> "':(exclude,glob)**/\(d)/**'").join(" ")
-
-local suppressions =
-  """
-  \(bash)
-  # Find inline suppression directives. --tree: every tracked file (lint, doctor).
-  # --unpushed: lines added by commits not yet on a remote (pre-push).
-  # One scan per mode: the directives are joined into a single alternation, so the
-  # tree or diff is read once instead of once per directive. Only candidate lines
-  # reach the attribution pass, which decides the directive, the file scope and the
-  # declared exceptions.
-  mode="${1:?usage: dev-profile-suppressions --tree|--unpushed}"
-  policy="\(profile.suppressionMode)"
-  cd "$(git rev-parse --show-toplevel)"
-
-  work="$(mktemp -d)"
-  trap 'rm -rf "${work}"' EXIT
-
-  # id|file extensions|ERE, one per line.
-  cat >"${work}/directives" <<'EOF'
-  \(directiveLines())
-  EOF
-
-  # path|rule declared in profile.pkl suppressionExceptions.
-  cat >"${work}/exceptions" <<'EOF'
-  \(exceptionLines())
-  EOF
-
-  case "${mode}" in
-    --tree | --unpushed) ;;
-    *)
-      echo "dev-profile-suppressions: unknown mode ${mode}" >&2
-      exit 2
-      ;;
-  esac
-
-  # Any of the directives, so the scan reads the tree or diff once: (re1)|(re2)|...
-  combined="$(
-    awk '{
-      line = $0
-      sub(/^[^|]*\\|[^|]*\\|/, "", line)
-      printf "%s(%s)", (NR > 1 ? "|" : ""), line
-    }' "${work}/directives"
-  )"
-
-  # Lines "path:..." matching any directive, in the mode's own format.
-  if [[ "${mode}" == --tree ]]; then
-    matched="$(git grep -nIE -e "${combined}" -- . \(excludePathspecs()) || true)"
-  else
-    matched="$(
-      git log -p --format= --unified=0 --no-color --branches --not --remotes |
-        awk 'index($0, "+++ b/") == 1 { file = substr($0, 7); next }
-          index($0, "+") == 1 && index($0, "+++") != 1 { print file ":" substr($0, 2) }' |
-        grep -E -e "${combined}" || true
-    )"
-  fi
-
-  if [[ -z "${matched}" ]]; then
-    exit 0
-  fi
-
-  # Attribute each candidate: path in the directive's file scope, not an exception,
-  # text matching the directive's own ERE. Prints "hit  [id]" exactly as reported.
-  reported="$(
-    awk -v directives="${work}/directives" -v exceptions="${work}/exceptions" '
-      BEGIN {
-        n = 0
-        while ((getline line < directives) > 0) {
-          if (line == "") continue
-          i = index(line, "|")
-          id = substr(line, 1, i - 1)
-          rest = substr(line, i + 1)
-          j = index(rest, "|")
-          n++
-          did[n] = id
-          dexts[n] = substr(rest, 1, j - 1)
-          dre[n] = substr(rest, j + 1)
-        }
-        while ((getline line < exceptions) > 0) if (line != "") except[line] = 1
-      }
-      {
-        c = index($0, ":")
-        if (c == 0) next
-        path = substr($0, 1, c - 1)
-        text = substr($0, c + 1)
-        for (k = 1; k <= n; k++) {
-          scope = 0
-          m = split(dexts[k], ext, " ")
-          for (e = 1; e <= m; e++) {
-            x = ext[e]
-            if (x != "" && length(path) > length(x) && substr(path, length(path) - length(x)) == "." x) {
-              scope = 1
-              break
-            }
-          }
-          if (!scope) continue
-          if ((path "|" did[k]) in except) continue
-          if (text !~ dre[k]) continue
-          print $0 "  [" did[k] "]"
-        }
-      }
-    ' <<<"${matched}"
-  )"
-
-  if [[ -z "${reported}" ]]; then
-    exit 0
-  fi
-
-  printf '%s\n' "${reported}"
-  found="$(grep -c '' <<<"${reported}")"
-  if [[ "${policy}" == enforce ]]; then
-    echo "${found} inline suppression(s). Fix the code, or declare {path, rule, ticket} in profile.pkl suppressionExceptions." >&2
-    exit 1
-  fi
-  echo "report mode: ${found} inline suppression(s), not blocking. Set suppressionMode = 'enforce' in profile.pkl to block." >&2
-  """
-
 /// Contract verbs every push runs (lint is the hk checks that run beside them).
 pushVerbs: Listing<String> = new { "test"; "scan" }
 
@@ -201,6 +71,18 @@ facts: Mapping<String, String> = new {
   ["PROFILE_LINT_PROFILE"] = profile.lintProfile
   // The exit an adapter uses for "nothing to do", for the dispatcher and the adapters.
   ["PROFILE_CONTRACT_NOTHING_TO_DO"] = "3"
+  // dev-profile-suppressions: "<id>|<extensions>|<ERE>" per directive, the
+  // declared "<path>|<rule>" exceptions, the policy, and the excluded directories.
+  ["PROFILE_SUPPRESSION_DIRECTIVES"] =
+    profile.suppressionDirectives
+      .toMap()
+      .entries
+      .map((e) -> "\(e.key)|\(profile.suppressionFiles[e.key])|\(e.value)")
+      .join("\n")
+  ["PROFILE_SUPPRESSION_EXCEPTIONS"] =
+    profile.suppressionExceptions.toList().map((x) -> "\(x.path)|\(x.rule)").join("\n")
+  ["PROFILE_SUPPRESSION_MODE"] = profile.suppressionMode
+  ["PROFILE_EXCLUDE"] = profile.exclude.toList().join("\n")
   // One "<id><TAB><globs>" line per adapter, in dispatch order (lib/contract.sh).
   ["PROFILE_CONTRACT_ADAPTERS"] =
     profile.contractAdapters
@@ -227,7 +109,8 @@ wrappers: Mapping<String, String> = new {
       let (r = read?("adapters/\(adapter.id).sh"))
         if (r is String) r else if (r == null) "" else r.text
   }
-  ["dev-profile-suppressions"] = suppressions
+  ["dev-profile-suppressions"] =
+    let (r = read?("suppressions.sh")) if (r is String) r else if (r == null) "" else r.text
   ["dev-profile-commit-msg"] =
     let (r = read?("commit-msg.sh")) if (r is String) r else if (r == null) "" else r.text
 }
