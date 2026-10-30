@@ -53,6 +53,12 @@ afterFixers: Boolean = false
 /// already covers every file it is given.
 fullTreeCheck: String?
 
+/// Values the tool's scripts read at run time, rendered once into lib/facts.sh:
+/// `PROFILE_<NAME>` → value (a list is one item per line). A script sources
+/// ../lib/facts.sh and reads `${PROFILE_<NAME>:?}`, so the value lives here, not in
+/// the script. Names are global: two tools that declare one name fail the render.
+facts: Mapping<String, String> = new {}
+
 /// Generated config files the tool's scripts pass explicitly: name in the output
 /// directory (`perltidyrc`) to file body.
 files: Mapping<String, String> = new {}

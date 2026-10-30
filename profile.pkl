@@ -6,6 +6,7 @@ import "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pk
 
 import "lib/contract.pkl"
 import "lib/render.pkl"
+import "lib/script.pkl"
 import "lib/shared.pkl"
 import "lib/Tool.pkl"
 import "lib/types.pkl"
@@ -863,6 +864,7 @@ output {
     }
     // Shell libraries the bin/ scripts source from ../lib/. Listed, not globbed:
     // hk's evaluator has no read*.
+    ["lib/facts.sh"] { text = script.factsFile(render.facts.toMap()) }
     for (name in shellLibraries) { ["lib/\(name).sh"] { text = read("lib/sh/\(name).sh").text } }
   }
 }

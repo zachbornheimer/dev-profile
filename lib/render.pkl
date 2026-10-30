@@ -506,6 +506,12 @@ wrappers: Mapping<String, String> = new {
   ...commitfix.wrappers
 }
 
+/// Every tool's facts, keyed by name, for lib/facts.sh.
+facts: Mapping<String, String> = new {
+  ["PROFILE_DPRINT_VERSION"] = dprintVersion
+  for (_, tool in profile.catalog) { ...tool.facts }
+}
+
 // ---- Personal directory overlay: linked as ~/Developer/Personal/mise.toml.
 personalOverlay: Dynamic = new {
   env {

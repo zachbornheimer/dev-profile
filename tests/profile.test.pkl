@@ -8,6 +8,7 @@ import "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pk
 import "../lib/contract.pkl" as contract
 import "../lib/hk.pkl" as config
 import "../lib/render.pkl"
+import "../lib/script.pkl"
 import "../lib/types.pkl"
 import "../profile.pkl"
 
@@ -100,6 +101,13 @@ facts {
   // Script files are read with read? so hk's own evaluator, which resolves a
   // relative read from the wrong directory, can load the tool files. A real
   // render must still find every one.
+  // lib/facts.sh is data the scripts source: a value must come back exactly.
+  ["facts are single-quoted shell words"] {
+    script.shellWord("5.42") == "'5.42'"
+    script.shellWord("it's") == #"'it'\''s'"#
+    script.shellWord("a\nb") == "'a\nb'"
+    render.facts.toMap().keys.every((k) -> k.startsWith("PROFILE_"))
+  }
   ["every generated script has a body"] {
     render.wrappers.toMap().every((_, body) -> body.startsWith("#!"))
   }

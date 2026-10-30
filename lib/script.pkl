@@ -143,3 +143,15 @@ perlTools: String =
     fi
   }
   """#
+
+/// A POSIX shell single-quoted word: the value exactly, whatever it holds.
+function shellWord(value: String): String = "'" + value.replaceAll("'", #"'\''"#) + "'"
+
+/// lib/facts.sh: one readonly assignment per fact, sourceable by sh and bash.
+function factsFile(facts: Map<String, String>): String =
+  new Listing<String> {
+    "# shellcheck shell=sh"
+    header("#")
+    "# Values the bin/ scripts read at run time; each comes from a tool's `facts`."
+    for (name, value in facts) { "readonly \(name)=\(shellWord(value))" }
+  }.join("\n") + "\n"
