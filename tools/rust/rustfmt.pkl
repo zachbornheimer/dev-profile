@@ -10,5 +10,5 @@ on {
 }
 
 scripts {
-  ["dev-profile-rustfmt"] = read?("rustfmt.sh")?.text ?? ""
+  ["dev-profile-rustfmt"] = module.fileText(read?("rustfmt.sh"))
 }

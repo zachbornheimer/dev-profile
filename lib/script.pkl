@@ -11,6 +11,12 @@ local headerLines: List<String> =
 /// Generated-file banner using the target language's line-comment prefix.
 function header(comment: String): String = headerLines.map((l) -> "\(comment) \(l)").join("\n")
 
+/// The text of a file read beside its module with `read?`. hk evaluates the shipped
+/// sources with its own evaluator, whose `read?` returns a String (or nothing) and
+/// resolves relative paths elsewhere; there the scripts are never used, so any
+/// value will do. `pkl eval` gets a Resource and its text.
+function fileText(r: Any): String = if (r is String) r else if (r == null) "" else r.text
+
 /// Every wrapper starts with this: strict bash plus the generated-file banner.
 bash: String = "#!/usr/bin/env bash\nset -euo pipefail\n" + header("#") + "\n"
 

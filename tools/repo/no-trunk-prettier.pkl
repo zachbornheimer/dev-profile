@@ -7,5 +7,5 @@ on {
 }
 
 scripts {
-  ["dev-profile-ban-trunk-prettier"] = read?("ban-trunk-prettier.sh")?.text ?? ""
+  ["dev-profile-ban-trunk-prettier"] = module.fileText(read?("ban-trunk-prettier.sh"))
 }

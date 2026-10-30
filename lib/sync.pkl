@@ -419,7 +419,7 @@ local pruneScript =
 /// Generated bin/ scripts the worktrunk aliases run.
 wrappers: Mapping<String, String> = new {
   ["dev-profile-sync"] = syncScript
-  ["dev-profile-reconcile"] = read?("reconcile.sh")?.text ?? ""
+  ["dev-profile-reconcile"] = script.fileText(read?("reconcile.sh"))
   ["dev-profile-prune"] = pruneScript
 }
 

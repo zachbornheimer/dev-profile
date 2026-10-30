@@ -6,5 +6,5 @@ on {
 }
 
 scripts {
-  ["dev-profile-ty"] = read?("ty.sh")?.text ?? ""
+  ["dev-profile-ty"] = module.fileText(read?("ty.sh"))
 }

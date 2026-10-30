@@ -4,5 +4,5 @@ doc =
   "Doctor warning and healer, no hook: retires per-repo .git/hooks files written by retired hook managers, so only the global hk hooks run. Worktrunk runs it on every switch; --check only warns."
 
 scripts {
-  ["dev-profile-retire-legacy-hooks"] = read?("retire-legacy-hooks.sh")?.text ?? ""
+  ["dev-profile-retire-legacy-hooks"] = module.fileText(read?("retire-legacy-hooks.sh"))
 }

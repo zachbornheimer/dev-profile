@@ -4,5 +4,5 @@ doc =
   "The copy half of worktrunk's single post-start entry (tools/repo/worktree-start.pkl): `wt step copy-ignored` reflinks the source worktree's ignored files, then dumps a copied Composer autoloader again — it bakes absolute paths, so without this `php artisan` cannot see the app's own classes."
 
 scripts {
-  ["dev-profile-worktree-copy"] = read?("worktree-copy.sh")?.text ?? ""
+  ["dev-profile-worktree-copy"] = module.fileText(read?("worktree-copy.sh"))
 }

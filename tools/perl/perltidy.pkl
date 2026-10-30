@@ -29,7 +29,7 @@ local perltidyFormat =
   """#
 
 files {
-  ["perltidyrc"] = read?("perltidyrc")?.text ?? ""
+  ["perltidyrc"] = module.fileText(read?("perltidyrc"))
 }
 
 scripts {

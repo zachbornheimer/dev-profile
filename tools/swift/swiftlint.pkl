@@ -8,5 +8,5 @@ on {
 }
 
 scripts {
-  ["dev-profile-swiftlint-fix"] = read?("swiftlint-fix.sh")?.text ?? ""
+  ["dev-profile-swiftlint-fix"] = module.fileText(read?("swiftlint-fix.sh"))
 }

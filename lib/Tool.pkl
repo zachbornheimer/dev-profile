@@ -67,6 +67,9 @@ hidden builtins: Builtins = Builtins
 /// Script preamble: strict bash and the generated-file banner.
 hidden bash: String = script.bash
 
+/// A file beside the tool, read with `read?` there: `module.fileText(read?("x.sh"))`.
+function fileText(r: Any): String = script.fileText(r)
+
 /// Script fragment for fixers that walk up from a staged file to a config or crate.
 hidden nearestUp: String = script.nearestUp
 

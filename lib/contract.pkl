@@ -4,6 +4,7 @@ module contract
 
 import "../profile.pkl"
 import "render.pkl"
+import "script.pkl"
 import "types.pkl"
 
 /// Task namespace a repo extends: `depends = ["profile:test"]`.
@@ -741,7 +742,7 @@ pushVerbs: Listing<String> = new { "test"; "scan" }
 wrappers: Mapping<String, String> = new {
   ["dev-profile-kernel-pins"] = kernelPins
   ["dev-profile-contract"] = dispatcher
-  ["dev-profile-hk"] = read?("hk.sh")?.text ?? ""
+  ["dev-profile-hk"] = script.fileText(read?("hk.sh"))
   ["dev-profile-ci"] = ciScript
   ["dev-profile-contract-push"] = contractPush
   for (adapter in profile.contractAdapters) {

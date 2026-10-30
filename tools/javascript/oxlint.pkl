@@ -28,5 +28,5 @@ on {
 }
 
 scripts {
-  ["dev-profile-oxlint-fix"] = read?("oxlint-fix.sh")?.text ?? ""
+  ["dev-profile-oxlint-fix"] = module.fileText(read?("oxlint-fix.sh"))
 }

@@ -4,5 +4,5 @@ doc =
   "Detector shared by php-fmt and php-lint: wordpress, php-cs-fixer, phpcs or generic, by walking up from a path."
 
 scripts {
-  ["dev-profile-php-context"] = read?("php-context.sh")?.text ?? ""
+  ["dev-profile-php-context"] = module.fileText(read?("php-context.sh"))
 }

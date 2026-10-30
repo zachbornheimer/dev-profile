@@ -10,5 +10,6 @@ on {
 }
 
 scripts {
-  ["dev-profile-shebang-scripts-executable"] = read?("shebang-scripts-executable.sh")?.text ?? ""
+  ["dev-profile-shebang-scripts-executable"] =
+    module.fileText(read?("shebang-scripts-executable.sh"))
 }
