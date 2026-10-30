@@ -9,13 +9,6 @@ import "types.pkl"
 /// Task namespace a repo extends: `depends = ["profile:test"]`.
 namespace: String = "profile"
 
-/// Adapter exit code for "this verb has nothing to do here". Adapters fold every
-/// tool failure into exit 1, so this code is never a tool's own.
-local nothingToDo = 3
-
-/// pytest's "no tests collected" exit code.
-local pytestNoTests = 5
-
 local bash = "#!/usr/bin/env bash\nset -euo pipefail\n" + render.header("#") + "\n"
 
 /// `profile:<verb>` runs the dispatcher from the invoking directory (mise would
@@ -59,457 +52,11 @@ tasks: Dynamic = new {
   }
 }
 
-// ---- Dispatcher
-local function pathspecs(markers: Listing<String>): String =
-  markers.toList().map((m) -> "':(glob)\(m)'").join(" ")
-
-local function dispatchLine(adapter: types.Adapter): String =
-  if (adapter.markers.isEmpty)
-    "run_adapter \(adapter.id)"
-  else
-    "if has_marker \(pathspecs(adapter.markers)); then run_adapter \(adapter.id); fi"
-
-local dispatcher =
-  """
-  \(bash)
-  # Run every applicable contract adapter for one verb, from the repo root.
-  # Adapter exit: 0 ok, \(nothingToDo) nothing to do, anything else failed.
-  verb="${1:?usage: dev-profile-contract <verb>}"
-  if ! root="$(git rev-parse --show-toplevel 2>/dev/null)"; then
-    echo "dev-profile-contract: ${PWD} is not inside a git repository" >&2
-    exit 2
-  fi
-  cd "${root}"
-
-  ran=0
-  failed=()
-
-  # True when the repo has a tracked or unignored file matching any pathspec.
-  has_marker() {
-    [[ -n "$(git ls-files --cached --others --exclude-standard -- "$@")" ]]
-  }
-
-  run_adapter() {
-    local id="$1" code=0
-    "dev-profile-contract-${id}" "${verb}" || code=$?
-    case "${code}" in
-      0)
-        ran=$((ran + 1))
-        echo "ok    ${id} ${verb}"
-        ;;
-      \(nothingToDo))
-        echo "skip  ${id} ${verb} (nothing to ${verb})"
-        ;;
-      *)
-        ran=$((ran + 1))
-        failed+=("${id}")
-        echo "FAIL  ${id} ${verb} (exit ${code})"
-        ;;
-    esac
-  }
-
-  \(profile.contractAdapters.toList().map((a) -> dispatchLine(a)).join("\n"))
-
-  if [[ "${ran}" -eq 0 ]]; then
-    echo "nothing to ${verb}"
-    exit 0
-  fi
-  if [[ "${#failed[@]}" -gt 0 ]]; then
-    echo "${verb} failed: ${failed[*]}" >&2
-    exit 1
-  fi
-  """
-
-// ---- Adapters: `dev-profile-contract-<id> <verb>`
-local function adapterScript(id: String, body: String): String =
-  """
-  \(bash)
-  # Contract adapter: \(id). Exit 0 ok, 1 failed, \(nothingToDo) nothing to do.
-  verb="${1:?usage: dev-profile-contract-\(id) <verb>}"
-  failed=0
-
-  # Run one tool; record a failure and keep going so every check reports.
-  step() {
-    echo "+ $*" >&2
-    "$@" || failed=1
-  }
-
-  nothing_to_do() {
-    exit \(nothingToDo)
-  }
-
-  \(body)
-  exit "${failed}"
-  """
-
-local go =
-  """
-  # Every Go module (go.work members included), minus testdata and vendor copies.
-  modules() {
-    local file
-    git ls-files --cached --others --exclude-standard -- ':(glob)**/go.mod' |
-      while IFS= read -r file; do
-        case "/${file}" in */testdata/* | */vendor/*) continue ;; esac
-        dirname "${file}"
-      done | sort -u
-  }
-
-  # Modules go.work lists, as repo-relative dirs ("." for the root).
-  workspace_modules() {
-    if [[ -f go.work ]]; then
-      go work edit -json | jq -r '.Use[]?.DiskPath | sub("^\\\\./"; "") | if . == "" then "." else . end'
-    fi
-  }
-
-  # Run one command in every module; the subshell's exit carries its step result.
-  # A module go.work does not list builds on its own go.mod (GOWORK=off); inside
-  # the workspace it would fail with "directory is outside modules listed in go.work".
-  each_module() {
-    local dir members gowork
-    members="$(workspace_modules)"
-    while IFS= read -r dir; do
-      gowork=""
-      if [[ -f go.work ]] && ! grep -qxF -- "${dir}" <<<"${members}"; then gowork=off; fi
-      echo "+ cd ${dir}${gowork:+ (GOWORK=off)}" >&2
-      (cd "${dir}" && export GOWORK="${gowork}" && step "$@" && exit "${failed}") || failed=1
-    done < <(modules)
-  }
-
-  case "${verb}" in
-    build) each_module go build ./... ;;
-    test) each_module go test ./... ;;
-    scan) each_module govulncheck ./... ;;
-    *) nothing_to_do ;;
-  esac
-  """
-
-local node =
-  """
-  # Every package with its own lockfile, nested ones included (mise deps only
-  # sees the repo root), minus installed copies.
-  packages() {
-    local file
-    git ls-files --cached --others --exclude-standard -- \
-      ':(glob)**/aube-lock.yaml' ':(glob)**/pnpm-lock.yaml' ':(glob)**/package-lock.json' \
-      ':(glob)**/yarn.lock' ':(glob)**/bun.lock' ':(glob)**/bun.lockb' |
-      while IFS= read -r file; do
-        case "/${file}" in */node_modules/*) continue ;; esac
-        dirname "${file}"
-      done | sort -u
-  }
-
-  # aube runs npm, pnpm and aube projects (it reads their lockfiles); yarn and
-  # bun lockfiles keep their own tool. Run from inside the package.
-  package_manager() {
-    if [[ -f bun.lock || -f bun.lockb ]]; then
-      echo bun
-    elif [[ -f yarn.lock ]]; then
-      echo yarn
-    else
-      echo aube
-    fi
-  }
-
-  has_script() {
-    [[ -f package.json ]] && jq -e --arg name "$1" '.scripts[$name] // empty' package.json >/dev/null
-  }
-
-  # Run one step in every package; a script verb skips packages without it.
-  ran=0
-  each_package() {
-    local dir script="${1:-}"
-    shift
-    while IFS= read -r dir; do
-      if [[ -n "${script}" ]] && ! (cd "${dir}" && has_script "${script}"); then continue; fi
-      ran=$((ran + 1))
-      echo "+ cd ${dir}" >&2
-      (cd "${dir}" && step "$(package_manager)" "$@" && exit "${failed}") || failed=1
-    done < <(packages)
-    [[ "${ran}" -gt 0 ]] || nothing_to_do
-  }
-
-  case "${verb}" in
-    setup) each_package "" install ;;
-    build) each_package build run build ;;
-    lint) each_package lint run lint ;;
-    test) each_package test run test ;;
-    scan) each_package "" audit ;;
-    *) nothing_to_do ;;
-  esac
-  """
-
-local php =
-  """
-  has_script() {
-    jq -e --arg name "$1" '.scripts[$name] // empty' composer.json >/dev/null
-  }
-
-  case "${verb}" in
-    lint) step composer validate --no-check-publish ;;
-    test)
-      if has_script test; then
-        step composer run-script test
-      elif [[ -x vendor/bin/phpunit ]]; then
-        step vendor/bin/phpunit
-      else
-        nothing_to_do
-      fi
-      ;;
-    scan)
-      # `composer audit --locked` needs composer.lock; without one there is nothing to audit.
-      if [[ -f composer.lock ]]; then
-        step composer audit --locked
-      else
-        nothing_to_do
-      fi
-      ;;
-    *) nothing_to_do ;;
-  esac
-  """
-
-local python =
-  """
-  pytest_no_tests=\(pytestNoTests)
-
-  # pip-audit reads the locked requirements uv exports.
-  audit() {
-    local requirements
-    requirements="$(mktemp)"
-    step uv export --frozen --format requirements-txt --no-hashes --output-file "${requirements}"
-    step uvx pip-audit --disable-pip --no-deps -r "${requirements}"
-    rm -f "${requirements}"
-  }
-
-  case "${verb}" in
-    build)
-      grep -qF '[build-system]' pyproject.toml 2>/dev/null || nothing_to_do
-      step uv build
-      ;;
-    test)
-      code=0
-      uv run --with pytest pytest || code=$?
-      [[ "${code}" -ne "${pytest_no_tests}" ]] || nothing_to_do
-      [[ "${code}" -eq 0 ]] || failed=1
-      ;;
-    scan) audit ;;
-    *) nothing_to_do ;;
-  esac
-  """
-
-local dotnet =
-  """
-  # The solutions to drive (every .sln), or every project when a repo has none;
-  # dotnet needs one target per invocation, and nested projects are the norm.
-  targets() {
-    local sln
-    sln="$(git ls-files --cached --others --exclude-standard -- ':(glob)**/*.sln')"
-    if [[ -n "${sln}" ]]; then
-      echo "${sln}"
-    else
-      git ls-files --cached --others --exclude-standard -- ':(glob)**/*.csproj'
-    fi | grep -vE '(^|/)(bin|obj)/' | sort -u
-  }
-
-  each_target() {
-    local target ran=0
-    while IFS= read -r target; do
-      ran=$((ran + 1))
-      step dotnet "$@" "${target}"
-    done < <(targets)
-    [[ "${ran}" -gt 0 ]] || nothing_to_do
-  }
-
-  case "${verb}" in
-    build) each_target build ;;
-    lint) each_target format --verify-no-changes ;;
-    test) each_target test ;;
-    *) nothing_to_do ;;
-  esac
-  """
-
-local ruby =
-  """
-  case "${verb}" in
-    test)
-      [[ -d spec ]] || nothing_to_do
-      step bundle exec rspec
-      ;;
-    *) nothing_to_do ;;
-  esac
-  """
-
-local perl =
-  """
-  case "${verb}" in
-    test)
-      [[ -d t ]] || nothing_to_do
-      step prove -lr t
-      ;;
-    *) nothing_to_do ;;
-  esac
-  """
-
-local buf =
-  """
-  # Every buf module (a dir holding buf.yaml), minus vendored copies.
-  modules() {
-    local file
-    git ls-files --cached --others --exclude-standard -- ':(glob)**/buf.yaml' |
-      while IFS= read -r file; do
-        case "/${file}" in */vendor/* | */node_modules/*) continue ;; esac
-        dirname "${file}"
-      done | sort -u
-  }
-
-  # Breaking changes are judged against the default branch, by absolute path.
-  breaking() {
-    local dir="$1" top base
-    top="$(git rev-parse --show-toplevel)"
-    base="$(git rev-parse --abbrev-ref origin/HEAD 2>/dev/null)" || {
-      echo "buf: no origin/HEAD; skipping breaking check in ${dir}" >&2
-      return 0
-    }
-    step buf breaking "${dir}" --against "${top}/.git#branch=${base},subdir=${dir}"
-  }
-
-  case "${verb}" in
-    lint)
-      while IFS= read -r dir; do
-        step buf lint "${dir}"
-        breaking "${dir}"
-      done < <(modules)
-      ;;
-    build)
-      while IFS= read -r dir; do
-        if [[ -f "${dir}/buf.gen.yaml" ]]; then
-          (cd "${dir}" && step buf generate && exit "${failed}") || failed=1
-        fi
-      done < <(modules)
-      ;;
-    *) nothing_to_do ;;
-  esac
-  """
-
-local opentofu =
-  """
-  case "${verb}" in
-    lint)
-      step tofu fmt -check -recursive
-      step tflint --recursive
-      step tofu init -backend=false -input=false
-      step tofu validate
-      ;;
-    *) nothing_to_do ;;
-  esac
-  """
-
-local swift =
-  """
-  case "${verb}" in
-    build) step swift build ;;
-    test) step swift test ;;
-    *) nothing_to_do ;;
-  esac
-  """
-
-local repo =
-  """
-  # A contract task that does not resolve here is a doctor failure.
-  require_task() {
-    if ! mise tasks info "$1" >/dev/null 2>&1; then
-      echo "doctor: task '$1' does not resolve" >&2
-      failed=1
-    fi
-  }
-
-  # Tasks defined in this repo (mise.toml or mise-tasks/) run tools directly:
-  # never make, and Python only through uv (the commit fixer rewrites bare
-  # python3; this catches anything committed past it). Profile tasks are exempt.
-  repo_task_runners() {
-    local make_word="(^|[^[:alnum:]_./-])make([^[:alnum:]_-]|$)|[$][({]MAKE[)}]"
-    # Command position only (line start, after ; & | ( or $( and env assignments).
-    local cmd="(^|[;&|(]|[$][(])[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*"
-    local python_word="${cmd}(python3?|pip3?|pipx|poetry|virtualenv)([[:space:]]|$)"
-    local name body file
-    while IFS= read -r task_json; do
-      name="$(jq -r '.name' <<<"${task_json}")"
-      body="$(jq -r '(.run // []) | map(tostring) | join("\\n")' <<<"${task_json}")"
-      file="$(jq -r '.file // empty' <<<"${task_json}")"
-      if [[ -n "${file}" && -f "${file}" ]]; then body+=$'\\n'"$(cat "${file}")"; fi
-      if grep -qE -e "${make_word}" <<<"${body}"; then
-        echo "doctor: no-make: task '${name}' invokes make" >&2
-        failed=1
-      fi
-      if grep -qE -e "${python_word}" <<<"${body}"; then
-        echo "doctor: uv-only: task '${name}' runs python/pip/pipx/poetry/virtualenv directly; use uv run (the commit hook rewrites python3)" >&2
-        failed=1
-      fi
-    done < <(mise tasks --json | jq -c --arg root "${PWD}/" '.[] | select(.source | startswith($root))')
-  }
-
-  # Secrets in the tracked tree at HEAD. A plain directory scan would also read
-  # gitignored local files such as .env, which never leave this machine.
-  scan_tree() {
-    local tree
-    git rev-parse -q --verify HEAD >/dev/null || nothing_to_do
-    tree="$(mktemp -d)"
-    git archive HEAD | tar -x -C "${tree}"
-    step gitleaks dir --redact --no-banner "${tree}"
-    rm -rf "${tree}"
-  }
-
-  doctor() {
-    local task
-    for task in \(profile.contractVerbs.keys.join(" ")) ci; do
-      require_task "${task}"
-    done
-    repo_task_runners
-    if [[ ! -s README.md ]]; then
-      echo "doctor: README.md is missing or empty" >&2
-      failed=1
-    fi
-    step dev-profile-suppressions --tree
-    step dev-profile-owned-files
-    step dev-profile-retire-legacy-hooks --check
-  }
-
-  case "${verb}" in
-    setup)
-      step mise install
-      step mise deps install
-      ;;
-    # hk owns format checks and static analysis for every language.
-    lint)
-      step dev-profile-hk check --all --slow --profile \(profile.lintProfile)
-      step dev-profile-suppressions --tree
-      ;;
-    # dprint finds the Personal ancestor config from the invoking directory.
-    fmt) step dprint fmt ;;
-    scan) scan_tree ;;
-    doctor) doctor ;;
-    *) nothing_to_do ;;
-  esac
-  """
-
 local kernelPinLines: String =
   List(profile.kernelTools.toList(), profile.tools.toList())
     .flatten()
     .map((pin) -> "\(pin.id) \(pin.version)")
     .join("\n")
-
-local adapterBodies: Mapping<String, String> = new {
-  ["go"] = go
-  ["node"] = node
-  ["php"] = php
-  ["python"] = python
-  ["dotnet"] = dotnet
-  ["ruby"] = ruby
-  ["perl"] = perl
-  ["opentofu"] = opentofu
-  ["buf"] = buf
-  ["swift"] = swift
-  ["repo"] = repo
-}
 
 // ---- Suppression ban
 local function directiveLines(): String =
@@ -650,13 +197,24 @@ facts: Mapping<String, String> = new {
   ["PROFILE_TASK_NAMESPACE"] = namespace
   ["PROFILE_KERNEL_PINS"] = kernelPinLines
   ["PROFILE_COMMIT_TYPES"] = profile.conventionalCommitTypes.join(" ")
+  ["PROFILE_CONTRACT_VERBS"] = profile.contractVerbs.keys.join(" ")
+  ["PROFILE_LINT_PROFILE"] = profile.lintProfile
+  // The exit an adapter uses for "nothing to do", for the dispatcher and the adapters.
+  ["PROFILE_CONTRACT_NOTHING_TO_DO"] = "3"
+  // One "<id><TAB><globs>" line per adapter, in dispatch order (lib/contract.sh).
+  ["PROFILE_CONTRACT_ADAPTERS"] =
+    profile.contractAdapters
+      .toList()
+      .map((a) -> a.id + "\t" + a.markers.toList().join(" "))
+      .join("\n")
 }
 
 /// Generated bin/ scripts for the contract.
 wrappers: Mapping<String, String> = new {
   ["dev-profile-kernel-pins"] =
     let (r = read?("kernel-pins.sh")) if (r is String) r else if (r == null) "" else r.text
-  ["dev-profile-contract"] = dispatcher
+  ["dev-profile-contract"] =
+    let (r = read?("contract.sh")) if (r is String) r else if (r == null) "" else r.text
   ["dev-profile-hk"] =
     let (r = read?("hk.sh")) if (r is String) r else if (r == null) "" else r.text
   ["dev-profile-ci"] =
@@ -664,7 +222,10 @@ wrappers: Mapping<String, String> = new {
   ["dev-profile-contract-push"] =
     let (r = read?("contract-push.sh")) if (r is String) r else if (r == null) "" else r.text
   for (adapter in profile.contractAdapters) {
-    ["dev-profile-contract-\(adapter.id)"] = adapterScript(adapter.id, adapterBodies[adapter.id])
+    // lib/adapters/<id>.sh, sourcing lib/sh/contract-adapter.sh.
+    ["dev-profile-contract-\(adapter.id)"] =
+      let (r = read?("adapters/\(adapter.id).sh"))
+        if (r is String) r else if (r == null) "" else r.text
   }
   ["dev-profile-suppressions"] = suppressions
   ["dev-profile-commit-msg"] =

@@ -814,6 +814,7 @@ shellLibraries: Listing<String> = new {
   "github"
   "go-modules"
   "go-packages"
+  "contract-adapter"
   "nearest-up"
   "perl-tools"
   "remove-merged"

@@ -18,6 +18,8 @@
 !/lib/*.sh
 !/lib/sh/
 !/lib/sh/*.sh
+!/lib/adapters/
+!/lib/adapters/*.sh
 !/tools/
 !/tools/*/
 !/tools/*/*.pkl
