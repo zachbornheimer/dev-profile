@@ -125,3 +125,23 @@ class SuppressionException {
   /// Tracking ticket that justifies and eventually removes the exception.
   ticket: String
 }
+
+/// A live path whose history mise saves where it is (`mode = "track"`).
+class Tracked {
+  /// Encrypt contents before they reach history. The origin is a public branch, so
+  /// only a file meant to be read there turns this off.
+  encrypt: Boolean = true
+  /// Paths under a tracked directory that history skips, relative to it. Live
+  /// targets the profile links under it are skipped without being listed.
+  exclude: Listing<String> = new {}
+}
+
+/// Dotfile history: what the watcher saves and who can read the encrypted parts.
+class History {
+  /// age or SSH public keys: one per machine, plus a recovery key. mise refuses to
+  /// save an encrypted file without one, so encrypted entries render only once
+  /// this has a key.
+  recipients: Listing<String> = new {}
+  /// Live path → how history saves it.
+  tracked: Mapping<String, Tracked> = new {}
+}

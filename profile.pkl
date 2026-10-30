@@ -97,7 +97,6 @@ codeRoot: String = "~/Developer/Personal"
 liveTargets: Mapping<String, String> = new {
   ["~/.config/hk/config.pkl"] = "hk-config.pkl"
   ["~/.config/dprint/dprint.jsonc"] = "dprint.jsonc"
-  ["~/.config/worktrunk/config.toml"] = "worktrunk.toml"
   ["~/.config/mise/conf.d/dev-profile.toml"] = "mise-profile.toml"
   ["~/.config/nvim/lua/zach/plugins/conform.lua"] = "conform.lua"
   ["\(codeRoot)/dprint.jsonc"] = "dprint.jsonc"
@@ -109,6 +108,30 @@ liveTargets: Mapping<String, String> = new {
   // User-level defaults; a repo's own .markdownlint* / .yamllint still wins.
   ["~/.markdownlintrc"] = "markdownlintrc.json"
   ["~/.config/yamllint/config"] = "yamllint.yaml"
+}
+
+/// Live config path → generated file whose keys the profile owns (a mise `merge`
+/// entry). The live file stays a regular file: keys added by hand survive every
+/// apply, and history saves them. A key dropped here stays in the live file until
+/// it is removed by hand.
+mergedTargets: Mapping<String, String> = new {
+  ["~/.config/worktrunk/config.toml"] = "worktrunk.toml"
+}
+
+/// Live files mise saves in place and shares through this repo's `history` branch
+/// (README "Live files"). The branch is public: everything is encrypted except
+/// files meant to be read there.
+history: types.History = new {
+  tracked {
+    // Aliases and hooks: nothing secret, and readable on the branch.
+    ["~/.config/worktrunk/config.toml"] { encrypt = false }
+    ["~/.zshrc"] {}
+    ["~/.config/nvim"] {}
+    ["~/.config/mise"] {
+      // The identity that decrypts history.
+      exclude { "age.txt" }
+    }
+  }
 }
 
 phase: types.Policy = new {}

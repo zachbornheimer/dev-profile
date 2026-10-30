@@ -12,7 +12,9 @@ mise bootstrap --from git@github.com:zachbornheimer/dev-profile.git
 Bootstrap installs Pkl, renders the profile into `~/.local/share/dev-profile`,
 backs up any live configs it would replace to `~/.local/state/dev-profile/backups`,
 then re-runs `mise bootstrap` on the generated config. That second pass installs
-the tools and links hk, dprint, Worktrunk, mise, and Conform configs.
+the tools, links hk, dprint, mise, and Conform configs, sets the profile's keys
+in the Worktrunk config, and starts the dotfile history watcher (see
+[Live files](#live-files)).
 
 Bootstrap also writes global git hooks into `~/.gitconfig` (`hook.hk-*`):
 `hk run pre-commit --staged`, `hk run pre-push`, and `hk run commit-msg`. Git
@@ -32,26 +34,87 @@ mise run diff-live   # what linking would change
 mise run rollback    # restore the backed-up originals
 ```
 
+## Live files
+
+Generated configs (hk, dprint, mise, Conform, the code-root files) are links into
+the render: edit `profile.pkl`, not the link. Everything else you edit where it
+is, and mise keeps its history and shares it between machines.
+
+| Live file                          | Owner                                                     | How it syncs                     |
+| ---------------------------------- | --------------------------------------------------------- | -------------------------------- |
+| links in `liveTargets`             | `profile.pkl`, rendered by `generate`                     | `main`; `post-merge` regenerates |
+| `~/.config/worktrunk/config.toml`  | you; `mergedTargets` sets the profile's aliases and hooks | `history` branch, plaintext      |
+| `history.tracked` in `profile.pkl` | you                                                       | `history` branch, encrypted      |
+
+The Worktrunk config is a regular file with a mise `merge` entry: each apply sets
+the keys `worktrunk.toml` renders and leaves the rest alone, so an alias you add
+with `wt` or an editor survives `generate`. A key the profile drops stays in the
+live file until you delete it. When an alias earns a place in the profile, move it
+into `lib/render.pkl`.
+
+The history watcher (`mise-history`, a bootstrap service) saves each edit to
+mise's local history, so `mise dot history`, `mise dot rollback` and
+`mise dot undo` work on these files. It pushes to the `history` branch of this
+repo. The branch is public, so every tracked file except the Worktrunk config is
+encrypted with age before it is saved. Encrypted entries render only once
+`history.recipients` has a key, because mise refuses to save one without it.
+
+One-time setup, per machine unless noted:
+
+1. Make an age identity, outside tracking (`age.txt` is excluded from history):
+
+   ```bash
+   mise exec age -- age-keygen -o ~/.config/mise/age.txt
+   ```
+
+2. Add its public key, and an offline recovery key, to `history.recipients` in
+   `profile.pkl`. Merge it, then `mise run bootstrap`. Once, for the repo.
+3. Turn on push protection under Settings → Code security, so GitHub refuses a
+   push that holds a known secret format. Once, for the repo.
+4. Connect the origin. Once, on the first machine:
+
+   ```bash
+   mise dot origin set git@github.com:zachbornheimer/dev-profile.git --branch history --sync sync
+   ```
+
+5. On every other machine, after the profile bootstrap (`--from` and `--adopt`
+   cannot share one command), copy `age.txt` over, then:
+
+   ```bash
+   mise bootstrap --adopt 'zachbornheimer/dev-profile?ref=history'
+   ```
+
+Secrets are checked three times. Before each push, mise refuses a version with a
+line that looks like a token, a private key, or a `*_KEY`, `*_TOKEN`,
+`*_SECRET` or `*_PASSWORD` assignment. GitHub push protection rejects known
+formats. `history-secrets.yml` runs gitleaks over the branch hourly, as a late
+alarm. The global hk `pre-push` hook does not run: mise pushes history with hooks
+off. If something leaks, rotate it first, then `mise dot history purge <path>`.
+
+`mise run rollback` leaves a regular file it has no backup of, such as the
+Worktrunk config with your keys, in place: its history holds every version.
+
 ## Layout
 
-| Path                     | Role                                                          |
-| ------------------------ | ------------------------------------------------------------- |
-| `mise.toml`              | kernel: Pkl pin and verb tasks; the rest are in `mise-tasks/` |
-| `profile.pkl`            | languages, runtime pins, live paths; derives the hooks        |
-| `tools/<category>/`      | one file per tool: doc, pin, scripts, its step per hook       |
-| `lib/Tool.pkl`           | the template every tool file amends                           |
-| `lib/hk.pkl`             | the hk config, assembled from the tools                       |
-| `lib/script.pkl`         | bash fragments the tool scripts share                         |
-| `lib/render.pkl`         | one renderer per generated file                               |
-| `lib/contract.pkl`       | the repo task contract (`mise run lint`, `test`, `scan`...)   |
-| `lib/pr.pkl`             | `wt pr`, `wt pr-draft`, `wt pr-auto`                          |
-| `lib/done.pkl`           | `wt done`: restack, push, pull requests, prune, drop          |
-| `lib/sync.pkl`           | backup scripts the fixtures call; no worktrunk alias          |
-| `lib/retire.pkl`         | retire script the fixture calls; no worktrunk alias           |
-| `tests/profile.test.pkl` | invariants and a snapshot of what each hook runs              |
-| `tests/*-fixture.sh`     | the generated scripts against real git and go                 |
-| `mise-tasks/bump`        | bump every outdated pin to its latest release                 |
-| `.github/workflows/`     | `ci` runs doctor on every push and PR; `bump` runs weekly     |
+| Path                       | Role                                                               |
+| -------------------------- | ------------------------------------------------------------------ |
+| `mise.toml`                | kernel: Pkl pin and verb tasks; the rest are in `mise-tasks/`      |
+| `profile.pkl`              | languages, runtime pins, live paths; derives the hooks             |
+| `tools/<category>/`        | one file per tool: doc, pin, scripts, its step per hook            |
+| `lib/Tool.pkl`             | the template every tool file amends                                |
+| `lib/hk.pkl`               | the hk config, assembled from the tools                            |
+| `lib/script.pkl`           | bash fragments the tool scripts share                              |
+| `lib/render.pkl`           | one renderer per generated file                                    |
+| `lib/contract.pkl`         | the repo task contract (`mise run lint`, `test`, `scan`...)        |
+| `lib/pr.pkl`               | `wt pr`, `wt pr-draft`, `wt pr-auto`                               |
+| `lib/done.pkl`             | `wt done`: restack, push, pull requests, prune, drop               |
+| `lib/sync.pkl`             | backup scripts the fixtures call; no worktrunk alias               |
+| `lib/retire.pkl`           | retire script the fixture calls; no worktrunk alias                |
+| `tests/profile.test.pkl`   | invariants and a snapshot of what each hook runs                   |
+| `tests/*-fixture.sh`       | the generated scripts against real git and go                      |
+| `mise-tasks/bump`          | bump every outdated pin to its latest release                      |
+| `mise-tasks/detach-merged` | turn a merged config still linked to the render into a file        |
+| `.github/workflows/`       | `ci` on every push and PR; `bump` weekly; `history-secrets` hourly |
 
 ## What runs when
 

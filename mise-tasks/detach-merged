@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+#MISE description="Turn merged live configs that still link into the render into regular files"
+set -euo pipefail
+# A merge entry edits the live file in place. One that is still the link an earlier
+# profile made would be edited through into the render, and generate would undo it.
+while IFS= read -r target || [[ -n "$target" ]]; do
+	live="${target/#\~/$HOME}"
+	[[ "$(readlink "$live" 2>/dev/null)" == "$DEV_PROFILE_OUT"/* ]] || continue
+	cp -- "$live" "$live.detach"
+	mv -f -- "$live.detach" "$live"
+	echo "detached $target from the render"
+done < <(pkl eval -x 'mergedTargets.keys.join("\n")' profile.pkl)

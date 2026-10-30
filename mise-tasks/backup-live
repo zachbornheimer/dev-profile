@@ -3,11 +3,27 @@
 set -euo pipefail
 backup="$DEV_PROFILE_BACKUPS/$(date -u +%Y%m%dT%H%M%SZ)"
 mkdir -p "$backup"
-pkl eval -x 'liveTargets.keys.join("\n")' profile.pkl >"$backup/targets"
+pkl eval -x '(liveTargets.keys + mergedTargets.keys).join("\n")' profile.pkl >"$backup/targets"
+merged="$(pkl eval -x 'mergedTargets.keys.join("\n")' profile.pkl)"
+
+# True when a backup older than this one holds live path $1.
+held_earlier() {
+	local dir
+	for dir in "$DEV_PROFILE_BACKUPS"/*; do
+		[[ "$dir" != *.restored && "$dir" != "$backup" ]] || continue
+		[[ -e "$dir$1" || -L "$dir$1" ]] && return 0
+	done
+	return 1
+}
+
 saved=0
 while IFS= read -r target || [[ -n "$target" ]]; do
 	live="${target/#\~/$HOME}"
 	[[ "$(readlink "$live" 2>/dev/null)" == "$DEV_PROFILE_OUT"/* ]] && continue
+	# A merged target stays a regular file the profile edits in place. Its original
+	# is in the first backup that holds it; copying it again would only save the
+	# profile's own keys and make every run a new rollback point.
+	if grep -qxF -- "$target" <<<"$merged" && held_earlier "$live"; then continue; fi
 	if [[ -e "$live" || -L "$live" ]]; then
 		mkdir -p "$backup$(dirname "$live")"
 		cp -pP "$live" "$backup$live"

@@ -166,11 +166,46 @@ mise: Dynamic = new {
     for (target, file in profile.liveTargets) {
       [target] { source = "\(profile.installDir)/\(file)"; mode = "symlink" }
     }
+    // The id after the path names this edit; the whole-file key stays free for
+    // the tracking entry below.
+    for (target, file in profile.mergedTargets) {
+      ["\(target)/dev-profile"] { source = "\(profile.installDir)/\(file)"; merge = true }
+    }
+    ...trackedEntries
+  }
+  when (!profile.history.recipients.isEmpty) {
+    history { encryption { recipients = profile.history.recipients.toList() } }
   }
   deps = depsFor(null)
   bootstrap {
     packages { ...profile.brewPackages }
     hooks { ...profile.bootstrapHooks }
+    // Saves every edit to a tracked file, and syncs once an origin is set.
+    services { ["mise-history"] { builtin = "history-watch" } }
+  }
+}
+
+/// Live targets the profile links under a tracked directory, relative to it.
+/// History skips them: `generate` owns their contents.
+local function linkedUnder(dir: String): List<String> =
+  profile.liveTargets.keys
+    .toList()
+    .filter((t) -> t.startsWith(dir + "/"))
+    .map((t) -> t.drop(dir.length + 1))
+
+/// `mode = "track"` entries. An encrypted one waits for a recipient: mise refuses
+/// to save it without one, and never falls back to plaintext.
+local trackedEntries: Mapping<String, Dynamic> = new {
+  for (target, t in profile.history.tracked) {
+    when (!t.encrypt || !profile.history.recipients.isEmpty) {
+      [target] {
+        mode = "track"
+        when (t.encrypt) { encrypt = true }
+        when (!(t.exclude.toList() + linkedUnder(target)).isEmpty) {
+          exclude = t.exclude.toList() + linkedUnder(target)
+        }
+      }
+    }
   }
 }
 

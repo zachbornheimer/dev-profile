@@ -77,6 +77,26 @@ facts {
     render.worktrunk["post-remove"].reap
       == "\(profile.installPath)/bin/dev-profile-dev reap {{ worktree_path }}"
   }
+  // Live files (README "Live files"): a target is either a render link or a
+  // regular file the profile merges keys into, never both, and the public history
+  // branch gets plaintext only where a file opts out of encryption.
+  ["a merged target is never also a render link"] {
+    profile.mergedTargets.keys.every((t) -> !profile.liveTargets.containsKey(t))
+    render.mise.dotfiles.toMap().containsKey("~/.config/worktrunk/config.toml/dev-profile")
+    render.mise.dotfiles["~/.config/worktrunk/config.toml/dev-profile"].merge == true
+  }
+  ["history saves only plaintext entries until a recipient exists"] {
+    profile.history.recipients.isEmpty
+      == profile.history.tracked
+        .toMap()
+        .every((target, t) -> render.mise.dotfiles.toMap().containsKey(target) == !t.encrypt)
+    render.mise.dotfiles["~/.config/worktrunk/config.toml"].mode == "track"
+    render.mise.bootstrap.services["mise-history"].builtin == "history-watch"
+  }
+  ["history never saves the decrypting identity or a render link"] {
+    profile.history.tracked["~/.config/mise"].exclude.toList().contains("age.txt")
+    profile.liveTargets.keys.every((link) -> !profile.history.tracked.keys.any((dir) -> link == dir))
+  }
   ["commit-unstaged commits in the new worktree, not the invoking shell"] {
     render.worktrunk.aliases.prune == "wt step prune --min-age=0s"
     let (alias = render.worktrunk.aliases["commit-unstaged"])

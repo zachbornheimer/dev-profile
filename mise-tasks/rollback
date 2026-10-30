@@ -12,10 +12,14 @@ done
 backup="$DEV_PROFILE_BACKUPS/$latest"
 while IFS= read -r target || [[ -n "$target" ]]; do
 	live="${target/#\~/$HOME}"
-	rm -f "$live"
 	if [[ -e "$backup$live" || -L "$backup$live" ]]; then
+		rm -f "$live"
 		cp -pP "$backup$live" "$live"
+	elif [[ -L "$live" ]]; then
+		rm -f "$live" # a link the profile made where nothing was before
 	fi
+	# Anything else is a regular file this backup never held, such as a merged
+	# config with keys you added: it stays, and its history keeps every version.
 done <"$backup/targets"
 mv "$backup" "$backup.restored"
 echo "restored live configs from $backup"
