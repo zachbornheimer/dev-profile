@@ -39,6 +39,12 @@ run = "mise run doctor"
 description = "Render custom tab labels with the installed Kitty engine (no UI)"
 run = "kitty +runpy \"import runpy; runpy.run_path('tests/kitty_tabs.py', run_name='__main__')\""
 
+# The scope guard is a hook pair (tool.before + turn.stop) whose tests drive the real hook
+# by path with a fake judge, so they need no network and no omp session.
+[tasks."test:scope-guard"]
+description = "Run the scope-guard hook tests"
+run = "pytest agents/hooks/tests/test_scope_guard.py"
+
 [tasks.ci]
 description = "lint, then the file check"
 run = ["mise run lint", "mise run test"]

@@ -84,8 +84,12 @@ def _skip_flag_values(words: list[str], value_flags: frozenset[str]) -> list[str
     return positional
 
 
-def _peel_prefixes(argv: list[str]) -> tuple[list[str], bool]:
-    """Drops nice/timeout/xargs from the front; reports whether xargs fed the command."""
+def peel_command_prefixes(argv: list[str]) -> tuple[list[str], bool]:
+    """Drops nice/timeout/xargs from the front; reports whether xargs fed the command.
+
+    Public because the wrapper set is the same fact for every rule that asks "what does this
+    command actually run": the scope guard's host-mutation test reuses it.
+    """
     fed_by_xargs = False
     while argv and os.path.basename(argv[0]) in COMMAND_PREFIXES:
         prefix = os.path.basename(argv[0])
@@ -145,7 +149,7 @@ def _piped_kill_reason(commands: list[list[str]]) -> str | None:
     selects_wt = False
     kills = False
     for argv in commands:
-        peeled, _ = _peel_prefixes(argv)
+        peeled, _ = peel_command_prefixes(argv)
         if not peeled:
             continue
         program = os.path.basename(peeled[0])
@@ -165,7 +169,7 @@ def deny_reason(commands: list[list[str]], command_text: str) -> str | None:
     if override_active(command_text):
         return None
     for argv in commands:
-        peeled, _ = _peel_prefixes(argv)
+        peeled, _ = peel_command_prefixes(argv)
         if not peeled:
             continue
         program, args = os.path.basename(peeled[0]), peeled[1:]

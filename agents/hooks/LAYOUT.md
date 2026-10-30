@@ -8,3 +8,5 @@ lib/worktree_provision_git.py: git facts, Claude-precreate adopt, stray cleanup
 lib/worktree_provision_tools.py: chezmoi source lookup and dependency provision
 worktree-cleanup.py: WorktreeRemove via wt remove, git fallback
 lib/worktree_cleanup_worktrunk.py: wt remove adapter
+scope-guard.py: PreToolUse + Stop; deny an off-task call / block a turn that ended off-task, with the correction as the reason
+lib/scope_decide.py: the one scope policy — user task from the transcript, prefilter, Jev OffTopic judgment, correction cap, judgment log
