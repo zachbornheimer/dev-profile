@@ -1,16 +1,15 @@
 () {
 	emulate -L zsh
 	unsetopt xtrace verbose
+	# zsh -lic is interactive too; only a real terminal may recover via desktop.
+	[[ -o interactive && -t 0 && -t 1 ]] || return 0
 	local service='org.zysys.op-service-account'
-	local account='zbornheimer'
+	local account="$USERNAME"
 	local source='op://Personal/Agent Service Token'
-	local token identity cached_token
+	local token="${OP_SERVICE_ACCOUNT_TOKEN:-}" identity
+	local cached_token="$token"
 
 	(($+commands[op])) || return 0
-	if ! token=$(security find-generic-password -a "$account" -s "$service" -w 2>/dev/null); then
-		token=''
-	fi
-	cached_token="$token"
 	if [[ -z "$token" ]]; then
 		token=$(
 			unset OP_SERVICE_ACCOUNT_TOKEN

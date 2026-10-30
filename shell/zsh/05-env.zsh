@@ -30,6 +30,21 @@ export SUDO_ASKPASS="$HOME/Developer/Personal/dotfiles/bin/sudo-askpass"
 
 # 1Password SSH key mirror used by opssh.zsh (refresh with `op-ssh-sync`).
 export OP_SSH_DIR="$HOME/.ssh/1p"
+() {
+	emulate -L zsh
+	unsetopt xtrace verbose
+	# Login commands never reach ZLE. Load the cached service token before .zshrc
+	# sources the AI environment (which may run op inject). Desktop recovery stays
+	# in 06-env.defer.zsh and requires a terminal.
+	[[ -t 0 && -t 1 ]] || export OP_BIOMETRIC_UNLOCK_ENABLED=false
+	[[ -z ${OP_SERVICE_ACCOUNT_TOKEN:-} ]] || return 0
+	local token
+	if token=$(security find-generic-password -a "$USERNAME" \
+		-s 'org.zysys.op-service-account' -w 2>/dev/null) && [[ -n "$token" ]]; then
+		export OP_SERVICE_ACCOUNT_TOKEN="$token"
+	fi
+	return 0
+}
 
 export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 

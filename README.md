@@ -10,6 +10,12 @@ After mise is installed, clone this repo to ~/Developer/Personal/dev-profile, th
 
 setup runs mise dot apply --yes. The shell file linked at ~/.local/share/dev-profile/shell.zsh is what a new shell should source.
 
+Login zsh loads the `org.zysys.op-service-account` Keychain entry for the current
+username in `shell/zsh/05-env.zsh`, before the eager AI environment can call
+`op inject`. An inherited service token takes precedence. Unattended shells
+disable biometric unlock; desktop token recovery in `06-env.defer.zsh` requires
+an interactive terminal and never runs for a no-TTY `zsh -lic` command.
+
 ## What stays out of this public repo
 
 SSH private keys, home/ssh/config, known_hosts, the opencode password, and agents/hooks/state are gitignored. A clone does not restore them. Automatic pull of tracked files needs a private origin. This repo is not that origin.
