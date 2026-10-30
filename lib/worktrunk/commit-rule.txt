@@ -1,0 +1,4 @@
+Always Conventional Commits even when recent or folded commits are not.
+Subject MUST be type(optional-scope): imperative description.
+Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert.
+Subject under 72 chars.

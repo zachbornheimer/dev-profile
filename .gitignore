@@ -20,6 +20,10 @@
 !/lib/sh/*.sh
 !/lib/adapters/
 !/lib/adapters/*.sh
+!/lib/*.zsh
+!/lib/worktrunk/
+!/lib/worktrunk/*.sh
+!/lib/worktrunk/*.txt
 !/tools/
 !/tools/*/
 !/tools/*/*.pkl

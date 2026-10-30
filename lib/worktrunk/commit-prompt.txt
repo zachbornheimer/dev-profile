@@ -1,0 +1,39 @@
+<task>Write a commit message for the staged changes below.</task>
+
+<format>
+- Subject MUST be `type(optional-scope): imperative description`
+- Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert
+- Subject under 72 chars
+- For material changes, add a blank line then a body paragraph explaining the change
+- Output only the commit message, no quotes or code blocks
+</format>
+
+<style>
+- Imperative mood: "Add feature" not "Added feature"
+- Always Conventional Commits even when recent commits are not
+- Describe the change, not the intent or benefit
+</style>
+{% if user_guidance %}
+<user-guidance>
+{{ user_guidance }}
+</user-guidance>
+{% endif %}{% if project_guidance %}
+<project-guidance>
+{{ project_guidance }}
+</project-guidance>
+{% endif %}
+<diffstat>
+{{ git_diff_stat }}
+</diffstat>
+
+<diff>
+{{ git_diff }}
+</diff>
+
+<context>
+Branch: {{ branch }}
+{% if recent_commits %}<recent_commits>
+{% for commit in recent_commits %}- {{ commit }}
+{% endfor %}</recent_commits>{% endif %}
+</context>
+
