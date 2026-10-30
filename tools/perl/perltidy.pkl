@@ -9,16 +9,6 @@ on {
   }
 }
 
-local perltidyFix =
-  #"""
-  \#(bash)
-  \#(perlTools)
-  # perltidy in place with the profile's (or the repo's own) style.
-  (($#)) || exit 0
-  require_perl_tool perltidy
-  exec perltidy --profile="$(perl_config perltidy .)" -b -bext='/' -q "$@"
-  """#
-
 local perltidyFormat =
   #"""
   \#(bash)
@@ -34,6 +24,7 @@ files {
 }
 
 scripts {
-  ["dev-profile-perltidy-fix"] = perltidyFix
+  ["dev-profile-perltidy-fix"] =
+    let (r = read?("perltidy-fix.sh")) if (r is String) r else if (r == null) "" else r.text
   ["dev-profile-perltidy-format"] = perltidyFormat
 }
