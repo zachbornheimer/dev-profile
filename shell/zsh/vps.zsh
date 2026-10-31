@@ -49,7 +49,11 @@ ompr() {
 	case "$1" in
 	-c | --continue)
 		shift
-		vps continue "$@"
+		if (($# > 0)); then
+			vps continue "" "$@"
+		else
+			vps continue
+		fi
 		;;
 	-r | --resume)
 		shift
@@ -58,7 +62,7 @@ ompr() {
 			shift
 			vps continue "$sid" "$@"
 		else
-			vps continue "$@"
+			vps continue "" "$@"
 		fi
 		;;
 	--resume=*)
