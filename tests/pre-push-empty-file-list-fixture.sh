@@ -74,4 +74,22 @@ commit "feat: add a key"
 if push "${scratch}/work" push -q origin feature; then fail "a pushed private key must fail the push"; fi
 grep -q '✗ private-keys' "${scratch}/push.txt" || fail "the private-keys step must be the one that fails"
 
+# 4. A true bare repository (such as mise's ~/.local/state/mise/history/repo.git)
+# pushed through dev-profile-pre-push passes when clean and blocks when a secret is in the commit.
+printf '[hook "hk-pre-push"]\n\tevent = pre-push\n\tcommand = DEV_PROFILE_HOOK_GIT_DIR="${GIT_DIR:-}" PATH="%s/bin:${PATH}" dev-profile-pre-push\n' \
+	"${repo}" >"${scratch}/gitconfig"
+git init -q --bare "${scratch}/history.git"
+clean_blob="$(printf 'alias ll="ls -lah"\n' | git --git-dir="${scratch}/history.git" hash-object -w --stdin)"
+clean_tree="$(printf '100644 blob %s\t.zshrc\n' "${clean_blob}" | git --git-dir="${scratch}/history.git" mktree)"
+clean_commit="$(git --git-dir="${scratch}/history.git" commit-tree "${clean_tree}" -m "baseline")"
+push "${scratch}/elsewhere" --git-dir="${scratch}/history.git" push -q "${scratch}/remote.git" "${clean_commit}:refs/heads/mise-history" ||
+	fail "a clean bare-repo history push must pass dev-profile-pre-push"
+
+leak_blob="$(git --git-dir="${scratch}/history.git" hash-object -w "${scratch}/elsewhere/notes.sh")"
+leak_tree="$(printf '100644 blob %s\t.zshrc\n' "${leak_blob}" | git --git-dir="${scratch}/history.git" mktree)"
+leak_commit="$(git --git-dir="${scratch}/history.git" commit-tree "${leak_tree}" -p "${clean_commit}" -m "leaked")"
+if push "${scratch}/elsewhere" --git-dir="${scratch}/history.git" push -q "${scratch}/remote.git" "${leak_commit}:refs/heads/mise-history"; then
+	fail "a bare-repo history push containing a secret must fail dev-profile-pre-push"
+fi
+
 echo "ok pre-push-empty-file-list"

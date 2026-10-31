@@ -1,7 +1,49 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# A repo whose mise.toml clears GIT_DIR (so dependency installers do not act on
+# the outer checkout) would strip the bare GIT_DIR git set for a `mise dot sync`
+# or `--git-dir` push when the hook enters through `mise x`. Restore it when
+# the hook was handed a bare repository.
+if [[ -z "${GIT_DIR:-}" && -n "${DEV_PROFILE_HOOK_GIT_DIR:-}" ]] &&
+	[[ "$(git --git-dir="${DEV_PROFILE_HOOK_GIT_DIR}" rev-parse --is-bare-repository 2>/dev/null)" == "true" ]]; then
+	export GIT_DIR="${DEV_PROFILE_HOOK_GIT_DIR}"
+fi
+
 refs="$(mktemp)"
 trap 'rm -f "${refs}"' EXIT
 cat >"${refs}"
+
+# A bare repository (such as ~/.local/state/mise/history/repo.git pushed by
+# `mise dot origin set`, `mise dot sync`, or `history-watch`) has no working
+# tree: `hk run pre-push` runs `git status --porcelain=v2`, which exits 128 in
+# any bare repo, and file-based steps would read the process cwd instead of the
+# bare store. Scan every pushed commit range in the bare repo with gitleaks and
+# betterleaks directly.
+if [[ "$(git rev-parse --is-bare-repository 2>/dev/null)" == "true" ]]; then
+	git_dir="$(git rev-parse --git-dir)"
+	all_zeros='^0+$'
+	while read -r _local_ref local_sha _remote_ref remote_sha; do
+		[[ -n "${local_sha:-}" && ! "${local_sha}" =~ ${all_zeros} ]] || continue
+		if [[ -z "${remote_sha:-}" || "${remote_sha}" =~ ${all_zeros} ]] ||
+			! git --git-dir="${git_dir}" cat-file -e "${remote_sha}^{commit}" 2>/dev/null; then
+			range="${local_sha}"
+		else
+			range="${remote_sha}..${local_sha}"
+		fi
+		if command -v gitleaks >/dev/null 2>&1; then
+			gitleaks git --redact --no-banner --log-opts="${range}" "${git_dir}"
+		fi
+		if command -v betterleaks >/dev/null 2>&1; then
+			betterleaks git --redact --no-banner --log-opts="${range}" "${git_dir}"
+		fi
+		if git --git-dir="${git_dir}" log -p "${range}" |
+			grep -Eq '^\+.*-----BEGIN (RSA |DSA |EC |OPENSSH |PGP )?PRIVATE KEY( BLOCK)?-----'; then
+			echo "pre-push: private key block detected in bare repository commit range ${range}" >&2
+			exit 1
+		fi
+	done <"${refs}"
+	exit 0
+fi
+
 export DEV_PROFILE_PUSH_REFS="${refs}"
 hk run pre-push "$@" < <(dev-profile-push-base <"${refs}")

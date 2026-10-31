@@ -69,3 +69,10 @@ agents/learnings/handoffs/*.prompt.md
 apps/opencode/service.json
 home/ssh/known_hosts
 home/ssh/config
+apps/herdr/.plugins.lock
+apps/herdr/herdr-server.log
+apps/herdr/herdr.sock*
+apps/herdr/oneshot/
+apps/herdr/session-snapshots/
+apps/herdr/session.json
+apps/herdr/sessions/

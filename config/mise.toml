@@ -93,6 +93,23 @@ process_type = "Background"
 [bootstrap.services.mise-history]
 builtin = "history-watch"
 
+[history]
+git_email = "mise@{hostname}"
+exclude = [
+  "age.txt",
+  ".netrc",
+  "**/hooks/state/**",
+  "**/learnings/**",
+  "**/*.sock*",
+  "**/*.log",
+  "**/sessions/**",
+  "**/session-snapshots/**",
+  "**/oneshot/**",
+  "**/.plugins.lock",
+]
+
+[history.encryption]
+recipients = ["age1qpl3tghy0660prmvz3x2dqjsn69m588e0j0v56ec0rswkujgyshs64dhtc"]
 [dotfiles]
 "~/.agents" = { source = "~/Developer/Personal/dev-profile/agents" }
 "~/.config/1Password" = { source = "~/Developer/Personal/dev-profile/apps/1Password" }

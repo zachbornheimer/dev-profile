@@ -64,7 +64,13 @@ HOOKS_PATH_SETTING = "core.hooksPath="
 # ZYS-1758: switches that turn the hook runner off without a git flag.
 # hk (HK=0, HK_SKIP_HOOK[S]), husky (HUSKY=0), lefthook (LEFTHOOK=0).
 HOOK_OFF_ENV = re.compile(r"(HK|HUSKY|LEFTHOOK)=(0|false|no|off)", re.IGNORECASE)
-HOOK_SKIP_ENV = re.compile(r"(HK_SKIP_HOOKS?|LEFTHOOK_EXCLUDE)=.+")
+HOOK_SKIP_ENV = re.compile(
+    r"(HK_SKIP_HOOKS?|LEFTHOOK_EXCLUDE)=.+|MISE_HISTORY_ALLOW_PLAINTEXT_HISTORY=(1|true|yes|on)",
+    re.IGNORECASE,
+)
+MISE_PLAINTEXT_SETTING_RE = re.compile(
+    r"\b(history\.)?allow_plaintext_history\s*=\s*(true|1)\b", re.IGNORECASE
+)
 # Git config injected through the environment (git >= 2.31 / GIT_CONFIG_PARAMETERS).
 GIT_CONFIG_ENV = re.compile(
     r"(GIT_CONFIG_PARAMETERS|GIT_CONFIG_KEY_\d+)=.*", re.IGNORECASE
@@ -120,6 +126,12 @@ WT_REASON = (
     "This worktrunk command passes --no-hooks/--no-verify, which skips the project's "
     "pre-merge and pre-commit hooks before main moves. Run it without the flag and fix what "
     "the hook catches; only skip with the user's explicit, direct instruction."
+)
+MISE_PLAINTEXT_REASON = (
+    "This command or config enables allow-plaintext-history, bypassing mise's pre-push "
+    "secret and encryption history check. Purge the plaintext version with `mise dot history "
+    "purge <path>` and encrypt the file (`encrypt = true`) instead; only bypass with the "
+    "user's explicit, direct instruction."
 )
 SCRIPT_REASON = (
     "This file is a script that runs git with hooks skipped (--no-verify, HK=0, HUSKY=0, "
@@ -268,6 +280,27 @@ def worktrunk_skips_hooks(segment: Segment) -> bool:
     )
 
 
+def bypasses_mise_history_gate(segment: Segment) -> bool:
+    if "--allow-plaintext-history" in segment:
+        return True
+    joined = " ".join(segment).lower()
+    return (
+        "mise" in segment
+        and "settings" in segment
+        and "history.allow_plaintext_history" in joined
+        and any(
+            tok
+            in (
+                "true",
+                "1",
+                "history.allow_plaintext_history=true",
+                "history.allow_plaintext_history=1",
+            )
+            for tok in joined.split()
+        )
+    )
+
+
 def runs_hook_skipping_helper(segment: Segment) -> bool:
     return bool(segment) and segment[0] in HOOK_SKIPPING_HELPERS
 
@@ -307,6 +340,8 @@ def word_layer_reason(command: ShellCommand) -> str | None:
         return HELPER_REASON
     if _any_segment(segments, worktrunk_skips_hooks):
         return WT_REASON
+    if _any_segment(segments, bypasses_mise_history_gate):
+        return MISE_PLAINTEXT_REASON
     return None
 
 
@@ -372,7 +407,7 @@ def bash_bypass_reason(command: str, depth: int = 0) -> str | None:
 # --- scripts written to disk (zq#102: "Pushed via /tmp script with --no-verify") ---
 
 SCRIPT_BYPASS_LINE = re.compile(
-    r"--no-verify\b|\b(HK|HUSKY|LEFTHOOK)=[\"']?(0|false)\b|\bHK_SKIP_HOOKS?=|core\.hooksPath",
+    r"--no-verify\b|--allow-plaintext-history\b|\b(HK|HUSKY|LEFTHOOK)=[\"']?(0|false)\b|\bMISE_HISTORY_ALLOW_PLAINTEXT_HISTORY=[\"']?(1|true|yes|on)\b|\bHK_SKIP_HOOKS?=|core\.hooksPath",
     re.IGNORECASE,
 )
 
@@ -395,7 +430,12 @@ def script_bypass_reason(file_path: str, old_text: str, new_text: str) -> str | 
             if (
                 "git" in line
                 and SCRIPT_BYPASS_LINE.search(line)
-                or re.search(r"\b(HK|HUSKY|LEFTHOOK)=[\"']?(0|false)\b", line)
+                or "--allow-plaintext-history" in line
+                or re.search(
+                    r"\b(HK|HUSKY|LEFTHOOK)=[\"']?(0|false)\b|\bMISE_HISTORY_ALLOW_PLAINTEXT_HISTORY=[\"']?(1|true|yes|on)\b",
+                    line,
+                    re.IGNORECASE,
+                )
             ):
                 count += 1
         return count
@@ -419,6 +459,10 @@ def file_edit_reason(file_path: str, old_text: str, new_text: str) -> str | None
     for pragma in SUPPRESSION_PRAGMAS:
         if lines_containing(new_text, pragma) > lines_containing(old_text, pragma):
             return PRAGMA_REASON.format(pragma=pragma)
+    if file_path.endswith(".toml") and len(
+        MISE_PLAINTEXT_SETTING_RE.findall(new_text)
+    ) > len(MISE_PLAINTEXT_SETTING_RE.findall(old_text)):
+        return MISE_PLAINTEXT_REASON
     return script_bypass_reason(file_path, old_text, new_text)
 
 

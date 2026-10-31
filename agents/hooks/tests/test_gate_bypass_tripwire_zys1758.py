@@ -73,6 +73,21 @@ BASH_CASES: dict[str, tuple[str, str]] = {
     "wt-merge-no-verify": ("wt merge main --no-verify", DENY),
     "wt-step-commit-no-hooks": ("wt step commit --no-hooks", DENY),
     "wt-merge-allowed": ("wt merge", SILENT),
+    # mise dotfile history secret/encryption gate bypasses
+    "mise-dot-sync-allow-plaintext": ("mise dot sync --allow-plaintext-history", DENY),
+    "mise-dotfiles-pull-allow-plaintext": (
+        "mise dotfiles pull --allow-plaintext-history",
+        DENY,
+    ),
+    "mise-history-allow-plaintext-env": (
+        "MISE_HISTORY_ALLOW_PLAINTEXT_HISTORY=true mise dot sync",
+        DENY,
+    ),
+    "mise-settings-allow-plaintext": (
+        "mise settings history.allow_plaintext_history=true",
+        DENY,
+    ),
+    "mise-dot-sync-allowed": ("mise dot sync", SILENT),
     # allowed neighbours
     "hk-profile-allowed": ("HK_PROFILE=slow hk check --all", SILENT),
     "hk-one-allowed": ("HK=1 git commit -m x", SILENT),
@@ -103,6 +118,16 @@ WRITE_CASES: dict[str, tuple[str, str, str]] = {
     "python-no-verify": (
         "/tmp/p.py",
         'import subprocess\nsubprocess.run(["git", "push", "--no-verify"])\n',
+        DENY,
+    ),
+    "script-mise-allow-plaintext": (
+        "/tmp/sync.sh",
+        "#!/bin/sh\nmise dot sync --allow-plaintext-history\n",
+        DENY,
+    ),
+    "toml-mise-allow-plaintext": (
+        "/tmp/config.toml",
+        "[settings.history]\nallow_plaintext_history = true\n",
         DENY,
     ),
     "markdown-prose-allowed": (

@@ -84,7 +84,7 @@
 	command = test \"${HK:-1}\" = \"0\" || PATH=\"${PATH}:${HOME}/.local/share/dev-profile/bin\" /opt/homebrew/bin/mise x hk -- dev-profile-restore-tree-on-failure hk run pre-commit --staged
 	event = pre-commit
 [hook "hk-pre-push"]
-	command = test \"${HK:-1}\" = \"0\" || PATH=\"${PATH}:${HOME}/.local/share/dev-profile/bin:${HOME}/.local/share/mise/shims\" /opt/homebrew/bin/mise x hk -- dev-profile-pre-push
+	command = test \"${HK:-1}\" = \"0\" || DEV_PROFILE_HOOK_GIT_DIR=\"${GIT_DIR:-}\" PATH=\"${PATH}:${HOME}/.local/share/dev-profile/bin:${HOME}/.local/share/mise/shims\" /opt/homebrew/bin/mise x hk -- dev-profile-pre-push
 	event = pre-push
 [hook "hk-prepare-commit-msg"]
 	command = test \"${HK:-1}\" = \"0\" || PATH=\"${PATH}:${HOME}/.local/share/dev-profile/bin\" /opt/homebrew/bin/mise x hk -- hk run prepare-commit-msg --from-hook
