@@ -139,20 +139,9 @@ wave_start() {
 }
 
 wave_spawn() {
-	local slot="${wave_dir}/${wave_count}" f
+	local slot="${wave_dir}/${wave_count}"
 	wave_count=$((wave_count + 1))
 	mkdir -p "${slot}"
-	for f in skipped conflicts pushed backed planned unpushed hold reserved; do
-		cp "${root_state}/${f}" "${slot}/${f}"
-	done
-	for f in blockers failures out; do
-		: >"${slot}/${f}"
-	done
-	for f in worktrees pretip restack-stopped; do
-		if [[ -f "${root_state}/${f}" ]]; then
-			ln -s "${root_state}/${f}" "${slot}/${f}"
-		fi
-	done
 	if ((${#wave_pids[@]} >= max_jobs)); then
 		wait "${wave_pids[0]}" || true
 		wave_pids=("${wave_pids[@]:1}")
@@ -177,6 +166,7 @@ wave_finish() {
 			cat "${slot}/out"
 		fi
 		for f in skipped conflicts pushed backed planned unpushed hold; do
+			[[ -s "${slot}/${f}" ]] || continue
 			while IFS= read -r line; do
 				[[ -z "${line}" ]] && continue
 				mark_once "${root_state}/${f}" "${line}"
@@ -185,10 +175,12 @@ wave_finish() {
 		if [[ -s "${slot}/blockers" ]]; then
 			cat "${slot}/blockers" >>"${root_state}/blockers"
 		fi
-		while IFS= read -r line; do
-			[[ -z "${line}" ]] && continue
-			failures=$((failures + 1))
-		done <"${slot}/failures"
+		if [[ -s "${slot}/failures" ]]; then
+			while IFS= read -r line; do
+				[[ -z "${line}" ]] && continue
+				failures=$((failures + 1))
+			done <"${slot}/failures"
+		fi
 	done
 	rm -rf "${wave_dir}"
 	wave_dir=""
@@ -203,7 +195,16 @@ say() {
 	if [[ "${dry_run}" == true ]]; then verb="would-${verb}"; fi
 	report "${verb}" "$*"
 }
-marked() { grep -Fxq -- "$1" "$2"; }
+marked() {
+	if [[ -f "$2" ]] && grep -Fxq -- "$1" "$2"; then
+		return 0
+	fi
+	if [[ "${state}" != "${root_state}" && -f "${root_state}/${2##*/}" ]]; then
+		grep -Fxq -- "$1" "${root_state}/${2##*/}"
+		return $?
+	fi
+	return 1
+}
 mark_once() {
 	if marked "$2" "$1"; then return 0; fi
 	printf '%s\n' "$2" >>"$1"
@@ -225,7 +226,7 @@ record_tips() {
 }
 
 pretip_of() {
-	awk -F '\t' -v b="$1" '$1 == b { print $2; exit }' "${state}/pretip"
+	awk -F '\t' -v b="$1" '$1 == b { print $2; exit }' "${root_state}/pretip"
 }
 
 # 0 when a skipped checkout still has uncommitted work that rebase cannot move.
@@ -237,7 +238,7 @@ restack_blocked() {
 			continue
 		fi
 		if marked "${branch}" "${state}/skipped"; then return 0; fi
-	done <"${state}/worktrees"
+	done <"${root_state}/worktrees"
 	return 1
 }
 
@@ -247,7 +248,7 @@ absorbed_into_default() {
 	local ref="refs/remotes/origin/${default_branch}" tree
 	git merge-base --is-ancestor "$1" "${ref}" && return 0
 	tree="$(git merge-tree --write-tree "${ref}" "$1" 2>/dev/null | sed -n 1p)" || return 1
-	[[ "${tree}" == "$(git rev-parse "${ref}^{tree}")" ]]
+	[[ "${tree}" == "${default_tree:-$(git rev-parse "${ref}^{tree}")}" ]]
 }
 
 prunable_worktree() {
@@ -291,7 +292,7 @@ write_worktrees() {
 }
 
 worktree_of() {
-	awk -F '\t' -v b="$1" '$2 == b { print $1; exit }' "${state}/worktrees"
+	awk -F '\t' -v b="$1" '$2 == b { print $1; exit }' "${root_state}/worktrees"
 }
 
 eligible() {
@@ -321,6 +322,7 @@ contained() {
 free_name() {
 	local base="$1" name="$1" n=2
 	while git show-ref --verify --quiet "refs/heads/${name}" ||
+		git show-ref --verify --quiet "refs/remotes/origin/${name}" ||
 		marked "${name}" "${state}/planned" || marked "${name}" "${state}/hold" ||
 		marked "${name}" "${state}/reserved"; do
 		name="${base}-${n}"
@@ -584,8 +586,27 @@ commit_worktrees() {
 	wave_finish
 }
 
+stash_tree_blocked() {
+	local base_oid="$1" tree_oid="$2" max rel blob path size blocked=false
+	max=$((max_file_mb * 1024 * 1024))
+	while IFS= read -r rel; do
+		[[ -z "${rel}" ]] && continue
+		report nested "${primary}/${rel}"
+		blocked=true
+	done < <(git diff-tree -r --diff-filter=A "${base_oid}" "${tree_oid}" | awk -F '\t' '$1 ~ / 160000 / { print $2 }')
+	while IFS=$'\t' read -r blob path; do
+		[[ -n "${blob}" && -n "${path}" ]] || continue
+		size="$(git cat-file -s "${blob}" 2>/dev/null || echo 0)"
+		if ((size > max)); then
+			report skip "${primary}/${path}: over ${max_file_mb} MB"
+			blocked=true
+		fi
+	done < <(git diff-tree -r --diff-filter=AM "${base_oid}" "${tree_oid}" | awk -F '\t' '{ split($1, a, " "); if (a[4] != "160000") print a[4] "\t" $2 }')
+	[[ "${blocked}" == true ]]
+}
+
 commit_stash() {
-	local current target switched
+	local current target stash_oid base_oid tmp_idx stash_tree merged_tree parent_oid commit_tree_oid commit_oid
 	git rev-parse --verify --quiet refs/stash >/dev/null || return 0
 	if [[ "${do_commit}" != true ]]; then
 		report skip "stash"
@@ -594,44 +615,68 @@ commit_stash() {
 	fi
 	current="$(git symbolic-ref --quiet HEAD || true)"
 	current="${current#refs/heads/}"
-	if [[ -z "${current}" || "${current}" == "${default_branch}" ]]; then
-		target="$(free_name wip)"
-	else
-		target="${current}"
-	fi
-	mark_once "${state}/hold" "${target}"
-	say commit "stash onto ${target}"
-	mark_once "${state}/planned" "${target}"
-	[[ "${dry_run}" == false ]] || return 0
-	switched=false
-	if [[ "${target}" != "${current}" ]]; then
-		git switch -c "${target}"
-		switched=true
-	fi
-	if ! git stash pop -q; then
-		git reset --merge -q || true
-		if [[ "${switched}" == true ]]; then git switch "${default_branch}" || true; fi
-		report skip "stash: pop failed"
-		mark_once "${state}/skipped" "stash"
-		return 0
-	fi
-	if tree_blocked "${primary}"; then
-		git stash push -u -q -m "wt done left this uncommitted" || true
-		report skip "stash: left uncommitted"
-		mark_once "${state}/skipped" "stash"
-		if [[ "${switched}" == true ]]; then
-			git switch "${default_branch}" || true
-			git branch -D "${target}" || true
+	while stash_oid="$(git rev-parse --verify --quiet refs/stash)"; do
+		base_oid="$(git rev-parse "${stash_oid}^1")"
+		if [[ -z "${current}" || "${current}" == "${default_branch}" || "${base_oid}" != "$(git rev-parse HEAD)" ]] ||
+			marked "${current}" "${state}/planned"; then
+			target="$(free_name wip)"
+		else
+			target="${current}"
 		fi
-		return 0
-	fi
-	if [[ -n "$(git status --porcelain)" ]]; then
-		if ! git add -A || ! git commit -q --no-verify -m "chore: save uncommitted work on ${target}"; then
+		mark_once "${state}/hold" "${target}"
+		say commit "stash onto ${target}"
+		mark_once "${state}/planned" "${target}"
+		[[ "${dry_run}" == false ]] || return 0
+		tmp_idx="$(mktemp "${root_state}/stash-index.XXXXXX")"
+		rm -f "${tmp_idx}"
+		if ! GIT_INDEX_FILE="${tmp_idx}" git read-tree "${stash_oid}^{tree}"; then
+			rm -f "${tmp_idx}"
 			report skip "stash: commit failed"
 			mark_once "${state}/skipped" "stash"
+			return 0
 		fi
-	fi
-	if [[ "${switched}" == true ]]; then git switch "${default_branch}"; fi
+		if git rev-parse --verify --quiet "${stash_oid}^3" >/dev/null; then
+			git ls-tree -r -z "${stash_oid}^3^{tree}" | GIT_INDEX_FILE="${tmp_idx}" git update-index -z --index-info
+		fi
+		stash_tree="$(GIT_INDEX_FILE="${tmp_idx}" git write-tree)"
+		rm -f "${tmp_idx}"
+		if stash_tree_blocked "${base_oid}" "${stash_tree}"; then
+			report skip "stash: left uncommitted"
+			mark_once "${state}/skipped" "stash"
+			return 0
+		fi
+		parent_oid="${base_oid}"
+		commit_tree_oid="${stash_tree}"
+		if [[ "${target}" == "${current}" ]]; then
+			if ! git stash pop -q; then
+				git reset --merge -q || true
+				report skip "stash: pop failed"
+				mark_once "${state}/skipped" "stash"
+				return 0
+			fi
+			if [[ -n "$(git status --porcelain)" ]]; then
+				if ! git add -A || ! git commit -q --no-verify -m "chore: save uncommitted work on ${target}"; then
+					report skip "stash: commit failed"
+					mark_once "${state}/skipped" "stash"
+					return 0
+				fi
+			fi
+			continue
+		fi
+		if [[ "${base_oid}" != "$(git rev-parse "refs/heads/${default_branch}")" ]] &&
+			merged_tree="$(git merge-tree --write-tree --merge-base="${base_oid}" "refs/heads/${default_branch}" "${stash_tree}" 2>/dev/null | sed -n 1p)" &&
+			[[ -n "${merged_tree}" ]]; then
+			parent_oid="$(git rev-parse "refs/heads/${default_branch}")"
+			commit_tree_oid="${merged_tree}"
+		fi
+		if ! commit_oid="$(git commit-tree "${commit_tree_oid}" -p "${parent_oid}" -m "chore: save uncommitted work on ${target}")" ||
+			! git update-ref "refs/heads/${target}" "${commit_oid}"; then
+			report skip "stash: commit failed"
+			mark_once "${state}/skipped" "stash"
+			return 0
+		fi
+		git stash drop -q || true
+	done
 }
 
 ff_default() {
@@ -859,7 +904,7 @@ publish_branch_one() {
 		fi
 		return 0
 	fi
-	if [[ -f "${state}/restack-stopped" && -n "${saved}" && "${tip}" == "${saved}" ]]; then
+	if [[ -f "${root_state}/restack-stopped" && -n "${saved}" && "${tip}" == "${saved}" ]]; then
 		if [[ -n "${remote}" && "${tip}" == "${remote}" ]]; then
 			report current "${branch}"
 			return 0
@@ -1233,6 +1278,7 @@ fi
 default_branch="$(git symbolic-ref --quiet refs/remotes/origin/HEAD 2>/dev/null || true)"
 default_branch="${default_branch#refs/remotes/origin/}"
 default_branch="${default_branch:-main}"
+default_tree="$(git rev-parse --verify --quiet "refs/remotes/origin/${default_branch}^{tree}" || true)"
 
 clone="$(clone_id)"
 if [[ -z "${clone}" ]]; then

@@ -364,6 +364,27 @@ test ! -d "$repo" && test ! -d "${work}/gutted-wt" || fail "done --drop must rem
 git -C "$origin" rev-parse --verify --quiet refs/heads/feat/merged >/dev/null &&
 	fail "already-merged gutted worktree branch must not be pushed as a deletion commit to origin"
 test "$(cat "${cd_directive}")" = "${work}" || fail "done --drop must write parent dir to WORKTRUNK_DIRECTIVE_CD_FILE"
+
+# --- Stash conflicting with advanced main and existing origin/wip must still park onto wip-2 and drop.
+setup_clone stashclash
+git -C "$repo" switch -q -c wip main
+commit "$repo" parked.txt parked
+git -C "$repo" push -q origin wip
+git -C "$repo" switch -q main
+git -C "$repo" branch -D -q wip
+printf 'stashed-version\n' >"${repo}/base.txt"
+mkdir -p "${repo}/storage/logos"
+printf 'logo-bytes\n' >"${repo}/storage/logos/a.txt"
+git -C "$repo" add storage/logos/a.txt
+git -C "$repo" stash push -q -m "old stash on main"
+commit "$repo" base.txt main-advanced-version
+git -C "$repo" push -q origin main
+run_done "$repo" --drop >"${work}/stashclash.out" 2>&1 ||
+	fail "done --drop with conflicting stash and origin/wip must succeed: $(cat "${work}/stashclash.out")"
+test ! -d "$repo" || fail "done --drop must trash stashclash clone"
+test "$(git -C "$origin" show wip:parked.txt)" = parked || fail "existing origin/wip must not be overwritten"
+test "$(git -C "$origin" show wip-2:base.txt)" = stashed-version || fail "stash must be parked onto origin/wip-2"
+test "$(git -C "$origin" show wip-2:storage/logos/a.txt)" = logo-bytes || fail "stash tracked additions must be on origin/wip-2"
 # The script itself must disable quality hooks; the fixture did not export HK=0.
 grep -Fq 'export HK=0' "$done" || fail "dev-profile-done must export HK=0 so hk cannot block parking"
 grep -Eq 'commit -q --no-verify' "$done" || fail "dev-profile-done commits must pass --no-verify"
