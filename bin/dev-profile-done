@@ -65,10 +65,113 @@ primary="$(cd "$(dirname "${common}")" && pwd -P)"
 cd "${primary}" || exit 1
 
 state="$(mktemp -d)"
-trap 'rm -rf "${state}"' EXIT
-for f in skipped conflicts pushed backed planned unpushed hold blockers worktrees pretip; do
+root_state="${state}"
+trap 'rm -rf "${root_state}"' EXIT
+for f in skipped conflicts pushed backed planned unpushed hold blockers worktrees pretip reserved failures; do
 	: >"${state}/${f}"
 done
+
+worker_count() {
+	local jobs="${DEV_PROFILE_DONE_JOBS:-}" limit="${DEV_PROFILE_DONE_MAX_JOBS:-8}" cpus
+	if [[ -n "${jobs}" && "${jobs}" =~ ^[1-9][0-9]*$ ]]; then
+		printf '%s\n' "${jobs}"
+		return 0
+	fi
+	cpus="$(getconf _NPROCESSORS_ONLN 2>/dev/null || nproc 2>/dev/null || echo 4)"
+	[[ "${cpus}" =~ ^[1-9][0-9]*$ ]] || cpus=4
+	if [[ "${limit}" =~ ^[1-9][0-9]*$ ]] && ((cpus > limit)); then
+		cpus="${limit}"
+	fi
+	printf '%s\n' "${cpus}"
+}
+max_jobs="$(worker_count)"
+
+with_lock() {
+	local lock="${root_state}/lock.$1" rc=0
+	shift
+	while ! mkdir "${lock}" 2>/dev/null; do
+		sleep 0.01
+	done
+	"$@" || rc=$?
+	rmdir "${lock}" 2>/dev/null || true
+	return "${rc}"
+}
+
+fail_one() {
+	if [[ "${state}" != "${root_state}" ]]; then
+		printf '1\n' >>"${state}/failures"
+	else
+		failures=$((failures + 1))
+	fi
+}
+
+wave_dir=""
+wave_count=0
+wave_pids=()
+
+wave_start() {
+	wave_dir="$(mktemp -d "${root_state}/wave.XXXXXX")"
+	wave_count=0
+	wave_pids=()
+}
+
+wave_spawn() {
+	local slot="${wave_dir}/${wave_count}" f
+	wave_count=$((wave_count + 1))
+	mkdir -p "${slot}"
+	for f in skipped conflicts pushed backed planned unpushed hold reserved; do
+		cp "${root_state}/${f}" "${slot}/${f}"
+	done
+	for f in blockers failures out; do
+		: >"${slot}/${f}"
+	done
+	for f in worktrees pretip restack-stopped; do
+		if [[ -f "${root_state}/${f}" ]]; then
+			ln -s "${root_state}/${f}" "${slot}/${f}"
+		fi
+	done
+	if ((${#wave_pids[@]} >= max_jobs)); then
+		wait "${wave_pids[0]}" || true
+		wave_pids=("${wave_pids[@]:1}")
+	fi
+	(
+		state="${slot}"
+		"$@" >"${slot}/out"
+	) &
+	wave_pids+=("$!")
+}
+
+wave_finish() {
+	local pid i slot f line
+	if ((${#wave_pids[@]} > 0)); then
+		for pid in "${wave_pids[@]}"; do
+			wait "${pid}" || true
+		done
+	fi
+	for ((i = 0; i < wave_count; i++)); do
+		slot="${wave_dir}/${i}"
+		if [[ -s "${slot}/out" ]]; then
+			cat "${slot}/out"
+		fi
+		for f in skipped conflicts pushed backed planned unpushed hold; do
+			while IFS= read -r line; do
+				[[ -z "${line}" ]] && continue
+				mark_once "${root_state}/${f}" "${line}"
+			done <"${slot}/${f}"
+		done
+		if [[ -s "${slot}/blockers" ]]; then
+			cat "${slot}/blockers" >>"${root_state}/blockers"
+		fi
+		while IFS= read -r line; do
+			[[ -z "${line}" ]] && continue
+			failures=$((failures + 1))
+		done <"${slot}/failures"
+	done
+	rm -rf "${wave_dir}"
+	wave_dir=""
+	wave_count=0
+	wave_pids=()
+}
 
 report() { printf '  %-16s %s\n' "$1" "$2"; }
 say() {
@@ -183,7 +286,8 @@ contained() {
 free_name() {
 	local base="$1" name="$1" n=2
 	while git show-ref --verify --quiet "refs/heads/${name}" ||
-		marked "${name}" "${state}/planned" || marked "${name}" "${state}/hold"; do
+		marked "${name}" "${state}/planned" || marked "${name}" "${state}/hold" ||
+		marked "${name}" "${state}/reserved"; do
 		name="${base}-${n}"
 		n=$((n + 1))
 	done
@@ -259,14 +363,14 @@ commit_default_dirty() {
 	mark_once "${state}/planned" "${name}"
 	mark_once "${state}/hold" "${name}"
 	[[ "${dry_run}" == false ]] || return 0
-	git -C "${path}" switch -c "${name}"
+	with_lock config git -C "${path}" switch -c "${name}"
 	if ! commit_tree "${path}" "${name}"; then
-		git -C "${path}" switch "${default_branch}" || true
-		git -C "${path}" branch -D "${name}" || true
+		with_lock config git -C "${path}" switch "${default_branch}" || true
+		with_lock config git -C "${path}" branch -D "${name}" || true
 		mark_once "${state}/skipped" "${default_branch}"
 		return 0
 	fi
-	git -C "${path}" switch "${default_branch}"
+	with_lock config git -C "${path}" switch "${default_branch}"
 }
 
 commit_branch_dirty() {
@@ -292,7 +396,7 @@ commit_branch_dirty() {
 }
 
 commit_detached() {
-	local path="$1" sha name base stashed=false
+	local path="$1" pre_name="${2:-}" sha name base stashed=false
 	if [[ "${do_commit}" != true ]]; then
 		report skip "${path}: detached HEAD"
 		mark_once "${state}/skipped" "detached"
@@ -306,8 +410,12 @@ commit_detached() {
 	# Name the branch from the commit the edit sits on. Aborting a rebase
 	# checks out orig-head and would discard that edit, so a dry-run stops
 	# here and a real run stashes before the abort.
-	sha="$(git -C "${path}" rev-parse --short=12 HEAD)"
-	name="$(free_name "detached-${sha}")"
+	if [[ -n "${pre_name}" ]]; then
+		name="${pre_name}"
+	else
+		sha="$(git -C "${path}" rev-parse --short=12 HEAD)"
+		name="$(free_name "detached-${sha}")"
+	fi
 	say commit "${path}: detached HEAD onto ${name}"
 	mark_once "${state}/planned" "${name}"
 	mark_once "${state}/hold" "${name}"
@@ -315,7 +423,7 @@ commit_detached() {
 	base="$(git -C "${path}" rev-parse HEAD)"
 	if [[ -d "$(git -C "${path}" rev-parse --git-path rebase-merge)" || -d "$(git -C "${path}" rev-parse --git-path rebase-apply)" ]]; then
 		if [[ -n "$(git -C "${path}" status --porcelain)" ]]; then
-			if ! git -C "${path}" stash push -u -q -m "wt done before rebase abort"; then
+			if ! with_lock stash git -C "${path}" stash push -u -q -m "wt done before rebase abort"; then
 				report skip "${path}: could not stash before rebase abort"
 				mark_once "${state}/skipped" "detached"
 				return 0
@@ -332,7 +440,7 @@ commit_detached() {
 			return 0
 		fi
 	fi
-	if ! git -C "${path}" switch -c "${name}" "${base}"; then
+	if ! with_lock config git -C "${path}" switch -c "${name}" "${base}"; then
 		if [[ "${stashed}" == true ]]; then
 			report skip "${path}: could not leave detached HEAD; edit is in the stash"
 		else
@@ -342,7 +450,7 @@ commit_detached() {
 		return 0
 	fi
 	if [[ "${stashed}" == true ]]; then
-		if ! git -C "${path}" stash pop -q; then
+		if ! with_lock stash git -C "${path}" stash pop -q; then
 			git -C "${path}" reset --merge -q || true
 			report skip "${path}: stash pop failed; edit remains in the stash"
 			mark_once "${state}/skipped" "detached"
@@ -371,19 +479,31 @@ commit_status() {
 	done < <(git -C "${path}" status --porcelain)
 }
 
+commit_worktree_one() {
+	local path="$1" branch="$2" pre_name="${3:-}" dirty=false
+	if [[ -n "$(commit_status "${path}")" ]]; then dirty=true; fi
+	if [[ -z "${branch}" ]]; then
+		commit_detached "${path}" "${pre_name}"
+	elif [[ "${dirty}" == true && "${branch}" == "${default_branch}" ]]; then
+		commit_default_dirty "${path}"
+	elif [[ "${dirty}" == true ]]; then
+		commit_branch_dirty "${path}" "${branch}"
+	fi
+}
+
 commit_worktrees() {
-	local path branch locked dirty
+	local path branch locked sha pre_name
+	wave_start
 	while IFS=$'\t' read -r path branch locked; do
-		dirty=false
-		if [[ -n "$(commit_status "${path}")" ]]; then dirty=true; fi
-		if [[ -z "${branch}" ]]; then
-			commit_detached "${path}"
-		elif [[ "${dirty}" == true && "${branch}" == "${default_branch}" ]]; then
-			commit_default_dirty "${path}"
-		elif [[ "${dirty}" == true ]]; then
-			commit_branch_dirty "${path}" "${branch}"
+		pre_name=""
+		if [[ -z "${branch}" && "${do_commit}" == true ]]; then
+			sha="$(git -C "${path}" rev-parse --short=12 HEAD)"
+			pre_name="$(free_name "detached-${sha}")"
+			mark_once "${state}/reserved" "${pre_name}"
 		fi
+		wave_spawn commit_worktree_one "${path}" "${branch}" "${pre_name}"
 	done <"${state}/worktrees"
+	wave_finish
 }
 
 commit_stash() {
@@ -458,7 +578,7 @@ note_conflict() {
 	local path
 	path="$(worktree_of "$1")"
 	if [[ -n "${path}" ]]; then git -C "${path}" rebase --abort >/dev/null 2>&1 || true; fi
-	git rebase --abort >/dev/null 2>&1 || true
+	if [[ -n "${DEV_PROFILE_DONE_RESTACK:-}" ]]; then git rebase --abort >/dev/null 2>&1 || true; fi
 	mark_once "${state}/conflicts" "$1"
 	report conflict "$1"
 }
@@ -474,11 +594,35 @@ each_branch() {
 
 stop_restack() {
 	printf '1\n' >"${state}/restack-stopped"
-	failures=$((failures + 1))
+	fail_one
+}
+
+restack_dry_one() {
+	local branch="$1"
+	if diverged "${branch}"; then
+		mark_once "${state}/conflicts" "${branch}"
+		report conflict "${branch}"
+	fi
+}
+
+restack_one() {
+	local branch="$1" path
+	if diverged "${branch}"; then
+		note_conflict "${branch}"
+		return 0
+	fi
+	if git merge-base --is-ancestor "refs/remotes/origin/${default_branch}" "refs/heads/${branch}"; then
+		return 0
+	fi
+	path="$(worktree_of "${branch}")"
+	[[ -n "${path}" ]] || return 0
+	if ! git -C "${path}" -c rebase.updateRefs=false rebase --no-autostash --quiet "origin/${default_branch}"; then
+		note_conflict "${branch}"
+	fi
 }
 
 restack_branches() {
-	local branch path
+	local branch
 	if restack_blocked; then
 		report skip "restack: uncommitted work blocks restack; pass --commit"
 		if [[ "${dry_run}" == true ]]; then return 0; fi
@@ -487,13 +631,12 @@ restack_branches() {
 	fi
 	if [[ "${dry_run}" == true ]]; then
 		say restack "origin/${default_branch}"
+		wave_start
 		while IFS= read -r branch; do
 			eligible "${branch}" || continue
-			if diverged "${branch}"; then
-				mark_once "${state}/conflicts" "${branch}"
-				report conflict "${branch}"
-			fi
+			wave_spawn restack_dry_one "${branch}"
 		done < <(each_branch)
+		wave_finish
 		return 0
 	fi
 	record_tips
@@ -507,21 +650,12 @@ restack_branches() {
 		done < <(each_branch)
 		return 0
 	fi
+	wave_start
 	while IFS= read -r branch; do
 		eligible "${branch}" || continue
-		if diverged "${branch}"; then
-			note_conflict "${branch}"
-			continue
-		fi
-		if git merge-base --is-ancestor "refs/remotes/origin/${default_branch}" "refs/heads/${branch}"; then
-			continue
-		fi
-		path="$(worktree_of "${branch}")"
-		[[ -n "${path}" ]] || continue
-		if ! git -C "${path}" -c rebase.updateRefs=false rebase --no-autostash --quiet "origin/${default_branch}"; then
-			note_conflict "${branch}"
-		fi
+		wave_spawn restack_one "${branch}"
 	done < <(each_branch)
+	wave_finish
 }
 
 push_ok() {
@@ -540,11 +674,7 @@ push_ok() {
 		git push --quiet --no-verify --force-with-lease="refs/heads/${ref}" origin "${spec}" || ok=1
 		;;
 	plain)
-		if [[ "${ref}" == */* ]]; then
-			git push --quiet --no-verify origin "${spec}" || ok=1
-		else
-			git push --quiet --no-verify --set-upstream origin "${ref}" || ok=1
-		fi
+		git push --quiet --no-verify origin "${spec}" || ok=1
 		;;
 	*)
 		echo "unknown push mode ${mode}" >&2
@@ -569,7 +699,7 @@ backup_conflict() {
 		mark_once "${state}/backed" "${branch}"
 	else
 		report failed "${ref}"
-		failures=$((failures + 1))
+		fail_one
 	fi
 }
 
@@ -592,7 +722,7 @@ publish_main() {
 			mark_once "${state}/backed" "mainahead"
 		else
 			report failed "${ref}"
-			failures=$((failures + 1))
+			fail_one
 		fi
 		return 0
 	fi
@@ -600,73 +730,35 @@ publish_main() {
 	backup_conflict "${default_branch}" "${local_tip}"
 }
 
-publish_branches() {
-	local branch tip remote mode saved
-	while IFS= read -r branch; do
-		eligible "${branch}" || continue
-		if marked "${branch}" "${state}/conflicts"; then
-			saved="$(pretip_of "${branch}")"
-			[[ -n "${saved}" ]] || saved="$(git rev-parse "refs/heads/${branch}")"
-			backup_conflict "${branch}" "${saved}"
-			continue
-		fi
-		if [[ "${dry_run}" == true ]] && marked "${branch}" "${state}/planned"; then
-			if [[ "${do_push}" != true ]]; then
-				report skip "${branch}: pass --push"
-				mark_once "${state}/unpushed" "${branch}"
-			else
-				say push "${branch}"
-				mark_once "${state}/pushed" "${branch}"
-			fi
-			continue
-		fi
-		tip="$(git rev-parse "refs/heads/${branch}")"
-		remote=""
-		if git rev-parse --verify --quiet "refs/remotes/origin/${branch}" >/dev/null; then
-			remote="$(git rev-parse "refs/remotes/origin/${branch}")"
-		fi
+publish_branch_one() {
+	local branch="$1" tip remote mode saved
+	if marked "${branch}" "${state}/conflicts"; then
 		saved="$(pretip_of "${branch}")"
-		if [[ -n "${saved}" && "${tip}" != "${saved}" ]]; then
-			if [[ "${do_push}" != true ]]; then
-				report skip "${branch}: pass --push"
-				mark_once "${state}/unpushed" "${branch}"
-				continue
-			fi
-			mode="plain"
-			if [[ -n "${remote}" ]]; then mode="lease"; fi
-			if push_ok "${tip}" "${branch}" "${mode}"; then
-				mark_once "${state}/pushed" "${branch}"
-			else
-				report conflict "${branch}: push refused"
-				backup_conflict "${branch}" "${tip}"
-			fi
-			continue
-		fi
-		if [[ -f "${state}/restack-stopped" && -n "${saved}" && "${tip}" == "${saved}" ]]; then
-			if [[ -n "${remote}" && "${tip}" == "${remote}" ]]; then
-				report current "${branch}"
-				continue
-			fi
-			report skip "${branch}: restack stopped"
-			mark_once "${state}/unpushed" "${branch}"
-			continue
-		fi
-		if [[ -n "${remote}" && "${tip}" == "${remote}" ]]; then
-			report current "${branch}"
-			continue
-		fi
-		if [[ -n "${remote}" ]] && git merge-base --is-ancestor "${tip}" "${remote}"; then
-			continue
-		fi
-		if [[ -n "${remote}" ]] && ! git merge-base --is-ancestor "${remote}" "${tip}"; then
-			if ! marked "${branch}" "${state}/conflicts"; then report conflict "${branch}"; fi
-			backup_conflict "${branch}" "${tip}"
-			continue
-		fi
+		[[ -n "${saved}" ]] || saved="$(git rev-parse "refs/heads/${branch}")"
+		backup_conflict "${branch}" "${saved}"
+		return 0
+	fi
+	if [[ "${dry_run}" == true ]] && marked "${branch}" "${state}/planned"; then
 		if [[ "${do_push}" != true ]]; then
 			report skip "${branch}: pass --push"
 			mark_once "${state}/unpushed" "${branch}"
-			continue
+		else
+			say push "${branch}"
+			mark_once "${state}/pushed" "${branch}"
+		fi
+		return 0
+	fi
+	tip="$(git rev-parse "refs/heads/${branch}")"
+	remote=""
+	if git rev-parse --verify --quiet "refs/remotes/origin/${branch}" >/dev/null; then
+		remote="$(git rev-parse "refs/remotes/origin/${branch}")"
+	fi
+	saved="$(pretip_of "${branch}")"
+	if [[ -n "${saved}" && "${tip}" != "${saved}" ]]; then
+		if [[ "${do_push}" != true ]]; then
+			report skip "${branch}: pass --push"
+			mark_once "${state}/unpushed" "${branch}"
+			return 0
 		fi
 		mode="plain"
 		if [[ -n "${remote}" ]]; then mode="lease"; fi
@@ -676,8 +768,52 @@ publish_branches() {
 			report conflict "${branch}: push refused"
 			backup_conflict "${branch}" "${tip}"
 		fi
-	done < <(each_branch)
+		return 0
+	fi
+	if [[ -f "${state}/restack-stopped" && -n "${saved}" && "${tip}" == "${saved}" ]]; then
+		if [[ -n "${remote}" && "${tip}" == "${remote}" ]]; then
+			report current "${branch}"
+			return 0
+		fi
+		report skip "${branch}: restack stopped"
+		mark_once "${state}/unpushed" "${branch}"
+		return 0
+	fi
+	if [[ -n "${remote}" && "${tip}" == "${remote}" ]]; then
+		report current "${branch}"
+		return 0
+	fi
+	if [[ -n "${remote}" ]] && git merge-base --is-ancestor "${tip}" "${remote}"; then
+		return 0
+	fi
+	if [[ -n "${remote}" ]] && ! git merge-base --is-ancestor "${remote}" "${tip}"; then
+		if ! marked "${branch}" "${state}/conflicts"; then report conflict "${branch}"; fi
+		backup_conflict "${branch}" "${tip}"
+		return 0
+	fi
+	if [[ "${do_push}" != true ]]; then
+		report skip "${branch}: pass --push"
+		mark_once "${state}/unpushed" "${branch}"
+		return 0
+	fi
+	mode="plain"
+	if [[ -n "${remote}" ]]; then mode="lease"; fi
+	if push_ok "${tip}" "${branch}" "${mode}"; then
+		mark_once "${state}/pushed" "${branch}"
+	else
+		report conflict "${branch}: push refused"
+		backup_conflict "${branch}" "${tip}"
+	fi
+}
 
+publish_branches() {
+	local branch
+	wave_start
+	while IFS= read -r branch; do
+		eligible "${branch}" || continue
+		wave_spawn publish_branch_one "${branch}"
+	done < <(each_branch)
+	wave_finish
 	[[ "${dry_run}" == true ]] || return 0
 	while IFS= read -r branch; do
 		[[ -z "${branch}" ]] && continue
@@ -715,13 +851,22 @@ open_pr() {
 	if [[ "${kind}" == draft ]]; then
 		gh pr create --draft --head "${head}" --base "${base}" --title "${title}" --body "${body}" || {
 			report failed "pull request for ${head}"
-			failures=$((failures + 1))
+			fail_one
 		}
 	else
 		gh pr create --head "${head}" --base "${base}" --title "${title}" --body "${body}" || {
 			report failed "pull request for ${head}"
-			failures=$((failures + 1))
+			fail_one
 		}
+	fi
+}
+
+open_mainahead_pr() {
+	local head="backup/main/${clone}"
+	open_pr ready "${head}" "${default_branch}" "Commits ahead of ${default_branch} from ${clone}"
+	say pr "auto-merge ${head}"
+	if [[ "${dry_run}" != true ]] && ! gh pr merge "${head}" --auto --merge; then
+		report skip "auto-merge was not armed for ${head}"
 	fi
 }
 
@@ -734,149 +879,185 @@ publish_prs() {
 	fi
 	if [[ "${dry_run}" != true ]] && ! command -v gh >/dev/null 2>&1; then
 		echo "GitHub CLI (gh) is required for --pr" >&2
-		failures=$((failures + 1))
+		fail_one
 		return 0
 	fi
+	wave_start
 	while IFS= read -r branch; do
 		[[ -z "${branch}" ]] && continue
 		if marked "${branch}" "${state}/hold"; then continue; fi
 		head="backup/conflicts/${clone}/${branch}"
-		open_pr draft "${head}" "${branch}" "Local commits on ${branch} did not rebase"
+		wave_spawn open_pr draft "${head}" "${branch}" "Local commits on ${branch} did not rebase"
 	done <"${state}/conflicts"
 	if marked "mainahead" "${state}/backed"; then
-		head="backup/main/${clone}"
-		open_pr ready "${head}" "${default_branch}" "Commits ahead of ${default_branch} from ${clone}"
-		say pr "auto-merge ${head}"
-		if [[ "${dry_run}" != true ]] && ! gh pr merge "${head}" --auto --merge; then
-			report skip "auto-merge was not armed for ${head}"
-		fi
+		wave_spawn open_mainahead_pr
 	fi
 	while IFS= read -r branch; do
 		[[ -z "${branch}" ]] && continue
 		[[ "${branch}" == "${default_branch}" ]] && continue
 		if marked "${branch}" "${state}/conflicts"; then continue; fi
 		if marked "${branch}" "${state}/hold"; then continue; fi
-		open_pr draft "${branch}" "${default_branch}" "${branch}"
+		wave_spawn open_pr draft "${branch}" "${default_branch}" "${branch}"
 	done <"${state}/pushed"
+	wave_finish
+}
+
+prune_worktree_one() {
+	local path="$1" branch="$2" locked="$3"
+	prunable_worktree "${path}" "${branch}" "${locked}" || return 0
+	say prune "${path}"
+	[[ "${dry_run}" == false ]] || return 0
+	git worktree remove --force "${path}"
+	if ! git worktree list --porcelain | grep -Fxq -- "branch refs/heads/${branch}"; then
+		with_lock config git branch -D "${branch}"
+	fi
+}
+
+prune_branch_one() {
+	local branch="$1"
+	if marked "${branch}" "${state}/unpushed"; then return 0; fi
+	[[ -n "$(worktree_of "${branch}")" ]] && return 0
+	git rev-parse --verify --quiet "refs/remotes/origin/${branch}" >/dev/null || return 0
+	[[ "$(git rev-parse "refs/heads/${branch}")" == "$(git rev-parse "refs/remotes/origin/${branch}")" ]] || return 0
+	say prune "${branch}"
+	[[ "${dry_run}" == false ]] || return 0
+	with_lock config git branch -D "${branch}"
 }
 
 prune_local() {
 	local path branch locked
 	write_worktrees
+	wave_start
 	while IFS=$'\t' read -r path branch locked; do
-		prunable_worktree "${path}" "${branch}" "${locked}" || continue
-		say prune "${path}"
-		[[ "${dry_run}" == false ]] || continue
-		git worktree remove --force "${path}"
-		if ! git worktree list --porcelain | grep -Fxq -- "branch refs/heads/${branch}"; then
-			git branch -D "${branch}"
-		fi
+		wave_spawn prune_worktree_one "${path}" "${branch}" "${locked}"
 	done <"${state}/worktrees"
+	wave_finish
 
+	write_worktrees
+	wave_start
 	while IFS= read -r branch; do
 		eligible "${branch}" || continue
-		if marked "${branch}" "${state}/unpushed"; then continue; fi
-		[[ -n "$(worktree_of "${branch}")" ]] && continue
-		git rev-parse --verify --quiet "refs/remotes/origin/${branch}" >/dev/null || continue
-		[[ "$(git rev-parse "refs/heads/${branch}")" == "$(git rev-parse "refs/remotes/origin/${branch}")" ]] || continue
-		say prune "${branch}"
-		[[ "${dry_run}" == false ]] || continue
-		git branch -D "${branch}"
+		wave_spawn prune_branch_one "${branch}"
 	done < <(each_branch)
+	wave_finish
+}
+
+prune_remote_one() {
+	local ref="$1" branch tip listing
+	# origin/HEAD is a symref, not a branch.
+	[[ "${ref}" == refs/remotes/origin || "${ref}" == refs/remotes/origin/HEAD ]] && return 0
+	branch="${ref#refs/remotes/origin/}"
+	[[ "${branch}" == HEAD || "${branch}" == "${default_branch}" ]] && return 0
+	case "${branch}" in
+	backup/*) return 0 ;;
+	esac
+	if marked "${branch}" "${state}/skipped"; then return 0; fi
+	if marked "${branch}" "${state}/unpushed"; then return 0; fi
+	tip="$(git rev-parse --verify --quiet "${ref}" || true)"
+	[[ -n "${tip}" ]] || return 0
+	git merge-base --is-ancestor "${tip}" "refs/remotes/origin/${default_branch}" || return 0
+	say prune "origin/${branch}"
+	[[ "${dry_run}" == false ]] || return 0
+	if ! command -v gh >/dev/null 2>&1; then
+		report skip "origin/${branch}: gh is not installed; kept"
+		return 0
+	fi
+	if ! listing="$(gh pr list --head "${branch}" --state open --json number 2>/dev/null)"; then
+		report skip "origin/${branch}: could not list pull requests; kept"
+		return 0
+	fi
+	if [[ "${listing}" == *number* ]]; then
+		report skip "origin/${branch}: open pull request"
+		return 0
+	fi
+	if ! git push --quiet --no-verify --force-with-lease="refs/heads/${branch}:${tip}" --delete origin "${branch}"; then
+		report skip "origin/${branch}: remote moved; kept"
+	fi
 }
 
 prune_remote() {
-	local ref branch tip listing
+	local ref
+	wave_start
 	while IFS= read -r ref; do
-		# origin/HEAD is a symref, not a branch.
-		[[ "${ref}" == refs/remotes/origin || "${ref}" == refs/remotes/origin/HEAD ]] && continue
-		branch="${ref#refs/remotes/origin/}"
-		[[ "${branch}" == HEAD || "${branch}" == "${default_branch}" ]] && continue
-		case "${branch}" in
-		backup/*) continue ;;
-		esac
-		if marked "${branch}" "${state}/skipped"; then continue; fi
-		if marked "${branch}" "${state}/unpushed"; then continue; fi
-		tip="$(git rev-parse --verify --quiet "${ref}" || true)"
-		[[ -n "${tip}" ]] || continue
-		git merge-base --is-ancestor "${tip}" "refs/remotes/origin/${default_branch}" || continue
-		say prune "origin/${branch}"
-		[[ "${dry_run}" == false ]] || continue
-		if ! command -v gh >/dev/null 2>&1; then
-			report skip "origin/${branch}: gh is not installed; kept"
-			continue
-		fi
-		if ! listing="$(gh pr list --head "${branch}" --state open --json number 2>/dev/null)"; then
-			report skip "origin/${branch}: could not list pull requests; kept"
-			continue
-		fi
-		if [[ "${listing}" == *number* ]]; then
-			report skip "origin/${branch}: open pull request"
-			continue
-		fi
-		if ! git push --quiet --no-verify --force-with-lease="refs/heads/${branch}:${tip}" --delete origin "${branch}"; then
-			report skip "origin/${branch}: remote moved; kept"
-		fi
+		wave_spawn prune_remote_one "${ref}"
 	done < <(git for-each-ref --format='%(refname)' refs/remotes/origin)
+	wave_finish
 }
 
-scan_danger() {
-	local path rel bytes max
+scan_danger_one() {
+	local path="$1" rel bytes max
 	max=$((max_file_mb * 1024 * 1024))
-	while IFS=$'\t' read -r path _ _; do
-		while IFS= read -r -d '' rel; do
-			[[ -z "${rel}" ]] && continue
-			if [[ -e "${path}/${rel}/.git" ]]; then
-				printf '%s\n' "nested repository ${path}/${rel}" >>"${state}/blockers"
-			fi
-		done < <(git -C "${path}" ls-files -z --others --directory --exclude-standard)
-		while IFS= read -r rel; do
-			[[ -z "${rel}" ]] && continue
+	while IFS= read -r -d '' rel; do
+		[[ -z "${rel}" ]] && continue
+		if [[ -e "${path}/${rel}/.git" ]]; then
 			printf '%s\n' "nested repository ${path}/${rel}" >>"${state}/blockers"
-		done < <(git -C "${path}" ls-files -s | awk -F '\t' '$1 ~ /^160000 / { print $2 }')
-		while IFS= read -r -d '' rel; do
-			[[ -f "${path}/${rel}" ]] || continue
-			bytes="$(wc -c <"${path}/${rel}")"
-			bytes="${bytes#"${bytes%%[![:space:]]*}"}"
-			if ((bytes > max)); then
-				printf '%s\n' "${path}/${rel}: over ${max_file_mb} MB" >>"${state}/blockers"
-			fi
-		done < <(git -C "${path}" ls-files -z --others --exclude-standard)
-	done <"${state}/worktrees"
+		fi
+	done < <(git -C "${path}" ls-files -z --others --directory --exclude-standard)
+	while IFS= read -r rel; do
+		[[ -z "${rel}" ]] && continue
+		printf '%s\n' "nested repository ${path}/${rel}" >>"${state}/blockers"
+	done < <(git -C "${path}" ls-files -s | awk -F '\t' '$1 ~ /^160000 / { print $2 }')
+	while IFS= read -r -d '' rel; do
+		[[ -f "${path}/${rel}" ]] || continue
+		bytes="$(wc -c <"${path}/${rel}")"
+		bytes="${bytes#"${bytes%%[![:space:]]*}"}"
+		if ((bytes > max)); then
+			printf '%s\n' "${path}/${rel}: over ${max_file_mb} MB" >>"${state}/blockers"
+		fi
+	done < <(git -C "${path}" ls-files -z --others --exclude-standard)
+}
+
+drop_branch_one() {
+	local branch="$1" tip
+	if marked "${branch}" "${state}/skipped"; then return 0; fi
+	tip="$(git rev-parse "refs/heads/${branch}")"
+	if contained "${tip}"; then return 0; fi
+	if [[ "${dry_run}" == true && "${do_push}" == true ]]; then return 0; fi
+	printf '%s\n' "${branch} is not on origin" >>"${state}/blockers"
+}
+
+drop_planned_one() {
+	local branch="$1"
+	[[ -z "${branch}" ]] && return 0
+	git show-ref --verify --quiet "refs/heads/${branch}" && return 0
+	printf '%s\n' "${branch} is not on origin" >>"${state}/blockers"
+}
+
+drop_worktree_one() {
+	local path="$1" branch="$2" locked="$3"
+	[[ "${path}" == "${primary}" ]] && return 0
+	if [[ "${do_prune}" != true ]]; then
+		printf '%s\n' "linked worktree ${path}; pass --prune" >>"${state}/blockers"
+		return 0
+	fi
+	if ! prunable_worktree "${path}" "${branch}" "${locked}"; then
+		printf '%s\n' "linked worktree ${path} would remain" >>"${state}/blockers"
+	fi
 }
 
 drop_clone() {
-	local line branch tip path locked
+	local line branch path locked
 	while IFS= read -r line; do
 		[[ -z "${line}" ]] && continue
 		printf '%s\n' "${line} was skipped" >>"${state}/blockers"
 	done <"${state}/skipped"
+	write_worktrees
+	wave_start
 	while IFS= read -r branch; do
-		if marked "${branch}" "${state}/skipped"; then continue; fi
-		tip="$(git rev-parse "refs/heads/${branch}")"
-		if contained "${tip}"; then continue; fi
-		if [[ "${dry_run}" == true && "${do_push}" == true ]]; then continue; fi
-		printf '%s\n' "${branch} is not on origin" >>"${state}/blockers"
+		wave_spawn drop_branch_one "${branch}"
 	done < <(each_branch)
 	if [[ "${dry_run}" == true && "${do_push}" != true ]]; then
 		while IFS= read -r branch; do
-			[[ -z "${branch}" ]] && continue
-			git show-ref --verify --quiet "refs/heads/${branch}" && continue
-			printf '%s\n' "${branch} is not on origin" >>"${state}/blockers"
+			wave_spawn drop_planned_one "${branch}"
 		done <"${state}/planned"
 	fi
-	write_worktrees
 	while IFS=$'\t' read -r path branch locked; do
-		[[ "${path}" == "${primary}" ]] && continue
-		if [[ "${do_prune}" != true ]]; then
-			printf '%s\n' "linked worktree ${path}; pass --prune" >>"${state}/blockers"
-			continue
-		fi
-		if ! prunable_worktree "${path}" "${branch}" "${locked}"; then
-			printf '%s\n' "linked worktree ${path} would remain" >>"${state}/blockers"
-		fi
+		wave_spawn drop_worktree_one "${path}" "${branch}" "${locked}"
 	done <"${state}/worktrees"
-	scan_danger
+	while IFS=$'\t' read -r path _ _; do
+		wave_spawn scan_danger_one "${path}"
+	done <"${state}/worktrees"
+	wave_finish
 	if [[ -s "${state}/blockers" ]]; then
 		while IFS= read -r line; do
 			say refuse "${line}"

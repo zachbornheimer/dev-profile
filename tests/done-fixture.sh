@@ -188,6 +188,162 @@ grep -Eq 'would-restack +origin/main' "${work}/dry.out" || fail "dry-run must re
 grep -F 'wt-sync --all' "${work}/dry.out" && fail "dry-run must not restack with wt-sync --all: $(cat "${work}/dry.out")"
 grep -Fq 'dry-run: fetched origin; no other changes' "${work}/dry.out" || fail "dry-run must only fetch"
 
+# --- Parallel execution across worktrees and branches (with and without --drop).
+real_git="$(command -v git)"
+export REAL_GIT="$real_git"
+export PAR_DIR="${work}/par-track"
+mkdir -p "$PAR_DIR"
+
+cat >"${stubs}/git" <<'STUB'
+#!/usr/bin/env bash
+if [[ "${WT_DONE_TRACK_PARALLEL:-0}" == 1 ]]; then
+	phase=""
+	for arg in "$@"; do
+		case "$arg" in
+		commit) phase="commit"; break ;;
+		rebase) phase="rebase"; break ;;
+		push)
+			if [[ " $* " == *" --delete "* ]]; then
+				phase="prune-remote"
+			else
+				phase="push"
+			fi
+			break
+			;;
+		remove)
+			if [[ " $* " == *" worktree remove "* ]]; then
+				phase="worktree-remove"
+				break
+			fi
+			;;
+		--contains)
+			phase="drop-contains"
+			break
+			;;
+		--others)
+			phase="drop-scan"
+			break
+			;;
+		esac
+	done
+	if [[ -n "$phase" && " $* " != *" --abort"* ]]; then
+		dir="${PAR_DIR}/${phase}"
+		mkdir -p "${dir}/active"
+		: >"${dir}/active/$$"
+		for _ in 1 2 3 4 5 6 7 8; do
+			active=( "${dir}/active"/* )
+			count="${#active[@]}"
+			prev="$(cat "${dir}/peak" 2>/dev/null || echo 0)"
+			if ((count > prev)); then
+				printf '%s\n' "$count" >"${dir}/peak"
+			fi
+			((count >= 2)) && break
+			sleep 0.03
+		done
+		rm -f "${dir}/active/$$"
+	fi
+fi
+exec "$REAL_GIT" "$@"
+STUB
+
+cat >"${stubs}/gh" <<'STUB'
+#!/usr/bin/env bash
+echo "gh $*" >>"${WT_LOG}"
+if [[ "${WT_DONE_TRACK_PARALLEL:-0}" == 1 && "$1" == pr && "$2" == create ]]; then
+	dir="${PAR_DIR}/pr"
+	mkdir -p "${dir}/active"
+	: >"${dir}/active/$$"
+	for _ in 1 2 3 4 5 6 7 8; do
+		active=( "${dir}/active"/* )
+		count="${#active[@]}"
+		prev="$(cat "${dir}/peak" 2>/dev/null || echo 0)"
+		if ((count > prev)); then
+			printf '%s\n' "$count" >"${dir}/peak"
+		fi
+		((count >= 2)) && break
+		sleep 0.03
+	done
+	rm -f "${dir}/active/$$"
+	echo "https://example.invalid/pr/1"
+	exit 0
+fi
+if [[ "$1" == pr && "$2" == list ]]; then
+	[[ "$*" == *--jq* ]] || echo '[]'
+	exit 0
+fi
+exit 1
+STUB
+
+cat >"${stubs}/trash" <<'STUB'
+#!/usr/bin/env bash
+echo "trash $*" >>"${WT_LOG}"
+rm -rf "$@"
+STUB
+chmod +x "${stubs}/git" "${stubs}/gh" "${stubs}/trash"
+
+peak_of() {
+	cat "${PAR_DIR}/${1}/peak" 2>/dev/null || echo 0
+}
+
+setup_clone par
+for b in merged-1 merged-2; do
+	git -C "$repo" switch -q -c "$b" main
+	git -C "$repo" push --no-verify -q origin "$b"
+done
+git -C "$repo" switch -q main
+git -C "$repo" branch -D -q merged-1 merged-2
+for b in p1 p2 p3; do
+	git -C "$repo" switch -q -c "feat/${b}" main
+	commit "$repo" "${b}.txt" "base-${b}"
+	git -C "$repo" switch -q main
+	git -C "$repo" worktree add -q "${work}/par-${b}" "feat/${b}"
+	printf 'dirty-%s\n' "$b" >"${work}/par-${b}/${b}.txt"
+done
+commit "$repo" main-advance.txt advanced
+git -C "$repo" push --no-verify -q origin main
+
+WT_DONE_TRACK_PARALLEL=1 DEV_PROFILE_DONE_JOBS=4 run_done "$repo" >"${work}/par.out" 2>&1 ||
+	fail "parallel done without --drop must succeed: $(cat "${work}/par.out")"
+for b in p1 p2 p3; do
+	[[ "$(git -C "$origin" show "feat/${b}:${b}.txt")" == "dirty-${b}" ]] ||
+		fail "origin/feat/${b} must hold dirty-${b}"
+	git -C "$origin" cat-file -e "feat/${b}:main-advance.txt" ||
+		fail "origin/feat/${b} must be restacked onto origin/main"
+	[[ ! -d "${work}/par-${b}" ]] || fail "worktree par-${b} must be pruned"
+done
+for b in merged-1 merged-2; do
+	git -C "$origin" rev-parse --verify --quiet "refs/heads/${b}" >/dev/null &&
+		fail "origin/${b} must be pruned"
+done
+for phase in commit rebase push pr worktree-remove prune-remote; do
+	(("$(peak_of "$phase")" >= 2)) ||
+		fail "phase '${phase}' must run in parallel (saw peak=$(peak_of "$phase")): $(cat "${work}/par.out")"
+done
+
+# Deterministic --drop in parallel: danger scan and branch containment run in parallel, then trash drops the clone.
+rm -rf "${PAR_DIR:?}"/*
+setup_clone pardrop
+for b in backup/b1 backup/b2; do
+	git -C "$repo" switch -q -c "$b" main
+	commit "$repo" "${b//\//-}.txt" "$b"
+	git -C "$repo" push --no-verify -q origin "$b"
+done
+git -C "$repo" switch -q main
+for b in d1 d2 d3; do
+	git -C "$repo" switch -q -c "feat/${b}" main
+	commit "$repo" "${b}.txt" "val-${b}"
+	git -C "$repo" switch -q main
+	git -C "$repo" worktree add -q "${work}/pardrop-${b}" "feat/${b}"
+	printf 'untracked-%s\n' "$b" >"${work}/pardrop-${b}/untracked-${b}.txt"
+done
+WT_DONE_TRACK_PARALLEL=1 DEV_PROFILE_DONE_JOBS=4 run_done "$repo" --drop >"${work}/pardrop.out" 2>&1 ||
+	fail "parallel done --drop must succeed: $(cat "${work}/pardrop.out")"
+[[ ! -d "$repo" ]] || fail "done --drop must trash the primary clone"
+grep -q "trash ${repo}" "$WT_LOG" || fail "done --drop must invoke trash on ${repo}"
+for phase in commit push drop-contains drop-scan; do
+	(("$(peak_of "$phase")" >= 2)) ||
+		fail "drop phase '${phase}' must run in parallel (saw peak=$(peak_of "$phase")): $(cat "${work}/pardrop.out")"
+done
 # The script itself must disable quality hooks; the fixture did not export HK=0.
 grep -Fq 'export HK=0' "$done" || fail "dev-profile-done must export HK=0 so hk cannot block parking"
 grep -Eq 'commit -q --no-verify' "$done" || fail "dev-profile-done commits must pass --no-verify"
