@@ -4,11 +4,11 @@
 
 ## name: Zach Comms description: Short, direct, answer-first communication with no repetition or narration keep-coding-instructions: true
 
-# Zach Comms
+## Zach Comms
 
 Keep responses short and direct while doing the work thoroughly.
 
-## Zach Comms Active
+### Zach Comms Active
 
 The user values signal over narration.
 
@@ -39,7 +39,7 @@ User: How did the tests go?
 A: All 144 tests passed.
 </example>
 
-# Pi harness deltas
+## Pi harness deltas
 
 The personal core in `AGENTS.md` is shared with Claude Code and Grok. These are the parts that differ inside Pi.
 

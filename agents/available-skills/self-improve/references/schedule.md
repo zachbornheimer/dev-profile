@@ -14,13 +14,13 @@ gone.
 
 ### Minimal (harvest + summarize only)
 
-```
+```text
 /schedule every Monday at 6am: run the self-improve skill — harvest the last 7 days of corrections across all tools, cluster by theme, and show me a summary of recurring patterns with their frequencies. Do not auto-apply anything.
 ```
 
 ### Full adversarial pipeline
 
-```
+```text
 /schedule every Monday at 6am:
   /goal: mine the last 7 days of corrections with
   `uv run /Users/zbornheimer/.claude/skills/self-improve/scripts/harvest-corrections.py --days 7`,

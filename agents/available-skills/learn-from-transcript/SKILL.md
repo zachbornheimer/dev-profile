@@ -23,7 +23,7 @@ Run this skill yourself only in a fresh session, and then start from
 `capability run get-annotated-transcript` below. A learning with no system change is not
 reported: name the hook, rule, skill, tool, config, or atask objective, and the file it touches.
 
-# Transcripts
+## Transcripts
 
 If it names an annotated transcript path, read that file. It is the session, already annotated.
 Do not call a model to annotate it, and do not read the raw harness file except to check a line
@@ -31,7 +31,9 @@ the annotated export does not hold.
 
 If the prompt names no path, run this first and read the file it writes:
 
-    capability run get-annotated-transcript --input '{"sources":["<ref>"]}'
+```bash
+capability run get-annotated-transcript --input '{"sources":["<ref>"]}'
+```
 
 `<ref>` is `<harness>:<id>` (agentmux, grok, omp, pi, claude, codex, hermes, cursor, copilot) or a Mastra thread (`mastra:thread:<id>`, or `https://<host>/agents/<agentId>/threads/<threadId>`). The command writes `~/.local/share/capability-replicas/annotated/<conversation>.annotated.json` (`CAPABILITY_ANNOTATED_DIR` overrides the directory) and prints the sessions. Use that file for the rest of this skill, including `waste-census.py`.
 
@@ -39,7 +41,7 @@ Once you have the transcript, read the below.
 
 <D-c>
 
-# Zachary Bornheimer (personal core)
+## Zachary Bornheimer (personal core)
 
 Loaded every session. Kept lean on purpose: only what governs how you _think_ and
 how you _work with me_ on every turn. Procedures live in skills, guardrails in
@@ -481,8 +483,8 @@ entries, and how `run_command` stayed out of the tool list for three cycles.
 | Recover from a denial that already happened                            | `PostToolUseFailure`                                                                             | yes — `hooks.toml:463` `permissiondenied-shell-denial-steer-py`, events `PermissionDenied` and `PostToolUseFailure`, matcher `Bash`, `sh`, `zsh`, `exec`, `shell`, `terminal`, `run_terminal_command` → `hooks/shell-denial-steer.py`. Residual: fires only if the harness emits a denial for a tool that never entered the tool list — unverified | learn-8a3dd7ec, learn-735089f2, learn-2adca13e, learn-c1c3e2c6, learn-0a920a64, learn-4b6cd45d, learn-3b495ce8, learn-9f5a4b04, learn-cc83792f, learn-40a147aa, learn-69491e00 |
 | Put `run_command` in the always-on tool set                            | the tool list an agent is started with (a capability or gateway catalog entry, not a hook event) | **no** — needs a tool-list change, not a hook; filed as an atask objective                                                                                                                                                                                                                                                                         | learn-d8ed40a2, learn-28f21afa, learn-fa0a56cb                                                                                                                                 |
 | A completion claim must show a tool call exercising the deliverable    | completion gate                                                                                  | yes — `hooks/lib/completion_gate_*.py`                                                                                                                                                                                                                                                                                                             | learn-bd25e218                                                                                                                                                                 |
-| Refuse a new skill whose mechanism an existing skill already owns      | ``tool.before``, matcher `Write\\                                                                | Edit\\                                                                                                                                                                                                                                                                                                                                             | MultiEdit\\                                                                                                                                                                    | NotebookEdit` | yes — `pretooluse-promotion-gate` → `hooks/promotion-gate.py`, which calls `check-promotion.py:find_collision` as the one owner of the mechanism-word rule | promotion-gate |
 | Count the waste classes that are not tool errors before diagnosing     | a script the loop runs, not a hook event                                                         | partial — `hooks/waste-census.py` exists and is run by hand; nothing invokes it                                                                                                                                                                                                                                                                    | waste-census                                                                                                                                                                   |
+| Refuse a new skill whose mechanism an existing skill already owns      | `tool.before`, matcher `Write\|Edit\|MultiEdit\|NotebookEdit`                                    | yes — `pretooluse-promotion-gate` → `hooks/promotion-gate.py`, which calls `check-promotion.py:find_collision` as the one owner of the mechanism-word rule                                                                                                                                                                                         | promotion-gate                                                                                                                                                                 |
 
 **A diagnosis must clear the census.** Run `hooks/waste-census.py <transcript>` before
 proposing any fix. It counts `tool_error`, `duplicate_call`, `repeat_text`, `refetch`
@@ -500,7 +502,7 @@ mechanism that would have prevented the run sits upstream of both — hold
 `run_command` from the first turn so no denial happens at all. That is row three.
 It sat here marked \"needs a config change\" while three cycles re-derived row two.
 
-# Execution Forensics Analyst
+## Execution Forensics Analyst
 
 You analyze executions of AI coding agents to discover consequential failures, their most likely causes, and improvements that can be validated experimentally.
 
@@ -1061,7 +1063,7 @@ Escalate only when required evidence cannot be accessed, necessary execution is 
 
 **Your job is not to produce the most comprehensive report. It is to identify the smallest set of consequential assertions that best explains the execution, then determine which one experiment would most usefully prove or disprove them.**
 
-# Learnings
+## Learnings
 
 It's a large transcript.
 

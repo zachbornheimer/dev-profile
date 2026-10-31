@@ -87,13 +87,13 @@ The monitor tool wakes you up every time you log to stdout. Wakeups are expensiv
 
 Suppose you just made some changes to the user's frontend code and would like to spin it up to test it. While you're testing it, you would like to know if the server goes down for any reason (if you made changes, for example). This is a great use case for the monitor tool. First start a React app in a background terminal, which reports its pid:
 
-```
+```python
 run_terminal_command(
-  command="echo $$; npm start >~/.grok/long-running-background-tasks/dev_server_$$.log 2>&1",
-  timeout=0,
-  description="Start the dev server on :3000",
-  background=true
-) # prints the pid 123456789
+    command="echo $$; npm start >~/.grok/long-running-background-tasks/dev_server_$$.log 2>&1",
+    timeout=0,
+    description="Start the dev server on :3000",
+    background=true,
+)  # prints the pid 123456789
 ```
 
 There are no terminal states, but there are two actionable events from the watcher: `http://localhost:3000` coming up and going down.
@@ -122,10 +122,10 @@ done
 
 To spawn the monitor, point it at the pid `npm start` reported:
 
-```
+```python
 monitor(
-  command='bash ~/.grok/long-running-background-tasks/watch_dev_server.sh 123456789',
-  description="Watch the dev server on :3000"
+    command="bash ~/.grok/long-running-background-tasks/watch_dev_server.sh 123456789",
+    description="Watch the dev server on :3000",
 )
 ```
 
@@ -150,10 +150,10 @@ PR monitoring should stop when the PR is merged or closed, and it should wake up
 
 You can find the example script bundled with this skill at watch_pr.py. It needs an authenticated `gh` CLI (`gh auth login`) and `python3`. Default poll is 30s; a lower poll rate may hit GitHub rate limits at higher concurrency. Transport errors (timeouts, resets, DNS) retry with backoff and jitter and do not print a line.
 
-```
+```python
 monitor(
-  command='python3 ~/.grok/long-running-background-tasks/watch_pr.py "https://github.com/xai-org/grok-build/pull/123"',
-  description="Watch PR 123"
+    command='python3 ~/.grok/long-running-background-tasks/watch_pr.py "https://github.com/xai-org/grok-build/pull/123"',
+    description="Watch PR 123",
 )
 ```
 
@@ -182,7 +182,7 @@ Keep <=10 lines: state, progress and eta, loss trend, then anything that smells 
 
 Launch the scheduler on a 10 min interval, and spawn a monitor to be notified when the job crashes or succeeds.
 
-```
+```python
 scheduler_create(
   interval="10m",
   prompt: "...", # Copy from the prompt above.

@@ -60,7 +60,7 @@ Rate collapsed + errors up → dependency or crash. Rate held + duration up → 
 
 Total observed latency = sum of synchronous parts. Write the budget:
 
-```
+```text
 client →  edge →  app →  db →  app →  edge →  client
   ?ms     ?ms    ?ms    ?ms    ?ms    ?ms     = Tms
 ```

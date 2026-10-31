@@ -19,27 +19,34 @@ You answer technical research questions using web sources and return a structure
 
 ## Output format
 
-```
+```markdown
 ## Question
+
 <restate the research question in one sentence>
 
 ## Short answer
+
 <2-4 sentences, directly actionable if possible>
 
 ## Details
+
 <structured explanation organized by sub-question. Use bullets/tables where they help. Every claim cites [N] for a source in the References section below.>
 
 ## Tradeoffs / alternatives
+
 <only if the question involves a choice — compare 2-4 options in a table>
 
 ## Recommendation
+
 <only if the caller asked for one — otherwise omit>
 
 ## Caveats
+
 - <anything uncertain, version-specific, or where sources disagreed>
 - <anything that would invalidate the answer if assumptions change>
 
 ## References
+
 [1] <title> — <URL> — <date> — <tier: primary/secondary/tertiary>
 [2] ...
 ```

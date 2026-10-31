@@ -58,7 +58,7 @@ Invariants hold across all states, all inputs, all concurrent callers, all crash
 **Postcondition:** The status label reads the working copy (default: "Thinking…"), the composer primary control is Stop, and the shimmer is running on the status label.
 **Example:**
 
-```
+```gherkin
 Given an empty new chat
 When the user sends "How has my health been this week?"
 Then "Thinking…" appears under the user bubble with the skeleton shimmer, and the send arrow becomes a stop square
@@ -77,7 +77,7 @@ Then "Thinking…" appears under the user bubble with the skeleton shimmer, and 
 **Postcondition:** A highlight band moves across the live text on a 1.2–1.6 s loop. Base text is ~40% of the completed contrast; the band peaks near the completed contrast.
 **Example:**
 
-```
+```gherkin
 Given the turn is working and no action has completed
 When 800 ms elapses
 Then "Thinking…" has visibly changed luminance along the word, then the band continues
@@ -96,7 +96,7 @@ Then "Thinking…" has visibly changed luminance along the word, then the band c
 **Postcondition:** The tree contains every emitted action in emit order. Parent/child rails follow the producer's `parent_id`.
 **Example:**
 
-```
+```gherkin
 Given "Thinking…" is showing
 When the producer emits {id: a1, type: reason, title: "Analyzing Health This Week"} then {id: a2, parent: a1, type: plan, title: "Evaluating next steps"}
 Then those two rows appear under the status, child indented, connected by a vertical rail
@@ -115,7 +115,7 @@ Then those two rows appear under the status, child indented, connected by a vert
 **Postcondition:** The live row is visually quieter (shimmering, no chevron). All earlier rows are static.
 **Example:**
 
-```
+```gherkin
 Given three completed actions and a fourth just started
 When the fourth row is painted
 Then "Analyzing health metrics for the week" shimmers and has no chevron, while the three above are solid and (if inspectable) show chevrons
@@ -133,7 +133,7 @@ Then "Analyzing health metrics for the week" shimmers and has no chevron, while 
 **Postcondition:** The row is static and, if inspectable, opens the inspector on activate.
 **Example:**
 
-```
+```gherkin
 Given the metrics row is shimmering with no chevron
 When the producer emits {id: a4, status: completed, inspectable: true}
 Then the row snaps to solid text and a trailing chevron appears
@@ -151,7 +151,7 @@ Then the row snaps to solid text and a trailing chevron appears
 **Postcondition:** The sheet is visible; the turn behind it is unchanged.
 **Example:**
 
-```
+```gherkin
 Given "Analyzing health metrics for the week" is completed and inspectable
 When the user activates the row
 Then a sheet titled with that name opens, labeled with the payload language (e.g. Python), showing the code
@@ -170,7 +170,7 @@ Then a sheet titled with that name opens, labeled with the payload language (e.g
 **Postcondition:** Tree visibility matches the control. Identities persist (INV-006).
 **Example:**
 
-```
+```gherkin
 Given a four-row tree under "Thinking…"
 When the user activates the header chevron
 Then the four rows hide and "Thinking…" (still shimmering) remains
@@ -188,7 +188,7 @@ Then the four rows hide and "Thinking…" (still shimmering) remains
 **Postcondition:** Status text is static. Composer primary control is Send.
 **Example:**
 
-```
+```gherkin
 Given the turn has been working for 20100 ms
 When the producer emits {turn: done, duration_ms: 20100}
 Then the label reads "Thought for 20 seconds." with no shimmer
@@ -207,7 +207,7 @@ Then the label reads "Thought for 20 seconds." with no shimmer
 **Postcondition:** The default history presentation is: user bubble, duration header, answer. The tree is one expand away.
 **Example:**
 
-```
+```gherkin
 Given the user never touched the collapse control
 When the turn completes
 Then the ten action rows hide, "Thought for 20 seconds." remains, and the answer is the next block
@@ -226,7 +226,7 @@ Then the ten action rows hide, "Thought for 20 seconds." remains, and the answer
 **Postcondition:** A reader can see duration header, then (if expanded) actions, then answer text.
 **Example:**
 
-```
+```gherkin
 Given the turn just became done
 When the first answer tokens arrive
 Then they appear under the (collapsed) thinking header, not as a child action row
@@ -244,7 +244,7 @@ Then they appear under the (collapsed) thinking header, not as a child action ro
 **Postcondition:** The user can reach the live end in one activation.
 **Example:**
 
-```
+```gherkin
 Given the user has scrolled up to read the action tree
 When more answer text arrives below the fold
 Then a down-arrow chip appears above the composer
@@ -262,7 +262,7 @@ Then a down-arrow chip appears above the composer
 **Postcondition:** A renderer can reconstruct the tree from the event log alone.
 **Example:**
 
-```
+```gherkin
 Given action a4 is in_progress
 When the producer wants to start a5
 Then it emits action.completed(a4) before action.started(a5), or starts a5 as a child only after a4 is terminal
@@ -281,7 +281,7 @@ Then it emits action.completed(a4) before action.started(a5), or starts a5 as a 
 **Postcondition:** Status is "Stopped after N seconds." Shimmer is off. Composer is Send.
 **Example:**
 
-```
+```gherkin
 Given four completed rows and one shimmering row
 When the user hits Stop
 Then the live row becomes "Stopped" (or is removed if it never produced a payload), the header reads "Stopped after N seconds.", and no further rows append
@@ -299,7 +299,7 @@ Then the live row becomes "Stopped" (or is removed if it never produced a payloa
 **Postcondition:** A VoiceOver / TalkBack user can follow working → each action → done without seeing the animation.
 **Example:**
 
-```
+```gherkin
 Given VoiceOver is on
 When the first action starts
 Then VoiceOver announces "Analyzing Health This Week, in progress"
@@ -317,7 +317,7 @@ Then VoiceOver announces "Analyzing Health This Week, in progress"
 **Postcondition:** The header communicates duration and that a tree exists.
 **Example:**
 
-```
+```gherkin
 Given 10 actions and a collapsed done turn
 When the user looks at the header
 Then they see "Thought for 20 seconds." and a control that implies more (chevron, and SHOULD "10 steps")

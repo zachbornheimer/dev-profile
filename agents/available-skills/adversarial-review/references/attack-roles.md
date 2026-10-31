@@ -152,11 +152,13 @@ Rules of engagement:
 Write your findings block to <run-dir>/findings/<role>.md and also return it in
 your reply, exactly this shape and nothing else:
 
-    ROLE: <role name>
-    FINDINGS (severity-ordered):
-      [blocker|major|minor|nit] <file:line or doc passage> — <issue> — impact — smallest fix
-    FRAGILE ASSUMPTIONS:
-      <suspicions you could not prove, stated as unproven>
+```text
+ROLE: <role name>
+FINDINGS (severity-ordered):
+  [blocker|major|minor|nit] <file:line or doc passage> — <issue> — impact — smallest fix
+FRAGILE ASSUMPTIONS:
+  <suspicions you could not prove, stated as unproven>
+```
 
 ---
 

@@ -89,7 +89,7 @@ aubx-skills --dry-run add <package> --skill <skill-name> -g
 
 ## Directory Structure
 
-```
+```text
 ~/.agents/
 ├── available-skills/           # PRIMARY WRITE LOCATION (all skills here)
 │   ├── .skill-lock.json       # Installation registry

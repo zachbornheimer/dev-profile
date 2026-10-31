@@ -11,7 +11,7 @@ Prompt caching is prefix-matching. Every byte before the first change in the pre
 is reused; every byte after is re-computed at full input cost. Get the ordering
 right once and most caching is free:
 
-```
+```text
 1. Static system prompt + tool stubs   ← globally cached across all sessions
 2. Standing instructions / CLAUDE.md   ← cached per project
 3. Session context                     ← cached per session
@@ -41,7 +41,7 @@ MORE, not less:
 
 **Right:** fork a fresh worker with a hand-off summary.
 
-```
+```text
 Orchestrator (Opus, 100k-token thread):
   → Task reaches a self-contained sub-question
   → Write a 500-token hand-off summary of what Haiku needs to know
@@ -107,7 +107,7 @@ the parent conversation — same system prompt, same tool stubs, same session co
 
 **Wrong approach — breaks the cache:**
 
-```
+```text
 Summarization call:  [summarize_system_prompt][no tools][full history]
 Parent cache key:    [real_system_prompt][tools][session][history]
 ```
@@ -118,7 +118,7 @@ longest.
 
 **Right approach — cache-safe fork:**
 
-```
+```text
 Parent conversation: [system][tools][session][messages…]
 Compaction request:  [system][tools][session][messages…][compact_this_prompt]
 ```

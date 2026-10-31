@@ -8,7 +8,7 @@ Gotchas-first; grow this from real failures.
 Every review comment opens with a bracket prefix. No exceptions — prefixes let
 the author triage without reading the full comment:
 
-```
+```text
 [nit]        Minor style preference; optional to address.
 [suggestion] Consider this alternative; the author decides.
 [question]   Need clarification before I can assess.
@@ -24,7 +24,7 @@ waste time debating it.
 Every TODO that lands in a commit must have all four lines — no exceptions, no
 one-liners:
 
-```
+```text
 // TODO(owner): Description of what and WHY.
 // Context: Why this shortcut was taken and why it is acceptable now.
 // Tracking: Link to Linear ticket / GitHub issue.

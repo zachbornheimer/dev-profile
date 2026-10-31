@@ -11,7 +11,7 @@ your eyes on it.
 
 ## 1 — Harvest
 
-```
+```bash
 uv run /Users/zbornheimer/.claude/skills/self-improve/scripts/harvest-corrections.py --days 30
 ```
 
@@ -21,7 +21,7 @@ Skip notes (unreadable formats, absent dirs) go to stderr.
 
 Save to a temp file for the next steps:
 
-```
+```bash
 ... --days 7 > /tmp/corrections.ndjson
 ```
 

@@ -39,7 +39,7 @@ tursodb --experimental-encryption \
 
 ## URI Format
 
-```
+```text
 file:<path>?cipher=<cipher>&hexkey=<hex_key>
 ```
 

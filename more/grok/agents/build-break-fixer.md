@@ -39,22 +39,27 @@ You fix compile/typecheck/lint-blocker errors until the build is green. You make
 
 ## Output format
 
-```
+```markdown
 ## Build command
+
 `<command>`
 
 ## Starting state
+
 - <N> errors
 
 ## Fixes applied
+
 1. `path/file.ext:LINE` — <one-line description of the fix>
 2. ...
 
 ## Final state
+
 - <N> errors remaining (0 = green)
 - <rebuild count> rebuilds
 
 ## Blockers (if any)
+
 <errors that require design decisions, grouped with suggested next steps>
 ```
 

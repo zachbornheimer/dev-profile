@@ -153,7 +153,7 @@ The principle vs form split is real work — the caller will sometimes say "writ
 
 The caller will prompt you with something like:
 
-```
+```text
 Write 5 Go testing rules to rules/go/baseline/:
 
 1. go/table-driven-tests-with-subtests
@@ -203,14 +203,14 @@ For each item, produce a complete rule YAML following the schema above.
 
 5. **Report at the end** with the list of files written, their final line counts, and any validation failures:
 
-   ```
-   Wrote 5 rules to rules/go/baseline/:
-   - errors-wrap-with-percent-w.yml (142 lines)
-   - no-log-and-return.yml (168 lines)
-   - ...
-   All 5 pass yaml.safe_load.
-   make build: success.
-   ```
+```text
+Wrote 5 rules to rules/go/baseline/:
+- errors-wrap-with-percent-w.yml (142 lines)
+- no-log-and-return.yml (168 lines)
+- ...
+All 5 pass yaml.safe_load.
+make build: success.
+```
 
 ## What NOT to do
 

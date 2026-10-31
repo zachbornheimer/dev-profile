@@ -131,7 +131,7 @@ await db.push();
 
 SharedArrayBuffer is required for WASM threading. Your server must set these headers:
 
-```
+```http
 Cross-Origin-Opener-Policy: same-origin
 Cross-Origin-Embedder-Policy: require-corp
 ```
@@ -160,15 +160,15 @@ This is all you need — Vite's dev server will serve the headers automatically.
 
 ```json
 {
-    "headers": [
-        {
-            "source": "/(.*)",
-            "headers": [
-                { "key": "Cross-Origin-Opener-Policy", "value": "same-origin" },
-                { "key": "Cross-Origin-Embedder-Policy", "value": "require-corp" }
-            ]
-        }
-    ]
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "Cross-Origin-Opener-Policy", "value": "same-origin" },
+        { "key": "Cross-Origin-Embedder-Policy", "value": "require-corp" }
+      ]
+    }
+  ]
 }
 ```
 
@@ -181,11 +181,11 @@ This is all you need — Vite's dev server will serve the headers automatically.
 
 ## Package Variants
 
-| Package | Purpose |
-|---------|---------|
-| `@tursodatabase/database-wasm` | Browser WASM (local only) |
-| `@tursodatabase/sync-wasm` | Browser WASM with Turso Cloud sync |
-| `@tursodatabase/database` | Node.js native bindings |
+| Package                        | Purpose                            |
+| ------------------------------ | ---------------------------------- |
+| `@tursodatabase/database-wasm` | Browser WASM (local only)          |
+| `@tursodatabase/sync-wasm`     | Browser WASM with Turso Cloud sync |
+| `@tursodatabase/database`      | Node.js native bindings            |
 
 ## Bundler Setup
 
@@ -205,11 +205,11 @@ In production builds, the `/vite` import resolves to the default entry point. In
 
 ### All Entry Points
 
-| Environment | database-wasm | sync-wasm |
-|-------------|---------------|-----------|
-| Default | `@tursodatabase/database-wasm` | `@tursodatabase/sync-wasm` |
-| Vite | `@tursodatabase/database-wasm/vite` | `@tursodatabase/sync-wasm/vite` |
-| Turbopack | `@tursodatabase/database-wasm/turbopack` | `@tursodatabase/sync-wasm/turbopack` |
+| Environment | database-wasm                            | sync-wasm                            |
+| ----------- | ---------------------------------------- | ------------------------------------ |
+| Default     | `@tursodatabase/database-wasm`           | `@tursodatabase/sync-wasm`           |
+| Vite        | `@tursodatabase/database-wasm/vite`      | `@tursodatabase/sync-wasm/vite`      |
+| Turbopack   | `@tursodatabase/database-wasm/turbopack` | `@tursodatabase/sync-wasm/turbopack` |
 
 ## Notes
 

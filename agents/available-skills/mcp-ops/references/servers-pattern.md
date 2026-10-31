@@ -15,7 +15,7 @@ intermediate results often carry PII that must never enter the model.
 Generate a `./servers/` filetree from connected MCP servers. Each tool becomes a
 typed TypeScript file:
 
-```
+```text
 servers/
 ├── github/
 │   ├── getIssue.ts
@@ -157,7 +157,7 @@ progressive disclosure at the filesystem level.
 When the server directory grows large enough that listing all files costs tokens,
 add a `search_tools` tool:
 
-```
+```text
 search_tools({ query: "linear issue", detail: "name_and_description" })
 → [
     "linear/getIssue.ts: Fetch a Linear issue by ID",

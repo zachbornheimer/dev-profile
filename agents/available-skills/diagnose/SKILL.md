@@ -46,7 +46,7 @@ Do not: restart, kill, dump all logs, `tail -f` without a bound, rerun the comma
 
 ## Differential board (every turn)
 
-```
+```text
 Symptom: <one sentence>
 Ruled out: <H> — <test that killed it>
 Still open:

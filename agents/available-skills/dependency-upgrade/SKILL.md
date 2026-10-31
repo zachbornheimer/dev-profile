@@ -35,12 +35,14 @@ The pull view and the file list start together. The tree search and the red-log 
 
 ## Protocol
 
-**1. Review the changelog**
+### 1. Review the changelog
+
 Find the version range (old → new). Read every entry that could affect behavior: breaking
 changes, deprecations, security advisories, behavior changes. If the project has GitHub
 Security Advisories, check those too.
 
-**2. Baseline the old version**
+### 2. Baseline the old version
+
 Run the full test suite before touching anything:
 
 ```bash
@@ -50,7 +52,7 @@ mise run test
 Capture the output. If tests are already failing, stop — fix pre-existing failures in a
 separate commit first. Otherwise your red/green story is meaningless.
 
-**3. Grep affected call sites**
+### 3. Grep affected call sites
 
 ```bash
 # Go
@@ -68,7 +70,7 @@ grep -rn "use <Vendor>\\\\<Package>" --include="*.php" .
 
 List every call site. For each, check whether the new version changed the API at that point.
 
-**4. Upgrade the manifest and lockfile**
+### 4. Upgrade the manifest and lockfile
 
 ```bash
 # Go
@@ -84,12 +86,14 @@ uv add '<package>==<new-version>'
 composer require <vendor>/<package>:<new-version>
 ```
 
-**5. Fix call sites — never tests**
+### 5. Fix call sites — never tests
+
 Run `mise run test`. For each failure: read the error, update the call site to use the new
 API. If a test itself tested a removed behavior that has a documented replacement, update
 the test to test the equivalent new behavior at the same strictness level.
 
-**Facade check**
+### Facade check
+
 If fixing call sites in step 5 touched more than two files, the dependency has no
 facade. That is the signal, not an accident. Per the Facade Rule: every system
 boundary goes through an injectable facade whose name describes WHAT it does, not
@@ -103,7 +107,7 @@ required. The next upgrade then becomes: update the facade, run the suite.
 
 How to write facades the correct way is defined in the skill /agnostic-facades/SKILL.md
 
-**6. Full gate**
+### 6. Full gate
 
 ```bash
 mise run ci
@@ -111,7 +115,7 @@ mise run ci
 
 Must be green. Lint and build too — not just the test suite.
 
-**7. Document in the PR description**
+### 7. Document in the PR description
 
 - Old version → new version (exact, e.g. `v1.4.2 → v1.5.0`)
 - Relevant changelog entries (paste the meaningful ones)

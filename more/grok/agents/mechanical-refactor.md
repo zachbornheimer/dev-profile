@@ -34,25 +34,30 @@ If no verification command is given, use these sensible defaults only if the too
 
 ## Output format
 
-```
+```markdown
 ## Rule
+
 <one-sentence restatement of the transformation>
 
 ## Scope
+
 - Found <N> files matching the pattern
 - Edited <N> files in <W> waves of <size> each
 
 ## Verification
+
 - Baseline: <command> — <pass/fail/skipped>
 - After wave 1: <pass/fail/skipped>
 - ...
 - Final: <pass/fail/skipped>
 
 ## Files changed
+
 - `path/file.ext` — <N edits>
 - ...
 
 ## Rejected edits
+
 <files where the rule didn't cleanly apply, with a one-line reason each; empty if none>
 ```
 

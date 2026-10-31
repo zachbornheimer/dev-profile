@@ -2,7 +2,7 @@
 
 One file, one purpose. To change X, open the file named for X.
 
-```
+```text
 init.lua                  perf hooks -> core -> lazy
 lua/zach/
   lazy.lua                bootstraps lazy.nvim, imports the five plugin groups

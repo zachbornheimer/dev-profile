@@ -187,7 +187,7 @@ Pick **one** type. Fill every section; delete only if truly N/A (prefer empty bu
 
 ### Tech debt / architecture (ownership, facades, lint debt)
 
-````markdown
+``````markdown
 ## Problem
 
 <!-- Symptom + structural cause. 2–5 sentences. Include tool/lint id if any. -->
@@ -225,8 +225,8 @@ Pick **one** type. Fill every section; delete only if truly N/A (prefer empty bu
 mise run test
 mise run lint
 ```
-````
 
+`````markdown
 ## Evidence & links
 
 - Related:
@@ -263,6 +263,8 @@ mise run lint
 ```bash
 # command that failed before and passes after
 ````
+`````
+``````
 
 ## Evidence & links (bug)
 
@@ -451,7 +453,7 @@ An acceptance criterion that cannot be checked by a human, a test, or a command 
 
 ## Example (filing discipline, not a default target)
 
-````
+````markdown
 Workspace lock: personal (repo ~/Developer/Personal/agentmux)
 teams visible: <from list_teams>
 project: agentmux (from list_projects)
@@ -462,6 +464,6 @@ Priority: Medium
 Body: Problem → Goal → Non-goals → blast radius → Approach → AC → Verify → Evidence
 
 ```text
-
 Do **not** treat any team key (e.g. `ZYS-…`) as universal — prefixes are workspace-specific.
+```
 ````

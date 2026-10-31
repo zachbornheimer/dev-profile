@@ -8,7 +8,7 @@ what the worker needs; do not recopy into every trivial one-shot.
 Point them at skill `code-style` + `references/approval-dossier.md` and require
 they load it before editing, or paste:
 
-```
+```text
 Write code Zach would approve.
 
 COMPOSITION: Right abstraction from atoms that are well-constructed, performant,

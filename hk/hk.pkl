@@ -18,6 +18,7 @@ exclude =
     "**/.turbo",
     "**/.cache",
     "**/.beads",
+    "**/.build",
   )
 
 // Shellcheck receives shell files only. A script in home/*/bin carries no
@@ -30,9 +31,9 @@ local shellFiles =
   shell_files() {
     for f in "$@"; do
       case "$f" in
-        *.sh|*.bash|*.zsh|*.ksh|*.dash|*.bats) echo "$f" ;;
+        *.sh|*.bash|*.ksh|*.dash|*.bats) echo "$f" ;;
         *)
-          if head -n 1 "$f" 2>/dev/null | grep -Eq '^#![[:space:]]*(/usr/bin/env[[:space:]]+(-S[[:space:]]+)?)?([^[:space:]]*/)?(sh|bash|zsh|ksh|dash|bats)([[:space:]]|$)'; then echo "$f"; fi
+          if head -n 1 "$f" 2>/dev/null | grep -Eq '^#![[:space:]]*(/usr/bin/env[[:space:]]+(-S[[:space:]]+)?)?([^[:space:]]*/)?(sh|bash|ksh|dash|bats)([[:space:]]|$)'; then echo "$f"; fi
           ;;
       esac
     done
@@ -395,7 +396,7 @@ steps {
   }
   ["betterleaks"] {
     check =
-      "dev-profile-if-installed betterleaks betterleaks dir --redact --verbose --no-banner {{files}}"
+      "dev-profile-if-installed betterleaks sh -c 'cfg=(); for c in .betterleaks.toml .gitleaks.toml; do [ -f \"$c\" ] && { cfg=(-c \"$c\"); break; }; done; exec betterleaks dir \"${cfg[@]}\" --redact --verbose --no-banner \"$@\"' -- {{files}}"
     profiles = List("slow")
   }
   ["case-conflicts"] {
@@ -845,7 +846,7 @@ hooks {
       // hk util checks exit with a usage error (tests/pre-push-empty-file-list-fixture.sh).
       ["betterleaks"] {
         check =
-          "dev-profile-if-installed betterleaks betterleaks dir --redact --verbose --no-banner {{files}}"
+          "dev-profile-if-installed betterleaks sh -c 'cfg=(); for c in .betterleaks.toml .gitleaks.toml; do [ -f \"$c\" ] && { cfg=(-c \"$c\"); break; }; done; exec betterleaks dir \"${cfg[@]}\" --redact --verbose --no-banner \"$@\"' -- {{files}}"
         glob = List("**/*")
       }
       ["case-conflicts"] {

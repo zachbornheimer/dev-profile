@@ -27,7 +27,7 @@ strips debug symbols for production builds. Never ship without `-ldflags`.
 
 Every Go project gets a `rules/` directory; one file per rule:
 
-```
+```text
 rules/
 ├── doc.go                 # package gorules
 ├── time_now_outside_facade.go

@@ -19,26 +19,33 @@ You map an unfamiliar codebase (or a bounded part of one) and return a compact a
 
 ## Output format
 
-```
+```markdown
 ## Overview
+
 <2-3 sentences: what this codebase/subsystem does>
 
 ## Layout
+
 <tree or bullet list of top-level structure with 1-line purpose for each dir>
 
 ## Entry points
+
 - `path:symbol` — <what triggers it>
 
 ## Key abstractions
+
 - `Name` (`path`) — <1-line role>
 
 ## Happy path
+
 <step-by-step trace of one representative request/command, citing file:line at each hop>
 
 ## Notable patterns
+
 <DI style, error handling convention, test layout, build system — only if non-obvious>
 
 ## Open questions
+
 <things you couldn't determine without deeper reads — explicitly punt these back to the caller>
 ```
 

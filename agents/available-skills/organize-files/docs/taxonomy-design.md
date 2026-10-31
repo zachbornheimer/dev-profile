@@ -238,7 +238,7 @@ The `disposition` Choice is removed in hierarchical mode. Disposition is compute
 
 ### Constants to add in `constants.py`
 
-```
+```python
 FILE_TAXONOMY_SCHEMA_VERSION = 1
 FILE_TAXONOMY_BEAM_WIDTH = 3
 FILE_TAXONOMY_MAX_ROUNDS = 3
@@ -249,9 +249,20 @@ FILE_TAXONOMY_MAX_AREAS = 10
 FILE_TAXONOMY_PROB_EPSILON = 1e-9
 FILE_TAXONOMY_OTHER = "other"
 FILE_TAXONOMY_DEPTH_FLOORS = {1: 0.55, 2: 0.40, 3: 0.30}
-FILE_FLAG_BACKUP, FILE_FLAG_ISSUE_LIST, FILE_FLAG_EVIDENCE, FILE_FLAG_PRIVATE, FILE_FLAG_REGENERABLE  (ids)
-FILE_FLAG_FLOORS = {"trash_backup": 0.80, "trash_regenerable": 0.70, "private_guard": 0.50,
-                    "issue_to_linear": 0.70, "evidence": 0.60}
+(
+    FILE_FLAG_BACKUP,
+    FILE_FLAG_ISSUE_LIST,
+    FILE_FLAG_EVIDENCE,
+    FILE_FLAG_PRIVATE,
+    FILE_FLAG_REGENERABLE(ids),
+)
+FILE_FLAG_FLOORS = {
+    "trash_backup": 0.80,
+    "trash_regenerable": 0.70,
+    "private_guard": 0.50,
+    "issue_to_linear": 0.70,
+    "evidence": 0.60,
+}
 REASON_FILE_STRONG_MATCH = "strong match"
 REASON_FILE_BACKOFF = "resolved above leaf"
 REASON_FILE_PRIVATE_GUARD = "private data blocks trash"

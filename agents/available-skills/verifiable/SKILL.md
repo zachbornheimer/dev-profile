@@ -13,7 +13,7 @@ requirement, not a feature you add later.
 
 The model interprets. A deterministic engine computes.
 
-```
+```text
 Claude:           interpret the question → decompose intent → produce a structured
                   execution plan → flag ambiguity → hand off to execution layer
 Deterministic     apply the formula → resolve the fiscal period → compute the ratio
@@ -58,7 +58,7 @@ the fork, not to hide it.
 Every produced figure or decision must carry a provenance trail the reader can
 audit in two clicks:
 
-```
+```text
 Source tier:   SEC filing / EHR chart / verified registry
 Freshness:     2026-Q1 10-K / procedure date 2026-03-15
 Owner:         Kepler retrieval layer / Carta Lighthouse

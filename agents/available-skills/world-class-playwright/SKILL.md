@@ -39,7 +39,7 @@ suite's reason for existing evaporates.
 > A world-class suite does not depend on every contributor making expert
 > decisions repeatedly. It encodes expert decisions into fixtures, APIs, types,
 > lint rules, CI gates, and narrowly controlled escape hatches.
-
+>
 > A regression test is valuable only if it turns red for the regression it claims
 > to prevent. Design the failure mode and observable contract before writing the
 > mechanics. Green is evidence only after false-positive paths have been removed.

@@ -83,7 +83,7 @@ Follow the platform's design language. Don't fight the OS.
 
 Every user-facing string is a constant, never inline. This applies to all text the user sees: labels, button text, error messages, confirmations, tooltips, placeholders, notifications.
 
-```
+```typescript
 // Wrong: inline string
 button.title = "Save Changes"
 showError("Your session has expired. Please sign in again.")
@@ -182,7 +182,7 @@ A developer opening any file should understand its purpose within 5 minutes. If 
 
 The best code reads top-down like a narrative. The high-level function tells you WHAT happens. Each called function tells you HOW one step works. You only go deeper when you need to.
 
-```
+```text
 evaluateApplicant()
   → checkAgeEligibility()
   → checkStateAvailability()

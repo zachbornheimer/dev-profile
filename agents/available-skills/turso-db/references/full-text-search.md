@@ -33,7 +33,7 @@ CREATE INDEX idx_tags ON articles USING fts (tag) WITH (tokenizer = 'raw');
 
 ### Tokenizer Examples
 
-```
+```text
 default:    "Hello World"  → ["hello", "world"]
 raw:        "user-123"     → ["user-123"]
 ngram:      "iPhone"       → ["iP", "iPh", "Ph", "Pho", "ho", "hon", "on", "one", "ne"]

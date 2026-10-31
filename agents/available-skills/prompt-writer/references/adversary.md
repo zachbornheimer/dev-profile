@@ -35,7 +35,7 @@ preference. Do not rewrite the whole order.
 
 ## Output shape
 
-```
+```text
 Verdict: PASS | REVISE
 Findings:
 - [angle] defect — suggested correction

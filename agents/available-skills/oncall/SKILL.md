@@ -27,12 +27,12 @@ That's the bar.
 
 PagerDuty dispatches include `aws_account_id`, `log_group`, and `alarm_name` — use them.
 
-**1. Pull the raw signal**
+### 1. Pull the raw signal
 
 - Sentry: fingerprint, stack trace, affected users, first/last seen, environment.
 - CloudWatch alarm: alarm description, triggering datapoints, comparison operator.
 
-**2. Correlate in CloudWatch — read-only profiles only**
+### 2. Correlate in CloudWatch — read-only profiles only
 
 | Profile        | Account            | Default region |
 | -------------- | ------------------ | -------------- |
@@ -54,7 +54,7 @@ aws logs tail /ecs/nq-app        --since 15m --filter-pattern "?ERROR ?FATAL" --
 aws logs tail /ecs/nq-app-worker --since 15m --filter-pattern "?ERROR ?FATAL" --profile nq-readonly --region us-west-2
 ```
 
-**3. Check ECS task health**
+### 3. Check ECS task health
 
 ```bash
 aws ecs describe-services --cluster <cluster> --services <service> \
@@ -64,12 +64,12 @@ aws ecs describe-services --cluster <cluster> --services <service> \
 Look for: task cycling (rapidly starting/stopping), `OOMKilled`, a deploy in progress that
 overlaps the alert window.
 
-**4. Hit the health endpoint**
+### 4. Hit the health endpoint
 
 - ZyINS: `GET /health` → 200 healthy, 503 degraded
 - NQ: derived from `describe-services` task health
 
-**5. Check recent deploys**
+### 5. Check recent deploys
 
 ```bash
 gh deployment list --repo <org/repo> --limit 10
@@ -77,7 +77,8 @@ gh deployment list --repo <org/repo> --limit 10
 
 A deploy in the 30 min before the alert window is the first hypothesis to test, not the last.
 
-**6. Internal context**
+### 6. Internal context
+
 Check Slack for planned maintenance or team discussion that matches the alert window.
 Check Linear for open incidents or known issues on the affected service.
 

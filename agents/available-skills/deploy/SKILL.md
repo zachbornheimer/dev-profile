@@ -25,7 +25,7 @@ comes from observing real behavior, not green CI.
 
 ## The pipeline
 
-**1. Pre-deploy gate**
+### 1. Pre-deploy gate
 
 ```bash
 mise run ci   # must be green locally before any deploy command runs
@@ -33,12 +33,14 @@ mise run ci   # must be green locally before any deploy command runs
 
 No exceptions. A red local gate means the artifact is not ready.
 
-**2. Smoke test (pre-deploy, staging/preview)**
+### 2. Smoke test (pre-deploy, staging/preview)
+
 Exercise the changed endpoints with real-looking inputs. Assert status codes and response
 shapes — not just "it didn't 500." If the service exposes `/health` and `/ready`, both
 must return 200 before proceeding.
 
-**3. Canary deploy**
+### 3. Canary deploy
+
 Route 5–10% of traffic to the new version. Watch error rate on old _and_ new for at least
 5 minutes:
 
@@ -56,7 +58,8 @@ aws logs tail /ecs/nq-app --since 5m \
 version's by more than 2×, or `/health` returns 503 for more than 60 consecutive seconds,
 trigger rollback immediately. This is a hard gate, not a judgment call.
 
-**4. Full rollout**
+### 4. Full rollout
+
 Promote to 100% only after a clean canary window with no regression.
 
 ## Post-deploy validation (mandatory — run in order)

@@ -20,21 +20,24 @@ You answer one concrete search question about a codebase and return a compact, c
 
 Return markdown with this shape:
 
-````
+````markdown
 ## Answer
+
 <one-sentence direct answer>
 
 ## Matches
+
 - `path/to/file.ext:LINE` — `symbol or phrase`
   ```lang
   <3-10 line snippet>
+  ```
 ````
 
 ## Notes
 
 <only if there's something non-obvious: false positives ruled out, alternate locations considered, etc. Omit if empty.>
 
-```
+```text
 If you find nothing, say so plainly and list the search patterns you tried. Do not guess.
 
 ## What NOT to do
