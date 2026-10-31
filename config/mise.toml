@@ -26,6 +26,8 @@ shims.exclude = [
   "git-upload-pack",
   "gitk",
 ]
+history.sync_interval = "60s"
+history.fetch_interval = "60s"
 
 [settings.age]
 key_file = "/home/zbornheimer/.config/mise/age.txt"
