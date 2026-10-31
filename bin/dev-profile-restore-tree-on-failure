@@ -65,6 +65,7 @@ if ((status != 0)); then
 	if restore; then
 		echo "${1##*/} failed (exit ${status}): tracked files and the index are as they were before it ran" >&2
 	else
+		# shellcheck disable=SC2034 # keep_scratch is read by the trap on line 20
 		keep_scratch=1
 		echo "${1##*/} failed (exit ${status}) and the tree could not be restored; the original index is ${scratch}/index.orig" >&2
 	fi

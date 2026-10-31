@@ -31,7 +31,10 @@ local shellFiles =
   shell_files() {
     for f in "$@"; do
       case "$f" in
-        *.sh|*.bash|*.ksh|*.dash|*.bats) echo "$f" ;;
+        *.bash|*.ksh|*.dash|*.bats) echo "$f" ;;
+        *.sh)
+          if ! head -n 1 "$f" 2>/dev/null | grep -Eq '^#![[:space:]]*(/usr/bin/env[[:space:]]+(-S[[:space:]]+)?)?([^[:space:]]*/)?zsh([[:space:]]|$)'; then echo "$f"; fi
+          ;;
         *)
           if head -n 1 "$f" 2>/dev/null | grep -Eq '^#![[:space:]]*(/usr/bin/env[[:space:]]+(-S[[:space:]]+)?)?([^[:space:]]*/)?(sh|bash|ksh|dash|bats)([[:space:]]|$)'; then echo "$f"; fi
           ;;

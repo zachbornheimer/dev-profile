@@ -92,7 +92,7 @@ run uvscript "$tmp" "$tmp/learn-launch"
 NVIM_FILETYPE=python run envft "$project" "$project/file.txt"
 CHECK_FILE="$conflict/f.txt" HERDR_ENV=1 run plugins "$conflict" "$conflict/f.txt"
 # Outside a herdr pane the annotation half of herdr-nvim must not load.
-CHECK_FILE="$conflict/f.txt" HERDR_ENV= run no-herdr "$conflict" "$conflict/f.txt"
+CHECK_FILE="$conflict/f.txt" HERDR_ENV="" run no-herdr "$conflict" "$conflict/f.txt"
 
 # A stdin pipe is a special buffer: the explorer must stay out of the way.
 out=$(cd "$tmp" && CHECK_SCENARIO=stdin timeout "$limit" nvim --headless -c "$probe" <"$project/file.txt" 2>&1)
