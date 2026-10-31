@@ -37,6 +37,10 @@ command -v capability >/dev/null
 "$HOME/.agents/bin/learn-launch" --dry-run --dispatch omp:00000000-0000-0000-0000-000000000000 >/dev/null
 """
 
+[tasks."list:skills:unmanaged"]
+alias = ["list:skills:unamanaged", "skills:unmanaged"]
+description = "List skills in ~/.agents/available-skills not tracked in .skill-lock.json"
+run = "~/.agents/bin/aubx-skills unmanaged"
 [bootstrap.macos.launchd.agents.weekly-wt-prune]
 program = "/bin/sh"
 args = [
@@ -101,7 +105,10 @@ builtin = "history-watch"
 "~/.config/direnv" = { source = "~/Developer/Personal/dev-profile/apps/direnv" }
 "~/.config/dprint/dprint.jsonc" = { source = "~/Developer/Personal/dev-profile/config/dprint.jsonc" }
 "~/.config/git" = { source = "~/Developer/Personal/dev-profile/apps/git" }
-"~/.config/herdr" = { source = "~/Developer/Personal/dev-profile/apps/herdr" }
+# Herdr keeps sockets, logs, and session state in ~/.config/herdr: link the files, not the directory.
+"~/.config/herdr/config.toml" = { source = "~/Developer/Personal/dev-profile/apps/herdr/config.toml" }
+"~/.config/herdr/oneshot.sh" = { source = "~/Developer/Personal/dev-profile/apps/herdr/oneshot.sh" }
+"~/.config/herdr/session-tokens.py" = { source = "~/Developer/Personal/dev-profile/apps/herdr/session-tokens.py" }
 # Everything the dev-profile checkout deploys. This is global config, so `mise dot status`
 # and `mise dot apply` see it from any directory. Sources are full paths: a relative
 # source resolves from ~/.config/mise (where this file is linked), not from the repo.
