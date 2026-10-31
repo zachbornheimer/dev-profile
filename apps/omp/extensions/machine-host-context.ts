@@ -1,4 +1,5 @@
 import os from "node:os";
+import path from "node:path";
 import { findScopedSettings, settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import {
   cfgStatusLineLeftSegments,
@@ -11,8 +12,8 @@ import { STATUS_LINE_PRESETS } from "@oh-my-pi/pi-tui/status-line/presets";
 type OmpUIContext = {
   notify?: (message: string, type?: "info" | "warning" | "error") => void;
   setStatus?: (key: string, text: string | undefined) => void;
+  setTitle?: (title: string) => void;
 };
-
 type OmpContext = {
   hasUI?: boolean;
   ui?: OmpUIContext;
@@ -20,6 +21,8 @@ type OmpContext = {
   sessionManager?: {
     getSessionId?: () => string;
     getSessionFile?: () => string | undefined;
+    getSessionName?: () => string | undefined;
+    getCwd?: () => string | undefined;
   };
 };
 
@@ -104,7 +107,53 @@ function ensureInlineFooterSettings(cwd?: string): void {
 export function formatHostLabel(hostname = os.hostname(), platform = os.platform()): string {
   return platform === "darwin"
     ? `🖥${ICON_GAP}Mac (${hostname})`
-    : `☁️${ICON_GAP}Fleet (${hostname})`;
+    : `☁️π${ICON_GAP}Fleet (${hostname})`;
+}
+
+export function isComputeArm(platform = os.platform(), env = process.env): boolean {
+  if (env.FORCE_FLEET_TITLE === "1" || env.FLEET_ARM === "1") {
+    return true;
+  }
+  return platform === "linux" || Boolean(env.SESSIONS_DB_URL && platform === "linux");
+}
+
+export function formatTitlePrefix(platform = os.platform(), env = process.env): string {
+  return isComputeArm(platform, env) ? "☁️π" : "π";
+}
+
+export function cleanTitleTask(task?: string): string | undefined {
+  if (!task) return undefined;
+  const stripped = task
+    .replace(/^(?:☁️\s*π|π\s*☁️?|π(?:\S*|\s*\([^)]+\)))\s*[>:]\s*/u, "")
+    .replace(/^🫧\s*(?:HOST:\s*)?/u, "")
+    .trim();
+  return stripped || undefined;
+}
+
+export function formatTerminalTitle(
+  task?: string,
+  platform = os.platform(),
+  env = process.env,
+  separator = ">"
+): string {
+  const prefix = formatTitlePrefix(platform, env);
+  const clean = cleanTitleTask(task);
+  return clean ? `${prefix} ${separator} ${clean}` : `${prefix} ${separator}`;
+}
+
+export function applyTerminalTitle(
+  ctx?: OmpContext,
+  platform = os.platform(),
+  env = process.env
+): string | undefined {
+  if (!ctx?.ui?.setTitle) return undefined;
+  if (!isComputeArm(platform, env)) return undefined;
+  const sessionName = ctx?.sessionManager?.getSessionName?.();
+  const cwd = ctx?.cwd ?? ctx?.sessionManager?.getCwd?.();
+  const rawTask = sessionName || (cwd ? path.basename(path.resolve(cwd)) : undefined);
+  const title = formatTerminalTitle(rawTask, platform, env);
+  ctx.ui.setTitle(title);
+  return title;
 }
 
 export default function machineHostContext(pi: ExtensionAPI): void {
@@ -136,26 +185,38 @@ export default function machineHostContext(pi: ExtensionAPI): void {
     const { label } = getHostInfo();
     ctx?.ui?.setStatus?.("host", label);
   }
+  function updateTitle(ctx?: OmpContext): void {
+    applyTerminalTitle(ctx);
+  }
+
 
   pi.on("session_start", (_event: unknown, ctx: OmpContext) => {
     updateFooterStatus(ctx);
+    updateTitle(ctx);
   });
 
   pi.on("session_switch", (_event: unknown, ctx: OmpContext) => {
     updateFooterStatus(ctx);
+    updateTitle(ctx);
   });
 
   pi.on("turn_start", (_event: unknown, ctx: OmpContext) => {
     updateFooterStatus(ctx);
+    updateTitle(ctx);
+  });
+
+  pi.on("agent_start", (_event: unknown, ctx: OmpContext) => {
+    updateTitle(ctx);
   });
 
   pi.on("agent_end", (_event: unknown, ctx: OmpContext) => {
     updateFooterStatus(ctx);
+    updateTitle(ctx);
   });
 
   pi.on("before_agent_start", (event: unknown, ctx: OmpContext) => {
     updateFooterStatus(ctx);
-
+    updateTitle(ctx);
     const { hostname, platform, arch, homedir, role } = getHostInfo();
     const hostChanged = lastAnnouncedHost !== undefined && lastAnnouncedHost !== hostname;
     const isFirstAnnouncement = lastAnnouncedHost === undefined;

@@ -117,3 +117,77 @@ describe("machine-host-context footer status", () => {
     }
   });
 });
+
+describe("remote omp session terminal title badge", () => {
+  it("detects compute arm, formats badges, and applies remote title", async () => {
+    // Dynamic import exception: resolves runtime extension loader from sibling oh-my-pi checkout
+    const { loadLegacyPiModule } = await import(
+      path.join(ompRoot, "coding-agent/src/extensibility/plugins/legacy-pi-compat.ts")
+    );
+    const mod = (await loadLegacyPiModule(extPath)) as {
+      isComputeArm: (platform?: string, env?: Record<string, string | undefined>) => boolean;
+      formatTitlePrefix: (platform?: string, env?: Record<string, string | undefined>) => string;
+      cleanTitleTask: (task?: string) => string | undefined;
+      formatTerminalTitle: (task?: string, platform?: string, env?: Record<string, string | undefined>, separator?: string) => string;
+      applyTerminalTitle: (ctx: unknown, platform?: string, env?: Record<string, string | undefined>) => string | undefined;
+    };
+
+    // isComputeArm
+    expect(mod.isComputeArm("linux", {})).toBe(true);
+    expect(mod.isComputeArm("linux", { SESSIONS_DB_URL: "postgres://db.internal/sessions" })).toBe(true);
+    expect(mod.isComputeArm("darwin", {})).toBe(false);
+    expect(mod.isComputeArm("darwin", { SESSIONS_DB_URL: "postgres://db.internal/sessions" })).toBe(false);
+    expect(mod.isComputeArm("darwin", { FORCE_FLEET_TITLE: "1" })).toBe(true);
+    expect(mod.isComputeArm("darwin", { FLEET_ARM: "1" })).toBe(true);
+
+    // formatTitlePrefix
+    expect(mod.formatTitlePrefix("linux", {})).toBe("☁️π");
+    expect(mod.formatTitlePrefix("darwin", {})).toBe("π");
+    expect(mod.formatTitlePrefix("darwin", { FORCE_FLEET_TITLE: "1" })).toBe("☁️π");
+
+    // cleanTitleTask
+    expect(mod.cleanTitleTask(undefined)).toBeUndefined();
+    expect(mod.cleanTitleTask("")).toBeUndefined();
+    expect(mod.cleanTitleTask("Investigate issue")).toBe("Investigate issue");
+    expect(mod.cleanTitleTask("π > Investigate issue")).toBe("Investigate issue");
+    expect(mod.cleanTitleTask("π☁️ > Investigate issue")).toBe("Investigate issue");
+    expect(mod.cleanTitleTask("☁️π > Investigate issue")).toBe("Investigate issue");
+    expect(mod.cleanTitleTask("π (fleet) > Investigate issue")).toBe("Investigate issue");
+    expect(mod.cleanTitleTask("π > 🫧 HOST: Investigate issue")).toBe("Investigate issue");
+    expect(mod.cleanTitleTask("🫧 HOST: Investigate issue")).toBe("Investigate issue");
+
+    // formatTerminalTitle
+    expect(mod.formatTerminalTitle("Fix bug", "linux")).toBe("☁️π > Fix bug");
+    expect(mod.formatTerminalTitle("Fix bug", "darwin")).toBe("π > Fix bug");
+    expect(mod.formatTerminalTitle("π > Fix bug", "linux")).toBe("☁️π > Fix bug");
+    expect(mod.formatTerminalTitle("☁️π > Fix bug", "linux")).toBe("☁️π > Fix bug");
+    expect(mod.formatTerminalTitle(undefined, "linux")).toBe("☁️π >");
+    expect(mod.formatTerminalTitle(undefined, "darwin")).toBe("π >");
+    // applyTerminalTitle
+    let setTitleCall: string | undefined;
+    const mockCtx = {
+      cwd: "/Users/zbornheimer/Developer/Personal/homelab",
+      ui: {
+        setTitle: (title: string) => {
+          setTitleCall = title;
+        },
+      },
+      sessionManager: {
+        getSessionName: () => "CERT: Investigate NQ contract problem",
+      },
+    };
+
+    // On Darwin (Mac): does not override
+    setTitleCall = undefined;
+    mod.applyTerminalTitle(mockCtx, "darwin", {});
+    expect(setTitleCall).toBeUndefined();
+    // On Linux (Fleet compute arm): sets remote badge ☁️π
+    mod.applyTerminalTitle(mockCtx, "linux", {});
+    expect(setTitleCall).toBe("☁️π > CERT: Investigate NQ contract problem");
+
+    // When forced via env:
+    setTitleCall = undefined;
+    mod.applyTerminalTitle(mockCtx, "darwin", { FORCE_FLEET_TITLE: "1" });
+    expect(setTitleCall).toBe("☁️π > CERT: Investigate NQ contract problem");
+  });
+});

@@ -36,6 +36,12 @@ vps() {
 
 ompr() {
 	emulate -L zsh
+	if [[ ${HERDR_ENV:-} == 1 && -n ${HERDR_PANE_ID:-} ]]; then
+		herdr pane report-metadata "$HERDR_PANE_ID" \
+			--source zsh-fg \
+			--agent omp \
+			--display-agent "☁️π" &>/dev/null
+	fi
 	if (($# == 0)); then
 		vps new
 		return $?
@@ -64,7 +70,7 @@ ompr() {
 		shift
 		vps run -p "$*"
 		;;
-	omp:* | [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]-*)
+	omp:* | [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]*)
 		local sid="${1#omp:}"
 		shift
 		vps continue "$sid" "$@"

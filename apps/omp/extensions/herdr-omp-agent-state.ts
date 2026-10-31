@@ -156,13 +156,20 @@ function currentSessionRef(): Record<string, unknown> | undefined {
   return undefined;
 }
 
+function isRemoteSession(): boolean {
+  if (process.env.FORCE_FLEET_TITLE === "1" || process.env.FLEET_ARM === "1") {
+    return true;
+  }
+  return process.platform === "linux" || Boolean(process.env.SESSIONS_DB_URL && process.platform === "linux");
+}
+
 function reportSession(sessionStartSource = "startup"): Promise<void> {
   const sessionRef = currentSessionRef();
   if (!sessionRef) {
     return Promise.resolve();
   }
 
-  return sendRequest({
+  const req = sendRequest({
     id: `${source}:session:${Date.now()}:${Math.random().toString(36).slice(2)}`,
     method: "pane.report_agent_session",
     params: {
@@ -174,6 +181,22 @@ function reportSession(sessionStartSource = "startup"): Promise<void> {
       ...sessionRef,
     },
   });
+
+  if (isRemoteSession()) {
+    void sendRequest({
+      id: `${source}:meta:${Date.now()}:${Math.random().toString(36).slice(2)}`,
+      method: "pane.report_metadata",
+      params: {
+        pane_id: paneId,
+        source,
+        agent: "omp",
+        display_agent: "☁️π",
+        seq: nextReportSeq(),
+      },
+    });
+  }
+
+  return req;
 }
 
 function sendState(state: AgentState, message?: string, seq = nextReportSeq()): Promise<void> {
