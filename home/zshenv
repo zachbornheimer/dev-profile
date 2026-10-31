@@ -44,3 +44,10 @@ if [[ -d $HOME/.agents/bin ]]; then
   path=("$HOME/.agents/bin" ${path:#$HOME/.agents/bin})
   export PATH
 fi
+
+# Remote compute arm: load Neon session/task URLs and path alias when present.
+if [[ -r $HOME/.config/agent-state/env ]]; then
+  set -a
+  source "$HOME/.config/agent-state/env"
+  set +a
+fi

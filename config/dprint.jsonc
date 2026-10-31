@@ -44,13 +44,13 @@
     "timeout": 30,
     "commands": [
       {
-        "command": "/Users/zbornheimer/.local/share/dev-profile/bin/dev-profile-php-fmt --stdin-path {{file_path}}",
+        "command": "dev-profile-php-fmt --stdin-path {{file_path}}",
         "exts": [
           "php"
         ]
       },
       {
-        "command": "/Users/zbornheimer/.local/share/dev-profile/bin/dev-profile-perltidy-format {{file_path}}",
+        "command": "dev-profile-perltidy-format {{file_path}}",
         "exts": [
           "pl",
           "pm",
@@ -64,19 +64,19 @@
         ]
       },
       {
-        "command": "/Users/zbornheimer/.local/share/dev-profile/bin/dev-profile-pkl-fmt",
+        "command": "dev-profile-pkl-fmt",
         "exts": [
           "pkl"
         ]
       },
       {
-        "command": "/Users/zbornheimer/.local/share/dev-profile/bin/dev-profile-rustfmt --stdin-path {{file_path}}",
+        "command": "dev-profile-rustfmt --stdin-path {{file_path}}",
         "exts": [
           "rs"
         ]
       },
       {
-        "command": "/Users/zbornheimer/.local/share/dev-profile/bin/dev-profile-clang-format",
+        "command": "dev-profile-clang-format",
         "exts": [
           "c",
           "h",
@@ -87,7 +87,7 @@
         ]
       },
       {
-        "command": "/Users/zbornheimer/.local/share/dev-profile/bin/dev-profile-swift-format --stdin-path {{file_path}}",
+        "command": "dev-profile-swift-format --stdin-path {{file_path}}",
         "exts": [
           "swift"
         ]

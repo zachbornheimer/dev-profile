@@ -4,7 +4,7 @@ worktree-path = "{{ repo_path }}/../.worktrees/{{ repo }}-{{ branch | sanitize }
 exclude = [".venv/", "**/.venv/", "backups/", "**/backups/"]
 
 [commit.generation]
-command = "/Users/zbornheimer/.local/bin/_llm"
+command = "_llm"
 template = """
 <task>Write a commit message for the staged changes below.</task>
 
@@ -96,10 +96,10 @@ git fetch --all --prune; wt step for-each -- sh -c '
   git diff --quiet HEAD || { git merge --ff-only --no-autostash @{u}; exit 0; }
   git rebase @{u} --no-autostash || { rebasing || exit 0; git rebase --abort; }
 '"""
-pr = "{% if create is defined %}wt switch --create {{ create }} --no-cd -x /Users/zbornheimer/.local/share/dev-profile/bin/dev-profile-pr -- -- {{ args }}{% else %}wt switch {{ args or '@' }} -x /Users/zbornheimer/.local/share/dev-profile/bin/dev-profile-pr --{% endif %}"
-pr-draft = "{% if create is defined %}wt switch --create {{ create }} --no-cd -x /Users/zbornheimer/.local/share/dev-profile/bin/dev-profile-pr -- --draft -- {{ args }}{% else %}wt switch {{ args or '@' }} -x /Users/zbornheimer/.local/share/dev-profile/bin/dev-profile-pr -- --draft{% endif %}"
-pr-auto = "{% if create is defined %}wt switch --create {{ create }} --no-cd -x /Users/zbornheimer/.local/share/dev-profile/bin/dev-profile-pr -- --auto -- {{ args }}{% else %}wt switch {{ args or '@' }} -x /Users/zbornheimer/.local/share/dev-profile/bin/dev-profile-pr -- --auto{% endif %}"
-done = "/Users/zbornheimer/.local/share/dev-profile/bin/dev-profile-done {{ args }}"
+pr = "{% if create is defined %}wt switch --create {{ create }} --no-cd -x ~/.local/share/dev-profile/bin/dev-profile-pr -- -- {{ args }}{% else %}wt switch {{ args or '@' }} -x ~/.local/share/dev-profile/bin/dev-profile-pr --{% endif %}"
+pr-draft = "{% if create is defined %}wt switch --create {{ create }} --no-cd -x ~/.local/share/dev-profile/bin/dev-profile-pr -- --draft -- {{ args }}{% else %}wt switch {{ args or '@' }} -x ~/.local/share/dev-profile/bin/dev-profile-pr -- --draft{% endif %}"
+pr-auto = "{% if create is defined %}wt switch --create {{ create }} --no-cd -x ~/.local/share/dev-profile/bin/dev-profile-pr -- --auto -- {{ args }}{% else %}wt switch {{ args or '@' }} -x ~/.local/share/dev-profile/bin/dev-profile-pr -- --auto{% endif %}"
+done = "~/.local/share/dev-profile/bin/dev-profile-done {{ args }}"
 prune = "wt step prune --min-age=0s"
 tree-for-changes = """
 git stash push -u || exit 1
@@ -153,16 +153,16 @@ fi
 wt pr-auto
 {% endif %}"""
 commit-unstaged = "wt tree-for-changes -- wt land --landing=merge"
-commit-fix = "/Users/zbornheimer/.local/share/dev-profile/bin/dev-profile-commit-fix step commit {{ args }}"
+commit-fix = "~/.local/share/dev-profile/bin/dev-profile-commit-fix step commit {{ args }}"
 
 [post-start]
-copy = "/Users/zbornheimer/.local/share/dev-profile/bin/dev-profile-worktree-copy"
+copy = "~/.local/share/dev-profile/bin/dev-profile-worktree-copy"
 
 [post-remove]
-reap = "/Users/zbornheimer/.local/share/dev-profile/bin/dev-profile-dev reap {{ worktree_path }}"
+reap = "~/.local/share/dev-profile/bin/dev-profile-dev reap {{ worktree_path }}"
 
 [post-switch]
-retire-legacy-hooks = "/Users/zbornheimer/.local/share/dev-profile/bin/dev-profile-retire-legacy-hooks"
+retire-legacy-hooks = "~/.local/share/dev-profile/bin/dev-profile-retire-legacy-hooks"
 
 [post-commit]
 merge-if-clean = """

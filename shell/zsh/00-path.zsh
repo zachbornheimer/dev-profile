@@ -2,7 +2,7 @@
 
 # 1Password SSH agent. Some SSH/Git clients read ~/.ssh/config's IdentityAgent,
 # but tools like ssh-add and many GUI clients only honor SSH_AUTH_SOCK.
-export SSH_AUTH_SOCK="$HOME/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock"
+[[ -S "$HOME/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock" ]] && export SSH_AUTH_SOCK="$HOME/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock"
 
 # Deduplicate PATH and other path-like variables.
 # -g: this file is sourced from inside a function, where a bare typeset is local.
@@ -14,7 +14,9 @@ path=(
 	"$HOME/.agents/bin"
 	"$HOME/.opencode/bin"
 	"$HOME/.local/bin"
+	"$HOME/.local/share/dev-profile/bin"
 	"$HOME/.local/share/mise/shims"
+	"$HOME/.bun/bin"
 	"$HOME/.local/share/aube/bin"
 	"$HOME/Library/pnpm"
 	"$HOME/Library/pnpm/bin"
