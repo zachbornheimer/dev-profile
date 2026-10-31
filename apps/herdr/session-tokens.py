@@ -31,7 +31,11 @@ SHORT_ID_LENGTH = 8
 def running_sessions() -> list[str]:
     """Names of herdr sessions whose server is live, default included."""
     done = subprocess.run(
-        [HERDR, "session", "list", "--json"], capture_output=True, text=True, timeout=20
+        [HERDR, "session", "list", "--json"],
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=False,
     )
     if done.returncode != 0:
         raise RuntimeError(done.stderr.strip() or "herdr session list failed")
@@ -46,6 +50,7 @@ def snapshot(session: str) -> dict:
         capture_output=True,
         text=True,
         timeout=20,
+        check=False,
     )
     if done.returncode != 0:
         raise RuntimeError(done.stderr.strip() or "herdr api snapshot failed")
@@ -106,6 +111,7 @@ def main() -> int:
                 capture_output=True,
                 text=True,
                 timeout=20,
+                check=False,
             )
             if done.returncode == 0:
                 reported += 1

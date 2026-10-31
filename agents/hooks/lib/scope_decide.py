@@ -163,14 +163,14 @@ def load_questions(path: Path = QUESTION_FILE) -> dict[str, dict[str, Any]]:
     """Validate YAML and preserve the Jev noul question contract."""
     loaded = yaml.safe_load(path.read_text(encoding="utf-8"))
     if not isinstance(loaded, dict):
-        raise ValueError("Scope question file is not a mapping")
+        raise TypeError("Scope question file is not a mapping")
     results: dict[str, dict[str, Any]] = {}
     for name, raw in loaded.items():
         if not isinstance(raw, dict) or not isinstance(raw.get("instructions"), str):
-            raise ValueError(f"Invalid question: {name}")
+            raise TypeError(f"Invalid question: {name}")
         criteria = raw.get("criteria")
         if not isinstance(criteria, dict):
-            raise ValueError(f"Missing criteria: {name}")
+            raise TypeError(f"Missing criteria: {name}")
         normalized = {str(k).lower(): str(v) for k, v in criteria.items()}
         if not normalized.get("true") or not normalized.get("false"):
             raise ValueError(f"Missing boolean criterion: {name}")
@@ -582,7 +582,7 @@ def _observe(
         judgment = ScopeJudge.from_env(env).judge(
             task, candidate, request.kind, context
         )
-    except (OSError, ValueError, yaml.YAMLError) as exc:
+    except (OSError, TypeError, ValueError, yaml.YAMLError) as exc:
         return Observation(
             request=request,
             task=task,

@@ -16,7 +16,7 @@ import json
 import re
 import sys
 from dataclasses import asdict, dataclass
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 _DEEP = re.compile(
@@ -205,7 +205,11 @@ def _read_message(args: argparse.Namespace) -> str:
 
 
 def _cmd_route(args: argparse.Namespace) -> int:
-    today = date.fromisoformat(args.today) if args.today else date.today()
+    today = (
+        date.fromisoformat(args.today)
+        if args.today
+        else datetime.now().astimezone().date()
+    )
     try:
         decided = route_message(_read_message(args), today)
     except ValueError as exc:
