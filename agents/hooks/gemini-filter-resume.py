@@ -3,75 +3,107 @@
 # requires-python = ">=3.10"
 # dependencies = []
 # ///
-"""Antigravity Stop hook: one filter block gets "please continue", the next
-gets the last user request restated, and a third block is allowed to stop.
+"""Stop hook — auto-resume after a Gemini safety/content filter block.
 
-Antigravity injects `reason` as a system message and cannot delete the
-original prompt. A non-filter stop resets the ladder for that conversation.
-Fails open: any parse or IO error allows the stop.
+When a turn stops because Gemini blocked the request ("blocked by Gemini's
+filters" or "Request blocked by Google"), step through a three-stop ladder
+per session:
+  1. First filter stop: block Stop with reason "please continue".
+  2. Second consecutive filter stop: block Stop with the last user request
+     restated from the transcript.
+  3. Third consecutive filter stop: allow the stop (fall through).
+
+Any non-filter Stop resets the ladder for that session so a later filter block
+starts fresh at step 1.
+
+Uses hook_common (Claude-shape Decision.block) so agent-hooks and omp's
+run-agent-hooks.ts bridge both convert the block into a hidden continuation
+turn. Fails open on any error.
 """
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
 import sys
-import tempfile
 from pathlib import Path
+from typing import Any
 
-FILTER = "blocked by Gemini's filters"
-PLEASE = "please continue"
+sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+
+from hook_common import Decision, HookEvent, HookSettings, run_hook
+
+HOOK_NAME = "gemini-filter-resume"
+OFF_ENV = "HC_GEMINI_FILTER_RESUME_OFF"
+STATE_PREFIX = "gemini-filter-resume-"
+FILTER_MARKERS = (
+    "blocked by Gemini's filters",
+    "Request blocked by Google",
+    "Generation was blocked by content filters",
+)
+PLEASE_CONTINUE = "please continue"
+RESTATE_FALLBACK = "Continue the original coding task in plain language."
+RESTATE_PREFIX = "Continue the original coding task. Restated request:\n\n"
 TAIL_BYTES = 256 * 1024
 RESTATE_CAP = 4000
 SAFE_ID = re.compile(r"[^A-Za-z0-9._-]+")
+MESSAGE_KEYS = (
+    "last_assistant_message",
+    "lastAssistantMessage",
+    "prompt_response",
+    "promptResponse",
+    "assistant_message",
+    "assistantMessage",
+    "message",
+    "error",
+    "terminationReason",
+)
+NON_USER_PREFIXES = (
+    "<command-",
+    "<local-command",
+    "<system-reminder",
+    "<task-notification",
+    "<bash-",
+    "Stop hook feedback:",
+    "[Request interrupted by user",
+    RESTATE_PREFIX,
+)
 
 
-def state_root() -> Path:
-    override = os.environ.get("GEMINI_FILTER_RESUME_STATE")
-    if override:
-        return Path(override)
-    return Path.home() / ".local" / "state" / "gemini-filter-resume"
-
-
-def emit(payload: dict) -> None:
-    sys.stdout.write(json.dumps(payload, ensure_ascii=False) + "\n")
-
-
-def safe_id(value: object) -> str:
-    text = value if isinstance(value, str) and value else "unknown"
-    cleaned = SAFE_ID.sub("_", text)[:120]
+def _safe_id(value: str) -> str:
+    cleaned = SAFE_ID.sub("_", value.strip())[:120]
     return cleaned or "unknown"
 
 
-def counter_path(conversation_id: str) -> Path:
-    return state_root() / f"{conversation_id}.count"
+def _counter_path(state_dir: Path, session_id: str) -> Path:
+    return state_dir / f"{STATE_PREFIX}{_safe_id(session_id)}.count"
 
 
-def load_count(conversation_id: str) -> int:
-    path = counter_path(conversation_id)
+def _load_count(state_dir: Path, session_id: str) -> int:
     try:
-        return int(path.read_text().strip() or "0")
+        return int(_counter_path(state_dir, session_id).read_text().strip() or "0")
     except (OSError, ValueError):
         return 0
 
 
-def save_count(conversation_id: str, count: int) -> None:
-    root = state_root()
-    root.mkdir(parents=True, exist_ok=True)
-    counter_path(conversation_id).write_text(f"{count}\n")
+def _save_count(state_dir: Path, session_id: str, count: int) -> None:
+    with contextlib.suppress(OSError):
+        state_dir.mkdir(parents=True, exist_ok=True)
+        _counter_path(state_dir, session_id).write_text(f"{count}\n")
 
 
-def reset_count(conversation_id: str) -> None:
-    try:
-        counter_path(conversation_id).unlink()
-    except FileNotFoundError:
-        return
-    except OSError:
-        return
+def _reset_count(state_dir: Path, session_id: str) -> None:
+    with contextlib.suppress(OSError):
+        _counter_path(state_dir, session_id).unlink()
 
 
-def text_of(value: object) -> str:
+def is_filter_block(text: str) -> bool:
+    return any(marker in text for marker in FILTER_MARKERS)
+
+
+def _text_of(value: Any) -> str:
     if isinstance(value, str):
         return value
     if isinstance(value, list):
@@ -85,195 +117,143 @@ def text_of(value: object) -> str:
                     parts.append(part)
         return "\n".join(parts)
     if isinstance(value, dict):
-        for key in ("text", "content", "message"):
-            found = text_of(value.get(key))
+        for key in ("text", "content", "errorMessage", "error", "message"):
+            found = _text_of(value.get(key))
             if found:
                 return found
     return ""
 
 
-def unwrap_user(text: str) -> str:
+def _unwrap_user(text: str) -> str:
     match = re.search(r"<USER_REQUEST>([\s\S]*?)</USER_REQUEST>", text)
     body = match.group(1) if match else text
     body = re.sub(r"<ADDITIONAL_METADATA>[\s\S]*?</ADDITIONAL_METADATA>", "", body)
+    body = re.sub(
+        r"<(hook_prompt|task-notification|system-reminder|hindsight_memory|hindsight_memories|hindsight_bank|relevant_memories|user_feedback|hindsight_knowledge|hindsight_knowledge_refresh|system-context|system-notice|machine_host)\b[\s\S]*?</\1>",
+        "",
+        body,
+    )
     return body.strip()
 
 
-def read_tail(path: Path) -> str:
+def _read_tail_lines(path_value: str) -> list[str]:
+    if not path_value:
+        return []
+    path = Path(os.path.expanduser(path_value))
     try:
         size = path.stat().st_size
-    except OSError:
-        return ""
-    try:
         with path.open("rb") as handle:
             if size > TAIL_BYTES:
                 handle.seek(size - TAIL_BYTES)
             data = handle.read()
     except OSError:
-        return ""
+        return []
     text = data.decode("utf-8", errors="replace")
     if size > TAIL_BYTES:
         cut = text.find("\n")
         if cut != -1:
             text = text[cut + 1 :]
-    return text
+    return [line.strip() for line in text.splitlines() if line.strip()]
 
 
-def transcript_user_texts(path_value: object) -> list[str]:
-    if not isinstance(path_value, str) or not path_value:
-        return []
-    texts: list[str] = []
-    for line in read_tail(Path(os.path.expanduser(path_value))).splitlines():
-        line = line.strip()
-        if not line:
-            continue
+def _record_role_and_msg(row: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+    row_type = row.get("type")
+    if row_type == "message" and isinstance(row.get("message"), dict):
+        msg = row["message"]
+        return str(msg.get("role") or ""), msg
+    if row_type in ("user", "assistant") and isinstance(row.get("message"), dict):
+        return str(row_type), row["message"]
+    role = row.get("role") or (row.get("message") or {}).get("role") or row_type
+    if role == "USER_INPUT":
+        return "user", row
+    if role in ("model", "PLANNER_RESPONSE"):
+        return "assistant", row
+    if role in ("user", "assistant"):
+        return str(role), row
+    return "", row
+
+
+def _transcript_state(path_value: str) -> tuple[bool, str]:
+    """Return (last_assistant_was_filter_blocked, last_clean_user_request)."""
+    lines = _read_tail_lines(path_value)
+    last_assistant_blocked: bool | None = None
+    last_user = ""
+    for line in lines:
         try:
-            event = json.loads(line)
-        except json.JSONDecodeError:
+            row = json.loads(line)
+        except ValueError:
             continue
-        if not isinstance(event, dict):
+        if not isinstance(row, dict):
             continue
-        role = (
-            event.get("role")
-            or (event.get("message") or {}).get("role")
-            or event.get("type")
-        )
-        if role not in ("user", "USER_INPUT"):
-            continue
-        content = event.get("content")
-        if content is None:
-            content = event.get("text")
-        if content is None and isinstance(event.get("message"), dict):
-            message = event["message"]
-            content = (
-                message.get("content")
-                if message.get("content") is not None
-                else message.get("text")
-            )
-        clean = unwrap_user(text_of(content))
-        if clean and FILTER not in clean and clean != PLEASE:
-            texts.append(clean)
-    return texts
+        role, msg = _record_role_and_msg(row)
+        if role == "user":
+            attribution = msg.get("attribution")
+            if attribution is not None and attribution != "user":
+                continue
+            raw_text = _text_of(msg.get("content") if "content" in msg else msg.get("text"))
+            clean = _unwrap_user(raw_text)
+            if (
+                clean
+                and clean != PLEASE_CONTINUE
+                and not is_filter_block(clean)
+                and not clean.startswith(NON_USER_PREFIXES)
+            ):
+                last_user = clean
+        elif role == "assistant":
+            prose = _text_of(msg.get("content") if "content" in msg else msg.get("text"))
+            err = _text_of(msg.get("errorMessage") or row.get("errorMessage") or row.get("error"))
+            combined = f"{prose}\n{err}".strip()
+            last_assistant_blocked = is_filter_block(combined)
+    return bool(last_assistant_blocked), last_user
 
 
-def blocked(event: dict) -> bool:
-    error = event.get("error")
-    if isinstance(error, str) and FILTER in error:
-        return True
-    reason = event.get("terminationReason")
-    if isinstance(reason, str) and FILTER in reason:
-        return True
-    tail = (
-        read_tail(Path(os.path.expanduser(event["transcriptPath"])))
-        if isinstance(event.get("transcriptPath"), str)
-        else ""
-    )
-    return FILTER in tail
+def _payload_texts(event: HookEvent) -> str:
+    parts: list[str] = []
+    extra = event.payload.get("extra")
+    extra_map = extra if isinstance(extra, dict) else {}
+    for key in MESSAGE_KEYS:
+        for source in (event.payload, extra_map):
+            text = _text_of(source.get(key))
+            if text:
+                parts.append(text)
+    return "\n".join(parts)
 
 
-def restate(event: dict) -> str:
-    users = transcript_user_texts(event.get("transcriptPath"))
-    task = users[-1] if users else ""
-    if len(task) > RESTATE_CAP:
-        task = task[:RESTATE_CAP] + "…"
-    if not task:
-        return (
-            "Continue the original coding task in plain language. "
-            "The transcript had no user request to restate."
-        )
-    return "Continue the original coding task. Restated request:\n\n" + task
+def _restate_reason(last_user: str) -> str:
+    task = last_user.strip()
+    if not task or is_filter_block(task) or task == PLEASE_CONTINUE:
+        return RESTATE_FALLBACK
+    body = f"{task[:RESTATE_CAP]}…" if len(task) > RESTATE_CAP else task
+    return f"{RESTATE_PREFIX}{body}"
 
 
-def decide(event: dict) -> dict:
-    conversation_id = safe_id(event.get("conversationId"))
-    if not blocked(event):
-        reset_count(conversation_id)
-        return {"decision": "allow"}
-    count = load_count(conversation_id)
+def decide(event: HookEvent) -> Decision | None:
+    if os.environ.get(OFF_ENV):
+        return Decision.no_objection("gemini-filter-resume:off")
+    reason = event.field("reason", "reason")
+    if reason and reason not in ("end_turn", "error", "model_stop"):
+        return Decision.no_objection(f"non-turn-stop:{reason}")
+
+    session_id = event.session_id or event.field("conversationId", "conversation_id") or "unknown"
+    settings = HookSettings.from_env()
+    transcript_path = event.field("transcript_path", "transcriptPath")
+    transcript_blocked, last_user = _transcript_state(transcript_path)
+    payload_blocked = is_filter_block(_payload_texts(event))
+    blocked = payload_blocked or transcript_blocked
+
+    if not blocked:
+        _reset_count(settings.state_dir, session_id)
+        return Decision.no_objection("gemini-filter-resume:ok")
+
+    count = _load_count(settings.state_dir, session_id)
     if count <= 0:
-        save_count(conversation_id, 1)
-        return {"decision": "continue", "reason": PLEASE}
+        _save_count(settings.state_dir, session_id, 1)
+        return Decision.block(PLEASE_CONTINUE)
     if count == 1:
-        save_count(conversation_id, 2)
-        return {"decision": "continue", "reason": restate(event)}
-    return {"decision": "allow"}
-
-
-def self_test() -> int:
-    with tempfile.TemporaryDirectory() as tmp:
-        os.environ["GEMINI_FILTER_RESUME_STATE"] = tmp
-        transcript = Path(tmp) / "transcript.jsonl"
-        transcript.write_text(
-            json.dumps(
-                {
-                    "role": "user",
-                    "content": "<USER_REQUEST>fix the parser</USER_REQUEST>",
-                }
-            )
-            + "\n"
-            + json.dumps(
-                {
-                    "role": "assistant",
-                    "content": "This request was blocked by Gemini's filters.",
-                }
-            )
-            + "\n"
-        )
-        event = {
-            "conversationId": "conv-1",
-            "error": "This request was blocked by Gemini's filters.",
-            "transcriptPath": str(transcript),
-        }
-        first = decide(event)
-        second = decide(event)
-        third = decide(event)
-        reset = decide(
-            {"conversationId": "conv-1", "terminationReason": "model_stop", "error": ""}
-        )
-        again = decide(event)
-        other = decide({"conversationId": "conv-2", "terminationReason": "model_stop"})
-        checks = [
-            first == {"decision": "continue", "reason": PLEASE},
-            second.get("decision") == "continue"
-            and "fix the parser" in second.get("reason", ""),
-            "blocked by Gemini" not in second.get("reason", ""),
-            third == {"decision": "allow"},
-            reset == {"decision": "allow"},
-            again == {"decision": "continue", "reason": PLEASE},
-            other == {"decision": "allow"},
-        ]
-        if not all(checks):
-            sys.stderr.write(
-                json.dumps(
-                    {
-                        "first": first,
-                        "second": second,
-                        "third": third,
-                        "reset": reset,
-                        "again": again,
-                        "other": other,
-                    }
-                )
-                + "\n"
-            )
-            return 1
-    return 0
-
-
-def main() -> int:
-    if "--self-test" in sys.argv[1:]:
-        return self_test()
-    try:
-        raw = sys.stdin.read()
-        event = json.loads(raw) if raw.strip() else {}
-        if not isinstance(event, dict):
-            emit({"decision": "allow"})
-            return 0
-        emit(decide(event))
-    except Exception:
-        emit({"decision": "allow"})
-    return 0
+        _save_count(settings.state_dir, session_id, 2)
+        return Decision.block(_restate_reason(last_user))
+    return Decision.no_objection("gemini-filter-resume:exhausted")
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    run_hook(HOOK_NAME, decide)
