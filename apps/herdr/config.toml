@@ -1,1 +1,106 @@
-# Herdr configuration (managed by dev-profile [dotfiles])
+onboarding = false
+
+[theme]
+# Follow host appearance: rose-pine at night, rose-pine-dawn by day —
+# the same family as the Hermes rose-pine-dawn skin.
+name = "rose-pine"
+auto_switch = true
+dark_name = "rose-pine"
+light_name = "rose-pine-dawn"
+
+[theme.custom.dark]
+sidebar_bg = "#16131b" # one step below base so chrome recedes behind panes
+panel_bg = "#191724"
+active_row_bg = "#26233a"
+selection_bg = "#403d52"
+accent = "#c4a7e7"
+overlay0 = "#8a85a3" # section labels ("spaces", "agents") were ~3:1 on the bg
+overlay1 = "#a6a1bd"
+
+[theme.custom.light]
+sidebar_bg = "#f0e7de"
+panel_bg = "#faf4ed"
+active_row_bg = "#f4ede8"
+selection_bg = "#dfdad9"
+accent = "#907aa9"
+overlay0 = "#6e6a86" # dawn's own muted grey is 2.4:1 on this bg; this is 4.2:1
+overlay1 = "#575279"
+
+[ui]
+# Distinct glyphs per state beat uniform dots when six rows are on screen at
+# once: a dot only says "something", a symbol says working / idle / blocked.
+status_indicators = "symbols"
+hide_tab_bar_when_single_tab = true
+# herdr has no horizontal padding key. Wider sidebar gives labels room to breathe.
+sidebar_width = 32
+sidebar_min_width = 24
+sidebar_max_width = 40
+window_title = "{workspace}"
+agent_panel_sort = "spaces"
+
+# Agents read as "what that session is doing", not "which agent, where".
+# The `agent` and `workspace` tokens repeated the same two words on every row
+# ("AI Tooling", "claude", "pi" x4). The terminal title is the only value that
+# differs per pane, so it carries the row; the state glyph stays leftmost so
+# the column of states remains scannable.
+#
+# Line two is the session id, which no built-in token exposes: ~/.config/herdr/
+# session-tokens.py reports it as `$session` pane metadata. It also breaks the
+# tie when two panes share a title (two `π - herdr` here). A pane with no
+# reported session drops the line rather than leaving a blank gap.
+[ui.sidebar.agents]
+row_gap = 0
+rows = [
+  ["state_icon", "terminal_title_stripped"],
+  [{ token = "$session", dim = true }],
+]
+
+# Deliberately one row. A space here spans five repos (dev-profile, agent-hooks,
+# mastra, herdr, $HOME), so a branch/git_status row would resolve nothing — the
+# workspace has no cwd of its own. Branch belongs on the tab or pane, not here.
+[ui.sidebar.spaces]
+rows = [["state_icon", "workspace"]]
+
+[ui.toast]
+delivery = "herdr"
+
+[keys]
+# Single prefix, mnemonic letters after it. No ctrl chords, no emacs n/p motion.
+prefix = ["ctrl+space", "shift+space"]
+new_tab = "prefix+c"
+copy_mode = "prefix+y"
+next_tab = ["prefix+]", "prefix+tab"]
+previous_tab = ["prefix+[", "prefix+shift+tab"]
+
+[session]
+resume_agents_on_restore = true
+startup_per_agent_delay_ms = 100
+
+[[keys.command]]
+key = "prefix+t"
+type = "popup"
+command = "exec \"${SHELL:-sh}\""
+description = "open scratch terminal"
+width = "80%"
+height = "80%"
+
+[[keys.command]]
+key = "prefix+!"
+type = "popup"
+command = "$HOME/.config/herdr/oneshot.sh"
+description = "one-shot omp prompt in the one-shots session"
+width = "70%"
+height = "60%"
+
+# herdr-nvim (plugin chmarax.herdr-nvim): per-tab nvim sidebar + agent-file picker.
+[[keys.command]]
+key = "prefix+e"
+type = "plugin_action"
+command = "chmarax.herdr-nvim.toggle"
+description = "nvim sidebar"
+
+[[keys.command]]
+key = "prefix+o"
+type = "plugin_action"
+command = "chmarax.herdr-nvim.pick-file"
+description = "open file from agent output"
