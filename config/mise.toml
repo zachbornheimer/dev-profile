@@ -129,6 +129,7 @@ builtin = "history-watch"
 "~/.local/share/dev-profile/shell.zsh" = { source = "~/Developer/Personal/dev-profile/shell/shell.zsh" }
 "~/.local/share/dev-profile/xdg" = { source = "~/Developer/Personal/dev-profile/xdg" }
 "~/.markdownlintrc" = { source = "~/Developer/Personal/dev-profile/config/markdownlintrc.json" }
+"~/.omp/agent/extensions/herdr-omp-agent-state.ts" = { source = "~/Developer/Personal/dev-profile/apps/omp/extensions/herdr-omp-agent-state.ts" }
 "~/.profile" = { source = "~/Developer/Personal/dev-profile/home/profile" }
 "~/.tmux.conf" = { source = "~/Developer/Personal/dev-profile/home/tmux.conf" }
 "~/.vim" = { source = "~/Developer/Personal/dev-profile/vim" }
