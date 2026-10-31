@@ -24,11 +24,11 @@
 [coderabbit]
 	machineId = cli/a212caee3dfd41d0b0f8c1ea2009ea44
 [credential "https://github.com"]
-	helper =
-	helper = !PATH="$PATH:/opt/homebrew/bin:$HOME/.local/bin" gh auth git-credential
+	helper = 
+	helper = !/usr/bin/gh auth git-credential
 [credential "https://gist.github.com"]
-	helper =
-	helper = !PATH="$PATH:/opt/homebrew/bin:$HOME/.local/bin" gh auth git-credential
+	helper = 
+	helper = !/usr/bin/gh auth git-credential
 [tag]
 	gpgsign = true
 [pull]

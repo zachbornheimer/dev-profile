@@ -1,6 +1,8 @@
 [tools]
+"aqua:1password/cli" = "2.41.1"
 colima = "latest"
 gofumpt = "latest"
+node = "22.23.4"
 
 [env._]
 # ~/.agents/bin holds the aubx scope guard; it must precede mise tool bins so
@@ -24,6 +26,9 @@ shims.exclude = [
   "git-upload-pack",
   "gitk",
 ]
+
+[settings.age]
+key_file = "/home/zbornheimer/.config/mise/age.txt"
 
 [tasks."learn:doctor"]
 # /learn is three files that `mise dot apply` installs together: the omp command, the launcher it

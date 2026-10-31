@@ -6,7 +6,7 @@ worktrunk = "latest"
 go = "latest"
 bun = "latest"
 stylua = "2.5.2"
-aube = "latest"
+aube = { version = "latest", workflow = ["release-plz.yml@refs/heads/main", "release.yml@refs/heads/main"] }
 uv = "latest"
 "github:rohansx/workz" = "0.11.0"
 tflint = "0.64.0"
