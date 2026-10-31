@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# Run markdownlint on owned repositories, or on unowned repositories that declare
+# their own .markdownlint* configuration at the repository root.
+fix=0
+if [[ "${1:-}" == "--fix" ]]; then
+	fix=1
+	shift
+fi
+(($# > 0)) || exit 0
+
+bin_dir="$(dirname "${BASH_SOURCE[0]}")"
+if "${bin_dir}/dev-profile-repo-owned"; then
+	if ((fix)); then
+		exec "${bin_dir}/dev-profile-fix" markdownlint --fix "$@"
+	fi
+	exec markdownlint "$@"
+fi
+
+root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+cfg=""
+for candidate in \
+	"${root}/.markdownlint.json" \
+	"${root}/.markdownlint.jsonc" \
+	"${root}/.markdownlint.yaml" \
+	"${root}/.markdownlint.yml" \
+	"${root}/.markdownlintrc"; do
+	if [[ -f "${candidate}" ]]; then
+		cfg="${candidate}"
+		break
+	fi
+done
+[[ -n "${cfg}" ]] || exit 0
+
+if ((fix)); then
+	exec "${bin_dir}/dev-profile-fix" markdownlint --config "${cfg}" --fix "$@"
+fi
+exec markdownlint --config "${cfg}" "$@"

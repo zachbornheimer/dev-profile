@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # Push guard: an add or modify, in the commits being pushed, of trunk or prettier config fails. Deleting stays allowed.
+"$(dirname "${BASH_SOURCE[0]}")/dev-profile-repo-owned" || exit 0
 banned_file='(^|/)(\.trunk/|\.prettierrc[^/]*$|prettier\.config\.[^/]*$|\.prettierignore$)'
 # Added lines only: removing a dependency or tool line must pass.
 banned_package_line='^\+.*"(prettier|@prettier/[^"]*)"[[:space:]]*:'

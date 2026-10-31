@@ -12,6 +12,11 @@ work="$(cd "$(mktemp -d)" && pwd -P)"
 dev="${out}/bin/dev-profile-dev"
 cache="${work}/cache/dev-profile/dev"
 
+/bin/ps -p "$$" >/dev/null 2>&1 || {
+	echo "dev-family fixture skipped: /bin/ps blocked by sandbox"
+	exit 0
+}
+
 fail() {
 	echo "FAIL dev-family fixture: $*" >&2
 	[[ ! -f "${work}/output.txt" ]] || sed 's/^/  | /' "${work}/output.txt" >&2
@@ -51,7 +56,7 @@ export DEV_FIXTURE_SPAWNS="${work}/spawns" DEV_FIXTURE_PIDS="${work}/pids" DEV_F
 : >"${DEV_FIXTURE_PIDS}"
 : >"${DEV_FIXTURE_ROUTES}"
 # Short waits: the fixture must not depend on production timings.
-export DEV_PROFILE_DEV_SETTLE=0 DEV_PROFILE_DEV_READY_TIMEOUT=5 DEV_PROFILE_DEV_STOP_TIMEOUT=2
+export DEV_PROFILE_DEV_SETTLE=0.2 DEV_PROFILE_DEV_READY_TIMEOUT=5 DEV_PROFILE_DEV_STOP_TIMEOUT=2
 
 # The portless stub answers `get <name>` with the name as given, and for
 # `run --name <name> <cmd>` assigns a free PORT and runs the command, recording

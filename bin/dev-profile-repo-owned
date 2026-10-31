@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# Exit 0 when the current git repository belongs to Zach's accounts/orgs (or is a
+# local/non-GitHub repository); exit 1 when it belongs to an external owner (or is
+# a fork of an external owner's repository).
+if [[ -n "${DEV_PROFILE_REPO_OWNED:-}" ]]; then
+	[[ "${DEV_PROFILE_REPO_OWNED}" == "1" ]]
+	exit $?
+fi
+
+git rev-parse --show-toplevel >/dev/null 2>&1 || exit 0
+
+github_slug() { # <remote-url> -> owner/repo on github.com, or empty
+	local url="${1:-}" path=""
+	case "${url}" in
+	https://github.com/* | http://github.com/*)
+		path="${url#*github.com/}"
+		;;
+	git@github.com:* | ssh://git@github.com/*)
+		path="${url#*github.com}"
+		path="${path#:}"
+		path="${path#/}"
+		;;
+	*)
+		return 1
+		;;
+	esac
+	path="${path%.git}"
+	path="${path%/}"
+	[[ "${path}" == */* ]] || return 1
+	printf '%s\n' "${path}"
+}
+
+is_owned_owner() { # <owner>
+	local lower
+	lower="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
+	case "${lower}" in
+	zachbornheimer | zysys | software-automation-holdings-llc | zab-ai-llc)
+		return 0
+		;;
+	*)
+		return 1
+		;;
+	esac
+}
+
+upstream_url="$(git config --get remote.upstream.url 2>/dev/null || true)"
+if upstream_slug="$(github_slug "${upstream_url}")"; then
+	upstream_owner="${upstream_slug%%/*}"
+	is_owned_owner "${upstream_owner}" || exit 1
+fi
+
+origin_url="$(git config --get remote.origin.url 2>/dev/null || true)"
+origin_slug="$(github_slug "${origin_url}" || true)"
+# Non-GitHub or local remotes (including test fixtures) are treated as owned.
+[[ -n "${origin_slug}" ]] || exit 0
+
+origin_owner="${origin_slug%%/*}"
+is_owned_owner "${origin_owner}" || exit 1
+
+# A personal fork (zachbornheimer/<repo>) of an external upstream repository is
+# still an unowned codebase whose upstream conventions win. Cache the parent owner
+# in the git common dir so gh is asked at most once per clone.
+common_dir="$(git rev-parse --git-common-dir 2>/dev/null || true)"
+cache_file="${common_dir:+"${common_dir}/dev-profile-effective-owner"}"
+effective_owner=""
+if [[ -n "${cache_file}" && -r "${cache_file}" ]]; then
+	effective_owner="$(<"${cache_file}")"
+elif command -v gh >/dev/null 2>&1; then
+	effective_owner="$(gh api "repos/${origin_slug}" \
+		--jq 'if .fork and .parent.owner.login then .parent.owner.login else .owner.login end' \
+		2>/dev/null || true)"
+	if [[ -n "${effective_owner}" && -n "${cache_file}" ]]; then
+		printf '%s\n' "${effective_owner}" >"${cache_file}" 2>/dev/null || true
+	fi
+fi
+
+if [[ -n "${effective_owner}" ]]; then
+	is_owned_owner "${effective_owner}" || exit 1
+fi
+exit 0

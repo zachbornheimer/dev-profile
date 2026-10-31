@@ -15,6 +15,6 @@ status=0
 for lock in "$@"; do
 	dir="$(dirname "${lock}")"
 	echo "bundle-audit: ${lock}" >&2
-	(cd "${dir}" && bundle-audit check --gemfile-lock "$(basename "${lock}")") || status=$?
+	(cd "${dir}" && mise exec ruby@4 -- bundle-audit check --gemfile-lock "$(basename "${lock}")") || status=$?
 done
 exit "${status}"

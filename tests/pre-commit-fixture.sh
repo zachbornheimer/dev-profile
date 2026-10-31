@@ -32,17 +32,17 @@ ln -s "${repo}/hk/hk.pkl" "${scratch}/hk-config/config.pkl"
 # place of the installed one and the judged steps appended.
 command="$("${git_bin}" config --file "${repo}/home/gitconfig" --get hook.hk-pre-commit.command)"
 [[ "${command}" == *'${HOME}/.local/share/dev-profile/bin'* ]] || fail "home/gitconfig's hk-pre-commit command no longer names the profile bin directory"
-command="${command//'${HOME}/.local/share/dev-profile/bin'/${repo}/bin} -S newlines -S trailing-whitespace -S dprint -S stylelint -S no-commit-to-branch"
+profile_bin='${HOME}/.local/share/dev-profile/bin'
+command="${command//"${profile_bin}"/${repo}/bin} -S newlines -S trailing-whitespace -S dprint -S stylelint -S no-commit-to-branch"
 cat >"${scratch}/gitconfig" <<EOF
 [user]
 	name = fixture
 	email = fixture@example.invalid
 [commit]
 	gpgsign = false
-[hook "hk-pre-commit"]
-	event = pre-commit
-	command = ${command}
 EOF
+"${git_bin}" config --file "${scratch}/gitconfig" hook.hk-pre-commit.event pre-commit
+"${git_bin}" config --file "${scratch}/gitconfig" hook.hk-pre-commit.command "${command}"
 export HK_CONFIG_DIR="${scratch}/hk-config" GIT_CONFIG_GLOBAL="${scratch}/gitconfig" GIT_CONFIG_SYSTEM=/dev/null
 unset HK HK_FILE
 

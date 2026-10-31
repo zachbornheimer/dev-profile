@@ -8,6 +8,7 @@ set -euo pipefail
 # hunks for staged files are applied. A package that does not type-check yields
 # no fixes; go-vet judges it after every fixer.
 (($#)) || exit 0
+"$(dirname "${BASH_SOURCE[0]}")/dev-profile-repo-owned" || exit 0
 root="$(cd "$(git rev-parse --show-toplevel)" && pwd -P)"
 
 # Physical absolute path, so it compares equal to the paths go prints.

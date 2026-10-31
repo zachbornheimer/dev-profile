@@ -1,0 +1,125 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# Format or check staged/pushed files.
+# - On owned repositories: run dprint (plus oxfmt on JS/TS if the repo configures .oxfmtrc.json).
+# - On unowned repositories: never fall back to ~/Developer/Personal/dprint.jsonc or
+#   ~/.config/dprint/dprint.jsonc; instead run only the formatters the repository itself
+#   configures at its root (dprint.json*, .oxfmtrc.json/oxfmt.json, biome.json*, .prettierrc*).
+mode="${1:?usage: dev-profile-format <check|fmt|list-different> [files...]}"
+shift
+(($# > 0)) || exit 0
+
+root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+
+repo_dprint_config() {
+	local candidate
+	for candidate in "${root}/dprint.json" "${root}/dprint.jsonc" "${root}/.dprint.json" "${root}/.dprint.jsonc"; do
+		if [[ -f "${candidate}" ]]; then
+			printf '%s\n' "${candidate}"
+			return 0
+		fi
+	done
+	return 1
+}
+
+resolve_repo_tool() { # <name>
+	local name="$1" found=""
+	if [[ -x "${root}/node_modules/.bin/${name}" ]]; then
+		printf '%s\n' "${root}/node_modules/.bin/${name}"
+		return 0
+	fi
+	found="$(command -v "${name}" 2>/dev/null || true)"
+	[[ -n "${found}" ]] || return 1
+	if [[ "${found}" == */mise/shims/* ]] && command -v mise >/dev/null 2>&1; then
+		mise which "${name}" 2>/dev/null || return 1
+		return 0
+	fi
+	printf '%s\n' "${found}"
+}
+
+run_oxfmt() { # <check|fmt> <files...>
+	local submode="$1" bin=""
+	shift
+	local jsts=() file
+	for file in "$@"; do
+		case "${file}" in
+		*.js | *.mjs | *.cjs | *.ts | *.mts | *.cts | *.jsx | *.tsx)
+			jsts+=("${file}")
+			;;
+		esac
+	done
+	((${#jsts[@]} > 0)) || return 0
+	bin="$(resolve_repo_tool oxfmt || true)"
+	if [[ -n "${bin}" ]]; then
+		if [[ "${submode}" == "fmt" ]]; then
+			"${bin}" "${jsts[@]}"
+		else
+			"${bin}" --check "${jsts[@]}"
+		fi
+	elif command -v bunx >/dev/null 2>&1; then
+		if [[ "${submode}" == "fmt" ]]; then
+			bunx oxfmt "${jsts[@]}"
+		else
+			bunx oxfmt --check "${jsts[@]}"
+		fi
+	fi
+}
+
+if "$(dirname "${BASH_SOURCE[0]}")/dev-profile-repo-owned"; then
+	case "${mode}" in
+	fmt) dprint fmt --allow-no-files "$@" ;;
+	check) dprint check --allow-no-files "$@" ;;
+	list-different) dprint check --allow-no-files --list-different "$@" ;;
+	*)
+		echo "dev-profile-format: unknown mode: ${mode}" >&2
+		exit 2
+		;;
+	esac
+	if [[ -f "${root}/.oxfmtrc.json" || -f "${root}/oxfmt.json" ]]; then
+		run_oxfmt "${mode}" "$@"
+	fi
+	exit 0
+fi
+
+# Unowned repository: follow only the formatter conventions declared in the repo root.
+if cfg="$(repo_dprint_config)"; then
+	case "${mode}" in
+	fmt) dprint fmt --config "${cfg}" --allow-no-files "$@" ;;
+	check) dprint check --config "${cfg}" --allow-no-files "$@" ;;
+	list-different) dprint check --config "${cfg}" --allow-no-files --list-different "$@" ;;
+	esac
+fi
+
+if [[ -f "${root}/.oxfmtrc.json" || -f "${root}/oxfmt.json" ]]; then
+	run_oxfmt "${mode}" "$@"
+fi
+
+if [[ -f "${root}/biome.json" || -f "${root}/biome.jsonc" ]]; then
+	biome_bin="$(resolve_repo_tool biome || true)"
+	if [[ -n "${biome_bin}" ]]; then
+		if [[ "${mode}" == "fmt" ]]; then
+			"${biome_bin}" format --write "$@"
+		else
+			"${biome_bin}" format "$@"
+		fi
+	fi
+fi
+
+has_prettier=0
+for candidate in "${root}"/.prettierrc* "${root}"/prettier.config.*; do
+	if [[ -f "${candidate}" ]]; then
+		has_prettier=1
+		break
+	fi
+done
+if ((has_prettier)); then
+	prettier_bin="$(resolve_repo_tool prettier || true)"
+	if [[ -n "${prettier_bin}" ]]; then
+		case "${mode}" in
+		fmt) "${prettier_bin}" --write --ignore-unknown "$@" ;;
+		check) "${prettier_bin}" --check --ignore-unknown "$@" ;;
+		list-different) "${prettier_bin}" --list-different --ignore-unknown "$@" ;;
+		esac
+	fi
+fi
+exit 0

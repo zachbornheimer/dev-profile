@@ -181,7 +181,7 @@ portless_here() {
 # The serve command, run from the checkout: portless starts it in the cache
 # directory, so it first returns to the root.
 in_root() {
-	echo "cd $(printf '%q' "${root}") && $1"
+	echo "export PATH=\"\${DEV_PROFILE_DEV_PATH:-\${PATH}}\"; cd $(printf '%q' "${root}") || exit; $1"
 }
 
 # The URL portless serves this stack on, asked of portless so it cannot drift
@@ -388,7 +388,7 @@ tether_available() {
 # the tether made a process-group leader, so line 1 is the whole tree's pid;
 # then portless assigns the route's port and runs the relay, which runs the
 # serve command behind it.
-tether_child="cd \"\${DEV_PROFILE_DEV_CACHE}\"; printf \"%s\n%s\n%s\n%s\n\" \"\$\$\" tether \"\${DEV_PROFILE_DEV_ROUTE}\" \"\${DEV_PROFILE_DEV_ROOT}\" >\"\${DEV_PROFILE_DEV_PIDFILE}\"; exec portless run --name \"\${DEV_PROFILE_DEV_ROUTE}\" node \"\${DEV_PROFILE_DEV_RELAY}\" sh -c \"\${DEV_PROFILE_DEV_CMD}\""
+tether_child="export PATH=\"\${DEV_PROFILE_DEV_PATH}\"; cd \"\${DEV_PROFILE_DEV_CACHE}\"; printf \"%s\n%s\n%s\n%s\n\" \"\$\$\" tether \"\${DEV_PROFILE_DEV_ROUTE}\" \"\${DEV_PROFILE_DEV_ROOT}\" >\"\${DEV_PROFILE_DEV_PIDFILE}\"; exec portless run --name \"\${DEV_PROFILE_DEV_ROUTE}\" node \"\${DEV_PROFILE_DEV_RELAY}\" sh -c \"\${DEV_PROFILE_DEV_CMD}\""
 
 # --- verbs
 
@@ -468,7 +468,7 @@ spawn() {
 	# fight them for the route and the port.
 	reap_stack "${checkout}"
 	export DEV_PROFILE_DEV_ROOT="${root}" DEV_PROFILE_DEV_TOUCHED="${touchedfile}" \
-		DEV_PROFILE_DEV_BIN="${self}"
+		DEV_PROFILE_DEV_BIN="${self}" DEV_PROFILE_DEV_PATH="${PATH}"
 	if tether_available; then
 		DEV_PROFILE_DEV_CMD="$(in_root "${cmd}")" DEV_PROFILE_DEV_ROUTE="${route}" \
 		DEV_PROFILE_DEV_STACK="${checkout}" DEV_PROFILE_DEV_CACHE="${cache}" \

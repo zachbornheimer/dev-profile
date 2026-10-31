@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# Run yamllint on owned repositories, or on unowned repositories that declare
+# their own .yamllint* configuration at the repository root.
+(($# > 0)) || exit 0
+
+if "$(dirname "${BASH_SOURCE[0]}")/dev-profile-repo-owned"; then
+	exec yamllint --strict "$@"
+fi
+
+root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+cfg=""
+for candidate in "${root}/.yamllint" "${root}/.yamllint.yml" "${root}/.yamllint.yaml"; do
+	if [[ -f "${candidate}" ]]; then
+		cfg="${candidate}"
+		break
+	fi
+done
+[[ -n "${cfg}" ]] || exit 0
+exec yamllint -c "${cfg}" "$@"

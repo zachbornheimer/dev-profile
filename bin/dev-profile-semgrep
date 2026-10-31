@@ -13,6 +13,8 @@ set -euo pipefail
 cache="${XDG_CACHE_HOME:-${HOME}/.cache}/dev-profile/semgrep"
 rules="${cache}/typescript.yml"
 mkdir -p "${cache}"
+export SEMGREP_LOG_FILE="${SEMGREP_LOG_FILE:-${cache}/semgrep.log}"
+export SEMGREP_SETTINGS_FILE="${SEMGREP_SETTINGS_FILE:-${cache}/settings.yml}"
 if [[ ! -s "${rules}" || -z "$(find "${rules}" -mtime -7 2>/dev/null)" ]]; then
 	tmp="$(mktemp "${rules}.XXXXXX")"
 	if curl -fsSL --connect-timeout 3 --max-time 20 -o "${tmp}" "https://semgrep.dev/c/p/typescript" && [[ -s "${tmp}" ]]; then

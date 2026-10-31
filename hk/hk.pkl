@@ -44,9 +44,9 @@ local shellFiles =
   """
 steps {
   ["dprint"] {
-    check = "dprint check --allow-no-files {{files}}"
-    fix = "dprint fmt --allow-no-files {{files}}"
-    check_list_files = "dprint check --allow-no-files --list-different {{files}}"
+    check = "dev-profile-format check {{files}}"
+    fix = "dev-profile-format fmt {{files}}"
+    check_list_files = "dev-profile-format list-different {{files}}"
     exclude =
       List(
         "**/aube-lock.yaml",
@@ -141,7 +141,7 @@ steps {
       )
   }
   ["markdownlint-fix"] {
-    fix = "dev-profile-fix markdownlint --fix {{files}}"
+    fix = "dev-profile-markdownlint --fix {{files}}"
     glob = List("**/*.md", "**/*.markdown")
     exclude = List("vim/bundle/**", "agents/learnings/**", "agents/skills.pre-unified-link-*/**")
   }
@@ -367,8 +367,8 @@ steps {
     profiles = List("slow")
   }
   ["markdownlint"] {
-    check = "markdownlint {{files}}"
-    fix = "dev-profile-fix markdownlint --fix {{files}}"
+    check = "dev-profile-markdownlint {{files}}"
+    fix = "dev-profile-markdownlint --fix {{files}}"
     glob = List("**/*.md", "**/*.markdown")
     exclude = List("vim/bundle/**", "agents/learnings/**", "agents/skills.pre-unified-link-*/**")
     profiles = List("slow")
@@ -659,7 +659,7 @@ steps {
     profiles = List("slow")
   }
   ["yamllint"] {
-    check = "yamllint --strict {{files}}"
+    check = "dev-profile-yamllint {{files}}"
     glob = List("**/*.yml", "**/*.yaml")
     exclude =
       List(
@@ -818,8 +818,8 @@ hooks {
           )
       }
       ["markdownlint"] {
-        check = "markdownlint {{files}}"
-        fix = "dev-profile-fix markdownlint --fix {{files}}"
+        check = "dev-profile-markdownlint {{files}}"
+        fix = "dev-profile-markdownlint --fix {{files}}"
         glob = List("**/*.md", "**/*.markdown")
         exclude =
           List("vim/bundle/**", "agents/learnings/**", "agents/skills.pre-unified-link-*/**")
@@ -1085,7 +1085,7 @@ hooks {
         glob = List("**/*.tf", "**/*.tfvars")
       }
       ["yamllint"] {
-        check = "yamllint --strict {{files}}"
+        check = "dev-profile-yamllint {{files}}"
         glob = List("**/*.yml", "**/*.yaml")
         exclude =
           List(
