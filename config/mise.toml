@@ -181,6 +181,7 @@ recipients = ["age1qpl3tghy0660prmvz3x2dqjsn69m588e0j0v56ec0rswkujgyshs64dhtc"]
 "~/.omp/agent/extensions/superset-hooks.ts" = { mode = "track", encrypt = true }
 "~/.omp/agent/extensions/undo-clear.ts" = { mode = "track", encrypt = true }
 "~/.profile" = { mode = "track", encrypt = true }
+"~/.stylelintrc.json" = { source = "~/Developer/Personal/dev-profile/config/stylelintrc.json" }
 "~/.tmux.conf" = { mode = "track", encrypt = true }
 "~/.vim" = { mode = "track", encrypt = true, exclude = ["bundle/**", "bundle2/**", ".netrwhist"] }
 "~/.vimrc" = { mode = "track", encrypt = true }

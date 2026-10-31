@@ -92,6 +92,10 @@ u: {a: 1,
 
 end: 'single'
 EOF
+cat >"${work}/messy.css" <<'EOF'
+:root{--font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;--zero: 0;}
+.card , .panel{color:#112233;margin: 10px   20px;padding:0;width: calc(100% - 2rem);}
+EOF
 
 # Controls: real content problems that must still fail after formatting.
 cat >"${work}/control.md" <<'EOF'
@@ -102,21 +106,25 @@ no language
 ```
 EOF
 printf 'a: 1\na: 2\n' >"${work}/control.yaml"
+printf '.bad { unknown-prop: 1px; }\n' >"${work}/control.css"
+
+cfg_dir="${out}"
+[[ -f "${cfg_dir}/dprint.jsonc" ]] || cfg_dir="${out}/config"
 
 format() {
 	local file
 	for file in "$@"; do cp "${file}" "${file}.orig"; done
-	dprint fmt --config "${out}/dprint.jsonc" "$@" >"${work}/output.txt" 2>&1 || fail "dprint could not format the samples"
+	dprint fmt --config "${cfg_dir}/dprint.jsonc" "$@" >"${work}/output.txt" 2>&1 || fail "dprint could not format the samples"
 	for file in "$@"; do
 		if cmp -s "${file}" "${file}.orig"; then fail "dprint left ${file##*/} unchanged, so the sample proves nothing"; fi
 	done
 }
-format "${work}/messy.md" "${work}/messy.yaml"
-dprint fmt --config "${out}/dprint.jsonc" "${work}/control.md" "${work}/control.yaml" >"${work}/output.txt" 2>&1 || fail "dprint could not format the controls"
+format "${work}/messy.md" "${work}/messy.yaml" "${work}/messy.css"
+dprint fmt --config "${cfg_dir}/dprint.jsonc" "${work}/control.md" "${work}/control.yaml" "${work}/control.css" >"${work}/output.txt" 2>&1 || fail "dprint could not format the controls"
 
-lint_markdown() { markdownlint --config "${out}/markdownlintrc.json" "$@" >"${work}/output.txt" 2>&1; }
-lint_yaml() { yamllint --strict --config-file "${out}/yamllint.yaml" --format parsable "$@" >"${work}/output.txt" 2>&1; }
-
+lint_markdown() { markdownlint --config "${cfg_dir}/markdownlintrc.json" "$@" >"${work}/output.txt" 2>&1; }
+lint_yaml() { yamllint --strict --config-file "${cfg_dir}/yamllint.yaml" --format parsable "$@" >"${work}/output.txt" 2>&1; }
+lint_css() { stylelint --config "${cfg_dir}/stylelintrc.json" "$@" >"${work}/output.txt" 2>&1; }
 disagreements=0
 lint_markdown "${work}/messy.md" || {
 	echo "markdownlint rejects dprint-formatted markdown:" >&2
@@ -128,6 +136,11 @@ lint_yaml "${work}/messy.yaml" || {
 	sed 's/^/  | /' "${work}/output.txt" >&2
 	disagreements=1
 }
+lint_css "${work}/messy.css" || {
+	echo "stylelint rejects dprint-formatted CSS:" >&2
+	sed 's/^/  | /' "${work}/output.txt" >&2
+	disagreements=1
+}
 rm -f "${work}/output.txt"
 [[ "${disagreements}" -eq 0 ]] || fail "the formatter and a linter disagree"
 
@@ -135,5 +148,7 @@ if lint_markdown "${work}/control.md"; then fail "markdownlint must still flag a
 grep -Fq "MD040" "${work}/output.txt" || fail "the markdown control must fail on MD040"
 if lint_yaml "${work}/control.yaml"; then fail "yamllint must still flag a duplicate key"; fi
 grep -Fq "key-duplicates" "${work}/output.txt" || fail "the YAML control must fail on key-duplicates"
+if lint_css "${work}/control.css"; then fail "stylelint must still flag an unknown property"; fi
+grep -Fq "property-no-unknown" "${work}/output.txt" || fail "the CSS control must fail on property-no-unknown"
 
 echo "formatter-linter-agreement fixture ok"
