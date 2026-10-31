@@ -7,6 +7,7 @@ import {
 	isCalmHiddenWarning,
 	parseCalm,
 	parseThinking,
+	splitLeakedThoughtText,
 	thinkingStatus,
 } from "./display";
 
@@ -66,5 +67,90 @@ describe("thinking presentation", () => {
 		expect(isCalmHiddenWarning("  Fallback: a -> b")).toBe(true);
 		expect(isCalmHiddenWarning("No todos to copy.")).toBe(false);
 		expect(isCalmHiddenWarning("Could not restore model openai/gpt-5")).toBe(false);
+	});
+
+	it("converts a pre-tool-call thought\\n or 🫧thought\\n text block into a thinking block when thinking is visible and drops it when hidden", () => {
+		const rawLeaked = {
+			type: "text",
+			text: "thought\nLook at the user's question:\n\"We should also make sure that our vps gets the latest atasks and agent-hooks\"\nLet's check how atask and agent-hooks are built.",
+		};
+		const toolCall = { type: "toolCall", id: "call_1", name: "read" };
+		const message = { content: [rawLeaked, toolCall] };
+
+		const visible = displayMessage(message, { hideThinking: false, hideNotes: false });
+		expect(visible.content).toEqual([
+			{
+				type: "thinking",
+				thinking:
+					"Look at the user's question:\n\"We should also make sure that our vps gets the latest atasks and agent-hooks\"\nLet's check how atask and agent-hooks are built.",
+			},
+			toolCall,
+		]);
+		expect(message.content).toEqual([rawLeaked, toolCall]);
+
+		const hidden = displayMessage(message, { hideThinking: true, hideNotes: false });
+		expect(hidden.content).toEqual([toolCall]);
+	});
+
+	it("splits 🫧thought\\n text blocks with an inline answer seam into thinking + answer and preserves the 🫧 reaction prefix", () => {
+		const leakedWithAnswer = {
+			type: "text",
+			text: [
+				"🫧thought",
+				"Let's check `os.hostname()` and `process.cwd()` in JS `eval` right now!",
+				"Let's read `~/.config/omp/thinking` directory and files right now!Reading `~/.config/omp/thinking` to see how thinking blocks are parsed/rendered.",
+			].join("\n"),
+		};
+		const toolCall = { type: "toolCall", id: "call_2", name: "read" };
+		const message = { content: [leakedWithAnswer, toolCall] };
+
+		const visible = displayMessage(message, { hideThinking: false, hideNotes: false });
+		expect(visible.content).toEqual([
+			{
+				type: "thinking",
+				thinking: [
+					"Let's check `os.hostname()` and `process.cwd()` in JS `eval` right now!",
+					"Let's read `~/.config/omp/thinking` directory and files right now!",
+				].join("\n"),
+			},
+			{
+				type: "text",
+				text: "🫧\nReading `~/.config/omp/thinking` to see how thinking blocks are parsed/rendered.",
+			},
+			toolCall,
+		]);
+
+		const hidden = displayMessage(message, { hideThinking: true, hideNotes: false });
+		expect(hidden.content).toEqual([
+			{
+				type: "text",
+				text: "🫧\nReading `~/.config/omp/thinking` to see how thinking blocks are parsed/rendered.",
+			},
+			toolCall,
+		]);
+
+		const hiddenAndCalm = displayMessage(message, { hideThinking: true, hideNotes: true });
+		expect(hiddenAndCalm.content).toEqual([toolCall]);
+	});
+
+	it("splits final-answer thought\\n text blocks on the trailing answer paragraph when no inline seam exists", () => {
+		const leakedReply = {
+			type: "text",
+			text: [
+				"thought",
+				"Look at the user's question about Neon session sync.",
+				"Wait: why did `omp --resume` fail earlier? Because the binary was rebuilt.",
+				"",
+				"We don't need a sync shim once `SESSIONS_DB_URL` is exported on both hosts.",
+			].join("\n"),
+		};
+		expect(splitLeakedThoughtText(leakedReply.text)).toEqual({
+			reactionPrefix: "",
+			thinking: [
+				"Look at the user's question about Neon session sync.",
+				"Wait: why did `omp --resume` fail earlier? Because the binary was rebuilt.",
+			].join("\n"),
+			answer: "We don't need a sync shim once `SESSIONS_DB_URL` is exported on both hosts.",
+		});
 	});
 });

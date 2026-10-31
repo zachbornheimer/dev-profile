@@ -4,6 +4,7 @@ export const CALM_PRESERVE_MIN_CHARS = 240;
 export interface DisplayBlock {
 	type: string;
 	text?: string;
+	thinking?: string;
 	/** Native renders narration as answer text, even when reasoning is hidden. */
 	narration?: boolean;
 }
@@ -18,6 +19,93 @@ export interface Presentation {
 	calm: boolean;
 	/** `/thinking on` while calm is on. Calm on clears it. */
 	showThinkingDespiteCalm: boolean;
+}
+
+/**
+ * Gemini 4 Argon sometimes streams its reasoning inside a `"text"` block
+ * prefixed by `thought\n` or `🫧thought\n` instead of a `"thinking"` part.
+ */
+const LEAKED_THOUGHT_HEADER_RE = /^\s*(?:🫧\s*)?thought\r?\n/;
+
+export interface SplitLeakedThought {
+	/** Leading reaction emoji (`🫧`) when present before `thought\n`. */
+	reactionPrefix: string;
+	/** Extracted reasoning body (without the `thought\n` header). */
+	thinking: string;
+	/** Visible answer text following the reasoning, if any. */
+	answer?: string;
+}
+
+/**
+ * Find the zero-space transition where a closing self-talk sentence (`Let's …!`)
+ * runs directly into the visible reply (`Let's run those now!Doing all three…`).
+ * Ignores punctuation inside inline backtick code spans.
+ */
+function findInlineAnswerSeam(body: string): number | undefined {
+	let offset = 0;
+	for (const line of body.split(/(?<=\n)/)) {
+		const letsMatch = /\blet's\b/i.exec(line);
+		if (letsMatch) {
+			let inCode = false;
+			for (let i = 0; i < line.length - 1; i++) {
+				const ch = line[i]!;
+				if (ch === "`") {
+					inCode = !inCode;
+				} else if (
+					!inCode &&
+					i > letsMatch.index &&
+					(ch === "." || ch === "!" || ch === "?") &&
+					/[A-Z`"'*]/.test(line[i + 1]!)
+				) {
+					return offset + i + 1;
+				}
+			}
+		}
+		offset += line.length;
+	}
+	return undefined;
+}
+
+/**
+ * Parse a `text` block that starts with `thought\n` or `🫧thought\n` into its
+ * `thinking` body and optional trailing visible `answer`.
+ */
+export function splitLeakedThoughtText(
+	text: string,
+	options?: { hasFollowingBlocks?: boolean },
+): SplitLeakedThought | undefined {
+	const match = LEAKED_THOUGHT_HEADER_RE.exec(text);
+	if (!match) return undefined;
+	const reactionPrefix = text.slice(0, match.index) + (match[0].includes("🫧") ? "🫧" : "");
+	const body = text.slice(match.index + match[0].length);
+	const seam = findInlineAnswerSeam(body);
+	if (seam !== undefined) {
+		const thinking = body.slice(0, seam).trim();
+		const answer = body.slice(seam).trim();
+		return {
+			reactionPrefix,
+			thinking,
+			...(answer.length > 0 ? { answer } : {}),
+		};
+	}
+	if (!options?.hasFollowingBlocks) {
+		const paragraphs = body.split(/\r?\n\r?\n/);
+		if (paragraphs.length > 1) {
+			const lastParagraph = paragraphs[paragraphs.length - 1]!.trim();
+			const priorThinking = paragraphs.slice(0, -1).join("\n\n").trim();
+			if (priorThinking.length > 0 && lastParagraph.length > 0 && !/^(?:wait\b|let's\b|hold\b)/i.test(lastParagraph)) {
+				return {
+					reactionPrefix,
+					thinking: priorThinking,
+					answer: lastParagraph,
+				};
+			}
+		}
+	}
+	return {
+		reactionPrefix,
+		thinking: body.trim(),
+	};
 }
 
 export function isCalmWorkingNote(text: string): boolean {
@@ -51,24 +139,44 @@ export function displayMessage<M extends DisplayMessage>(
 	message: M,
 	options: { hideThinking: boolean; hideNotes: boolean },
 ): M {
-	if (!options.hideThinking && !options.hideNotes) return message;
 	let changed = false;
-	const content = message.content.filter(block => {
-		if (options.hideThinking && block.type === "thinking" && block.narration !== true) {
-			changed = true;
-			return false;
+	const content: DisplayBlock[] = [];
+	for (let i = 0; i < message.content.length; i++) {
+		const block = message.content[i]!;
+		if (block.type === "thinking") {
+			if (options.hideThinking && block.narration !== true) {
+				changed = true;
+				continue;
+			}
+			content.push(block);
+			continue;
 		}
-		if (
-			options.hideNotes &&
-			block.type === "text" &&
-			block.text !== undefined &&
-			isCalmWorkingNote(block.text)
-		) {
-			changed = true;
-			return false;
+		if (block.type === "text" && block.text !== undefined) {
+			const leaked = splitLeakedThoughtText(block.text, {
+				hasFollowingBlocks: i < message.content.length - 1,
+			});
+			if (leaked) {
+				changed = true;
+				if (!options.hideThinking && leaked.thinking.length > 0) {
+					content.push({ type: "thinking", thinking: leaked.thinking });
+				}
+				if (leaked.answer !== undefined && leaked.answer.length > 0) {
+					if (!(options.hideNotes && isCalmWorkingNote(leaked.answer))) {
+						const prefix = leaked.reactionPrefix ? `${leaked.reactionPrefix}\n` : "";
+						content.push({ ...block, text: `${prefix}${leaked.answer}` });
+					}
+				} else if (leaked.reactionPrefix) {
+					content.push({ ...block, text: leaked.reactionPrefix });
+				}
+				continue;
+			}
+			if (options.hideNotes && isCalmWorkingNote(block.text)) {
+				changed = true;
+				continue;
+			}
 		}
-		return true;
-	});
+		content.push(block);
+	}
 	if (!changed) return message;
 	return { ...message, content };
 }
