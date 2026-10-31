@@ -87,11 +87,23 @@ def workflow_argv(source: str, dispatch: bool) -> list[str]:
     return ["capability", "run", "learn-from-transcript", "--input", json.dumps(payload)]
 
 
-def record(entry: dict) -> None:
+def record(entry: dict, mirror_fleet: bool = False) -> None:
     LEARNINGS_DIR.mkdir(parents=True, exist_ok=True)
+    line = json.dumps(entry) + "\n"
     with LAUNCH_LOG.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(entry) + "\n")
-
+        handle.write(line)
+    if mirror_fleet:
+        try:
+            subprocess.run(
+                ["ssh", "-o", "ConnectTimeout=5", "-o", "BatchMode=yes", FLEET_HOST, "mkdir -p ~/.agents/learnings && cat >> ~/.agents/learnings/launch.log"],
+                input=line,
+                text=True,
+                capture_output=True,
+                timeout=10,
+                check=False,
+            )
+        except OSError:
+            pass
 FLEET_HOST = os.environ.get("LEARN_FLEET_HOST", "backend.ai.lan.zachandaj.com")
 
 
@@ -228,7 +240,8 @@ def main() -> None:
         "LEARNER": "1",
         "AGENTMUX_NESTED_RUN": "1",
     }
-    exec_cmd = fleet_command(source, args.dispatch) or plan["command"]
+    offloaded = fleet_command(source, args.dispatch)
+    exec_cmd = offloaded or plan["command"]
     try:
         run = subprocess.run(
             exec_cmd,
@@ -248,7 +261,10 @@ def main() -> None:
         fail(f"learn-from-transcript printed non-JSON: {run.stdout[:200]!r}")
     if not isinstance(results, list):
         fail(f"learn-from-transcript returned a non-list result: {run.stdout[:200]!r}")
-    record({"at": datetime.now(timezone.utc).isoformat(), "reason": args.reason, **plan, "tickets": results})
+    record(
+        {"at": datetime.now(timezone.utc).isoformat(), "reason": args.reason, "executed_on": FLEET_HOST if offloaded else "local", **plan, "tickets": results},
+        mirror_fleet=offloaded is not None,
+    )
     print(run.stdout, end="")
 
 
