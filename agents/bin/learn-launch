@@ -239,6 +239,7 @@ def main() -> None:
         "PATH": f"{extra_path}:{current_path}",
         "LEARNER": "1",
         "AGENTMUX_NESTED_RUN": "1",
+        "OMP_REMOTE": os.environ.get("OMP_REMOTE") or ("0" if os.environ.get("LEARN_ON_FLEET") == "0" else "auto"),
     }
     offloaded = fleet_command(source, args.dispatch)
     exec_cmd = offloaded or plan["command"]
