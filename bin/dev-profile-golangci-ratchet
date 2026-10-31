@@ -6,6 +6,27 @@ set -euo pipefail
 # Push gate: fail only on issues the branch adds relative to the upstream default
 # branch, so old debt in untouched files never blocks a push. Without a base ref
 # (no remote, fresh clone) fall back to the full tree. `mise run lint` runs the full-tree twin (fullTreeCheck) instead.
+if [[ -f go.mod && -z "${GOWORK:-}" ]] && root="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+	root="$(cd "${root}" && pwd -P)"
+	module="$(pwd -P)"
+	dir="${module}"
+	workdir=""
+	while :; do
+		if [[ -f "${dir}/go.work" ]]; then
+			workdir="${dir}"
+			break
+		fi
+		[[ "${dir}" == "${root}" || "${dir}" == / ]] && break
+		dir="$(dirname "${dir}")"
+	done
+	if [[ -n "${workdir}" ]]; then
+		rel="${module#"${workdir}"}"
+		rel="${rel#/}"
+		members="$(cd "${workdir}" && go work edit -json |
+			jq -r '.Use[]?.DiskPath | sub("^\\./"; "") | sub("/$"; "") | if . == "" then "." else . end')"
+		grep -qxF -- "${rel:-.}" <<<"${members}" || export GOWORK=off
+	fi
+fi
 base=""
 for ref in "$(git symbolic-ref -q --short refs/remotes/origin/HEAD || true)" origin/main origin/master; do
 	if [[ -n "${ref}" ]] && git rev-parse -q --verify "${ref}^{commit}" >/dev/null; then

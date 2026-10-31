@@ -5,6 +5,27 @@ set -euo pipefail
 
 # Whole-program linters with no new-issues mode (go vet, cargo clippy): run the command,
 # then fail only on diagnostics located in the pushed files. Usage: CMD ARGS... :: FILES...
+if [[ -f go.mod && -z "${GOWORK:-}" ]] && root="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+	root="$(cd "${root}" && pwd -P)"
+	module="$(pwd -P)"
+	dir="${module}"
+	workdir=""
+	while :; do
+		if [[ -f "${dir}/go.work" ]]; then
+			workdir="${dir}"
+			break
+		fi
+		[[ "${dir}" == "${root}" || "${dir}" == / ]] && break
+		dir="$(dirname "${dir}")"
+	done
+	if [[ -n "${workdir}" ]]; then
+		rel="${module#"${workdir}"}"
+		rel="${rel#/}"
+		members="$(cd "${workdir}" && go work edit -json |
+			jq -r '.Use[]?.DiskPath | sub("^\\./"; "") | sub("/$"; "") | if . == "" then "." else . end')"
+		grep -qxF -- "${rel:-.}" <<<"${members}" || export GOWORK=off
+	fi
+fi
 cmd=()
 while (($#)) && [[ "$1" != "::" ]]; do
 	cmd+=("$1")

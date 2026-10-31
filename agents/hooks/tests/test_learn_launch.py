@@ -65,3 +65,22 @@ def test_a_missing_ref_is_refused() -> None:
     run = launch()
     assert run.returncode != 0
     assert run.stderr.strip() != ""
+
+
+def test_failure_releases_the_claimed_cooldown_stamp(tmp_path: Path) -> None:
+    stamp = tmp_path / "omp_session"
+    stamp.write_text("1700000000\n")
+    run = subprocess.run(
+        [str(LAUNCHER), "not-a-valid-ref"],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        env={
+            "PATH": "/usr/bin:/bin:/opt/homebrew/bin",
+            "HOME": str(Path.home()),
+            "LEARN_STAMP_FILE": str(stamp),
+        },
+        check=False,
+    )
+    assert run.returncode == 1
+    assert not stamp.exists()

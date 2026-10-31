@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# Pre-push stdin in, the same lines out with each ref's old tip moved to its
+# push base. A branch that merged or rebased onto a newer default branch would
+# otherwise answer for every file the default branch changed since; it is
+# measured from its new merge base with the default branch instead. Any other
+# push keeps its old tip.
+all_zeros='^0+$'
+default="$(git symbolic-ref -q --short refs/remotes/origin/HEAD || echo origin/main)"
+merge_base() { git merge-base "$1" "${default}" 2>/dev/null || true; }
+advance_base() { # <local_sha> <remote_sha>
+	local local_sha="$1" remote_sha="$2" old_base new_base
+	if [[ ! "${local_sha}" =~ ${all_zeros} && ! "${remote_sha}" =~ ${all_zeros} ]] &&
+		git rev-parse -q --verify "${local_sha}^{commit}" >/dev/null 2>&1 &&
+		git rev-parse -q --verify "${remote_sha}^{commit}" >/dev/null 2>&1; then
+		old_base="$(merge_base "${remote_sha}")"
+		new_base="$(merge_base "${local_sha}")"
+		if [[ -n "${old_base}" && -n "${new_base}" && "${old_base}" != "${new_base}" ]] &&
+			git merge-base --is-ancestor "${old_base}" "${new_base}"; then
+			remote_sha="${new_base}"
+		fi
+	fi
+	echo "${remote_sha}"
+}
+if [[ "${1:-}" == "--pair" ]]; then
+	advance_base "$2" "$3"
+	exit 0
+fi
+while read -r local_ref local_sha remote_ref remote_sha; do
+	remote_sha="$(advance_base "${local_sha}" "${remote_sha}")"
+	echo "${local_ref} ${local_sha} ${remote_ref} ${remote_sha}"
+done

@@ -41,6 +41,10 @@ file needs to change. A new group needs one `{ import = ... }` line in `lazy.lua
 - `core/keymaps.lua`: `<leader>D` asks before trashing the current file. No and
   Esc dismiss the prompt. Yes runs `trash` and leaves the window open; that
   window's statusline says `Successfully trashed` plus the absolute path.
+- `core/undo.lua`: persistent undo in `~/.VIM_UNDO_FILES`. History written
+  before a path became a symlink is copied onto the resolved name when the
+  file still matches, so `u` finds it. A mismatch is parked, not applied
+  (`:UndoArchive`); replaying it would corrupt the buffer.
 - `core/explorer.lua`: when the file explorer appears (launch policy, toggle,
   reveal). Keymaps and specs route here.
 - `coding/conform.lua`: the one formatter policy. `F` calls it.

@@ -113,7 +113,8 @@ steps {
     depends = List("go-imports", "go-fix")
   }
   ["golangci-lint-fix"] {
-    fix = "dev-profile-fix golangci-lint run --fix --new-from-rev=HEAD ./..."
+    fix =
+      "dev-profile-fix golangci-lint run --fix --allow-parallel-runners --new-from-rev=HEAD ./..."
     glob = List("**/*.go")
     dir = "{{workspace}}"
     workspace_indicator = "go.mod"
@@ -267,7 +268,7 @@ steps {
   }
   ["golangci-lint"] {
     check = "dev-profile-golangci-ratchet"
-    fix = "golangci-lint run --fix ./..."
+    fix = "golangci-lint run --fix --allow-parallel-runners ./..."
     glob = List("**/*.go")
     profiles = List("slow", "!lint")
     dir = "{{workspace}}"
@@ -436,8 +437,7 @@ steps {
     profiles = List("slow")
   }
   ["gitleaks"] {
-    check =
-      "gitleaks git --config .gitleaks.toml --redact --no-banner --log-opts=\"HEAD --not --remotes\""
+    check = "gitleaks git --redact --no-banner --log-opts=\"HEAD --not --remotes\""
     profiles = List("slow")
   }
   ["hardcoded-dev-port"] {
@@ -732,7 +732,7 @@ hooks {
       }
       ["golangci-lint"] {
         check = "dev-profile-golangci-ratchet"
-        fix = "golangci-lint run --fix ./..."
+        fix = "golangci-lint run --fix --allow-parallel-runners ./..."
         glob = List("**/*.go")
         dir = "{{workspace}}"
         workspace_indicator = "go.mod"
@@ -882,8 +882,7 @@ hooks {
         glob = List("**/.gitmodules")
       }
       ["gitleaks"] {
-        check =
-          "gitleaks git --config .gitleaks.toml --redact --no-banner --log-opts=\"HEAD --not --remotes\""
+        check = "gitleaks git --redact --no-banner --log-opts=\"HEAD --not --remotes\""
       }
       ["hardcoded-dev-port"] {
         check = "dev-profile-hardcoded-dev-port {{files}}"

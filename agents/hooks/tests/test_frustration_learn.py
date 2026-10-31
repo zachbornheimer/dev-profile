@@ -279,3 +279,53 @@ def test_a_judged_verdict_never_launches_in_a_learner_session(
     assert run.exit_code == 0 and run.log == ""
     time.sleep(0.3)
     assert not record.exists()
+
+
+def test_omp_host_without_transcript_never_falls_back_to_claude_session(
+    hooks: HookRunner, tmp_path: Path, launcher
+) -> None:
+    script, record = launcher
+    env = env_for(script, AGENT_HOOKS_AGENT="claude", AGENT_HOOKS_HOST="omp")
+    payload = {"prompt": ANGRY, "session_id": SESSION_UUID}
+    run = hooks.session(HOOK, env).run_payload(HOOK, payload)
+    assert run.exit_code == 0 and "unnamed-session" in run.log
+    time.sleep(0.3)
+    assert not record.exists()
+
+
+def test_missing_transcript_file_launches_nothing(
+    hooks: HookRunner, tmp_path: Path, launcher
+) -> None:
+    script, record = launcher
+    missing = tmp_path / f"2026-10-23T00-54-51-449Z_{SESSION_UUID}.jsonl"
+    payload = {"prompt": ANGRY, "transcript_path": str(missing)}
+    run = hooks.session(HOOK, env_for(script)).run_payload(HOOK, payload)
+    assert run.exit_code == 0 and "unnamed-session" in run.log
+    time.sleep(0.3)
+    assert not record.exists()
+
+
+def test_launch_exports_learner_and_stamp_env(
+    hooks: HookRunner, tmp_path: Path
+) -> None:
+    record = tmp_path / "env.json"
+    script = tmp_path / "fake-launch"
+    script.write_text(
+        "#!/usr/bin/env python3\n"
+        "import json, os, pathlib\n"
+        f"pathlib.Path({str(record)!r}).write_text(json.dumps({{\n"
+        "  'LEARNER': os.environ.get('LEARNER'),\n"
+        "  'AGENTMUX_NESTED_RUN': os.environ.get('AGENTMUX_NESTED_RUN'),\n"
+        "  'LEARN_STAMP_FILE': os.environ.get('LEARN_STAMP_FILE'),\n"
+        "}))\n"
+    )
+    script.chmod(0o755)
+    payload = {"prompt": ANGRY, "transcript_path": str(omp_session(tmp_path))}
+    hooks.session(HOOK, env_for(script)).run_payload(HOOK, payload)
+    deadline = time.monotonic() + 3
+    while time.monotonic() < deadline and not record.exists():
+        time.sleep(0.05)
+    captured = json.loads(record.read_text())
+    assert captured["LEARNER"] == "1"
+    assert captured["AGENTMUX_NESTED_RUN"] == "1"
+    assert captured["LEARN_STAMP_FILE"] and Path(captured["LEARN_STAMP_FILE"]).is_file()

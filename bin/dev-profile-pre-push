@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+refs="$(mktemp)"
+trap 'rm -f "${refs}"' EXIT
+cat >"${refs}"
+export DEV_PROFILE_PUSH_REFS="${refs}"
+hk run pre-push "$@" < <(dev-profile-push-base <"${refs}")

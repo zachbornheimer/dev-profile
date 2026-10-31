@@ -339,6 +339,21 @@ def _execution_text(request: ScopeRequest) -> str:
     return value if isinstance(value, str) else ""
 
 
+def _transcript_disposed_on_disk(path: str) -> bool:
+    """True when the on-disk JSONL ends at an earlier run's session_exit (e.g. resumed on SQL)."""
+    if not path:
+        return False
+    try:
+        with Path(path).open("rb") as handle:
+            handle.seek(0, os.SEEK_END)
+            size = handle.tell()
+            handle.seek(max(0, size - 2048), os.SEEK_SET)
+            lines = handle.read().decode("utf-8", errors="ignore").strip().splitlines()
+            return bool(lines and '"customType":"session_exit"' in lines[-1])
+    except OSError:
+        return False
+
+
 def _prompts(facts: Any) -> tuple[str, ...]:
     if facts is None:
         return ()
@@ -501,6 +516,7 @@ def _observe(
     facts = (
         read_transcript_facts(request.transcript_path, TASK_ATTRIBUTIONS)
         if request.transcript_path
+        and not _transcript_disposed_on_disk(request.transcript_path)
         else None
     )
     task = _task_of(facts)

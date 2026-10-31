@@ -102,6 +102,8 @@ def read_transcript_facts(
         start = max(0, size - TRANSCRIPT_TAIL_BYTES)
         handle.seek(start)
         lines = handle.read().decode("utf-8", errors="replace").splitlines()
+        if lines and '"customType":"session_exit"' in lines[-1]:
+            return None
         return _fold(decode(lines[1:] if start else lines))
     return None
 

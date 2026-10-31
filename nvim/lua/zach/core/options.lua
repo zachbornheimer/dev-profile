@@ -43,22 +43,4 @@ opt.backspace = "indent,eol,start" -- allow backspace on indent, end of line or 
 opt.splitright = true -- split vertical window to the right
 opt.splitbelow = true -- split horizontal window to the bottom
 
--- undo
-
--- Check if the undo directory exists; if not, create it
-local undo_dir = vim.fn.expand("$HOME") .. "/.VIM_UNDO_FILES"
-if vim.fn.isdirectory(undo_dir) == 0 then
-  vim.fn.mkdir(undo_dir, "p")
-end
-
--- Enable persistent undo if it's supported
-if vim.fn.has("persistent_undo") == 1 then
-  -- Save all undo files in a specific location
-  vim.opt.undodir = undo_dir
-
-  -- Retain up to 10,000 changes across saves and editor restarts.
-  vim.opt.undolevels = 10000
-
-  -- Actually switch on persistent undo
-  vim.opt.undofile = true
-end
+-- undo: zach.core.undo (path changes and edits made outside nvim)

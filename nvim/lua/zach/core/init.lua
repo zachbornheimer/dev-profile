@@ -1,4 +1,5 @@
 require("zach.core.options")
+require("zach.core.undo").setup()
 require("zach.core.filetype")
 require("zach.core.quit")
 require("zach.core.keymaps")

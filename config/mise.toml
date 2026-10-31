@@ -1,4 +1,5 @@
 [tools]
+chezmoi = "2.73.3"
 colima = "latest"
 gofumpt = "latest"
 

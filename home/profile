@@ -28,6 +28,7 @@ path_prepend_unique() {
   unset _ppu_rest _ppu_ifs _ppu_dir
 }
 
+[ -d "$HOME/.local/share/mise/shims" ] && path_prepend_unique "$HOME/.local/share/mise/shims"
 [ -d "$HOME/.agents/bin" ] && path_prepend_unique "$HOME/.agents/bin"
 [ -d "$HOME/.local/bin" ] && path_prepend_unique "$HOME/.local/bin"
 unset -f path_prepend_unique

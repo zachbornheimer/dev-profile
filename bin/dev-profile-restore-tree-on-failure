@@ -39,6 +39,26 @@ restore() {
 	mv -f "${index_file}.restore" "${index_file}" || return 1
 }
 
+base_ref=""
+if git rev-parse -q --verify "MERGE_HEAD^{commit}" >/dev/null 2>&1; then
+	base_ref="MERGE_HEAD"
+elif git rev-parse -q --verify "origin/main^{commit}" >/dev/null 2>&1; then
+	base_ref="origin/main"
+fi
+if [[ -n "${base_ref}" && "${1:-}" == "hk" && "${2:-}" == "run" && "${3:-}" == "pre-commit" && "${4:-}" == "--staged" ]]; then
+	git diff --cached --name-only --diff-filter=ACMR HEAD | sort >"${scratch}/staged.all"
+	git diff --cached --name-only --diff-filter=ACMR "${base_ref}" | sort >"${scratch}/base.diff"
+	comm -12 "${scratch}/staged.all" "${scratch}/base.diff" >"${scratch}/staged.keep.lines"
+	if ! cmp -s "${scratch}/staged.all" "${scratch}/staged.keep.lines"; then
+		if [[ ! -s "${scratch}/staged.keep.lines" ]]; then
+			exit 0
+		fi
+		tr '\n' '\0' <"${scratch}/staged.keep.lines" >"${scratch}/staged.keep"
+		shift 4
+		set -- hk run pre-commit --stage --stash=none --files0-from "${scratch}/staged.keep" "$@"
+	fi
+fi
+
 status=0
 "$@" || status=$?
 if ((status != 0)); then

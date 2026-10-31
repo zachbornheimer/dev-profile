@@ -1,13 +1,13 @@
 [tools]
 pkl = "0.32.1"
-hk = "2.5.0"
-dprint = "0.64.3"
-worktrunk = "0.80.0"
-go = "1.27"
-node = "24"
+hk = "latest"
+dprint = "latest"
+worktrunk = "latest"
+go = "latest"
+bun = "latest"
 stylua = "2.5.2"
-aube = "2.7.0"
-uv = "0.12.24"
+aube = "latest"
+uv = "latest"
 "github:rohansx/workz" = "0.11.0"
 tflint = "0.64.0"
 buf = "1.73.0"
@@ -38,11 +38,13 @@ shellcheck = "0.11.0"
 opentofu = "1.13"
 "pypi:yamllint" = "1.38.0"
 "pypi:semgrep" = "1.182.1"
+"github:0sec-labs/foxguard" = "latest"
 
 [settings]
 experimental = true
 auto_install = true
 activate_aggressive = true
+tool_update.global_auto = "12h"
 not_found_auto_install = true
 not_found_auto_install_registry = true
 idiomatic_version_file_ignore_minimum_versions = true

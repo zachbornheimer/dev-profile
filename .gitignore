@@ -63,6 +63,8 @@ __pycache__/
 *.pyc
 .DS_Store
 agents/hooks/state/
+agents/learnings/launch.log
+agents/learnings/handoffs/*.prompt.md
 apps/opencode/service.json
 home/ssh/known_hosts
 home/ssh/config

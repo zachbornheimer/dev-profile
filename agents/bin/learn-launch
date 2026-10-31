@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -54,10 +55,31 @@ def source_of(word: str) -> str | None:
     return None
 
 
+def release_stamp() -> None:
+    """Drop the cooldown stamp a failed hook-launched run claimed, so the session can retry."""
+    stamp = os.environ.get("LEARN_STAMP_FILE", "").strip()
+    if not stamp:
+        return
+    try:
+        Path(stamp).unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
+def error_excerpt(output: str, limit: int = 800) -> str:
+    """Keep the tail of stderr where the fatal exception sits, plus the head when clipped."""
+    text = output.strip()
+    if len(text) <= limit:
+        return text
+    head = limit // 4
+    tail = limit - head - 5
+    return f"{text[:head]}\n...\n{text[-tail:]}"
+
+
 def fail(message: str) -> None:
+    release_stamp()
     print(f"learn-launch: {message}", file=sys.stderr)
     raise SystemExit(1)
-
 
 def workflow_argv(source: str, dispatch: bool) -> list[str]:
     payload = {"source": source, "dispatch": dispatch}
@@ -90,10 +112,27 @@ def main() -> None:
         print(json.dumps(plan))
         return
 
-    run = subprocess.run(plan["command"], capture_output=True, text=True, timeout=RUN_TIMEOUT_SECS)
+    extra_path = f"{Path.home() / '.local/share/aube/bin'}:{Path.home() / '.local/share/mise/shims'}:{Path.home() / '.bun/bin'}"
+    current_path = os.environ.get("PATH", "/usr/bin:/bin")
+    child_env = {
+        **os.environ,
+        "PATH": f"{extra_path}:{current_path}",
+        "LEARNER": "1",
+        "AGENTMUX_NESTED_RUN": "1",
+    }
+    try:
+        run = subprocess.run(
+            plan["command"],
+            capture_output=True,
+            text=True,
+            timeout=RUN_TIMEOUT_SECS,
+            env=child_env,
+        )
+    except OSError as exc:
+        fail(f"could not start capability CLI: {exc}")
     if run.returncode != 0:
-        detail = (run.stderr or run.stdout or "").strip()
-        fail(f"learn-from-transcript failed ({run.returncode}): {detail[:400]}")
+        detail = error_excerpt(run.stderr or run.stdout or "")
+        fail(f"learn-from-transcript failed ({run.returncode}): {detail}")
     try:
         results = json.loads(run.stdout)
     except ValueError:
