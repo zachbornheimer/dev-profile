@@ -42,7 +42,9 @@ def _run_command(argv: list[str], cwd: str | None = None) -> ProcessResult:
         timeout=LINT_TIMEOUT_SECS,
         check=False,
     )
-    return ProcessResult(stdout=result.stdout + result.stderr, returncode=result.returncode)
+    return ProcessResult(
+        stdout=result.stdout + result.stderr, returncode=result.returncode
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,12 +71,14 @@ def lint_go(runner: LinterRunner, file_path: str, directory: str) -> tuple[str, 
         return "", "LINT SKIPPED: not inside a Go module.\n"
     basename = file_path.rsplit("/", 1)[-1]
     result = runner.run(
-        ["golangci-lint", "run", f"--timeout={GOLANGCI_LINT_TIMEOUT}", basename], cwd=directory
+        ["golangci-lint", "run", f"--timeout={GOLANGCI_LINT_TIMEOUT}", basename],
+        cwd=directory,
     )
     filtered = "\n".join(
         line
         for line in result.stdout.split("\n")
-        if not line.startswith("[runner/") and not line.startswith('level=warning msg="[runner/')
+        if not line.startswith("[runner/")
+        and not line.startswith('level=warning msg="[runner/')
     )
     return filtered, ""
 
@@ -97,7 +101,9 @@ def lint_swiftlint(runner: LinterRunner, file_path: str) -> tuple[str, str]:
     return runner.run(["swiftlint", "lint", "--path", file_path, "--quiet"]).stdout, ""
 
 
-def lint_perlcritic(runner: LinterRunner, file_path: str, extension: str) -> tuple[str, str]:
+def lint_perlcritic(
+    runner: LinterRunner, file_path: str, extension: str
+) -> tuple[str, str]:
     if not runner.is_available("perlcritic"):
         return "", _skip_message(extension, "perlcritic")
     return runner.run(["perlcritic", "--severity", "3", file_path]).stdout, ""
@@ -109,18 +115,24 @@ def lint_rubocop(runner: LinterRunner, file_path: str) -> tuple[str, str]:
     return runner.run(["rubocop", "--format", "simple", file_path]).stdout, ""
 
 
-def lint_stylelint(runner: LinterRunner, file_path: str, extension: str) -> tuple[str, str]:
+def lint_stylelint(
+    runner: LinterRunner, file_path: str, extension: str
+) -> tuple[str, str]:
     if runner.is_available("stylelint"):
-        return runner.run(["stylelint", file_path]).stdout, ""
+        res = runner.run(["stylelint", file_path])
+        return ("" if res.returncode == 78 else res.stdout), ""
     if runner.is_available("npx"):
-        return runner.run(["npx", "stylelint", file_path]).stdout, ""
+        res = runner.run(["npx", "stylelint", file_path])
+        return ("" if res.returncode == 78 else res.stdout), ""
     return "", _skip_message(extension, "stylelint")
 
 
 def lint_sqlfluff(runner: LinterRunner, file_path: str) -> tuple[str, str]:
     if not runner.is_available("sqlfluff"):
         return "", _skip_message("sql", "sqlfluff")
-    return runner.run(["sqlfluff", "lint", "--dialect", "postgres", file_path]).stdout, ""
+    return runner.run(
+        ["sqlfluff", "lint", "--dialect", "postgres", file_path]
+    ).stdout, ""
 
 
 def lint_tflint(runner: LinterRunner, file_path: str) -> tuple[str, str]:
@@ -137,13 +149,18 @@ def lint_phpstan_or_phpcs(runner: LinterRunner, file_path: str) -> tuple[str, st
     return "", _skip_message("php", "phpstan/phpcs")
 
 
-def lint_eslint(runner: LinterRunner, file_path: str, repo_root: str | None) -> tuple[str, str]:
+def lint_eslint(
+    runner: LinterRunner, file_path: str, repo_root: str | None
+) -> tuple[str, str]:
     if repo_root and runner.which(f"{repo_root}/node_modules/.bin/eslint"):
         return runner.run(
-            ["npx", "eslint", "--no-error-on-unmatched-pattern", file_path], cwd=repo_root
+            ["npx", "eslint", "--no-error-on-unmatched-pattern", file_path],
+            cwd=repo_root,
         ).stdout, ""
     if runner.is_available("eslint"):
-        return runner.run(["eslint", "--no-error-on-unmatched-pattern", file_path]).stdout, ""
+        return runner.run(
+            ["eslint", "--no-error-on-unmatched-pattern", file_path]
+        ).stdout, ""
     return "", _skip_message("js", "eslint")
 
 

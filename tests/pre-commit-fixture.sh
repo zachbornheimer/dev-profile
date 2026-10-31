@@ -32,7 +32,7 @@ ln -s "${repo}/hk/hk.pkl" "${scratch}/hk-config/config.pkl"
 # place of the installed one and the judged steps appended.
 command="$("${git_bin}" config --file "${repo}/home/gitconfig" --get hook.hk-pre-commit.command)"
 [[ "${command}" == *'${HOME}/.local/share/dev-profile/bin'* ]] || fail "home/gitconfig's hk-pre-commit command no longer names the profile bin directory"
-command="${command//'${HOME}/.local/share/dev-profile/bin'/${repo}/bin} -S newlines -S trailing-whitespace -S dprint"
+command="${command//'${HOME}/.local/share/dev-profile/bin'/${repo}/bin} -S newlines -S trailing-whitespace -S dprint -S stylelint -S no-commit-to-branch"
 cat >"${scratch}/gitconfig" <<EOF
 [user]
 	name = fixture
@@ -52,6 +52,7 @@ git() { "${git_bin}" -C "${work}" "$@"; }
 cp "${repo}/config/dprint.jsonc" "${work}/dprint.jsonc"
 printf 'dprint.jsonc\n' >"${work}/.gitignore"
 mkdir "${work}/src"
+git remote add origin https://example.invalid/repo.git
 
 commit() { # <message> [git commit args]: the real git commit, hooks on
 	local message="$1"
@@ -59,11 +60,20 @@ commit() { # <message> [git commit args]: the real git commit, hooks on
 	git commit -q -m "${message}" "$@" >"${scratch}/commit.txt" 2>&1
 }
 
-# 1. Nothing staged: the hook has no files and must pass.
-commit "chore: empty" --allow-empty || fail "a commit holding no files must pass the hook"
+# 1. Initial commit on unborn main with an origin configured: no-commit-to-branch must allow it,
+# and a commit holding no files must pass.
+commit "chore: empty" --allow-empty || fail "initial commit on unborn main with origin must pass the hook"
 ! grep -q 'required arguments were not provided' "${scratch}/commit.txt" ||
 	fail "an empty file list reached an hk util step"
 
+# 1b. Subsequent direct commit on main with an origin configured must be blocked with a helpful message,
+# then switch to a feature branch for the remaining cases.
+if commit "chore: second on main" --allow-empty; then
+	fail "a second direct commit on main with origin must be blocked by no-commit-to-branch"
+fi
+grep -qF "wt commit-unstaged" "${scratch}/commit.txt" ||
+	fail "no-commit-to-branch error must mention 'wt commit-unstaged'"
+git switch -q -c feat/test
 # 2. A tab-indented TypeScript file commits unchanged; JSON is still formatted.
 printf 'export function f(x: number) {\n\tif (x) {\n\t\treturn x;\n\t}\n\treturn 0;\n}\n' >"${work}/src/a.ts"
 printf '{"a":   1}\n' >"${work}/data.json"
@@ -76,8 +86,9 @@ commit "feat: add files" || fail "a clean tab-indented TypeScript file must comm
 # 3. A failing chain: a.ts holds a staged trailing-space edit plus a further unstaged edit, and
 # bad.json is not JSON, so the dprint step fails after the whitespace fixer has rewritten a.ts.
 printf 'export function f(x: number) {   \n\tif (x) {\n\t\treturn x;\n\t}\n\treturn 0;\n}\n' >"${work}/src/a.ts"
+printf ':root {\n  --x: 1;\n}\n' >"${work}/src/a.css"
 printf '{"a": ' >"${work}/bad.json"
-git add src/a.ts bad.json
+git add src/a.ts src/a.css bad.json
 printf 'export const unstaged = 1;\n' >>"${work}/src/a.ts"
 
 tree_state() {
@@ -88,7 +99,7 @@ tree_state() {
 		echo --index
 		git ls-files -s
 		echo --files
-		shasum "${work}/src/a.ts" "${work}/bad.json"
+		shasum "${work}/src/a.ts" "${work}/src/a.css" "${work}/bad.json"
 		git status --porcelain
 	} | shasum
 }
@@ -97,6 +108,8 @@ state_before="$(tree_state)"
 if commit "feat: must not land"; then fail "the dprint step must fail on bad.json, or this case proves nothing"; fi
 grep -Eq 'trailing-whitespace – [0-9]+ files? modified' "${scratch}/commit.txt" ||
 	fail "the whitespace fixer must have edited the staged files, or this case proves nothing"
+! grep -qF 'ConfigurationError' "${scratch}/commit.txt" ||
+	fail "stylelint without a repo config must not dump ConfigurationError to stderr when another step fails"
 [[ "$(git rev-parse HEAD)" == "${head_before}" ]] || fail "a failed hook still made a commit"
 [[ "$(tree_state)" == "${state_before}" ]] || fail "a failed commit changed the work tree or the index"
 
