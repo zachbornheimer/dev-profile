@@ -190,6 +190,36 @@ def load_question(path: Path = QUESTION_FILE) -> dict[str, Any]:
     return load_questions(path)["OffTopic"]
 
 
+DIRECTIVES_FILE = Path(__file__).resolve().parents[1] / "scope-guard-directives.yaml"
+DIRECTIVES_ENV = "HC_SCOPE_DIRECTIVES_FILE"
+DIRECTIVE_CHARS = 400
+
+
+def _applicable_directives(env: Mapping[str, str] | None = None) -> list[str]:
+    """Standing directives the judge sees, from one YAML file the harness owns.
+
+    ``applicable_directives`` was hardcoded empty: the guard had no source for
+    the harness's standing rules, so the judge never saw them (the 2026-10-30
+    review, chain 3). The file holds one directive per list entry; a missing
+    file keeps the old empty behavior.
+    """
+    path = Path((env or os.environ).get(DIRECTIVES_ENV, DIRECTIVES_FILE))
+    try:
+        loaded = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except OSError:
+        return []
+    if not isinstance(loaded, Mapping):
+        return []
+    directives = loaded.get("directives")
+    if not isinstance(directives, list):
+        return []
+    return [
+        _clip(str(item).strip(), DIRECTIVE_CHARS)
+        for item in directives
+        if str(item).strip()
+    ]
+
+
 def judge_request(
     task: str,
     candidate: str,
@@ -203,7 +233,7 @@ def judge_request(
         "conversation": _redact(task),
         "context": {
             "user_request": _redact(task),
-            "applicable_directives": [],
+            "applicable_directives": _applicable_directives(),
             "recent_context": [_redact(line) for line in context],
             "candidate_event": {"kind": kind, "content": _redact(candidate)},
         },
