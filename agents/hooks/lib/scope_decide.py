@@ -29,7 +29,12 @@ from completion_gate_session_state import RejectLedger
 from completion_gate_transcript import read_transcript_facts
 from completion_gate_transcript_events import command_of
 from hook_common import Clock, Decision, HookEvent, HookSettings, sha256_digest
-from scope_guard_rules import evaluate_stop, evaluate_tool, prohibited_full_ci
+from scope_guard_rules import (
+    evaluate_stop,
+    evaluate_tool,
+    is_read_only_probe,
+    prohibited_full_ci,
+)
 from typesafe_location import TYPESAFE_CLI
 
 HOOK_NAME = "scope-guard"
@@ -543,6 +548,12 @@ def _observe(
     candidate = _candidate(request)
     if not candidate:
         return Observation(request, skip="empty-candidate")
+    # Read-only probes can never mutate state; judging them only burns model
+    # calls and risks denying legitimate `--help`/presence checks.
+    if request.kind == "tool":
+        execution_text = _execution_text(request)
+        if execution_text and is_read_only_probe(execution_text):
+            return Observation(request, candidate=candidate, skip="read-only-probe")
     facts = (
         read_transcript_facts(request.transcript_path, TASK_ATTRIBUTIONS)
         if request.transcript_path

@@ -26,6 +26,31 @@ FULL_CI_POSITIVE = re.compile(
     re.IGNORECASE,
 )
 
+# A read-only probe can never mutate state, so judging it wastes a model call and
+# invites false denials of legitimate help/version/presence checks
+# (`wt switch --help` was denied in omp_01a18dd0).
+READ_ONLY_PROBE = re.compile(
+    r"(?:^|[\s;&|])(?:"
+    r"--help(?![\w-])|-h\b"
+    r"|--version(?![\w-])|-V\b"
+    r"|command\s+-v\b"
+    r"|command\s+-p\b"
+    r"|\bwhich\s"
+    r"|\btype\s+-[tP]\b"
+    r")"
+)
+# Redirection into a file (or tee) can act on the host, even when a --help flag
+# is present: `echo --help > /tmp/f` writes a file.
+HOST_WRITE_REDIRECT = re.compile(r"\s>{1,2}\s*\S|\btee\s")
+
+
+def is_read_only_probe(action: str) -> bool:
+    """True only for a probe that cannot act: matches the probe shape and writes nothing."""
+    if HOST_WRITE_REDIRECT.search(action):
+        return False
+    return bool(READ_ONLY_PROBE.search(action))
+
+
 # For tool calls, require corroboration: a high off-topic score by itself has
 # produced false positives on legitimate git commits. The independent necessity
 # question must also say the action is unnecessary.
