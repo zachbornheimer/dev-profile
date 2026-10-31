@@ -1,210 +1,156 @@
-# prompt.zsh — async, transient, context-aware zsh prompt (hand-rolled, zero-dep).
-#
-# Testability (the reason it's shaped this way): rendering is a PURE function of
-# explicit state (_p_* globals) assembled by `prompt::build`, kept separate from the
-# I/O that gathers that state (git, the clock, language detection). So you can
-# drive every visual variant from simulated state — `p_demo` does exactly that —
-# without constructing the real situation. Async git uses native zsh (`zle -F`
-# on a process-substitution fd); no gitstatus binary, no plugin.
-#
-# Color is reserved for meaning, matching kitty: dim by default, amber = needs
-# attention (dirty / aws), red = failed / conflict.
+# 30-prompt.zsh — Starship prompt renderer with live macOS light/dark switching,
+# transient timestamp prompt, on-demand AWS context, and project preview URLs.
 
 zmodload zsh/datetime 2>/dev/null
 autoload -Uz add-zsh-hook
 
-typeset -gA _p_c=(
-	txt '%F{#c9c9c2}' dim '%F{#6a6a72}' amber '%F{#c2a36b}'
-	red '%F{#b9706e}' green '%F{#87a06f}' blue '%F{#7f9cb8}' rst '%f'
-)
+typeset -gA _p_c=()
+typeset -g _p_aws_seen=${_p_aws_seen:-0}
+typeset -g _p_repo_root=""
+typeset -g _p_theme=""
+typeset -g _p_starship_prompt=""
+typeset -g _p_url_fd=0
 
-typeset -g _p_dur_min=2 # show command duration only past this many seconds
-typeset -g _p_git="" _p_exit=0 _p_start=0 _p_dur=0 _p_git_fd=0
-typeset -g _p_repo_root="" # enclosing git repo (for repo-relative path)
-typeset -g _p_aws_seen=0   # show the AWS segment only once you've run an aws command
-typeset -g _p_fakepath=""  # demo override for the path segment
-
-# ---- pure helpers (no I/O beyond the filesystem path) -----------------------
-
-# Inside a git repo: show "<repo-name>/<subpath>" (the part above the repo root
-# is noise — you live in repos and cd constantly). Elsewhere: the home path with
-# parent components abbreviated to their first letter, so depth shows but it
-# never eats the line.
-prompt::path() {
-	local full="${_p_fakepath:-${PWD/#$HOME/~}}"
-	if [[ -n $_p_repo_root ]]; then
-		local repoH="${_p_repo_root/#$HOME/~}"
-		[[ $full == "$repoH" ]] && {
-			print -r -- "${repoH:t}"
-			return
-		}
-		[[ $full == "$repoH"/* ]] && {
-			print -r -- "${repoH:t}${full#$repoH}"
-			return
-		}
-	fi
-	local -a parts=("${(@s:/:)full}") abbr=()
-	local n=$#parts i s
-	for ((i = 1; i < n; i++)); do
-		s="$parts[i]"
-		if [[ -z $s || $s == "~" ]]; then
-			abbr+=("$s")
-		elif [[ $s == .* ]]; then
-			abbr+=("${s[1,2]}")
-		else abbr+=("${s[1,1]}"); fi
-	done
-	abbr+=("$parts[n]")
-	print -r -- "${(j:/:)abbr}"
-}
-
-prompt::fmt-dur() {
-	local t=$1
-	if ((t < 60)); then
-		printf '%.1fs' $t
-	elif ((t < 3600)); then
-		printf '%dm%02ds' $((t / 60)) $((t % 60))
-	else printf '%dh%02dm' $((t / 3600)) $(((t % 3600) / 60)); fi
-}
-
-# Build the git segment from explicit fields — the unit-testable core.
-prompt::git-segment() { # branch dirty ahead behind stash action
-	local branch=$1 dirty=$2 ahead=$3 behind=$4 stash=$5 action=$6
-	[[ -z $branch ]] && return
-	local col=${_p_c[dim]}
-	[[ -n $dirty ]] && col=${_p_c[amber]}
-	local seg="${col}${branch}${dirty}${_p_c[rst]}"
-	((ahead > 0)) && seg+=" ${_p_c[dim]}↑${ahead}${_p_c[rst]}"
-	((behind > 0)) && seg+=" ${_p_c[dim]}↓${behind}${_p_c[rst]}"
-	((stash > 0)) && seg+=" ${_p_c[dim]}⚑${stash}${_p_c[rst]}"
-	[[ -n $action ]] && seg+=" ${_p_c[red]}${action}${_p_c[rst]}"
-	print -r -- "$seg"
-}
-
-# Assemble PROMPT/RPROMPT from current state. Pure: reads _p_* only, no I/O.
-prompt::build() {
-	local line="${_p_c[txt]}$(prompt::path)${_p_c[rst]}"
-	[[ -n $_p_git ]] && line+="  $_p_git"
-	# AWS profile — shown only once you've actually run an aws command this session
-	# (a global AWS_PROFILE=default shouldn't clutter every prompt). Prod shouts red.
-	if [[ -n $AWS_PROFILE && $_p_aws_seen == 1 ]]; then
-		local awscol=${_p_c[amber]}
-		[[ $AWS_PROFILE == (*prod*|*production*|*prd*) ]] && awscol=${_p_c[red]}
-		line+="  ${awscol}aws:${AWS_PROFILE}${_p_c[rst]}"
-	fi
-	local guard=""
-	[[ -n $SSH_CONNECTION ]] && guard="${_p_c[dim]}%n@%m${_p_c[rst]} "
-	((EUID == 0)) && guard="${_p_c[red]}%n@%m${_p_c[rst]} "
-	local mark="${_p_c[dim]}❯${_p_c[rst]}"
-	((_p_exit != 0)) && mark="${_p_c[red]}❯${_p_c[rst]}"
-	PROMPT="${guard}${line}"$'\n'"${mark} "
-	if ((_p_dur >= _p_dur_min)); then
-		RPROMPT="${_p_c[dim]}$(prompt::fmt-dur $_p_dur)${_p_c[rst]}"
+_p_apply_theme() {
+	local mode=${1:-light}
+	_p_theme=$mode
+	if [[ $mode == dark ]]; then
+		export STARSHIP_CONFIG="$HOME/.config/starship-dark.toml"
+		_p_c=(
+			txt '%F{#e0def4}'
+			dim '%F{#aaa4ba}'
+			amber '%F{#f6c177}'
+			red '%F{#f28ca5}'
+			green '%F{#a1d1ac}'
+			blue '%F{#9ccfd8}'
+			cyan '%F{#a3dbe5}'
+			magenta '%F{#c4a7e7}'
+			rst '%f'
+		)
 	else
-		RPROMPT=""
+		export STARSHIP_CONFIG="$HOME/.config/starship.toml"
+		_p_c=(
+			txt '%F{#303436}'
+			dim '%F{#59646a}'
+			amber '%F{#86540e}'
+			red '%F{#a22d37}'
+			green '%F{#33683b}'
+			blue '%F{#285a83}'
+			cyan '%F{#24636b}'
+			magenta '%F{#7a5080}'
+			rst '%f'
+		)
 	fi
 }
 
-# ---- gathering (I/O; kept off the render path) ------------------------------
-
-# Compact git state on one line: branch|dirty|ahead|behind|stash|action.
-# Runs in a background subshell, so the porcelain/status cost never blocks.
-_p_git_compute() {
-	command git rev-parse --is-inside-work-tree &>/dev/null || return
-	local branch ahead=0 behind=0 stash=0 action="" dirty="" gd counts
-	branch=$(command git symbolic-ref --short -q HEAD 2>/dev/null) ||
-		branch=$(command git rev-parse --short HEAD 2>/dev/null)
-	[[ -n $(command git status --porcelain --ignore-submodules 2>/dev/null) ]] && dirty="*"
-	counts=$(command git rev-list --left-right --count @{upstream}...HEAD 2>/dev/null) &&
-		{
-			behind=${counts%%[[:space:]]*}
-			ahead=${counts##*[[:space:]]}
-		}
-	stash=$(command git rev-list --walk-reflogs --count refs/stash 2>/dev/null) || stash=0
-	gd=$(command git rev-parse --git-dir 2>/dev/null)
-	if [[ -d $gd/rebase-merge ]]; then
-		action="rebase ${$(<$gd/rebase-merge/msgnum):-?}/${$(<$gd/rebase-merge/end):-?}"
-	elif [[ -d $gd/rebase-apply ]]; then
-		action="rebase"
-	elif [[ -f $gd/MERGE_HEAD ]]; then
-		action="merge"
-	elif [[ -f $gd/CHERRY_PICK_HEAD ]]; then
-		action="cherry-pick"
-	elif [[ -f $gd/BISECT_LOG ]]; then
-		action="bisect"
+_p_sync_theme() {
+	local mode="light"
+	if [[ -n ${ZSH_THEME_MODE:-} ]]; then
+		mode=${ZSH_THEME_MODE:l}
+	elif [[ $(defaults read -g AppleInterfaceStyle 2>/dev/null) == *Dark* ]]; then
+		mode="dark"
 	fi
-	print -r -- "${branch}|${dirty}|${ahead}|${behind}|${stash}|${action}"
+	_p_apply_theme "$mode"
 }
 
-_p_async_start() {
-	# Widgets read stdin from /dev/null; check editor activity, not terminal input.
-	zle || return
-	if ((_p_git_fd)); then
-		zle -F $_p_git_fd 2>/dev/null
-		exec {_p_git_fd}<&-
-		_p_git_fd=0
-	fi
-	exec {_p_git_fd}< <(_p_git_compute)
-	zle -F $_p_git_fd _p_async_done
-}
-
-_p_async_done() {
-	local fd=$1 data
-	data="$(<&$fd)"
-	zle -F $fd 2>/dev/null
-	exec {fd}<&-
-	_p_git_fd=0
-	if [[ -n $data ]]; then
-		local -a f=("${(@s:|:)data}")
-		_p_git=$(prompt::git-segment "$f[1]" "$f[2]" "$f[3]" "$f[4]" "$f[5]" "$f[6]")
-	else
-		_p_git=""
-	fi
-	prompt::build
-	zle reset-prompt
-}
-
-# Find the enclosing git repo root on directory change — pure zsh, no subprocess
-# on the cd path. Feeds the repo-relative path in prompt::path.
+# Find the enclosing git repo root on directory change (pure zsh, no subprocess).
 _p_dir_update() {
-	_p_git=""
-	if ((_p_git_fd)); then
-		zle -F $_p_git_fd 2>/dev/null
-		exec {_p_git_fd}<&-
-		_p_git_fd=0
+	unset HYBRID_PREVIEW_URL
+	if ((_p_url_fd)); then
+		zle -F $_p_url_fd 2>/dev/null
+		exec {_p_url_fd}<&-
+		_p_url_fd=0
 	fi
 	_p_repo_root=""
 	local d=$PWD
 	while [[ -n $d && $d != / ]]; do
-		[[ -e $d/.git ]] && {
+		if [[ -e $d/.git ]]; then
 			_p_repo_root=$d
-			return
-		}
+			return 0
+		fi
 		d=${d:h}
 	done
 }
 
-# ---- hooks ------------------------------------------------------------------
+_p_sync_aws() {
+	unset HYBRID_AWS_SAFE HYBRID_AWS_PROD
+	if [[ -n ${AWS_PROFILE:-} && ${_p_aws_seen:-0} == 1 ]]; then
+		if [[ $AWS_PROFILE == (*prod*|*production*|*prd*) ]]; then
+			export HYBRID_AWS_PROD=$AWS_PROFILE
+		else
+			export HYBRID_AWS_SAFE=$AWS_PROFILE
+		fi
+	fi
+}
+
+_p_sync_preview() {
+	if [[ -z $_p_repo_root || ${ZSH_PROMPT_STYLE:-colorful} == classic ]]; then
+		unset HYBRID_PREVIEW_URL
+		return 0
+	fi
+	if ((${+functions[preview::dev-url]})); then
+		local own
+		own=$(preview::dev-url "$_p_repo_root")
+		if [[ -n $own ]]; then
+			export HYBRID_PREVIEW_URL="${own//$'\n'/ · }"
+			return 0
+		fi
+	fi
+	if [[ -n ${PORTLESS_STATE_DIR:-} ]] && ((${+functions[preview::selected-urls]})); then
+		local urls
+		urls=$(preview::selected-urls "$_p_repo_root")
+		if [[ -n $urls ]]; then
+			export HYBRID_PREVIEW_URL="${urls//$'\n'/ · }"
+			return 0
+		fi
+	fi
+}
+
+_p_url_async_start() {
+	zle || return 0
+	[[ -n $_p_repo_root && ${ZSH_PROMPT_STYLE:-colorful} != classic ]] || return 0
+	((${+functions[preview::selected-urls]})) || return 0
+	if ((_p_url_fd)); then
+		zle -F $_p_url_fd 2>/dev/null
+		exec {_p_url_fd}<&-
+		_p_url_fd=0
+	fi
+	exec {_p_url_fd}< <(preview::selected-urls "$_p_repo_root")
+	zle -F $_p_url_fd _p_url_async_done
+}
+
+_p_url_async_done() {
+	local fd=$1 data=""
+	data="$(<&$fd)"
+	zle -F "$fd" 2>/dev/null
+	exec {fd}<&-
+	_p_url_fd=0
+	local formatted="${data//$'\n'/ · }"
+	if [[ $formatted != "${HYBRID_PREVIEW_URL:-}" ]]; then
+		if [[ -n $formatted ]]; then
+			export HYBRID_PREVIEW_URL=$formatted
+		else
+			unset HYBRID_PREVIEW_URL
+		fi
+		zle && zle reset-prompt
+	fi
+}
 
 _p_preexec() {
-	_p_start=$EPOCHREALTIME
-	# Once an AWS command runs, surface the active profile for the rest of the
-	# session (the guardrail you want while doing AWS work — but not before).
 	case "${1%% *}" in
 	aws | aws-vault | awsp | sam | copilot | eb) _p_aws_seen=1 ;;
 	esac
 }
 
 _p_precmd() {
-	_p_exit=$?
-	if ((_p_start)); then
-		_p_dur=$((EPOCHREALTIME - _p_start))
-		_p_start=0
-	else _p_dur=0; fi
-	prompt::build
+	_p_sync_theme
+	_p_sync_aws
+	_p_sync_preview
+	[[ -n $_p_starship_prompt ]] && PROMPT=$_p_starship_prompt
+	RPROMPT=""
 }
 
-# Transient: collapse the just-run prompt to "HH:MM ❯" so scrollback is a clean
-# timeline instead of the full header repeated on every command.
+# Transient: collapse the just-run prompt to "HH:MM ❯" so scrollback stays clean.
 _p_line_finish() {
 	PROMPT="${_p_c[dim]}%D{%H:%M}${_p_c[rst]} ${_p_c[dim]}❯${_p_c[rst]} "
 	RPROMPT=""
@@ -213,14 +159,77 @@ _p_line_finish() {
 
 _p_line_init() {
 	((${+functions[_zsh_deferred_init]})) && _zsh_deferred_init
-	_p_async_start
+	_p_url_async_start
 }
 
+# Re-sync appearance and redraw when signaled (e.g. by set-theme.sh on OS switch).
+TRAPWINCH() {
+	_p_sync_theme
+	if zle; then
+		zle reset-prompt 2>/dev/null || true
+	fi
+}
+
+if [[ -n ${ZSH_THEME_MODE:-} ]] || ((${+functions[defaults]})) ||
+	[[ ! -s $HOME/.config/borders/current-theme ]] ||
+	[[ $HOME/Library/Preferences/.GlobalPreferences.plist -nt $HOME/.config/borders/current-theme ]]; then
+	_p_sync_theme
+else
+	_p_apply_theme "$(<"$HOME/.config/borders/current-theme")"
+fi
+
+typeset -g _p_starship_bin=""
+if [[ -x /opt/homebrew/bin/starship ]]; then
+	_p_starship_bin=/opt/homebrew/bin/starship
+elif ((${+commands[starship]})); then
+	_p_starship_bin=${commands[starship]}
+fi
+
+if [[ -n $_p_starship_bin ]]; then
+	if ((!${+functions[prompt_starship_precmd]})); then
+		zmodload zsh/parameter zsh/datetime zsh/mathfunc 2>/dev/null
+		__starship_get_time() {
+			((STARSHIP_CAPTURED_TIME = int(rint(EPOCHREALTIME * 1000))))
+		}
+		prompt_starship_precmd() {
+			STARSHIP_CMD_STATUS=$? STARSHIP_PIPE_STATUS=(${pipestatus[@]})
+			if ((${+STARSHIP_START_TIME})); then
+				__starship_get_time && STARSHIP_DURATION=$((STARSHIP_CAPTURED_TIME - STARSHIP_START_TIME))
+				unset STARSHIP_START_TIME
+			else
+				unset STARSHIP_DURATION STARSHIP_CMD_STATUS STARSHIP_PIPE_STATUS
+			fi
+			STARSHIP_JOBS_COUNT="${#jobstates[*]}"
+		}
+		prompt_starship_preexec() {
+			__starship_get_time && STARSHIP_START_TIME=$STARSHIP_CAPTURED_TIME
+		}
+		starship_zle-keymap-select() { zle reset-prompt; }
+		[[ -o zle ]] && zle -N zle-keymap-select starship_zle-keymap-select
+		add-zsh-hook precmd prompt_starship_precmd
+		add-zsh-hook preexec prompt_starship_preexec
+		export STARSHIP_SHELL="zsh"
+		printf -v STARSHIP_SESSION_KEY '%08x%08x' $((RANDOM * 65536 + RANDOM)) $((EPOCHSECONDS * 65536 + RANDOM))
+		export STARSHIP_SESSION_KEY=${STARSHIP_SESSION_KEY:0:16}
+		VIRTUAL_ENV_DISABLE_PROMPT=1
+	fi
+	typeset -g STARSHIP_JOBS_COUNT=${STARSHIP_JOBS_COUNT:-0}
+	:
+	PROMPT='$('"$_p_starship_bin"' prompt --terminal-width="$COLUMNS" --keymap="${KEYMAP:-}" --status="${STARSHIP_CMD_STATUS:-}" --pipestatus="${STARSHIP_PIPE_STATUS[*]:-}" --cmd-duration="${STARSHIP_DURATION:-}" --jobs="$STARSHIP_JOBS_COUNT")'
+	PROMPT2='$('"$_p_starship_bin"' prompt --continuation)'
+	_p_starship_prompt=$PROMPT
+	RPROMPT=""
+fi
+
 setopt prompt_subst
+add-zsh-hook -D preexec _p_preexec 2>/dev/null
+add-zsh-hook -D precmd _p_precmd 2>/dev/null
+add-zsh-hook -D chpwd _p_dir_update 2>/dev/null
 add-zsh-hook preexec _p_preexec
 add-zsh-hook precmd _p_precmd
 add-zsh-hook chpwd _p_dir_update
 _p_dir_update
+
 if [[ -o zle && -t 0 ]]; then
 	zle -N zle-line-finish _p_line_finish
 	zle -N zle-line-init _p_line_init

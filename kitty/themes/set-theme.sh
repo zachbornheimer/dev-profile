@@ -8,23 +8,37 @@ set -euo pipefail
 THEMES="${HOME}/.config/kitty/themes"
 
 if defaults read -g AppleInterfaceStyle 2>/dev/null | grep -q Dark; then
-  THEME="dark"
-  # Hermes skins are authored for ONE canvas polarity (ink and art are picked
-  # against a named background), so the agent follows the same switch the
-  # terminal does rather than guessing from a color table.
-  HERMES_SKIN="rose-pine"
+	THEME="dark"
+	# Hermes skins are authored for ONE canvas polarity (ink and art are picked
+	# against a named background), so the agent follows the same switch the
+	# terminal does rather than guessing from a color table.
+	HERMES_SKIN="rose-pine"
 else
-  THEME="light"
-  HERMES_SKIN="rose-pine-dawn"
+	THEME="light"
+	HERMES_SKIN="rose-pine-dawn"
 fi
 
 ln -sf "${THEMES}/${THEME}.conf" "${THEMES}/active.conf"
 printf '%s' "${THEME}" >"${HOME}/.config/borders/current-theme.tmp"
 mv "${HOME}/.config/borders/current-theme.tmp" "${HOME}/.config/borders/current-theme"
 
-killall borders 2>/dev/null || true
-/opt/homebrew/bin/borders &
+if [[ -x /opt/homebrew/bin/borders ]]; then
+	killall borders 2>/dev/null || true
+	/opt/homebrew/bin/borders &
+fi
 
+# Apply the matching Kitty auto-theme to all running Kitty instances without restarting.
+if [[ -x /opt/homebrew/bin/kitten && -f "${HOME}/.config/kitty/${THEME}-theme.auto.conf" ]]; then
+	setopt null_glob 2>/dev/null || true
+	for sock in /tmp/kitty-*; do
+		[[ -S "${sock}" ]] || continue
+		/opt/homebrew/bin/kitten @ --to "unix:${sock}" set-colors --all --configured \
+			"${HOME}/.config/kitty/${THEME}-theme.auto.conf" >/dev/null 2>&1 || true
+	done
+fi
+
+# Notify open interactive Zsh shells so TRAPWINCH updates STARSHIP_CONFIG and redraws.
+pkill -WINCH -u "${UID}" -x zsh 2>/dev/null || true
 # Fail-soft: a missing or broken agent CLI must not cost the terminal its theme.
 # LaunchAgents run with a minimal PATH; the installed wrapper hardcodes its own
 # interpreter, so the absolute path is all it needs.
@@ -32,8 +46,8 @@ hermes_bin="$(command -v hermes 2>/dev/null || true)"
 [[ -n "${hermes_bin}" ]] || hermes_bin="${HOME}/.hermes/hermes-agent/.hermes/bin/hermes"
 applied="skipped"
 if [[ -x "${hermes_bin}" ]]; then
-  applied="ok"
-  "${hermes_bin}" skin use "${HERMES_SKIN}" >/dev/null 2>&1 || applied="failed"
+	applied="ok"
+	"${hermes_bin}" skin use "${HERMES_SKIN}" >/dev/null 2>&1 || applied="failed"
 fi
 printf '%s theme=%s hermes_skin=%s skin_apply=%s\n' \
-  "$(date '+%F %T')" "${THEME}" "${HERMES_SKIN}" "${applied}" >&2
+	"$(date '+%F %T')" "${THEME}" "${HERMES_SKIN}" "${applied}" >&2

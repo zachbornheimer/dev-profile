@@ -45,6 +45,10 @@ run = "kitty +runpy \"import runpy; runpy.run_path('tests/kitty_tabs.py', run_na
 description = "Run the scope-guard hook tests"
 run = "pytest agents/hooks/tests/test_scope_guard.py"
 
+[tasks."list:skills:unmanaged"]
+alias = ["list:skills:unamanaged", "skills:unmanaged"]
+description = "List skills in ~/.agents/available-skills not tracked in .skill-lock.json"
+run = "~/.agents/bin/aubx-skills unmanaged"
 [tasks.ci]
 description = "lint, then the file check"
 run = ["mise run lint", "mise run test"]

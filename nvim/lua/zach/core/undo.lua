@@ -275,7 +275,11 @@ local function open_archive(undo_path)
   vim.bo[buf].swapfile = false
   vim.bo[buf].modifiable = false
   vim.bo[buf].filetype = filetype
-  pcall(vim.api.nvim_buf_set_name, buf, undo_path .. ".snapshot")
+  pcall(
+    vim.api.nvim_buf_set_name,
+    buf,
+    undo_path .. "." .. when:gsub("[%s:]", "-") .. "-seq-" .. (seq or "x") .. ".snapshot"
+  )
 end
 
 local function archives_for(dir, resolved, parked)

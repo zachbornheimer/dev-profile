@@ -141,8 +141,10 @@ recipients = ["age1qpl3tghy0660prmvz3x2dqjsn69m588e0j0v56ec0rswkujgyshs64dhtc"]
 "~/.config/opencode" = { source = "~/Developer/Personal/dev-profile/apps/opencode" }
 "~/.config/php-cs-fixer" = { source = "~/Developer/Personal/dev-profile/apps/php-cs-fixer" }
 "~/.config/ripgrep" = { source = "~/Developer/Personal/dev-profile/apps/ripgrep" }
-"~/.config/worktrunk/config.toml/dev-profile" = { source = "~/Developer/Personal/dev-profile/config/worktrunk.toml", merge = true }
+"~/.config/starship-dark.toml" = { mode = "track" }
+"~/.config/starship.toml" = { mode = "track" }
 "~/.config/worktrunk/config.toml" = { mode = "track", encrypt = false }
+"~/.config/worktrunk/config.toml/dev-profile" = { source = "~/Developer/Personal/dev-profile/config/worktrunk.toml", merge = true }
 "~/.config/yamllint/config" = { source = "~/Developer/Personal/dev-profile/config/yamllint.yaml" }
 "~/.config/zab_ai" = { source = "~/Developer/Personal/dev-profile/apps/zab_ai" }
 "~/.config/zed" = { source = "~/Developer/Personal/dev-profile/apps/zed" }
@@ -168,5 +170,12 @@ recipients = ["age1qpl3tghy0660prmvz3x2dqjsn69m588e0j0v56ec0rswkujgyshs64dhtc"]
 "~/Developer/Personal/.editorconfig" = { source = "~/Developer/Personal/dev-profile/config/editorconfig" }
 "~/Developer/Personal/.golangci.yml" = { source = "~/Developer/Personal/dev-profile/config/golangci.yml" }
 "~/Developer/Personal/deny.toml" = { source = "~/Developer/Personal/dev-profile/config/deny.toml" }
+"~/Developer/Personal/dev-profile/apps/omp/extensions/machine-host-context.test.ts" = { mode = "track" }
+"~/Developer/Personal/dev-profile/apps/omp/extensions/machine-host-context.ts" = { mode = "track" }
+"~/Developer/Personal/dev-profile/apps/zsh-preview/prompt.zsh" = { mode = "track" }
+"~/Developer/Personal/dev-profile/apps/zsh-preview/routes.zsh" = { mode = "track" }
+"~/Developer/Personal/dev-profile/kitty/themes/set-theme.sh" = { mode = "track" }
+"~/Developer/Personal/dev-profile/shell/zsh/30-prompt.zsh" = { mode = "track" }
+"~/Developer/Personal/dev-profile/shell/zsh/prompt-demo.zsh" = { mode = "track" }
 "~/Developer/Personal/dprint.jsonc" = { source = "~/Developer/Personal/dev-profile/config/dprint.jsonc" }
 "~/Developer/Personal/mise.toml" = { source = "~/Developer/Personal/dev-profile/config/personal-overlay.toml" }

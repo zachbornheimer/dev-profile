@@ -213,8 +213,9 @@ note() { printf 'aubx-skills: %s\n' "$*"; }
 # the shim recurses for as long as the shell survives.
 resolve_aubx() {
 	local d candidate
-	local IFS=:
-	for d in ${PATH:-}; do
+	local -a _path_dirs=()
+	IFS=':' read -r -a _path_dirs <<<"${PATH:-}"
+	for d in ${_path_dirs[@]+"${_path_dirs[@]}"}; do
 		[ -n "$d" ] || continue
 		[ -d "$d" ] || continue
 		[ "$(cd -- "$d" && pwd -P)" = "$SELF_DIR" ] && continue
@@ -294,7 +295,8 @@ throwaway HOME, and a write that reaches any other path aborts the run (exit 3).
 usage: aubx-skills [skills] add <package> [aubx skills add flags...]
        aubx-skills [skills] update [-g] [skill...]
        aubx-skills [skills] remove <skill> [-g] [-y]
-       aubx-skills [skills] list
+       aubx-skills [skills] list [--unmanaged]
+       aubx-skills [skills] unmanaged   list skill folders in the roster not in the record
        aubx-skills [skills] sync     install every github skill the record names that is missing
        aubx-skills --dry-run <subcommand...>   run in scratch, print each target, change nothing
        aubx-skills --help | --version
@@ -329,8 +331,6 @@ set -- ${filtered[@]+"${filtered[@]}"}
 	usage >&2
 	exit 2
 }
-REAL_AUBX="$(resolve_aubx)" || die "no $AUBX_NAME on PATH outside $SELF_DIR"
-
 # Accept `skills add ...`, `add ...`, `skills update ...`, `update ...`, and a
 # bare package (add implied).
 raw=("$@")
@@ -349,28 +349,62 @@ remove | rm)
 list | ls)
 	mode=list
 	raw=("${raw[@]:1}")
+	case "${raw[0]:-}" in
+	--unmanaged | -u)
+		mode=unmanaged
+		raw=("${raw[@]:1}")
+		;;
+	esac
+	;;
+unmanaged)
+	mode=unmanaged
+	raw=("${raw[@]:1}")
 	;;
 sync | install)
 	mode=sync
 	raw=("${raw[@]:1}")
 	;;
 esac
+
+list_roster_dirs() {
+	[ -d "$AVAILABLE_DIR" ] || return 0
+	local _d _b
+	for _d in "$AVAILABLE_DIR"/*; do
+		[ -d "$_d" ] || continue
+		_b="$(basename -- "$_d")"
+		case "$_b" in .*) continue ;; esac
+		printf '%s\n' "$_b"
+	done | LC_ALL=C sort
+}
+
 # `list`/`ls` is read-only: print the roster. Without this branch a bare
 # `aubx-skills list` falls through as a package named "list" and asks the
 # installer to fetch it, which is a confusing way to fail.
 if [ "$mode" = list ]; then
 	if command -v jq >/dev/null 2>&1 && [ -f "$RECORD_FILE" ]; then
 		jq -r '.skills | keys[]' "$RECORD_FILE" 2>/dev/null | sort
-	elif [ -d "$AVAILABLE_DIR" ]; then
-		for _d in "$AVAILABLE_DIR"/*; do
-			[ -d "$_d" ] || continue
-			_b="$(basename -- "$_d")"
-			case "$_b" in .*) continue ;; esac
-			printf '%s\n' "$_b"
-		done | sort
+	else
+		list_roster_dirs
 	fi
 	exit 0
 fi
+
+# `unmanaged` (or `list --unmanaged`) is read-only: print every roster skill
+# folder not named in the install record.
+if [ "$mode" = unmanaged ]; then
+	if [ -f "$RECORD_FILE" ]; then
+		command -v jq >/dev/null 2>&1 || die "unmanaged needs jq"
+		list_roster_dirs | jq -R -s -r --slurpfile rec "$RECORD_FILE" '
+			([($rec[0].skills // {}) | to_entries[] | select(.value.sourceType == "github") | .key]) as $managed
+			| (split("\n") | map(select(length > 0))) - $managed | sort[]
+		'
+	else
+		list_roster_dirs
+	fi
+	exit 0
+fi
+
+REAL_AUBX="$(resolve_aubx)" || die "no $AUBX_NAME on PATH outside $SELF_DIR"
 
 # `sync` restores every upstream skill the record names whose folder is
 # missing. The record is committed and the folders are not, so a fresh clone,

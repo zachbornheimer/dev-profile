@@ -74,6 +74,7 @@ chmod +x "${work}/guard/aubx"
 export HOME="${work}/home" AGENTS_HOME="${repo}/agents"
 export PATH="${work}/guard:${work}/stub:${PATH}"
 mkdir -p "${HOME}"
+cd "${HOME}"
 sync() { "${repo}/agents/bin/aubx-skills" sync >"${work}/out.txt" 2>&1; }
 
 # 1. Only the missing recorded github skills are installed, each from its own
@@ -96,6 +97,9 @@ grep -qx '/alpha/' "${skills}/.gitignore" || fail "a recorded github skill must 
 grep -qx '/beta/' "${skills}/.gitignore" || fail "a newly installed github skill must be ignored"
 if grep -q 'local-one' "${skills}/.gitignore"; then fail "a local skill must stay tracked"; fi
 
+unmanaged="$("${repo}/agents/bin/aubx-skills" unmanaged)"
+[ "${unmanaged}" = "local-one" ] || fail "unmanaged must list only local-one, got: ${unmanaged}"
+[ "$("${repo}/agents/bin/aubx-skills" list --unmanaged)" = "local-one" ] || fail "list --unmanaged must match unmanaged"
 # 3. Nothing missing: no installer call.
 : >"${work}/calls.log"
 sync || fail "a no-op sync must exit 0"
