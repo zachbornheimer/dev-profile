@@ -42,47 +42,85 @@ ompr() {
 			--agent omp \
 			--display-agent "☁️π" &>/dev/null
 	fi
-	if (($# == 0)); then
-		vps new
-		return $?
+
+	local -a raw_args=("$@")
+	local -a final_args=()
+	local sid="" mode=""
+	local i
+
+	for ((i = 1; i <= $#raw_args; i++)); do
+		case "${raw_args[i]}" in
+		--resume | -r)
+			mode="resume"
+			final_args+=("${raw_args[i]}")
+			if ((i < $#raw_args)) && [[ "${raw_args[i+1]}" != -* ]]; then
+				sid="${raw_args[i+1]#omp:}"
+				final_args+=("$sid")
+				((i++))
+			fi
+			;;
+		--resume=*)
+			mode="resume"
+			sid="${${raw_args[i]#--resume=}#omp:}"
+			final_args+=("--resume=$sid")
+			;;
+		--continue | -c)
+			mode="continue"
+			final_args+=("${raw_args[i]}")
+			;;
+		omp:*)
+			mode="resume"
+			sid="${raw_args[i]#omp:}"
+			final_args+=("--resume" "$sid")
+			;;
+		*)
+			if [[ -z $sid && ${raw_args[i]} =~ '^[0-9a-f]{8}-[0-9a-f]{4}-' ]]; then
+				mode="resume"
+				sid="${raw_args[i]}"
+				final_args+=("--resume" "$sid")
+			else
+				final_args+=("${raw_args[i]}")
+			fi
+			;;
+		esac
+	done
+
+	# If a session ID was passed, sync its session file to Neon so the remote box has it
+	if [[ -n $sid || $mode == "continue" ]]; then
+		local db_url_file="$HOME/.config/dev-env/runtime/omp-session-db-url"
+		if [[ -s $db_url_file ]]; then
+			SESSIONS_DB_URL="$(<$db_url_file)" bun -e '
+				import { statSync } from "node:fs";
+				import { Glob } from "bun";
+				const sid = process.argv[1] || "";
+				const sql = new Bun.SQL(process.env.SESSIONS_DB_URL);
+				const root = process.env.HOME + "/.omp/agent/sessions";
+				const pattern = sid ? `**/*${sid}*.jsonl` : "**/*.jsonl";
+				for (const rel of new Glob(pattern).scanSync({ cwd: root, absolute: true })) {
+					const st = statSync(rel);
+					const mtime = Math.trunc(st.mtimeMs);
+					const cur = await sql`SELECT mtime_ms FROM omp_session_files WHERE path = ${rel}`;
+					if (!cur.length || Number(cur[0].mtime_ms) < mtime) {
+						const content = await Bun.file(rel).text();
+						await sql`INSERT INTO omp_session_files (path, content, mtime_ms) VALUES (${rel}, ${content}, ${mtime})
+							ON CONFLICT (path) DO UPDATE SET content = EXCLUDED.content, mtime_ms = EXCLUDED.mtime_ms`;
+					}
+				}
+				await sql.close();
+			' "$sid" 2>/dev/null || true
+		fi
 	fi
-	case "$1" in
-	-c | --continue)
-		shift
-		if (($# > 0)); then
-			vps continue "" "$@"
-		else
-			vps continue
-		fi
-		;;
-	-r | --resume)
-		shift
-		if (($# > 0)) && [[ "$1" != -* ]]; then
-			local sid="${1#omp:}"
-			shift
-			vps continue "$sid" "$@"
-		else
-			vps continue "" "$@"
-		fi
-		;;
-	--resume=*)
-		local sid="${${1#--resume=}#omp:}"
-		shift
-		vps continue "$sid" "$@"
-		;;
-	-p | --prompt)
-		shift
-		vps run -p "$*"
-		;;
-	omp:* | [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]*)
-		local sid="${1#omp:}"
-		shift
-		vps continue "$sid" "$@"
-		;;
-	*)
-		vps new "$@"
-		;;
-	esac
+
+	local -a quoted_args=()
+	for arg in "${final_args[@]}"; do
+		quoted_args+=("${(q)arg}")
+	done
+
+	if ((${#quoted_args} == 0)); then
+		vps run "exec omp"
+	else
+		vps run "exec omp ${quoted_args[*]}"
+	fi
 }
 
 # On the Mac, `omp` stays local-first — but if you resume or continue a session whose
