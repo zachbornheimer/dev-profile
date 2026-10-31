@@ -1,0 +1,151 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Ensure environment PATH has necessary dev tools and shims
+export PATH="$HOME/Developer/Personal/dev-profile/bin:$HOME/.local/share/mise/shims:$HOME/.local/bin:$PATH"
+
+REPO_DIR="${OMP_REPO_DIR:-$HOME/Developer/Personal/oh-my-pi}"
+LOG_FILE="${OMP_SYNC_LOG:-$HOME/.local/state/omp-sync.log}"
+
+show_status() {
+	if [ ! -d "$REPO_DIR/.git" ]; then
+		echo "Error: oh-my-pi repository not found at $REPO_DIR" >&2
+		exit 1
+	fi
+
+	cd "$REPO_DIR"
+
+	local omp_bin="$HOME/.local/bin/omp"
+	local omp_ver="unknown"
+	if [ -x "$omp_bin" ]; then
+		omp_ver="$("$omp_bin" --version 2>/dev/null || echo "error")"
+	elif command -v omp >/dev/null 2>&1; then
+		omp_ver="$(omp --version 2>/dev/null || echo "error")"
+	fi
+
+	local head_sha
+	local head_short
+	head_sha="$(git rev-parse HEAD 2>/dev/null || echo "unknown")"
+	head_short="$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")"
+
+	local ahead_origin="unknown"
+	if git rev-parse --verify --quiet origin/main >/dev/null; then
+		ahead_origin="$(git rev-list --count origin/main..HEAD 2>/dev/null || echo "unknown")"
+	fi
+
+	local ahead_fork="unknown"
+	local behind_fork="unknown"
+	if git rev-parse --verify --quiet fork/main >/dev/null; then
+		ahead_fork="$(git rev-list --count fork/main..HEAD 2>/dev/null || echo "unknown")"
+		behind_fork="$(git rev-list --count HEAD..fork/main 2>/dev/null || echo "unknown")"
+	fi
+
+	echo "omp version:          $omp_ver"
+	echo "active HEAD SHA:      $head_sha ($head_short)"
+	echo "ahead of origin/main: $ahead_origin"
+	echo "vs fork/main:         ahead $ahead_fork, behind $behind_fork"
+	exit 0
+}
+
+case "${1:-}" in
+--status)
+	show_status
+	;;
+-h | --help)
+	echo "Usage: dev-profile-omp-sync [--status|--help]"
+	echo ""
+	echo "Synchronize oh-my-pi repository with upstream, rebase custom stack,"
+	echo "run bun install, link ~/.local/bin/omp, and log to ~/.local/state/omp-sync.log"
+	exit 0
+	;;
+"") ;;
+*)
+	echo "Unknown argument: $1" >&2
+	echo "Usage: dev-profile-omp-sync [--status|--help]" >&2
+	exit 1
+	;;
+esac
+
+mkdir -p "$(dirname "$LOG_FILE")"
+
+log() {
+	local ts
+	ts="$(date '+%Y-%m-%d %H:%M:%S')"
+	echo "[$ts] $*" | tee -a "$LOG_FILE"
+}
+
+log "=== Starting dev-profile-omp-sync ==="
+
+if [ ! -d "$REPO_DIR/.git" ]; then
+	log "Error: oh-my-pi repository not found at $REPO_DIR"
+	exit 1
+fi
+
+cd "$REPO_DIR"
+
+# Check for uncommitted changes
+stashed=0
+if ! git diff --quiet || ! git diff --cached --quiet; then
+	log "Working tree has uncommitted changes; stashing..."
+	git stash push -m "dev-profile-omp-sync auto-stash $(date +%s)" >> "$LOG_FILE" 2>&1
+	stashed=1
+fi
+
+# Fetch remotes
+if git remote get-url origin >/dev/null 2>&1; then
+	log "Fetching origin..."
+	git fetch origin >> "$LOG_FILE" 2>&1 || log "Warning: git fetch origin failed"
+fi
+
+if git remote get-url fork >/dev/null 2>&1; then
+	log "Fetching fork..."
+	git fetch fork >> "$LOG_FILE" 2>&1 || log "Warning: git fetch fork failed"
+fi
+
+# Attempt rebase onto origin/main
+if git rev-parse --verify --quiet origin/main >/dev/null; then
+	log "Attempting rebase onto origin/main..."
+	if git -c commit.gpgsign=false rebase origin/main >> "$LOG_FILE" 2>&1; then
+		log "Rebase onto origin/main succeeded cleanly."
+	else
+		log "Rebase conflict detected; safely aborting rebase to preserve working stack..."
+		git rebase --abort >> "$LOG_FILE" 2>&1 || true
+		log "Rebase aborted. Kept working stack at $(git rev-parse --short HEAD)."
+	fi
+fi
+
+# Restore stash if needed
+if [ "$stashed" -eq 1 ]; then
+	log "Restoring stashed changes..."
+	git stash pop >> "$LOG_FILE" 2>&1 || log "Warning: git stash pop reported conflict or issue"
+fi
+
+# Dependencies install
+log "Running bun install..."
+bun install >> "$LOG_FILE" 2>&1 || log "Warning: bun install returned non-zero"
+
+# Ensure native addon exists if available in user cache
+native_dest="$REPO_DIR/packages/natives/native/pi_natives.linux-x64-modern.node"
+if [ ! -f "$native_dest" ]; then
+	native_cached="$(find "$HOME/.omp/natives" -name "pi_natives.linux-x64-modern.node" 2>/dev/null | head -n 1 || true)"
+	if [ -n "$native_cached" ] && [ -f "$native_cached" ]; then
+		log "Copying native addon from $native_cached to $native_dest..."
+		mkdir -p "$(dirname "$native_dest")"
+		cp -p "$native_cached" "$native_dest"
+	fi
+fi
+
+# Link / build ~/.local/bin/omp
+mkdir -p "$HOME/.local/bin"
+target_script="$REPO_DIR/packages/coding-agent/scripts/omp"
+if [ -f "$target_script" ]; then
+	chmod +x "$target_script"
+	ln -sf "$target_script" "$HOME/.local/bin/omp"
+	log "Linked $HOME/.local/bin/omp -> $target_script"
+fi
+
+# Verify version
+current_version="$("$HOME/.local/bin/omp" --version 2>/dev/null || echo "failed")"
+log "omp version: $current_version"
+log "=== dev-profile-omp-sync completed successfully ==="
+exit 0

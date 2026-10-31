@@ -1,0 +1,9 @@
+[Unit]
+Description=Daily oh-my-pi synchronization and rebase
+Documentation=https://github.com/can1357/oh-my-pi
+
+[Service]
+Type=oneshot
+ExecStart=/home/zbornheimer/Developer/Personal/dev-profile/bin/dev-profile-omp-sync
+StandardOutput=journal
+StandardError=journal
