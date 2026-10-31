@@ -25,10 +25,10 @@
 	machineId = cli/a212caee3dfd41d0b0f8c1ea2009ea44
 [credential "https://github.com"]
 	helper =
-	helper = !/opt/homebrew/bin/gh auth git-credential
+	helper = !PATH="$PATH:/opt/homebrew/bin:$HOME/.local/bin" gh auth git-credential
 [credential "https://gist.github.com"]
 	helper =
-	helper = !/opt/homebrew/bin/gh auth git-credential
+	helper = !PATH="$PATH:/opt/homebrew/bin:$HOME/.local/bin" gh auth git-credential
 [tag]
 	gpgsign = true
 [pull]
@@ -94,7 +94,7 @@
 [includeIf "worktree:/Users/zbornheimer/Developer/Software-Automation-Holdings/"]
 	path = /Users/zbornheimer/Developer/Software-Automation-Holdings/.sah/git-hooks
 [hook "wt-worktree-bootstrap"]
-	command = /Users/zbornheimer/.agents/hooks/wt-post-checkout
+	command = ~/.agents/hooks/wt-post-checkout
 	event = post-checkout
 # Upstream agent skills are installed from agents/available-skills/.skill-lock.json, not
 # committed. After a pull (merge or rebase) or checkout in the dev-profile checkout, install

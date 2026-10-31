@@ -1,11 +1,11 @@
 # ~/.zshrc — all configuration lives in ~/.config/zsh; loader.zsh documents the layout.
 builtin source "$HOME/.config/zsh/loader.zsh"
-builtin source "$HOME/.config/ai/env.sh"
+[[ -r "$HOME/.config/ai/env.sh" ]] && builtin source "$HOME/.config/ai/env.sh"
 
 # Hermes Agent command
 case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) export PATH="$HOME/.local/bin:$PATH" ;; esac
 
-. "$HOME/.turso/env"
+[[ -r "$HOME/.turso/env" ]] && . "$HOME/.turso/env"
 # oMLX: CLI shim path begin
 case ":$PATH:" in
 *":$HOME/.omlx/bin:"*) ;;

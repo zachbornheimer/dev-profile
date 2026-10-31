@@ -39,9 +39,13 @@ export OP_SSH_DIR="$HOME/.ssh/1p"
 	[[ -t 0 && -t 1 ]] || export OP_BIOMETRIC_UNLOCK_ENABLED=false
 	[[ -z ${OP_SERVICE_ACCOUNT_TOKEN:-} ]] || return 0
 	local token
-	if token=$(security find-generic-password -a "$USERNAME" \
+	if command -v security >/dev/null 2>&1 && token=$(security find-generic-password -a "$USERNAME" \
 		-s 'org.zysys.op-service-account' -w 2>/dev/null) && [[ -n "$token" ]]; then
 		export OP_SERVICE_ACCOUNT_TOKEN="$token"
+	elif [[ -r $HOME/.config/dev-env/secrets/op-service-account-token ]]; then
+		export OP_SERVICE_ACCOUNT_TOKEN="$(<$HOME/.config/dev-env/secrets/op-service-account-token)"
+	elif [[ -r /run/secrets/op-service-account-token ]]; then
+		export OP_SERVICE_ACCOUNT_TOKEN="$(</run/secrets/op-service-account-token)"
 	fi
 	return 0
 }

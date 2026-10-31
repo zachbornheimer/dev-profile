@@ -5,7 +5,7 @@ gofumpt = "latest"
 [env._]
 # ~/.agents/bin holds the aubx scope guard; it must precede mise tool bins so
 # `aubx skills add -g` never reaches the raw installer in a mise-built PATH.
-path = ["~/.agents/bin"]
+path = ["~/.agents/bin", "~/.local/share/dev-profile/bin"]
 
 [settings]
 # mise itself shells out to `git` (e.g. `git ls-remote golang/go` to list Go
@@ -85,6 +85,9 @@ process_type = "Background"
 # stderr_path = "~/.config/contextforge/logs/bridges.err"
 # process_type = "Background"
 
+[bootstrap.services.mise-history]
+builtin = "history-watch"
+
 [dotfiles]
 "~/.agents" = { source = "~/Developer/Personal/dev-profile/agents" }
 "~/.config/1Password" = { source = "~/Developer/Personal/dev-profile/apps/1Password" }
@@ -97,6 +100,7 @@ process_type = "Background"
 "~/.config/direnv" = { source = "~/Developer/Personal/dev-profile/apps/direnv" }
 "~/.config/dprint/dprint.jsonc" = { source = "~/Developer/Personal/dev-profile/config/dprint.jsonc" }
 "~/.config/git" = { source = "~/Developer/Personal/dev-profile/apps/git" }
+"~/.config/herdr" = { source = "~/Developer/Personal/dev-profile/apps/herdr" }
 # Everything the dev-profile checkout deploys. This is global config, so `mise dot status`
 # and `mise dot apply` see it from any directory. Sources are full paths: a relative
 # source resolves from ~/.config/mise (where this file is linked), not from the repo.
@@ -107,10 +111,13 @@ process_type = "Background"
 "~/.config/mise/conf.d/dev-profile.toml" = { source = "~/Developer/Personal/dev-profile/config/tools.toml" }
 "~/.config/nvim" = { source = "~/Developer/Personal/dev-profile/nvim" }
 "~/.config/omp/fallback-shake" = { source = "~/Developer/Personal/dev-profile/apps/omp/fallback-shake" }
+"~/.config/omp/hide-evidence" = { source = "~/Developer/Personal/dev-profile/apps/omp/hide-evidence" }
+"~/.config/omp/thinking" = { source = "~/Developer/Personal/dev-profile/apps/omp/thinking" }
 "~/.config/opencode" = { source = "~/Developer/Personal/dev-profile/apps/opencode" }
 "~/.config/php-cs-fixer" = { source = "~/Developer/Personal/dev-profile/apps/php-cs-fixer" }
 "~/.config/ripgrep" = { source = "~/Developer/Personal/dev-profile/apps/ripgrep" }
-"~/.config/worktrunk/config.toml" = { source = "~/Developer/Personal/dev-profile/config/worktrunk.toml" }
+"~/.config/worktrunk/config.toml/dev-profile" = { source = "~/Developer/Personal/dev-profile/config/worktrunk.toml", merge = true }
+"~/.config/worktrunk/config.toml" = { mode = "track", encrypt = false }
 "~/.config/yamllint/config" = { source = "~/Developer/Personal/dev-profile/config/yamllint.yaml" }
 "~/.config/zab_ai" = { source = "~/Developer/Personal/dev-profile/apps/zab_ai" }
 "~/.config/zed" = { source = "~/Developer/Personal/dev-profile/apps/zed" }
