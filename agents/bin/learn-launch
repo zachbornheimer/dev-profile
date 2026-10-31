@@ -91,6 +91,51 @@ def record(entry: dict) -> None:
     with LAUNCH_LOG.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(entry) + "\n")
 
+FLEET_HOST = "backend.ai.lan.zachandaj.com"
+
+
+def fleet_command(source: str, dispatch: bool) -> list[str] | None:
+    """When invoked on macOS and the fleet box is reachable, offload execution to the fleet."""
+    if sys.platform != "darwin" or os.environ.get("LEARN_ON_FLEET", "1") == "0":
+        return None
+    probe = subprocess.run(
+        ["ssh", "-o", "ConnectTimeout=3", "-o", "BatchMode=yes", FLEET_HOST, "test -x ~/.local/bin/capability"],
+        capture_output=True,
+        timeout=5,
+        check=False,
+    )
+    if probe.returncode != 0:
+        return None
+    payload = json.dumps({"source": source, "dispatch": dispatch})
+    remote_cmd = (
+        "if [ -r ~/.config/agent-state/env ]; then set -a; . ~/.config/agent-state/env; set +a; fi; "
+        "export PATH=\"$HOME/.local/bin:$HOME/.local/share/mise/shims:$HOME/.bun/bin:$PATH\"; "
+        "export LEARNER=1 AGENTMUX_NESTED_RUN=1; "
+        f"~/.local/bin/capability run learn-from-transcript --input {shlex_quote(payload)}"
+    )
+    return ["ssh", "-o", "BatchMode=yes", FLEET_HOST, remote_cmd]
+
+
+def shlex_quote(value: str) -> str:
+    return "'" + value.replace("'", "'\"'\"'") + "'"
+
+
+def load_agent_state_env() -> dict[str, str]:
+    env_file = Path.home() / ".config" / "agent-state" / "env"
+    if not env_file.is_file():
+        return {}
+    loaded: dict[str, str] = {}
+    for raw in env_file.read_text(encoding="utf-8", errors="ignore").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        if line.startswith("export "):
+            line = line[len("export ") :].strip()
+        key, _, val = line.partition("=")
+        val = val.strip().strip("'").strip('"')
+        if key.strip():
+            loaded[key.strip()] = val
+    return loaded
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run learn-from-transcript on one session.")
@@ -112,17 +157,19 @@ def main() -> None:
         print(json.dumps(plan))
         return
 
-    extra_path = f"{Path.home() / '.local/share/aube/bin'}:{Path.home() / '.local/share/mise/shims'}:{Path.home() / '.bun/bin'}"
+    extra_path = f"{Path.home() / '.local/bin'}:{Path.home() / '.local/share/aube/bin'}:{Path.home() / '.local/share/mise/shims'}:{Path.home() / '.bun/bin'}"
     current_path = os.environ.get("PATH", "/usr/bin:/bin")
     child_env = {
+        **load_agent_state_env(),
         **os.environ,
         "PATH": f"{extra_path}:{current_path}",
         "LEARNER": "1",
         "AGENTMUX_NESTED_RUN": "1",
     }
+    exec_cmd = fleet_command(source, args.dispatch) or plan["command"]
     try:
         run = subprocess.run(
-            plan["command"],
+            exec_cmd,
             capture_output=True,
             text=True,
             timeout=RUN_TIMEOUT_SECS,

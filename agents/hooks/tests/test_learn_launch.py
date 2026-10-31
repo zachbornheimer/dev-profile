@@ -76,7 +76,7 @@ def test_failure_releases_the_claimed_cooldown_stamp(tmp_path: Path) -> None:
         text=True,
         timeout=30,
         env={
-            "PATH": "/usr/bin:/bin:/opt/homebrew/bin",
+            "PATH": f"{Path.home() / '.local/share/mise/shims'}:/usr/bin:/bin:/opt/homebrew/bin",
             "HOME": str(Path.home()),
             "LEARN_STAMP_FILE": str(stamp),
         },
