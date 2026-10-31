@@ -32,3 +32,44 @@ vps() {
 		;;
 	esac
 }
+
+# Keep Mac local-first while making `omp --resume <id>` seamlessly pull any session
+# that was created or updated in Neon (e.g. on the VPS or in a SESSIONS_DB_URL shell).
+omp() {
+	emulate -L zsh
+	local db_url_file="$HOME/.config/dev-env/runtime/omp-session-db-url"
+	if [[ -z ${SESSIONS_DB_URL:-} && -s $db_url_file ]]; then
+		local i sid=""
+		for ((i = 1; i <= $#; i++)); do
+			case "${@[i]}" in
+			--resume | -r)
+				((i < $#)) && sid="${@[i+1]#omp:}"
+				break
+				;;
+			--resume=*)
+				sid="${${@[i]#--resume=}#omp:}"
+				break
+				;;
+			esac
+		done
+		if [[ -n $sid && $sid != -* ]]; then
+			SESSIONS_DB_URL="$(<$db_url_file)" bun -e '
+				import { existsSync, mkdirSync, statSync } from "node:fs";
+				import { dirname } from "node:path";
+				const sid = process.argv[1];
+				const sql = new Bun.SQL(process.env.SESSIONS_DB_URL);
+				const rows = await sql`SELECT path, content, mtime_ms FROM omp_session_files WHERE path LIKE ${"%" + sid + "%"}`;
+				for (const r of rows) {
+					if (!r.path.startsWith("/Users/zbornheimer/")) continue;
+					const diskMtime = existsSync(r.path) ? Math.trunc(statSync(r.path).mtimeMs) : -1;
+					if (diskMtime < Number(r.mtime_ms)) {
+						mkdirSync(dirname(r.path), { recursive: true });
+						await Bun.write(r.path, r.content);
+					}
+				}
+				await sql.close();
+			' "$sid" >/dev/null 2>&1 || true
+		fi
+	fi
+	command omp "$@"
+}
