@@ -54,3 +54,8 @@ export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 
 ulimit -n 4096
 export OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES
+
+# Shared Neon session store for omp across Mac front-end and remote compute arm.
+if [[ -z ${SESSIONS_DB_URL:-} && -s $HOME/.config/dev-env/runtime/omp-session-db-url ]]; then
+	export SESSIONS_DB_URL="$(<$HOME/.config/dev-env/runtime/omp-session-db-url)"
+fi
