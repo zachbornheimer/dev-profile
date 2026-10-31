@@ -102,6 +102,20 @@ pr-auto = "{% if create is defined %}wt switch --create {{ create }} --no-cd -x 
 done = "~/.local/share/dev-profile/bin/dev-profile-done {{ args }}"
 prune = "wt step prune --min-age=0s"
 tree-for-changes = """
+{% if args %}
+if ! git rev-parse --verify -q HEAD >/dev/null 2>&1; then
+  if git diff --quiet && git diff --cached --quiet && [ -z \"$(git ls-files --others --exclude-standard)\" ]; then
+    echo \"wt commit-unstaged: nothing to commit (repository has no commits and no files to stage).\" >&2
+    exit 1
+  fi
+  exec wt step commit
+fi
+{% else %}
+if ! git rev-parse --verify -q HEAD >/dev/null 2>&1; then
+  echo \"wt tree-for-changes: repository has no commits yet; run 'wt commit-unstaged' or 'wt step commit' to create the initial commit first.\" >&2
+  exit 1
+fi
+{% endif %}
 git stash push -u || exit 1
 id=$(uuidgen) || { git stash pop; exit 1; }
 id=$(printf '%s' \"$id\" | tr '[:upper:]' '[:lower:]')
@@ -127,6 +141,9 @@ fi
 {% endif %}"""
 land = """
 {% if branch | default(\"\") == default_branch %}
+if ! git rev-parse --verify -q HEAD >/dev/null 2>&1; then
+  exec wt step commit
+fi
 wt tree-for-changes -- wt land --landing=merge
 {% elif landing | default(\"\") == \"merge\" %}
 if ! git diff --quiet || ! git diff --cached --quiet || [ -n \"$(git ls-files --others --exclude-standard)\" ]; then
@@ -152,7 +169,11 @@ if ! git diff --quiet || ! git diff --cached --quiet || [ -n \"$(git ls-files --
 fi
 wt pr-auto
 {% endif %}"""
-commit-unstaged = "wt tree-for-changes -- wt land --landing=merge"
+commit-unstaged = """
+if ! git rev-parse --verify -q HEAD >/dev/null 2>&1; then
+  exec wt step commit
+fi
+wt tree-for-changes -- wt land --landing=merge"""
 commit-fix = "~/.local/share/dev-profile/bin/dev-profile-commit-fix step commit {{ args }}"
 
 [post-start]

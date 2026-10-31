@@ -54,6 +54,8 @@ fixture_default_branch_commit() {
 	git -C "$repo" switch -q -c main
 	echo "x" >"${repo}/notes"
 	git -C "$repo" add notes
+	commit_hook "$repo" || fail "default branch: initial commit on unborn main must pass"
+	git -C "$repo" update-ref HEAD "$(GIT_AUTHOR_NAME=fixture GIT_AUTHOR_EMAIL=fixture@example.com GIT_COMMITTER_NAME=fixture GIT_COMMITTER_EMAIL=fixture@example.com git -C "$repo" commit-tree -m init "$(git -C "$repo" hash-object -t tree -w /dev/null)")"
 	expect_commit_blocked "$repo" "commit on main with an origin"
 	DEV_PROFILE_ALLOW_DEFAULT_BRANCH_COMMIT=1 commit_hook "$repo" || fail "default branch: opt-out must pass"
 	touch "$(git -C "$repo" rev-parse --path-format=absolute --git-path MERGE_HEAD)"

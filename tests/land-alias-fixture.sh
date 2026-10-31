@@ -7,6 +7,7 @@ set -euo pipefail
 
 out="${1:?usage: land-alias-fixture.sh <generated-dir>}"
 cfg="${out}/worktrunk.toml"
+[[ -f "${cfg}" ]] || cfg="${out}/config/worktrunk.toml"
 work="$(cd "$(mktemp -d)" && pwd -P)"
 
 fail() {
@@ -88,6 +89,27 @@ has "tree bare" 'wt switch --create "$id" -x git -- stash pop' "${work}/other" t
 lacks "tree bare" "--no-cd -x sh" "${work}/other" tree-for-changes
 has "tree follow-up" "--no-cd -x sh -- -c 'git stash pop && exec" "${work}/other" tree-for-changes -- wt land --landing=merge
 
+# Unborn repo (no initial commit yet): bare tree-for-changes prints a helpful error,
+# and commit-unstaged / land commits directly instead of calling git stash.
+unborn="${work}/unborn"
+git init -q -b main "${unborn}"
+git -C "${unborn}" remote add origin "https://github.com/zachbornheimer/example.git"
+printf 'init\n' >"${unborn}/a.txt"
+unborn_err=""
+if unborn_err="$(wt -y --config "${cfg}" -C "${unborn}" tree-for-changes 2>&1)"; then
+	fail "bare tree-for-changes on unborn repo must fail"
+fi
+grep -F -q "wt commit-unstaged" <<<"${unborn_err}" ||
+	fail "bare tree-for-changes on unborn repo must suggest wt commit-unstaged, got: ${unborn_err}"
+! grep -F -q "You do not have the initial commit yet" <<<"${unborn_err}" ||
+	fail "bare tree-for-changes on unborn repo must not print raw git stash error, got: ${unborn_err}"
+mkdir -p "${work}/bin" "${work}/xdg/worktrunk"
+ln -s "${cfg}" "${work}/xdg/worktrunk/config.toml"
+printf '#!/bin/sh\necho "feat: initial commit"\n' >"${work}/bin/_llm"
+chmod +x "${work}/bin/_llm"
+XDG_CONFIG_HOME="${work}/xdg" PATH="${work}/bin:${PATH}" wt -y --config "${cfg}" -C "${unborn}" commit-unstaged
+[[ "$(git -C "${unborn}" show HEAD:a.txt)" == "init" ]] ||
+	fail "commit-unstaged on unborn repo did not create initial commit with a.txt"
 # Real move: an untracked file leaves the invoking tree and lands on a uuid branch.
 move="${work}/move"
 init_repo "${move}" main "https://github.com/zachbornheimer/example.git"

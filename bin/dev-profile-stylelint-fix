@@ -34,6 +34,12 @@ elif command -v stylelint >/dev/null 2>&1; then
 else
 	exit 0
 fi
+# Buffer output so exit 78 (no stylelint config in this repo) and exit <=2
+# (unfixable lint problems left for push) do not leave stderr noise that hk
+# dumps whenever an unrelated step fails.
 code=0
-"${stylelint}" --fix --allow-empty-input "$@" || code=$?
-[[ "${code}" -le 2 || "${code}" -eq 78 ]] || exit "${code}"
+out="$("${stylelint}" --fix --allow-empty-input "$@" 2>&1)" || code=$?
+if [[ "${code}" -gt 2 && "${code}" -ne 78 ]]; then
+	[[ -z "${out}" ]] || printf '%s\n' "${out}" >&2
+	exit "${code}"
+fi

@@ -24,7 +24,11 @@ fail() {
 }
 
 mkdir -p "${work}/hk-config"
-ln -s "${out}/hk-config.pkl" "${work}/hk-config/config.pkl"
+if [[ -f "${out}/hk/hk.pkl" ]]; then
+	ln -s "${out}/hk/hk.pkl" "${work}/hk-config/config.pkl"
+else
+	ln -s "${out}/hk-config.pkl" "${work}/hk-config/config.pkl"
+fi
 export PATH="${out}/bin:${PATH}"
 unset HK_FILE
 
@@ -34,7 +38,11 @@ new_repo() {
 	git -C "$dir" init -q -b feature
 	# The generated dprint config, so the dprint step never depends on a global
 	# config this machine may or may not have. Untracked: hk sees staged files only.
-	cp "${out}/dprint.jsonc" "${dir}/dprint.jsonc"
+	if [[ -f "${out}/config/dprint.jsonc" ]]; then
+		cp "${out}/config/dprint.jsonc" "${dir}/dprint.jsonc"
+	else
+		cp "${out}/dprint.jsonc" "${dir}/dprint.jsonc"
+	fi
 	echo "$dir"
 }
 
