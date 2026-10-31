@@ -389,6 +389,12 @@ command = [
 timeout = "5s"
 
 [[hooks]]
+name = "stop-gemini-filter-resume-py"
+events = ["turn.stop"]
+command = ["$HOME/.agents/hooks/gemini-filter-resume.py"]
+timeout = "10s"
+
+[[hooks]]
 name = "stop-find"
 events = ["turn.stop"]
 command = [
