@@ -125,7 +125,7 @@ exclude = [
 recipients = ["age1qpl3tghy0660prmvz3x2dqjsn69m588e0j0v56ec0rswkujgyshs64dhtc"]
 
 [history.reload]
-"~/.config/mise/config.toml" = "mise dot apply --yes && mise install --yes"
+"~/.config/mise/config.toml" = "mise install --yes"
 
 [dotfiles]
 "~/.agents" = { source = "~/Developer/Personal/dev-profile/agents" }
@@ -187,6 +187,7 @@ recipients = ["age1qpl3tghy0660prmvz3x2dqjsn69m588e0j0v56ec0rswkujgyshs64dhtc"]
 "~/.omp/agent/extensions/semgrep-guardian.ts" = { mode = "track", encrypt = true }
 "~/.omp/agent/extensions/superset-hooks.ts" = { mode = "track", encrypt = true }
 "~/.omp/agent/extensions/undo-clear.ts" = { mode = "track", encrypt = true }
+"~/.omp/build.toml" = { mode = "track" }
 "~/.profile" = { mode = "track", encrypt = true }
 "~/.stylelintrc.json" = { source = "~/Developer/Personal/dev-profile/config/stylelintrc.json" }
 "~/.tmux.conf" = { mode = "track", encrypt = true }

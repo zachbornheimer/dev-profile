@@ -68,6 +68,11 @@ __pycache__/
 .DS_Store
 .build/
 agents/hooks/state/
+agents/bin.tmp/
+agents/skills.pre-unified-link-*/
+agents/AGENTS.md.bak
+agents/AGENTS.md.orig
+config/tools.toml
 agents/learnings/launch.log
 agents/learnings/handoffs/*.prompt.md
 apps/opencode/service.json

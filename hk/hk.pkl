@@ -399,7 +399,7 @@ steps {
   }
   ["betterleaks"] {
     check =
-      "dev-profile-if-installed betterleaks sh -c 'cfg=(); for c in .betterleaks.toml .gitleaks.toml; do [ -f \"$c\" ] && { cfg=(-c \"$c\"); break; }; done; exec betterleaks dir \"${cfg[@]}\" --redact --verbose --no-banner \"$@\"' -- {{files}}"
+      "dev-profile-if-installed betterleaks bash -c 'cfg=(); for c in .betterleaks.toml .gitleaks.toml; do [ -f \"$c\" ] && { cfg=(-c \"$c\"); break; }; done; exec betterleaks dir \"${cfg[@]}\" --redact --verbose --no-banner \"$@\"' -- {{files}}"
     profiles = List("slow")
   }
   ["case-conflicts"] {
@@ -849,7 +849,7 @@ hooks {
       // hk util checks exit with a usage error (tests/pre-push-empty-file-list-fixture.sh).
       ["betterleaks"] {
         check =
-          "dev-profile-if-installed betterleaks sh -c 'cfg=(); for c in .betterleaks.toml .gitleaks.toml; do [ -f \"$c\" ] && { cfg=(-c \"$c\"); break; }; done; exec betterleaks dir \"${cfg[@]}\" --redact --verbose --no-banner \"$@\"' -- {{files}}"
+          "dev-profile-if-installed betterleaks bash -c 'cfg=(); for c in .betterleaks.toml .gitleaks.toml; do [ -f \"$c\" ] && { cfg=(-c \"$c\"); break; }; done; exec betterleaks dir \"${cfg[@]}\" --redact --verbose --no-banner \"$@\"' -- {{files}}"
         glob = List("**/*")
       }
       ["case-conflicts"] {
