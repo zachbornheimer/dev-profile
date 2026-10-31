@@ -184,7 +184,7 @@ def fleet_command(source: str, dispatch: bool, platform: str | None = None, host
         "export OP_SERVICE_ACCOUNT_TOKEN=\"$(cat ~/.config/dev-env/secrets/op-service-account-token)\"; fi; "
         "export PATH=\"$HOME/Developer/Personal/dev-profile/bin:$HOME/.local/bin:$HOME/.local/share/aube/bin:$HOME/.local/share/mise/shims:$HOME/.bun/bin:$PATH\"; "
         "export LEARNER=1 AGENTMUX_NESTED_RUN=1; "
-        f"~/.local/bin/capability run learn-from-transcript --input {shlex_quote(payload)}"
+        f"bun ~/.local/bin/capability run learn-from-transcript --input {shlex_quote(payload)}"
     )
     return ["ssh", "-o", "BatchMode=yes", host, remote_cmd]
 
