@@ -10,10 +10,11 @@ this. The source is `<harness>:<id>` (omp, claude, codex, grok, cursor,
 copilot, opencode, pi, hermes, agentmux), a bare omp id, or a Mastra thread
 (`mastra:thread:<id>` or a Studio thread URL). The workflow resolves and
 annotates the transcript, runs its forensics passes in one thread, saves the
-thread, and files every ticket it names as an atask objective. With --dispatch
-it also starts one worker per objective atask will claim; the /learn command
-passes it, the frustration hook does not. This launcher only validates the
-source, runs the workflow, records the run, and prints its JSON result.
+thread, and files and dispatches every ticket it names as an atask objective by
+default (pass --no-dispatch to file/report without starting workers). When
+started on macOS and the fleet host (backend.ai.lan.zachandaj.com) is reachable,
+it streams any local session transcript to the fleet and runs the workflow on
+the fleet; when triggered on the fleet, it runs there directly.
 """
 
 from __future__ import annotations
@@ -91,50 +92,110 @@ def record(entry: dict) -> None:
     with LAUNCH_LOG.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(entry) + "\n")
 
-FLEET_HOST = "backend.ai.lan.zachandaj.com"
-
-
-def fleet_command(source: str, dispatch: bool) -> list[str] | None:
-    """When invoked on macOS and the fleet box is reachable, offload execution to the fleet."""
-    if sys.platform != "darwin" or os.environ.get("LEARN_ON_FLEET", "1") == "0":
-        return None
-    probe = subprocess.run(
-        ["ssh", "-o", "ConnectTimeout=3", "-o", "BatchMode=yes", FLEET_HOST, "test -x ~/.local/bin/capability"],
-        capture_output=True,
-        timeout=5,
-        check=False,
-    )
-    if probe.returncode != 0:
-        return None
-    payload = json.dumps({"source": source, "dispatch": dispatch})
-    remote_cmd = (
-        "if [ -r ~/.config/agent-state/env ]; then set -a; . ~/.config/agent-state/env; set +a; fi; "
-        "export PATH=\"$HOME/.local/bin:$HOME/.local/share/mise/shims:$HOME/.bun/bin:$PATH\"; "
-        "export LEARNER=1 AGENTMUX_NESTED_RUN=1; "
-        f"~/.local/bin/capability run learn-from-transcript --input {shlex_quote(payload)}"
-    )
-    return ["ssh", "-o", "BatchMode=yes", FLEET_HOST, remote_cmd]
+FLEET_HOST = os.environ.get("LEARN_FLEET_HOST", "backend.ai.lan.zachandaj.com")
 
 
 def shlex_quote(value: str) -> str:
     return "'" + value.replace("'", "'\"'\"'") + "'"
 
 
+def find_local_transcript(source: str, home: Path | None = None) -> Path | None:
+    """Locate a local session transcript under ``home`` so a laptop launch can stream it to the fleet."""
+    base = home or Path.home()
+    match = REF.match(source)
+    if not match:
+        return None
+    harness, sid = match.group(1), match.group(2)
+    patterns: list[str] = []
+    if harness == "omp":
+        patterns.append(f".omp/agent/sessions/*/*_{sid}.jsonl")
+    elif harness == "claude":
+        patterns.extend([f".config/agentmux/transcripts/claude-code.{sid}.jsonl", f".claude/projects/*/{sid}.jsonl"])
+    elif harness == "grok":
+        patterns.extend([f".config/agentmux/transcripts/grok.{sid}.jsonl", f".grok/sessions/*/{sid}/chat_history.jsonl"])
+    elif harness == "codex":
+        patterns.extend([f".config/agentmux/transcripts/codex.{sid}.jsonl", f".codex/sessions/*/*/*/rollout-*-{sid}.jsonl"])
+    elif harness == "pi":
+        patterns.append(f".pi/agent/sessions/*/*_{sid}.jsonl")
+    for pattern in patterns:
+        hits = sorted(base.glob(pattern), key=lambda p: p.stat().st_mtime if p.is_file() else 0, reverse=True)
+        for hit in hits:
+            if hit.is_file():
+                return hit
+    return None
+
+
+def sync_local_transcript_to_fleet(source: str, host: str = FLEET_HOST, home: Path | None = None) -> bool:
+    """Stream a laptop-local transcript file to the same ``$HOME``-relative path on the fleet."""
+    base = home or Path.home()
+    local_file = find_local_transcript(source, base)
+    if local_file is None:
+        return False
+    try:
+        rel = local_file.relative_to(base).as_posix()
+    except ValueError:
+        return False
+    remote_dir = shlex_quote(str(Path(rel).parent.as_posix()))
+    remote_rel = shlex_quote(rel)
+    try:
+        with local_file.open("rb") as handle:
+            res = subprocess.run(
+                ["ssh", "-o", "ConnectTimeout=5", "-o", "BatchMode=yes", host, f"mkdir -p ~/{remote_dir} && cat > ~/{remote_rel}"],
+                stdin=handle,
+                capture_output=True,
+                timeout=30,
+                check=False,
+            )
+        return res.returncode == 0
+    except OSError:
+        return False
+
+
+def fleet_command(source: str, dispatch: bool, platform: str | None = None, host: str = FLEET_HOST) -> list[str] | None:
+    """When invoked on macOS and the fleet box is reachable, offload execution to the fleet."""
+    active_platform = platform or sys.platform
+    if active_platform != "darwin" or os.environ.get("LEARN_ON_FLEET", "1") == "0":
+        return None
+    probe = subprocess.run(
+        ["ssh", "-o", "ConnectTimeout=3", "-o", "BatchMode=yes", host, "test -x ~/.local/bin/capability"],
+        capture_output=True,
+        timeout=5,
+        check=False,
+    )
+    if probe.returncode != 0:
+        return None
+    sync_local_transcript_to_fleet(source, host=host)
+    payload = json.dumps({"source": source, "dispatch": dispatch})
+    remote_cmd = (
+        "if [ -r ~/.config/agent-state/env ]; then set -a; . ~/.config/agent-state/env; set +a; fi; "
+        "if [ -z \"${OP_SERVICE_ACCOUNT_TOKEN:-}\" ] && [ -s ~/.config/dev-env/secrets/op-service-account-token ]; then "
+        "export OP_SERVICE_ACCOUNT_TOKEN=\"$(cat ~/.config/dev-env/secrets/op-service-account-token)\"; fi; "
+        "export PATH=\"$HOME/Developer/Personal/dev-profile/bin:$HOME/.local/bin:$HOME/.local/share/aube/bin:$HOME/.local/share/mise/shims:$HOME/.bun/bin:$PATH\"; "
+        "export LEARNER=1 AGENTMUX_NESTED_RUN=1; "
+        f"~/.local/bin/capability run learn-from-transcript --input {shlex_quote(payload)}"
+    )
+    return ["ssh", "-o", "BatchMode=yes", host, remote_cmd]
+
+
 def load_agent_state_env() -> dict[str, str]:
-    env_file = Path.home() / ".config" / "agent-state" / "env"
-    if not env_file.is_file():
-        return {}
     loaded: dict[str, str] = {}
-    for raw in env_file.read_text(encoding="utf-8", errors="ignore").splitlines():
-        line = raw.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        if line.startswith("export "):
-            line = line[len("export ") :].strip()
-        key, _, val = line.partition("=")
-        val = val.strip().strip("'").strip('"')
-        if key.strip():
-            loaded[key.strip()] = val
+    env_file = Path.home() / ".config" / "agent-state" / "env"
+    if env_file.is_file():
+        for raw in env_file.read_text(encoding="utf-8", errors="ignore").splitlines():
+            line = raw.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            if line.startswith("export "):
+                line = line[len("export ") :].strip()
+            key, _, val = line.partition("=")
+            val = val.strip().strip("'").strip('"')
+            if key.strip():
+                loaded[key.strip()] = val
+    op_token_file = Path.home() / ".config" / "dev-env" / "secrets" / "op-service-account-token"
+    if "OP_SERVICE_ACCOUNT_TOKEN" not in loaded and op_token_file.is_file():
+        token = op_token_file.read_text(encoding="utf-8", errors="ignore").strip()
+        if token:
+            loaded["OP_SERVICE_ACCOUNT_TOKEN"] = token
     return loaded
 
 def main() -> None:
@@ -143,8 +204,9 @@ def main() -> None:
     parser.add_argument("--reason", default="manual /learn", help="why the run started; recorded only")
     parser.add_argument(
         "--dispatch",
-        action="store_true",
-        help="start a start_atask_task worker for every objective atask will claim, after filing the tickets",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="start a start_atask_task worker for every objective atask will claim (default: enabled; --no-dispatch to disable)",
     )
     parser.add_argument("--dry-run", action="store_true", help="print the plan without running the workflow")
     args = parser.parse_args()
@@ -157,7 +219,7 @@ def main() -> None:
         print(json.dumps(plan))
         return
 
-    extra_path = f"{Path.home() / '.local/bin'}:{Path.home() / '.local/share/aube/bin'}:{Path.home() / '.local/share/mise/shims'}:{Path.home() / '.bun/bin'}"
+    extra_path = f"{Path.home() / 'Developer/Personal/dev-profile/bin'}:{Path.home() / '.local/bin'}:{Path.home() / '.local/share/aube/bin'}:{Path.home() / '.local/share/mise/shims'}:{Path.home() / '.bun/bin'}"
     current_path = os.environ.get("PATH", "/usr/bin:/bin")
     child_env = {
         **load_agent_state_env(),

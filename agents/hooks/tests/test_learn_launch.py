@@ -31,17 +31,22 @@ def plan(run: subprocess.CompletedProcess[str]) -> dict:
     return document
 
 
-def test_dispatch_is_off_unless_asked() -> None:
+def test_dispatch_is_on_by_default() -> None:
     document = plan(launch(f"omp:{TARGET}"))
-    assert document["dispatch"] is False
+    assert document["dispatch"] is True
+    assert json.loads(document["command"][4])["dispatch"] is True
 
 
-def test_dispatch_flag_reaches_the_workflow() -> None:
+def test_dispatch_flag_remains_accepted() -> None:
     document = plan(launch(f"omp:{TARGET}", "--dispatch"))
     assert document["dispatch"] is True
     assert json.loads(document["command"][4])["dispatch"] is True
 
 
+def test_no_dispatch_flag_turns_dispatch_off() -> None:
+    document = plan(launch(f"omp:{TARGET}", "--no-dispatch"))
+    assert document["dispatch"] is False
+    assert json.loads(document["command"][4])["dispatch"] is False
 def test_a_harness_id_is_the_workflow_source() -> None:
     assert plan(launch(f"omp:{TARGET}"))["source"] == f"omp:{TARGET}"
 
@@ -84,3 +89,23 @@ def test_failure_releases_the_claimed_cooldown_stamp(tmp_path: Path) -> None:
     )
     assert run.returncode == 1
     assert not stamp.exists()
+
+
+def test_find_local_transcript_locates_omp_session(tmp_path: Path) -> None:
+    import importlib.machinery
+    import importlib.util
+
+    loader = importlib.machinery.SourceFileLoader("learn_launch_mod", str(LAUNCHER))
+    spec = importlib.util.spec_from_loader("learn_launch_mod", loader)
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    session_dir = tmp_path / ".omp" / "agent" / "sessions" / "--repo--"
+    session_dir.mkdir(parents=True)
+    session_file = session_dir / f"2026-10-31T00-00-00-000Z_{TARGET}.jsonl"
+    session_file.write_text('{"id":"1"}\n', encoding="utf-8")
+
+    found = mod.find_local_transcript(f"omp:{TARGET}", home=tmp_path)
+    assert found == session_file
+    assert mod.fleet_command(f"omp:{TARGET}", True, platform="linux") is None
