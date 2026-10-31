@@ -48,6 +48,9 @@ show_status() {
 	exit 0
 }
 
+INCLUDE_BRANCH=""
+PUSH_FORK=0
+
 while [ $# -gt 0 ]; do
 	case "$1" in
 	--status)
@@ -56,17 +59,26 @@ while [ $# -gt 0 ]; do
 	--compile)
 		COMPILE_BINARY=1
 		;;
+	--push)
+		PUSH_FORK=1
+		;;
+	--include)
+		[ $# -ge 2 ] || { echo "Error: --include requires a branch name" >&2; exit 2; }
+		INCLUDE_BRANCH="$2"
+		shift
+		;;
 	-h | --help)
-		echo "Usage: dev-profile-omp-sync [--status|--compile|--help]"
+		echo "Usage: dev-profile-omp-sync [--status|--compile|--include <branch>|--push|--help]"
 		echo ""
 		echo "Synchronize oh-my-pi repository with fork/main and upstream origin/main,"
+		echo "optionally cherry-pick an upstream PR branch (--include <branch>) onto main,"
 		echo "run bun install, ensure native addon (macOS darwin-arm64 or Linux x64),"
-		echo "wire or compile ~/.local/bin/omp, and log to ~/.local/state/omp-sync.log"
+		echo "wire or compile ~/.local/bin/omp, and optionally push fork/main (--push)."
 		exit 0
 		;;
 	*)
 		echo "Unknown argument: $1" >&2
-		echo "Usage: dev-profile-omp-sync [--status|--compile|--help]" >&2
+		echo "Usage: dev-profile-omp-sync [--status|--compile|--include <branch>|--push|--help]" >&2
 		exit 1
 		;;
 	esac
@@ -125,6 +137,14 @@ if git rev-parse --verify --quiet origin/main >/dev/null; then
 		log "Rebase aborted. Kept working stack at $(git rev-parse --short HEAD)."
 	fi
 fi
+if [ -n "$INCLUDE_BRANCH" ]; then
+	log "Folding commits from $INCLUDE_BRANCH (origin/main..$INCLUDE_BRANCH) onto main..."
+	git -c commit.gpgsign=false cherry-pick "origin/main..$INCLUDE_BRANCH" >>"$LOG_FILE" 2>&1 || {
+		log "Cherry-pick conflict from $INCLUDE_BRANCH; aborting cherry-pick..."
+		git cherry-pick --abort >>"$LOG_FILE" 2>&1 || true
+		exit 1
+	}
+fi
 
 if [ "$stashed" -eq 1 ]; then
 	log "Restoring stashed changes..."
@@ -181,4 +201,8 @@ if [ "$current_version" = "failed" ]; then
 	exit 1
 fi
 log "omp version: $current_version"
+if [ "$PUSH_FORK" = "1" ] && git remote get-url fork >/dev/null 2>&1; then
+	log "Pushing main to fork/main..."
+	git push fork main --force-with-lease >>"$LOG_FILE" 2>&1
+fi
 log "=== dev-profile-omp-sync completed successfully ==="
