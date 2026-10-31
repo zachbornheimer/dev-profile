@@ -34,12 +34,32 @@ Temporary Items
 # --- Python ---
 __pycache__/
 *.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
 
-# --- Node tooling ---
+# --- Node tooling & build caches ---
 node_modules/
 .node_modules/
+.pnpm-store/
 npm-debug.log*
 yarn-error.log*
+.next/
+.open-next/
+.wrangler/
+.turbo/
+.vercel/
+.nuxt/
+.svelte-kit/
+.astro/
+.parcel-cache/
+.vite/
+.cache/
+*.tsbuildinfo
+.eslintcache
+.stylelintcache
+playwright-report/
+test-results/
 
 # --- AI agent / workspace tooling ---
 .claude/

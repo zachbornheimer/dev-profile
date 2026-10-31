@@ -344,6 +344,26 @@ for phase in commit push drop-contains drop-scan; do
 	(("$(peak_of "$phase")" >= 2)) ||
 		fail "drop phase '${phase}' must run in parallel (saw peak=$(peak_of "$phase")): $(cat "${work}/pardrop.out")"
 done
+
+# --- Gutted worktree (tracked files missing on disk, ignored oversized cache left behind) and positional repo arg.
+setup_clone gutted
+git -C "$repo" switch -q -c feat/merged main
+commit "$repo" merged.txt merged
+git -C "$repo" switch -q main
+git -C "$repo" merge --ff-only -q feat/merged
+commit "$repo" .gitignore ".next/"
+git -C "$repo" push -q origin main
+git -C "$repo" worktree add -q "${work}/gutted-wt" feat/merged
+rm -f "${work}/gutted-wt/base.txt" "${work}/gutted-wt/merged.txt"
+mkdir -p "${work}/gutted-wt/apps/web/.next/cache"
+head -c 2097152 /dev/zero >"${work}/gutted-wt/apps/web/.next/cache/0.pack"
+cd_directive="${work}/cd-directive"
+WORKTRUNK_DIRECTIVE_CD_FILE="${cd_directive}" DEV_PROFILE_SYNC_MAX_FILE_MB=1 run_done "$repo" --drop gutted >"${work}/gutted.out" 2>&1 ||
+	fail "done --drop on gutted worktree must succeed: $(cat "${work}/gutted.out")"
+test ! -d "$repo" && test ! -d "${work}/gutted-wt" || fail "done --drop must remove gutted worktree and trash primary clone"
+git -C "$origin" rev-parse --verify --quiet refs/heads/feat/merged >/dev/null &&
+	fail "already-merged gutted worktree branch must not be pushed as a deletion commit to origin"
+test "$(cat "${cd_directive}")" = "${work}" || fail "done --drop must write parent dir to WORKTRUNK_DIRECTIVE_CD_FILE"
 # The script itself must disable quality hooks; the fixture did not export HK=0.
 grep -Fq 'export HK=0' "$done" || fail "dev-profile-done must export HK=0 so hk cannot block parking"
 grep -Eq 'commit -q --no-verify' "$done" || fail "dev-profile-done commits must pass --no-verify"

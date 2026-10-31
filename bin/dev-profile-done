@@ -13,7 +13,7 @@ set -euo pipefail
 #   --dry-run    print the plan; git fetch is the only change
 # --commit, --push, --pr, and --prune are accepted and are already the default.
 usage() {
-	echo "usage: dev-profile-done [--dry-run] [--no-commit] [--no-push] [--no-pr] [--no-prune] [--drop]" >&2
+	echo "usage: dev-profile-done [--dry-run] [--no-commit] [--no-push] [--no-pr] [--no-prune] [--drop] [repo]" >&2
 }
 
 dry_run=false
@@ -22,6 +22,7 @@ do_push=true
 do_pr=true
 do_prune=true
 do_drop=false
+target_dir=""
 while [[ $# -gt 0 ]]; do
 	case "$1" in
 	--dry-run) dry_run=true ;;
@@ -38,9 +39,16 @@ while [[ $# -gt 0 ]]; do
 		usage
 		exit 0
 		;;
-	*)
+	-*)
 		usage
 		exit 2
+		;;
+	*)
+		if [[ -n "${target_dir}" ]]; then
+			usage
+			exit 2
+		fi
+		target_dir="$1"
 		;;
 	esac
 	shift
@@ -51,6 +59,21 @@ export HK=0
 export GIT_TERMINAL_PROMPT=0
 max_file_mb="${DEV_PROFILE_SYNC_MAX_FILE_MB:-50}"
 failures=0
+caller_pwd="$(pwd -P 2>/dev/null || pwd)"
+
+if [[ -n "${target_dir}" ]]; then
+	if [[ -d "${target_dir}" ]] && git -C "${target_dir}" rev-parse --git-dir >/dev/null 2>&1; then
+		cd "${target_dir}" || exit 1
+	elif git rev-parse --git-dir >/dev/null 2>&1 &&
+		[[ "$(basename "$(cd "$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")" && pwd -P)")" == "${target_dir}" ]]; then
+		:
+	elif [[ -d "../${target_dir}" ]] && git -C "../${target_dir}" rev-parse --git-dir >/dev/null 2>&1; then
+		cd "../${target_dir}" || exit 1
+	else
+		echo "dev-profile-done must run inside a git clone" >&2
+		exit 1
+	fi
+fi
 
 git rev-parse --git-dir >/dev/null 2>&1 || {
 	echo "dev-profile-done must run inside a git clone" >&2
@@ -218,6 +241,15 @@ restack_blocked() {
 	return 1
 }
 
+# 0 when origin/<default> already holds $1's content: an ancestor, or a
+# squash merge / rebased series whose tree main already has.
+absorbed_into_default() {
+	local ref="refs/remotes/origin/${default_branch}" tree
+	git merge-base --is-ancestor "$1" "${ref}" && return 0
+	tree="$(git merge-tree --write-tree "${ref}" "$1" 2>/dev/null | sed -n 1p)" || return 1
+	[[ "${tree}" == "$(git rev-parse "${ref}^{tree}")" ]]
+}
+
 prunable_worktree() {
 	local path="$1" branch="$2" locked="$3" tip remote
 	[[ "${path}" == "${primary}" ]] && return 1
@@ -234,11 +266,14 @@ prunable_worktree() {
 	if git rev-parse --verify --quiet "refs/remotes/origin/${branch}" >/dev/null; then
 		remote="$(git rev-parse "refs/remotes/origin/${branch}")"
 	fi
-	if [[ -n "${remote}" && "${tip}" == "${remote}" ]]; then return 0; fi
+	if [[ -n "${remote}" ]] && git merge-base --is-ancestor "${tip}" "${remote}"; then return 0; fi
+	if absorbed_into_default "${tip}"; then return 0; fi
 	if marked "${branch}" "${state}/conflicts" && contained "${tip}"; then return 0; fi
 	if [[ "${dry_run}" == true && "${do_push}" == true ]] &&
 		{
-			marked "${branch}" "${state}/planned" || marked "${branch}" "${state}/pushed"
+			marked "${branch}" "${state}/planned" ||
+				marked "${branch}" "${state}/pushed" ||
+				marked "${branch}" "${state}/backed"
 		}; then
 		return 0
 	fi
@@ -292,6 +327,41 @@ free_name() {
 		n=$((n + 1))
 	done
 	printf '%s\n' "${name}"
+}
+
+# 0 when HEAD tracks files, nothing is staged, and no tracked file exists on disk.
+# A worktree in this state lost its checkout externally; committing it would
+# record deleting the entire repository.
+worktree_gutted() {
+	local dir="$1" rel any_tracked=false
+	git -C "${dir}" rev-parse --verify -q HEAD >/dev/null 2>&1 || return 1
+	git -C "${dir}" diff --cached --quiet || return 1
+	while IFS= read -r -d '' rel; do
+		[[ -z "${rel}" ]] && continue
+		any_tracked=true
+		if [[ -e "${dir}/${rel}" || -L "${dir}/${rel}" ]]; then
+			return 1
+		fi
+	done < <(git -C "${dir}" ls-files -z)
+	[[ "${any_tracked}" == true ]]
+}
+
+restore_worktree_one() {
+	local path="$1"
+	[[ -d "${path}" ]] || return 0
+	worktree_gutted "${path}" || return 0
+	say restore "${path}"
+	[[ "${dry_run}" == false ]] || return 0
+	git -C "${path}" checkout --quiet HEAD -- . || true
+}
+
+restore_worktrees() {
+	local path
+	wave_start
+	while IFS=$'\t' read -r path _ _; do
+		wave_spawn restore_worktree_one "${path}"
+	done <"${state}/worktrees"
+	wave_finish
 }
 
 # 0 when this worktree holds a nested repo or a file over the size limit.
@@ -462,18 +532,26 @@ commit_detached() {
 	fi
 }
 
-# Porcelain with missing submodule checkouts removed. Those are restored,
-# not committed.
+# Porcelain with missing submodule or gutted-worktree checkouts removed.
+# Those are restored, not committed.
 commit_status() {
-	local path="$1" line rel
+	local path="$1" line rel gutted=false
+	if [[ "${dry_run}" == true ]] && worktree_gutted "${path}"; then
+		gutted=true
+	fi
 	while IFS= read -r line; do
 		[[ -z "${line}" ]] && continue
 		rel="${line# D }"
-		if [[ "${line}" == " D ${rel}" && -f "${path}/.gitmodules" ]] &&
-			git -C "${path}" rev-parse -q --verify "HEAD:${rel}" >/dev/null &&
-			git -C "${path}" config -f .gitmodules --get-regexp '^submodule\..*\.path$' 2>/dev/null |
-			awk -v p="${rel}" '$2 == p { found = 1 } END { exit !found }'; then
-			continue
+		if [[ "${line}" == " D ${rel}" ]]; then
+			if [[ "${gutted}" == true ]]; then
+				continue
+			fi
+			if [[ -f "${path}/.gitmodules" ]] &&
+				git -C "${path}" rev-parse -q --verify "HEAD:${rel}" >/dev/null &&
+				git -C "${path}" config -f .gitmodules --get-regexp '^submodule\..*\.path$' 2>/dev/null |
+				awk -v p="${rel}" '$2 == p { found = 1 } END { exit !found }'; then
+				continue
+			fi
 		fi
 		printf '%s\n' "${line}"
 	done < <(git -C "${path}" status --porcelain)
@@ -606,10 +684,21 @@ restack_dry_one() {
 }
 
 restack_one() {
-	local branch="$1" path
+	local branch="$1" path local_tip remote_tip
 	if diverged "${branch}"; then
 		note_conflict "${branch}"
 		return 0
+	fi
+	local_tip="$(git rev-parse "refs/heads/${branch}")"
+	if absorbed_into_default "${local_tip}"; then
+		return 0
+	fi
+	if git rev-parse --verify --quiet "refs/remotes/origin/${branch}" >/dev/null; then
+		remote_tip="$(git rev-parse "refs/remotes/origin/${branch}")"
+		if [[ "${local_tip}" != "${remote_tip}" ]] &&
+			git merge-base --is-ancestor "${local_tip}" "${remote_tip}"; then
+			return 0
+		fi
 	fi
 	if git merge-base --is-ancestor "refs/remotes/origin/${default_branch}" "refs/heads/${branch}"; then
 		return 0
@@ -786,6 +875,9 @@ publish_branch_one() {
 	if [[ -n "${remote}" ]] && git merge-base --is-ancestor "${tip}" "${remote}"; then
 		return 0
 	fi
+	if absorbed_into_default "${tip}" && { [[ -z "${remote}" ]] || absorbed_into_default "${remote}"; }; then
+		return 0
+	fi
 	if [[ -n "${remote}" ]] && ! git merge-base --is-ancestor "${remote}" "${tip}"; then
 		if ! marked "${branch}" "${state}/conflicts"; then report conflict "${branch}"; fi
 		backup_conflict "${branch}" "${tip}"
@@ -840,7 +932,8 @@ open_pr() {
 	fi
 	head_oid="$(git rev-parse --verify --quiet "refs/remotes/origin/${head}" || true)"
 	base_oid="$(git rev-parse --verify --quiet "refs/remotes/origin/${base}" || true)"
-	if [[ -n "${head_oid}" && -n "${base_oid}" && "${head_oid}" == "${base_oid}" ]]; then
+	if [[ -n "${head_oid}" && -n "${base_oid}" ]] &&
+		git merge-base --is-ancestor "${head_oid}" "${base_oid}"; then
 		report skip "${head}: no commits into ${base}"
 		return 0
 	fi
@@ -907,18 +1000,27 @@ prune_worktree_one() {
 	prunable_worktree "${path}" "${branch}" "${locked}" || return 0
 	say prune "${path}"
 	[[ "${dry_run}" == false ]] || return 0
-	git worktree remove --force "${path}"
+	if ! git worktree remove --force "${path}" 2>/dev/null; then
+		rm -rf "${path}"
+		with_lock config git worktree prune
+	fi
 	if ! git worktree list --porcelain | grep -Fxq -- "branch refs/heads/${branch}"; then
 		with_lock config git branch -D "${branch}"
 	fi
 }
 
 prune_branch_one() {
-	local branch="$1"
+	local branch="$1" tip remote
 	if marked "${branch}" "${state}/unpushed"; then return 0; fi
 	[[ -n "$(worktree_of "${branch}")" ]] && return 0
-	git rev-parse --verify --quiet "refs/remotes/origin/${branch}" >/dev/null || return 0
-	[[ "$(git rev-parse "refs/heads/${branch}")" == "$(git rev-parse "refs/remotes/origin/${branch}")" ]] || return 0
+	tip="$(git rev-parse "refs/heads/${branch}")"
+	remote="$(git rev-parse --verify --quiet "refs/remotes/origin/${branch}" || true)"
+	if [[ -z "${remote}" || "${tip}" != "${remote}" ]] &&
+		! { [[ -n "${remote}" ]] && git merge-base --is-ancestor "${tip}" "${remote}"; } &&
+		! absorbed_into_default "${tip}" &&
+		! { marked "${branch}" "${state}/conflicts" && contained "${tip}"; }; then
+		return 0
+	fi
 	say prune "${branch}"
 	[[ "${dry_run}" == false ]] || return 0
 	with_lock config git branch -D "${branch}"
@@ -955,7 +1057,7 @@ prune_remote_one() {
 	if marked "${branch}" "${state}/unpushed"; then return 0; fi
 	tip="$(git rev-parse --verify --quiet "${ref}" || true)"
 	[[ -n "${tip}" ]] || return 0
-	git merge-base --is-ancestor "${tip}" "refs/remotes/origin/${default_branch}" || return 0
+	absorbed_into_default "${tip}" || return 0
 	say prune "origin/${branch}"
 	[[ "${dry_run}" == false ]] || return 0
 	if ! command -v gh >/dev/null 2>&1; then
@@ -1011,7 +1113,7 @@ drop_branch_one() {
 	local branch="$1" tip
 	if marked "${branch}" "${state}/skipped"; then return 0; fi
 	tip="$(git rev-parse "refs/heads/${branch}")"
-	if contained "${tip}"; then return 0; fi
+	if contained "${tip}" || absorbed_into_default "${tip}"; then return 0; fi
 	if [[ "${dry_run}" == true && "${do_push}" == true ]]; then return 0; fi
 	printf '%s\n' "${branch} is not on origin" >>"${state}/blockers"
 }
@@ -1036,7 +1138,7 @@ drop_worktree_one() {
 }
 
 drop_clone() {
-	local line branch path locked
+	local line branch path locked parent_dir
 	while IFS= read -r line; do
 		[[ -z "${line}" ]] && continue
 		printf '%s\n' "${line} was skipped" >>"${state}/blockers"
@@ -1083,7 +1185,12 @@ drop_clone() {
 		fi
 	done <"${state}/worktrees"
 	say drop "${primary}"
-	cd "$(dirname "${primary}")" || exit 1
+	parent_dir="$(dirname "${primary}")"
+	if [[ -n "${WORKTRUNK_DIRECTIVE_CD_FILE:-}" ]] &&
+		[[ "${caller_pwd}" == "${primary}" || "${caller_pwd}" == "${primary}/"* ]]; then
+		printf '%s\n' "${parent_dir}" >"${WORKTRUNK_DIRECTIVE_CD_FILE}"
+	fi
+	cd "${parent_dir}" || exit 1
 	trash "${primary}"
 }
 
@@ -1139,6 +1246,7 @@ report clone "${clone}"
 
 restore_submodules
 write_worktrees
+restore_worktrees
 commit_worktrees
 commit_stash
 ff_default
