@@ -426,7 +426,7 @@ Path: `~/.agents/skills/organize-files/data/decisions.jsonl`, append-only, one r
 - **flight-fix-list.md**: a strong or resolved `product:flight` that has `leaf:linear:Flight`, plus flag_issue_list 0.85 → file-to-linear, and never keep 0.00 with reason "illegal".
 - **evo-canary-fable-report.md / zys-703-canary-evidence.md**: a strong match to evident-output plus flag_evidence 0.8 → R7 archive (a placeholder until fork F1 is decided), with `resolved_depth == 3`.
 - **RapidSign-CIP-attorney-brief.md**: no strong match; area p 0.7 and product p 0.6 → resolves to at least `product:rapidsign` (today: project none, keep 0.00).
-- __obsidian-live-proof-*.txt__: flag_backup 0.2 → not trash via R2, even though it is regenerable. Evidence → archive under `product:obsidian-backup`. This shows trash now requires "duplicate AND regenerable".
+- **obsidian-live-proof-*.txt**: flag_backup 0.2 → not trash via R2, even though it is regenerable. Evidence → archive under `product:obsidian-backup`. This shows trash now requires "duplicate AND regenerable".
 - **hof-25162-backup-preconvert.html**: backup 0.95, regenerable 0.9, private 0.05 → trash-candidate still works (guards against over-correction).
 - **ZBbio-readable.md**: area personal-life, leaf `other` → `product:personal-docs`, personal-docs with destination `~/Documents` (the `personal:other` replacement).
 

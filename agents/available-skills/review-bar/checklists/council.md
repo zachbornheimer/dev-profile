@@ -7,7 +7,7 @@ Shared scaffold (applies to all): you review a live-rendered, screenshotted targ
 ---
 
 <reviewer*info persona="1" role="Sr. UX Lead, Apple" lens="behavior / flow / cognition / state / forgiveness">
-Primary source: Ken Kocienda, \_Creative Selection*. Apple's real method = the **demo is the unit of truth**; **taste** selects the best version; the seven elements (empathy, taste, craft, diligence, decisiveness). NOT pixels (#2), reduction (#3), strategy (#4), tokens (#5), friction (#6), or code (#7) — this lens is how the flow _behaves_.
+Primary source: Ken Kocienda, \_Creative Selection*. Apple's real method = the **demo is the unit of truth**; **taste** selects the best version; the seven elements (empathy, taste, craft, diligence, decisiveness). NOT pixels (#2), reduction (#3), strategy (#4), tokens (#5), friction (#6), or code (#7) — this lens is how the flow *behaves*.
 </reviewer_info>
 <checklist persona="1">
 
@@ -112,14 +112,14 @@ The eighth seat is the bar itself — Zach. The 7 lenses judge the rendered surf
 <checklist persona="8">
 The wonder gate (judge holistically, with specifics):
 
-- [ ] **The wow test** — would a junior dev AND a principal both stop and say _"this is great, I need to study this"_? If it needs explaining or defending, it isn't there.
+- [ ] **The wow test** — would a junior dev AND a principal both stop and say *"this is great, I need to study this"*? If it needs explaining or defending, it isn't there.
 - [ ] **Inevitability** — feels found, not built; could not have been otherwise.
-- [ ] **Subtract to the motive** — how much can be removed and have it get _clearer_? Anything here that isn't the motive restated?
-- [ ] **Magic below perception** — the sub-perceptual layer is present (the nudge, the easing that makes it _arrive_, the spacing that resolves a row).
+- [ ] **Subtract to the motive** — how much can be removed and have it get *clearer*? Anything here that isn't the motive restated?
+- [ ] **Magic below perception** — the sub-perceptual layer is present (the nudge, the easing that makes it *arrive*, the spacing that resolves a row).
 - [ ] **Childlike surface, intricate interior** — explainable in a breath; a dense honest world inside (edge cases, a11y, derivation, state).
 - [ ] **Derive from a norm; a deviation quotes it** — tokens not magic values; an arguable value (16 vs 18px) means the constraint isn't tight enough.
-- [ ] **Pit of success — good defaults, easy override** — the barest form is already correct: `<Input />` with no props, no `style=`, renders right; props exist for the real exception but are never _required_ for the common case. The right path is the only obvious one and the wrong one is hard to even express (a required `style`/magic value where a default belonged is a missing default). Opening the kit/API/code feels like a gift.
-- [ ] **Cross-framework parity (kit targets)** — a shared/kit component is _one_ component: identical public API, behavior, a11y, and tokens across frameworks (React ≡ Vue), with differences confined to the render layer over a shared core. A prop, state, default, or a11y affordance present in one framework and absent in the other is a parity defect — the barest-correct test (`<Input />`) must hold equally in each.
+- [ ] **Pit of success — good defaults, easy override** — the barest form is already correct: `<Input />` with no props, no `style=`, renders right; props exist for the real exception but are never *required* for the common case. The right path is the only obvious one and the wrong one is hard to even express (a required `style`/magic value where a default belonged is a missing default). Opening the kit/API/code feels like a gift.
+- [ ] **Cross-framework parity (kit targets)** — a shared/kit component is *one* component: identical public API, behavior, a11y, and tokens across frameworks (React ≡ Vue), with differences confined to the render layer over a shared core. A prop, state, default, or a11y affordance present in one framework and absent in the other is a parity defect — the barest-correct test (`<Input />`) must hold equally in each.
 - [ ] **Verify with your own eyes** — every claim backed by a screenshot / a run / a test, never a DOM-probe count or "should work."
 
 The engineering hard rules (binary, on touched code — cite file:line):
@@ -143,9 +143,9 @@ A findings list is the input, not the output. Converge to wonder:
 
 1. **Cluster → root causes.** Group the panel's findings by their structural cause, not their symptom (problem-solving.md: name the pattern; never whack-a-mole the same kind of thing twice). Most of a long list collapses into a few roots (e.g. "12 magic colors" = one untokenized surface; "3 focus bugs + a CLS" = one missing kit primitive).
 
-2. **Research each root before deciding it.** Do not solve from memory. For every non-trivial root cause, run web research (WebSearch + WebFetch, or spawn the `external-research` / `deep-research` agent) to find the _best-known_ approach, not the first one you'd reach for. Anchor on primary sources — the canon the relevant persona already cites (react.dev, web.dev / CWV, WAI-ARIA APG, Apple HIG, the design-system literature, the language's own docs) over blog digests. Pull out:
+2. **Research each root before deciding it.** Do not solve from memory. For every non-trivial root cause, run web research (WebSearch + WebFetch, or spawn the `external-research` / `deep-research` agent) to find the *best-known* approach, not the first one you'd reach for. Anchor on primary sources — the canon the relevant persona already cites (react.dev, web.dev / CWV, WAI-ARIA APG, Apple HIG, the design-system literature, the language's own docs) over blog digests. Pull out:
 
-   - **The state of the art** — how teams who are excellent at this actually solve it, and _why_ (the reason, so you can generalize, not just copy).
+   - **The state of the art** — how teams who are excellent at this actually solve it, and *why* (the reason, so you can generalize, not just copy).
    - **Corollaries** — the problems this fix tends to drag in (the a11y regression a CSS fix causes, the INP cost of the obvious render fix, the re-theme break a token shortcut leaves), so the fix doesn't trade one finding for the next review's finding.
    - **A few candidate solutions** — 2–4 real options with their trade-offs, each grounded in a source you can cite. This is the evidence the decide step chooses from.
 
@@ -153,7 +153,7 @@ A findings list is the input, not the output. Converge to wonder:
 
 3. **Discuss + decide each root.** For each root cause, state the real need it served, then weigh the researched candidates (their trade-offs + corollaries from step 2), and pick the one that fixes it **at the root** — the interface/abstraction that makes the wrong state unrepresentable, not a patch on the symptom. Bias to deciding and proceeding autonomously: a researched, source-backed call is yours to make.
 
-   **Make the assumption — then make it cheap to reverse.** Making the call for the user is the _help_; the discipline is that every autonomous decision is logged as a visible, overridable assumption, never a silent one. For each, write one line: _what you assumed · why (the research) · "to override: X"_. A default the user never sees is not a default — it's a fork they can't find. Good defaults earn their autonomy by being legible and reversible, not by being hidden. Reserve full escalation (stop-and-ask, or MISSION "BLOCKED — needs Zach") for the genuinely human calls only — a product/taxonomy decision, a brand deviation, an irreversible/destructive action — and even there, log your **recommended default + the research behind it** and keep moving on the rest; never stall the whole loop on one open question.
+   **Make the assumption — then make it cheap to reverse.** Making the call for the user is the *help*; the discipline is that every autonomous decision is logged as a visible, overridable assumption, never a silent one. For each, write one line: *what you assumed · why (the research) · "to override: X"*. A default the user never sees is not a default — it's a fork they can't find. Good defaults earn their autonomy by being legible and reversible, not by being hidden. Reserve full escalation (stop-and-ask, or MISSION "BLOCKED — needs Zach") for the genuinely human calls only — a product/taxonomy decision, a brand deviation, an irreversible/destructive action — and even there, log your **recommended default + the research behind it** and keep moving on the rest; never stall the whole loop on one open question.
 
 4. **Add tasks.** Turn each root cause into a tracked, ordered task (TaskCreate and/or the repo's MISSION/task list) — one logical change each, sized to a single commit, severity-ordered (blockers first). Link each task back to the findings it resolves and the research/decision that shaped it.
 
@@ -161,4 +161,4 @@ A findings list is the input, not the output. Converge to wonder:
 
 6. **Re-run `/review-bar`.** Loop steps 1–5 until VERDICT: CLEARED — every persona cleared, hard rules pass, wonder gate met. Only then is it done. A partial pass is a checkpoint, not a finish.
 
-The loop's whole purpose: turn "here's what's wrong" into "here's the root, here's the decision, here's the task, here's the fix" — and keep turning until someone opening it says _"wow — I need to study this."_
+The loop's whole purpose: turn "here's what's wrong" into "here's the root, here's the decision, here's the task, here's the fix" — and keep turning until someone opening it says *"wow — I need to study this."*
