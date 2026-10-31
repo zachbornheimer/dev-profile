@@ -1,5 +1,4 @@
 [tools]
-chezmoi = "2.73.3"
 colima = "latest"
 gofumpt = "latest"
 
@@ -106,76 +105,93 @@ exclude = [
   "**/session-snapshots/**",
   "**/oneshot/**",
   "**/.plugins.lock",
+  "**/service.json",
+  "**/sign_state.json",
+  "**/*.bak*",
+  "**/*backup*",
+  "~/.vim/bundle/**",
+  "~/.vim/bundle2/**",
+  "~/.vim/.netrwhist",
 ]
 
 [history.encryption]
 recipients = ["age1qpl3tghy0660prmvz3x2dqjsn69m588e0j0v56ec0rswkujgyshs64dhtc"]
+
+[history.reload]
+"~/.config/mise/config.toml" = "mise dot apply --yes && mise install --yes"
+
 [dotfiles]
 "~/.agents" = { source = "~/Developer/Personal/dev-profile/agents" }
-"~/.config/1Password" = { source = "~/Developer/Personal/dev-profile/apps/1Password" }
-"~/.config/agent-hooks" = { source = "~/Developer/Personal/dev-profile/apps/agent-hooks" }
-"~/.config/ai" = { source = "~/Developer/Personal/dev-profile/apps/ai" }
-"~/.config/ast-grep" = { source = "~/Developer/Personal/dev-profile/apps/ast-grep" }
-"~/.config/atuin" = { source = "~/Developer/Personal/dev-profile/apps/atuin" }
-"~/.config/bat" = { source = "~/Developer/Personal/dev-profile/apps/bat" }
-"~/.config/btop" = { source = "~/Developer/Personal/dev-profile/apps/btop" }
-"~/.config/direnv" = { source = "~/Developer/Personal/dev-profile/apps/direnv" }
+"~/.config/1Password" = { mode = "track", encrypt = true }
+"~/.config/agent-hooks" = { mode = "track", encrypt = true, exclude = ["*.bak*"] }
+"~/.config/ai" = { mode = "track", encrypt = true }
+"~/.config/ast-grep" = { mode = "track", encrypt = true }
+"~/.config/atuin" = { mode = "track", encrypt = true }
+"~/.config/bat" = { mode = "track", encrypt = true }
+"~/.config/btop" = { mode = "track", encrypt = true }
+"~/.config/direnv" = { mode = "track", encrypt = true }
 "~/.config/dprint/dprint.jsonc" = { source = "~/Developer/Personal/dev-profile/config/dprint.jsonc" }
-"~/.config/git" = { source = "~/Developer/Personal/dev-profile/apps/git" }
-# Herdr keeps sockets, logs, and session state in ~/.config/herdr: link the files, not the directory.
-"~/.config/herdr/config.toml" = { source = "~/Developer/Personal/dev-profile/apps/herdr/config.toml" }
-"~/.config/herdr/oneshot.sh" = { source = "~/Developer/Personal/dev-profile/apps/herdr/oneshot.sh" }
-"~/.config/herdr/session-tokens.py" = { source = "~/Developer/Personal/dev-profile/apps/herdr/session-tokens.py" }
-# Everything the dev-profile checkout deploys. This is global config, so `mise dot status`
-# and `mise dot apply` see it from any directory. Sources are full paths: a relative
-# source resolves from ~/.config/mise (where this file is linked), not from the repo.
+"~/.config/git" = { mode = "track", encrypt = true }
+"~/.config/herdr/config.toml" = { mode = "track", encrypt = true }
+"~/.config/herdr/oneshot.sh" = { mode = "track", encrypt = true }
+"~/.config/herdr/session-tokens.py" = { mode = "track", encrypt = true }
 "~/.config/hk/config.pkl" = { source = "~/Developer/Personal/dev-profile/hk/hk.pkl" }
-"~/.config/htop" = { source = "~/Developer/Personal/dev-profile/apps/htop" }
-"~/.config/kitty" = { source = "~/Developer/Personal/dev-profile/kitty" }
-"~/.config/lazygit" = { source = "~/Developer/Personal/dev-profile/apps/lazygit" }
+"~/.config/htop" = { mode = "track", encrypt = true }
+"~/.config/kitty" = { mode = "track", encrypt = true, exclude = [
+  "gattino/.venv/**",
+  "gattino/**/__pycache__/**",
+  "*.bak*",
+] }
+"~/.config/lazygit" = { mode = "track", encrypt = true }
 "~/.config/mise/conf.d/dev-profile.toml" = { source = "~/Developer/Personal/dev-profile/config/tools.toml" }
-"~/.config/nvim" = { source = "~/Developer/Personal/dev-profile/nvim" }
-"~/.config/omp/fallback-shake" = { source = "~/Developer/Personal/dev-profile/apps/omp/fallback-shake" }
-"~/.config/omp/hide-evidence" = { source = "~/Developer/Personal/dev-profile/apps/omp/hide-evidence" }
-"~/.config/omp/thinking" = { source = "~/Developer/Personal/dev-profile/apps/omp/thinking" }
-"~/.config/opencode" = { source = "~/Developer/Personal/dev-profile/apps/opencode" }
-"~/.config/php-cs-fixer" = { source = "~/Developer/Personal/dev-profile/apps/php-cs-fixer" }
-"~/.config/ripgrep" = { source = "~/Developer/Personal/dev-profile/apps/ripgrep" }
-"~/.config/starship-dark.toml" = { mode = "track" }
-"~/.config/starship.toml" = { mode = "track" }
+"~/.config/mise/config.toml" = { mode = "track", encrypt = false }
+"~/.config/nvim" = { mode = "track", encrypt = true, exclude = [".git/**"] }
+"~/.config/omp/fallback-shake" = { mode = "track", encrypt = true }
+"~/.config/omp/hide-evidence" = { mode = "track", encrypt = true }
+"~/.config/omp/thinking" = { mode = "track", encrypt = true }
+"~/.config/opencode" = { mode = "track", encrypt = true, exclude = ["service.json", "*.bak*", "*backup*"] }
+"~/.config/php-cs-fixer" = { mode = "track", encrypt = true }
+"~/.config/ripgrep" = { mode = "track", encrypt = true }
+"~/.config/starship-dark.toml" = { mode = "track", encrypt = true }
+"~/.config/starship.toml" = { mode = "track", encrypt = true }
 "~/.config/worktrunk/config.toml" = { mode = "track", encrypt = false }
 "~/.config/worktrunk/config.toml/dev-profile" = { source = "~/Developer/Personal/dev-profile/config/worktrunk.toml", merge = true }
 "~/.config/yamllint/config" = { source = "~/Developer/Personal/dev-profile/config/yamllint.yaml" }
-"~/.config/zab_ai" = { source = "~/Developer/Personal/dev-profile/apps/zab_ai" }
-"~/.config/zed" = { source = "~/Developer/Personal/dev-profile/apps/zed" }
-"~/.config/zsh" = { source = "~/Developer/Personal/dev-profile/shell/zsh" }
-"~/.config/zsh-preview" = { source = "~/Developer/Personal/dev-profile/apps/zsh-preview" }
-"~/.editorconfig" = { source = "~/Developer/Personal/dev-profile/home/editorconfig" }
-"~/.gitconfig" = { source = "~/Developer/Personal/dev-profile/home/gitconfig" }
+"~/.config/zab_ai" = { mode = "track", encrypt = true, exclude = ["sign_state.json", "*.log"] }
+"~/.config/zed" = { mode = "track", encrypt = true }
+"~/.config/zsh" = { mode = "track", encrypt = true }
+"~/.config/zsh-preview" = { mode = "track", encrypt = true }
+"~/.editorconfig" = { mode = "track", encrypt = true }
+"~/.gitconfig" = { mode = "track", encrypt = true }
 "~/.local/share/dev-profile/bin" = { source = "~/Developer/Personal/dev-profile/bin" }
 "~/.local/share/dev-profile/shell.zsh" = { source = "~/Developer/Personal/dev-profile/shell/shell.zsh" }
 "~/.local/share/dev-profile/xdg" = { source = "~/Developer/Personal/dev-profile/xdg" }
-"~/.markdownlintrc" = { source = "~/Developer/Personal/dev-profile/config/markdownlintrc.json" }
-"~/.omp/agent/extensions/herdr-omp-agent-state.ts" = { source = "~/Developer/Personal/dev-profile/apps/omp/extensions/herdr-omp-agent-state.ts" }
-"~/.omp/agent/extensions/machine-host-context.ts" = { source = "~/Developer/Personal/dev-profile/apps/omp/extensions/machine-host-context.ts" }
-"~/.profile" = { source = "~/Developer/Personal/dev-profile/home/profile" }
-"~/.tmux.conf" = { source = "~/Developer/Personal/dev-profile/home/tmux.conf" }
-"~/.vim" = { source = "~/Developer/Personal/dev-profile/vim" }
-"~/.vimrc" = { source = "~/Developer/Personal/dev-profile/home/vimrc" }
-"~/.zlogin" = { source = "~/Developer/Personal/dev-profile/home/zlogin" }
-"~/.zprofile" = { source = "~/Developer/Personal/dev-profile/home/zprofile" }
-"~/.zshenv" = { source = "~/Developer/Personal/dev-profile/home/zshenv" }
-"~/.zshrc" = { source = "~/Developer/Personal/dev-profile/home/zshrc" }
-"~/.zshrc.local" = { source = "~/Developer/Personal/dev-profile/home/zshrc.local" }
+"~/.markdownlintrc" = { mode = "track", encrypt = true }
+"~/.omp/agent/extensions/advisor-style.ts" = { mode = "track", encrypt = true }
+"~/.omp/agent/extensions/capability-completion.ts" = { mode = "track", encrypt = true }
+"~/.omp/agent/extensions/capability-wake.ts" = { mode = "track", encrypt = true }
+"~/.omp/agent/extensions/collapsible-blocks.ts" = { mode = "track", encrypt = true }
+"~/.omp/agent/extensions/draft-stash.ts" = { mode = "track", encrypt = true }
+"~/.omp/agent/extensions/herdr-omp-agent-state.ts" = { mode = "track", encrypt = true }
+"~/.omp/agent/extensions/learn-command.ts" = { mode = "track", encrypt = true }
+"~/.omp/agent/extensions/machine-host-context.ts" = { mode = "track", encrypt = true }
+"~/.omp/agent/extensions/pending-decisions.ts" = { mode = "track", encrypt = true }
+"~/.omp/agent/extensions/run-agent-hooks.ts" = { mode = "track", encrypt = true }
+"~/.omp/agent/extensions/semgrep-guardian.ts" = { mode = "track", encrypt = true }
+"~/.omp/agent/extensions/superset-hooks.ts" = { mode = "track", encrypt = true }
+"~/.omp/agent/extensions/undo-clear.ts" = { mode = "track", encrypt = true }
+"~/.profile" = { mode = "track", encrypt = true }
+"~/.tmux.conf" = { mode = "track", encrypt = true }
+"~/.vim" = { mode = "track", encrypt = true, exclude = ["bundle/**", "bundle2/**", ".netrwhist"] }
+"~/.vimrc" = { mode = "track", encrypt = true }
+"~/.zlogin" = { mode = "track", encrypt = true }
+"~/.zprofile" = { mode = "track", encrypt = true }
+"~/.zshenv" = { mode = "track", encrypt = true }
+"~/.zshenv.d" = { mode = "track", encrypt = true }
+"~/.zshrc" = { mode = "track", encrypt = true }
+"~/.zshrc.local" = { mode = "track", encrypt = true }
 "~/Developer/Personal/.editorconfig" = { source = "~/Developer/Personal/dev-profile/config/editorconfig" }
 "~/Developer/Personal/.golangci.yml" = { source = "~/Developer/Personal/dev-profile/config/golangci.yml" }
 "~/Developer/Personal/deny.toml" = { source = "~/Developer/Personal/dev-profile/config/deny.toml" }
-"~/Developer/Personal/dev-profile/apps/omp/extensions/machine-host-context.test.ts" = { mode = "track" }
-"~/Developer/Personal/dev-profile/apps/omp/extensions/machine-host-context.ts" = { mode = "track" }
-"~/Developer/Personal/dev-profile/apps/zsh-preview/prompt.zsh" = { mode = "track" }
-"~/Developer/Personal/dev-profile/apps/zsh-preview/routes.zsh" = { mode = "track" }
-"~/Developer/Personal/dev-profile/kitty/themes/set-theme.sh" = { mode = "track" }
-"~/Developer/Personal/dev-profile/shell/zsh/30-prompt.zsh" = { mode = "track" }
-"~/Developer/Personal/dev-profile/shell/zsh/prompt-demo.zsh" = { mode = "track" }
 "~/Developer/Personal/dprint.jsonc" = { source = "~/Developer/Personal/dev-profile/config/dprint.jsonc" }
 "~/Developer/Personal/mise.toml" = { source = "~/Developer/Personal/dev-profile/config/personal-overlay.toml" }

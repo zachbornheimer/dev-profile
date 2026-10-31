@@ -10,10 +10,14 @@ DEV_PROFILE_BACKUPS = "{{env.HOME}}/.local/state/dev-profile/backups"
 "brew:git" = "latest"
 
 [tasks.setup]
-description = "Link the global mise config, apply the dotfiles it declares, then install the recorded upstream skills"
-# Two runs: the first links ~/.config/mise/config.toml; a fresh mise process then reads its table.
+description = "Seed the global mise config if absent, apply the dotfiles it declares, then install the recorded upstream skills"
+# ~/.config/mise/config.toml is tracked in place (mode = "track"); seed it from config/mise.toml only when missing.
 # Upstream skills are not committed; aubx-skills installs them from agents/available-skills/.skill-lock.json.
-run = ["mise dot apply --yes", "mise dot apply --yes", "~/.agents/bin/aubx-skills sync"]
+run = [
+  "mkdir -p ~/.config/mise && [ -f ~/.config/mise/config.toml ] || cp config/mise.toml ~/.config/mise/config.toml",
+  "mise dot apply --yes",
+  "~/.agents/bin/aubx-skills sync",
+]
 
 [tasks.doctor]
 description = "Syntax-check the files this branch installs"
@@ -52,8 +56,3 @@ run = "~/.agents/bin/aubx-skills unmanaged"
 [tasks.ci]
 description = "lint, then the file check"
 run = ["mise run lint", "mise run test"]
-
-# The dotfile table lives in config/mise.toml, which this links as the global mise config.
-# A fresh machine runs `mise run setup` here once; after that, `mise dot apply` works anywhere.
-[dotfiles]
-"~/.config/mise/config.toml" = { source = "~/Developer/Personal/dev-profile/config/mise.toml", mode = "symlink" }
