@@ -1,6 +1,7 @@
 [tools]
 colima = "latest"
 gofumpt = "latest"
+node = "22"
 
 [env._]
 # ~/.agents/bin holds the aubx scope guard; it must precede mise tool bins so
@@ -24,6 +25,9 @@ shims.exclude = [
   "git-upload-pack",
   "gitk",
 ]
+
+[settings.age]
+key_file = "/home/zbornheimer/.config/mise/age.txt"
 
 [tasks."learn:doctor"]
 # /learn is three files that `mise dot apply` installs together: the omp command, the launcher it
@@ -147,6 +151,7 @@ recipients = ["age1qpl3tghy0660prmvz3x2dqjsn69m588e0j0v56ec0rswkujgyshs64dhtc"]
 "~/.config/mise/config.toml" = { mode = "track", encrypt = false }
 "~/.config/nvim" = { mode = "track", encrypt = true, exclude = [".git/**"] }
 "~/.config/omp/fallback-shake" = { mode = "track", encrypt = true }
+"~/.config/omp/gemini-filter-resume" = { mode = "track", encrypt = true }
 "~/.config/omp/hide-evidence" = { mode = "track", encrypt = true }
 "~/.config/omp/thinking" = { mode = "track", encrypt = true }
 "~/.config/opencode" = { mode = "track", encrypt = true, exclude = ["service.json", "*.bak*", "*backup*"] }

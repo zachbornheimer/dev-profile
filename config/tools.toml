@@ -2,9 +2,9 @@
 pkl = "0.32.1"
 hk = "latest"
 dprint = "latest"
-worktrunk = "latest"
+worktrunk = { version = "latest", workflow = "release.yaml" }
 go = "latest"
-bun = "latest"
+bun = "1.4.4"
 stylua = "2.5.2"
 aube = "latest"
 uv = "latest"
