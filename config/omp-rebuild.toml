@@ -22,6 +22,7 @@ build_branch = "omp-build"
 branches = [
   "feat/capability-channel-and-deferral",
   "omp-neon-sessions",
+  "feat/sql-session-listing",
   "feat/extension-shake",
   "feat/auto-fallback-shake",
   "feat/isolation-command-backend",
