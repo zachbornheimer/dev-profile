@@ -3,10 +3,10 @@
 # requires-python = ">=3.10"
 # dependencies = []
 # ///
-"""PreToolUse: forbid committing or pushing custom commits to `main` in oh-my-pi.
+"""PreToolUse: forbid committing, merging (including `wt merge` / `wt land`), or pushing custom commits to `main` in oh-my-pi.
 
 `main` in ~/Developer/Personal/oh-my-pi (and `fork/main` on zachbornheimer/oh-my-pi)
-is a pure upstream mirror of `can1357/oh-my-pi`. Custom changes must live on named
+is a read-only upstream mirror of `can1357/oh-my-pi`. Custom changes must live on named
 topic branches off `origin/main` and be registered in `dev-profile/config/omp-rebuild.toml`
 (which `dev-profile-omp-sync` merges onto `omp-build`).
 """
@@ -26,10 +26,10 @@ from hook_common import Decision, HookEvent, run_hook
 HOOK_NAME = "omp-main-branch-guard"
 
 STEER_MESSAGE = (
-    "Direct commits, merges, or pushes to 'main' in oh-my-pi are forbidden "
-    "('main' mirrors upstream can1357/oh-my-pi). "
+    "Direct commits, merges (including 'wt merge' / 'wt land'), or pushes to 'main' in oh-my-pi are forbidden "
+    "('main' is a read-only mirror of upstream can1357/oh-my-pi). "
     "Create a topic branch off origin/main ('wt -C ~/Developer/Personal/oh-my-pi switch --create feat/<slug> --base origin/main'), "
-    "commit and push that topic branch to 'fork', and register it in dev-profile/config/omp-rebuild.toml "
+    "commit and push that topic branch to 'fork' ('git push -u fork feat/<slug>'), and register it in dev-profile/config/omp-rebuild.toml "
     "via 'dev-profile-omp-sync --include feat/<slug> --compile --push'."
 )
 
@@ -37,8 +37,9 @@ GIT_PUSH_MAIN_RE = re.compile(
     r"\bgit\b(?:\s+-C\s+\S+)?\s+push\b[^\n;|&]*\b(?:fork|origin)\b[^\n;|&]*(?:\bHEAD:main\b|\bHEAD:refs/heads/main\b|\bmain\b|\bmain:main\b)"
 )
 GIT_COMMIT_MERGE_RE = re.compile(r"\bgit\b(?:\s+-C\s+\S+|\s+-c\s+\S+)*\s+(?:commit|merge|cherry-pick)\b")
-GIT_C_OMP_RE = re.compile(r"\bgit\s+-C\s+([^\s;|&]+)")
-CD_OMP_RE = re.compile(r"\bcd\s+([^\s;|&]+)")
+WT_MERGE_LAND_RE = re.compile(r"\bwt\b(?:\s+-C\s+\S+)?\s+(?:merge|land)\b([^\n;|&]*)")
+GIT_C_RE = re.compile(r"\b(?:git|wt)\s+-C\s+([^\s;|&]+)")
+CD_ONLY_RE = re.compile(r"^\s*cd\s+([^\s;|&]+)\s*$")
 
 
 def extract_command(event: HookEvent) -> str:
@@ -71,15 +72,11 @@ def current_branch_of(repo_path: Path) -> str:
         return ""
 
 
-def targets_oh_my_pi(command: str, cwd: str) -> Path | None:
-    for pattern in (GIT_C_OMP_RE, CD_OMP_RE):
-        for match in pattern.finditer(command):
-            raw = match.group(1).strip("'\"")
-            if "oh-my-pi" in raw and ".worktrees" not in raw:
-                return Path(raw).expanduser()
-    if "oh-my-pi" in cwd and ".worktrees" not in cwd:
-        return Path(cwd).expanduser()
-    return None
+def classify_target(target_path: str) -> tuple[Path | None, bool]:
+    cleaned = target_path.strip("'\"")
+    if "oh-my-pi" in cleaned:
+        return Path(cleaned).expanduser(), (".worktrees" in cleaned)
+    return None, False
 
 
 def decide(event: HookEvent) -> Decision | None:
@@ -87,20 +84,37 @@ def decide(event: HookEvent) -> Decision | None:
     if not command:
         return None
 
-    cwd = event.field("cwd", "cwd")
-    omp_repo = targets_oh_my_pi(command, cwd)
-    if omp_repo is None:
-        return None
+    active_cwd = event.field("cwd", "cwd")
+    clauses = re.split(r"&&|\|\||;|\n", command)
 
-    if GIT_PUSH_MAIN_RE.search(command):
-        return Decision.deny(STEER_MESSAGE, log_detail="omp-push-main")
+    for raw_clause in clauses:
+        clause = raw_clause.strip()
+        if not clause:
+            continue
+        cd_match = CD_ONLY_RE.match(clause)
+        if cd_match:
+            active_cwd = cd_match.group(1).strip("'\"")
+            continue
 
-    if GIT_COMMIT_MERGE_RE.search(command):
-        if re.search(r"\bgit\s+checkout\s+(?:-b|-B)?\s*(?!main\b)\S+", command):
-            return None
-        branch = current_branch_of(omp_repo)
-        if branch in ("main", "master"):
-            return Decision.deny(STEER_MESSAGE, log_detail="omp-commit-main")
+        c_match = GIT_C_RE.search(clause)
+        clause_target = c_match.group(1) if c_match else active_cwd
+        omp_repo, is_worktree = classify_target(clause_target)
+        if omp_repo is None:
+            continue
+
+        if GIT_PUSH_MAIN_RE.search(clause):
+            return Decision.deny(STEER_MESSAGE, log_detail="omp-push-main")
+
+        wt_match = WT_MERGE_LAND_RE.search(clause)
+        if wt_match:
+            tail = wt_match.group(1) or ""
+            if "omp-build" not in tail:
+                return Decision.deny(STEER_MESSAGE, log_detail="omp-wt-merge-main")
+
+        if not is_worktree and GIT_COMMIT_MERGE_RE.search(clause):
+            branch = current_branch_of(omp_repo)
+            if branch in ("main", "master"):
+                return Decision.deny(STEER_MESSAGE, log_detail="omp-commit-main")
 
     return None
 

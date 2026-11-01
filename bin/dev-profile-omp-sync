@@ -164,6 +164,7 @@ if [ -n "$EXCLUDE_BRANCH" ]; then
 	update_rebuild_config exclude "$EXCLUDE_BRANCH"
 fi
 
+
 if [ ! -d "$REPO_DIR/.git" ]; then
 	log "Cloning zachbornheimer/oh-my-pi into $REPO_DIR..."
 	mkdir -p "$(dirname "$REPO_DIR")"
@@ -173,6 +174,27 @@ fi
 
 cd "$REPO_DIR"
 
+# Install Git reference-transaction hook so refs/heads/main is strictly read-only
+# except when fast-forwarding/resetting to refs/remotes/origin/main.
+mkdir -p "$REPO_DIR/.git/hooks"
+cat >"$REPO_DIR/.git/hooks/reference-transaction" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+state="${1:-}"
+[ "$state" = "prepared" ] || exit 0
+origin_main_sha="$(git rev-parse --verify -q refs/remotes/origin/main 2>/dev/null || true)"
+[ -n "$origin_main_sha" ] || exit 0
+while read -r _old_value new_value ref_name; do
+	if [ "$ref_name" = "refs/heads/main" ]; then
+		if [ "$new_value" != "0000000000000000000000000000000000000000" ] && [ "$new_value" != "$origin_main_sha" ]; then
+			echo "ERROR [oh-my-pi reference-transaction]: refs/heads/main is read-only and must match origin/main ($origin_main_sha)." >&2
+			echo "Never commit or merge onto 'main' in oh-my-pi. Create a topic branch off origin/main and add it to dev-profile/config/omp-rebuild.toml via 'dev-profile-omp-sync --include <branch> --compile --push'." >&2
+			exit 1
+		fi
+	fi
+done
+EOF
+chmod +x "$REPO_DIR/.git/hooks/reference-transaction"
 stashed=0
 if ! git diff --quiet || ! git diff --cached --quiet; then
 	log "Working tree has uncommitted changes; stashing..."

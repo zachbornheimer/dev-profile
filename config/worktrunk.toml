@@ -185,6 +185,16 @@ reap = "~/.local/share/dev-profile/bin/dev-profile-dev reap {{ worktree_path }}"
 [post-switch]
 retire-legacy-hooks = "~/.local/share/dev-profile/bin/dev-profile-retire-legacy-hooks"
 
+[pre-merge]
+protect-omp-main = """
+{% if repo == 'oh-my-pi' and (target == 'main' or target == 'master') %}
+echo "ERROR: Merging into '{{ target }}' in oh-my-pi is forbidden ('main' is a read-only mirror of upstream can1357/oh-my-pi)." >&2
+echo "Push your topic branch to 'fork' ('git push -u fork {{ branch }}') and register it in dev-profile/config/omp-rebuild.toml via 'dev-profile-omp-sync --include {{ branch }} --compile --push'." >&2
+exit 1
+{% else %}
+true
+{% endif %}"""
+
 [post-merge]
 omp-sync = """
 {% if repo == 'oh-my-pi' and target == 'omp-build' %}
