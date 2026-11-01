@@ -137,6 +137,48 @@ A lever with any ✗ is explained or dropped, never quietly included.
 **Provider comparison (fallback only)**: provider address, tier, last release,
 storage caps, unit prices, verdict.
 
+## Review parameters (before you call an audit done)
+
+An audit produced by this skill is not finished until it passes this
+review. Apply the parameters to your own draft before handing it up —
+the orchestrator/owner applies them again, so make that pass easy.
+
+1. **Account split first.** Before attributing a single dollar, check whether
+   the profile is an Organization payer: `get-cost-and-usage` grouped by
+   `LINKED_ACCOUNT`. A payer bills every member account into "your" numbers —
+   the audited $11.6k/mo was three accounts ($10k SAH + $1.5k NQ + $59 of a
+   suspended one), and every downstream number (savings, provider math,
+   budgets) was wrong until the split was made.
+2. **Utilization before right-sizing.** No "this is oversized" claim without
+   the diurnal test (one weekday AND one weekend, hourly) and the idle-replica
+   check (connections over the month). An average is not a shape.
+3. **Fact-check every $ claim.** Each dollar figure carries its unit price,
+   quantity, and an as-of date. List prices come from the vendor's own pricing
+   page read this month — never from memory, never from a model's training
+   data. Provider-switch numbers additionally carry the registry facts
+   (address, tier, last release) and the hard caps checked against the
+   MEASURED size — a 3.6 TB database priced at a "4 vCPU tier" is fiction.
+4. **Switch math at the measured size, with the full cost.** A provider-switch
+   comparison prices the same workload at the same measured quantity, then
+   subtracts migration cost and re-papering (each new vendor = a SOC 2
+   subservice). If the comparison doesn't name what stays behind and why, it
+   isn't done.
+5. **Savings are mechanisms, not wishes.** Every "saves $X" row states which
+   unit price × which quantity falls, by how much, measured from what
+   baseline. A savings number whose mechanism can't be restated in one
+   sentence is a guess wearing a decimal point.
+6. **Cited or UNVERIFIED.** Every claim carries its receipt (command, output
+   file, file:line, or pricing-page URL + date) or is marked UNVERIFIED with
+   the measurement that would settle it. No silent smoothing.
+7. **The reviewer's test.** Before handing up: re-derive the top three cost
+   lines by re-running the query yourself, and spot-check the largest savings
+   claim against its source. If you would not defend each number in front of
+   the owner holding the receipt, the audit is not done.
+8. **Disagreement is reported, not buried.** Where two sources disagree (a
+   vendor's page vs a measured bill, memory vs a registry date), the report
+   states both and which one it trusts — the owner decides trade-offs, the
+   audit supplies evidence.
+
 ## Red flags checklist
 
 Hunt for these — each was a real dollar in the audited account:
