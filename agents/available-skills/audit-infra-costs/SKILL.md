@@ -200,6 +200,14 @@ Hunt for these — each was a real dollar in the audited account:
   against how much of it is ever used.
 - **Unbudgeted usage-driven AI spend** — Bedrock/API bills that scale with
   usage need their own budget alarm, not a surprised line in the invoice.
+- **AMI-snapshot archaeology** — snapshots named "pre-*" (pre-cleanup,
+  pre-remediation, pre-recovery) date a security incident; keep them until
+  retention is decided, but delete the years-old orphans nobody maps to an AMI.
+- **Over-provisioned EBS throughput** — gp3 io2-style provisioned MB/s billed
+  against a measured peak 5–200× lower; right-size to the measured peak.
+- **AI spend "unattributable"** — Cost Explorer by SERVICE already splits
+  Bedrock by model (which model burned the money); what is missing without
+  invocation logging is only _which prompt/app_ — check both, say which is which.
 
 ## Filing findings
 

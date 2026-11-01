@@ -88,3 +88,16 @@ aws ce get-cost-and-usage ... --group-by Type=DIMENSION,Key=USAGE_TYPE
 Look for: ECS services whose names mention `preview`, `pr-`, `demo`, `test`;
 ALBs with no healthy targets; replicas whose `DatabaseConnections` has been ~0
 for a month; KMS aliases one-per-resource.
+
+## Savings-coverage follow-up (after "0% SP/RI coverage" is found)
+
+```bash
+# AWS's own engines price the commitment for you — never hand-compute it:
+aws ce get-savings-plans-purchase-recommendation --savings-plans-type COMPUTE_SP --term LENGTH_ONE_YEAR --payment-option NO_UPFRONT ...
+aws ce get-reservation-purchase-recommendation --service "Amazon Elastic Compute Cloud - Compute" ...
+aws ce get-cost-and-usage --group-by Type=DIMENSION,Key=SERVICE   # Bedrock splits BY MODEL here
+```
+
+The recommendation engines return the exact $/mo saving and % — cite their
+output rather than a list price. And group Bedrock by SERVICE (not USAGE_TYPE)
+to attribute an AI burst by model before saying it is unattributable.
