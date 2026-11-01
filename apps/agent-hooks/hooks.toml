@@ -589,3 +589,12 @@ events = ["prompt.submit"]
 command = ["/Users/zbornheimer/.agents/hooks/frustration-learn.py"]
 timeout = "5s"
 on_failure = "warn"
+
+# Weekly quota at <= 10% left -> one detached `capability run quota-burn-review` per
+# provider:account:limit:reset window (ledger: ~/.agents/learnings/quota-reviews.jsonl).
+[[hooks]]
+name = "stop-quota-burn-watch"
+events = ["turn.stop"]
+command = ["/Users/zbornheimer/.agents/hooks/quota-burn-watch.py"]
+timeout = "5s"
+on_failure = "warn"
