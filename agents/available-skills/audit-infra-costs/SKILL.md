@@ -44,6 +44,35 @@ and known account facts), but the three questions transfer to any provider.
    the same reliability, or same cost for more headroom — judged against the
    doctrine below, not against a vendor's landing page.
 
+## Root-cause recursion (the manager follow-ups)
+
+Every measurement should trigger the follow-up a good manager would ask,
+until the answer names a _table and a code path_, not a service line:
+
+1. **"Who exactly is doing this?"** Attribute the load to a resource, then
+   to a caller. Constant write IOPS? Ask which table, which job, which repo —
+   a service line ("RDS is expensive") is never an answer.
+2. **"Does it sleep?"** Pull an hourly timeseries for a weekday AND a
+   weekend. Load that never drops at 3am on Sunday is a background writer —
+   queue, analytics ingest, audit hook, chatty ORM flush — not traffic.
+   Traffic has a diurnal shape; machines don't.
+3. **"What kind of work is it?"** Low CPU + sustained I/O means the work is
+   persistence, not computation. Hunt for append-only tables, per-row
+   commits that could be batched, autovacuum churn on a bloated table.
+4. **"Does anything ever delete it?"** Check for retention: TTLs, partition
+   drops, archive jobs. Accelerating storage growth with no deletion path
+   IS the finding — say it, then price it.
+5. **"Is the vendor billing the pattern?"** Per-I/O billing punishes write
+   _frequency_; per-GB billing punishes _retention_. Fix the pattern the
+   bill prices — batch the writes, or move that one pattern to a cheaper
+   store (S3/Kinesis for event-log-shaped writes) — before moving the
+   database.
+
+Stop when the next question is answerable only by reading app code or
+querying the table. Then go read it — with the owner's authorization for any
+credential or network change. Never invent the answer to a question you
+cannot measure yet: name the missing measurement and what it needs.
+
 ## Doctrine: optimize in place (policy)
 
 **Always optimize on the provider we already have.** Switching providers is a
