@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# Self-heal for the mise dotfile history service (dev.mise.mise-history).
+#
+# Failure modes observed 2026-11-01 (session omp_01a192d8):
+#   1. A second `mise dot watch` beside the launchd-owned one; both contend
+#      for ~/.local/state/mise/history/{operation,sync.lock} and publishing
+#      stalls for hours with only "another history operation is running".
+#   2. The watcher wedges (uninterruptible state, CPU climbing, health
+#      timestamp frozen) while holding the lock.
+#   3. Locks left behind after a kill keep blocking every operation.
+#   4. Sync conflicts silently block ALL publishing while local checkpoints
+#      pile up unpublished.
+#
+# Runs every 5 minutes via the mise-history-watchdog LaunchAgent. Heals 1-3,
+# notifies on 4. Idempotent: a healthy service produces no log lines.
+
+export PATH="$HOME/.local/share/mise/shims:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+
+LOG="$HOME/Library/Logs/mise-history-watchdog.log"
+HIST_DIR="$HOME/.local/state/mise/history"
+SERVICE="dev.mise.mise-history"
+MY_UID=$(id -u)
+
+log() { printf '%s %s\n' "$(date '+%F %T')" "$*" >>"$LOG"; }
+
+# 1. Duplicate watchers: keep the launchd-owned pid, kill every other.
+main_pid=$(launchctl list 2>/dev/null | awk -v s="$SERVICE" '$3 == s {print $1}' | head -1)
+if [ -n "${main_pid:-}" ] && [ "$main_pid" != "-" ]; then
+	for pid in $(pgrep -f 'mise dot watch' || true); do
+		if [ "$pid" != "$main_pid" ]; then
+			kill "$pid" 2>/dev/null || true
+			log "killed duplicate watcher pid $pid (launchd owns $main_pid)"
+		fi
+	done
+fi
+
+# 2. Wedged watcher: the health line stops updating when the internal loop
+# is stuck; restart the service BEFORE clearing locks so a fresh watcher's
+# own locks are never removed. `mise dot status` is read-only.
+health=$(mise dot status 2>/dev/null | sed -n 's/.*watcher health (updated \([0-9]*\)s ago).*/\1/p' | head -1)
+if [ -n "${health:-}" ] && [ "$health" -ge 600 ] 2>/dev/null; then
+	launchctl kickstart -k "gui/$MY_UID/$SERVICE" 2>/dev/null || true
+	log "watcher health frozen ${health}s; restarted $SERVICE"
+fi
+
+# 3. Stale locks: the watcher syncs every 60s and its operations take
+# seconds, so a lock older than 10 minutes is orphaned (killed process,
+# wedged watcher, or crash). Age alone decides; a live-process check would
+# never fire because the watcher itself always matches it.
+for lock in operation sync.lock; do
+	f="$HIST_DIR/$lock"
+	[ -e "$f" ] || continue
+	lock_age=$(($(date +%s) - $(stat -f %m "$f")))
+	if [ "$lock_age" -ge 600 ]; then
+		rm -f "$f"
+		log "removed stale $lock (${lock_age}s old)"
+	fi
+done
+
+# 4. Conflicts block every publish while local checkpoints wait; the
+# 2026-11-01 outage was silent for hours. Notify, never auto-resolve.
+# Match "conflict(s)": the status boilerplate mentions "sync conflicts"
+# unconditionally and must not trigger this.
+if mise dot status 2>/dev/null | grep -q 'conflict(s)'; then
+	osascript -e 'display notification "Sync conflicts are blocking dotfile publishing. Run: mise dot conflicts" with title "mise history watchdog"' >/dev/null 2>&1 || true
+	log "conflicts present; publishing blocked; notified"
+fi
