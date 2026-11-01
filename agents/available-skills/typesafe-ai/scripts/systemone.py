@@ -173,7 +173,9 @@ def _post(
 def _hops(failures: list[tuple[str, str]]) -> str:
     if len(failures) < 2:
         return ""
-    return " > ".join(f"{urlparse(base).hostname} {reason}" for base, reason in failures)
+    return " > ".join(
+        f"{urlparse(base).hostname} {reason}" for base, reason in failures
+    )
 
 
 def hop_key(base: str, api_key: str, getenv: Getenv) -> str | None:
@@ -184,7 +186,9 @@ def hop_key(base: str, api_key: str, getenv: Getenv) -> str | None:
     if env_key:
         return env_key
     account = getenv("USER") or ""
-    return read_generic_password(account, OPENROUTER_KEYCHAIN_SERVICE) if account else None
+    return (
+        read_generic_password(account, OPENROUTER_KEYCHAIN_SERVICE) if account else None
+    )
 
 
 def ask(
@@ -207,10 +211,17 @@ def ask(
         shaped = adapt(base, payload) if adapt is not None else payload
         model = MODEL_BY_BASE_URL.get(base, shaped.get("model"))
         try:
-            return _post({**shaped, "model": model}, base, key, urlopen)
+            # Judge answers must not vary run to run on the same state:
+            # temperature 0 pins sampling (the SystemOne protocol's field,
+            # same as GenerateOptions.temperature on the TS side).
+            return _post(
+                {**shaped, "model": model, "temperature": 0}, base, key, urlopen
+            )
         except JudgmentError as exc:
             failures.append((base, exc.reason))
-    raise JudgmentError(failures[-1][1] if failures else REASON_MISSING_KEY, hops=_hops(failures))
+    raise JudgmentError(
+        failures[-1][1] if failures else REASON_MISSING_KEY, hops=_hops(failures)
+    )
 
 
 def _url_reason(exc: urllib.error.URLError) -> str:

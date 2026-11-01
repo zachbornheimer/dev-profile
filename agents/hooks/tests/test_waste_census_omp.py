@@ -13,7 +13,10 @@ spec.loader.exec_module(census_mod)
 
 
 def msg(role: str, *parts: dict, **extra: object) -> dict:
-    return {"type": "message", "message": {"role": role, "content": list(parts), **extra}}
+    return {
+        "type": "message",
+        "message": {"role": role, "content": list(parts), **extra},
+    }
 
 
 def text(value: str) -> dict:
@@ -38,7 +41,9 @@ def run(path: Path) -> dict[str, list[str]]:
     return census_mod.census(census_mod.load(path))
 
 
-def test_omp_errors_and_user_corrections_are_counted_with_line_refs(tmp_path: Path) -> None:
+def test_omp_errors_and_user_corrections_are_counted_with_line_refs(
+    tmp_path: Path,
+) -> None:
     path = write_session(
         tmp_path / "s.jsonl",
         [
@@ -48,7 +53,9 @@ def test_omp_errors_and_user_corrections_are_counted_with_line_refs(tmp_path: Pa
         ],
     )
     found = run(path)
-    assert found["user_recovery"] == ["item:3"]  # raw JSONL line numbers, headers included
+    assert found["user_recovery"] == [
+        "item:3"
+    ]  # raw JSONL line numbers, headers included
     assert found["tool_error"] == ["item:5 (bash)"]
 
 
@@ -75,10 +82,29 @@ def test_results_the_harness_skipped_are_not_tool_errors(tmp_path: Path) -> None
     assert "tool_error" not in run(path)
 
 
+def test_an_eviction_receipt_is_context_loss_not_a_tool_error(tmp_path: Path) -> None:
+    """omp replaces an evicted tool result with a shaken receipt; the call succeeded.
+
+    On omp_01a18dd0 the receipt carried ``isError`` and the census called 37 of them
+    tool errors, overstating failure 7x and hiding that the agent worked from
+    amputated context.
+    """
+    path = write_session(
+        tmp_path / "s.jsonl",
+        [result("read", "[shaken ~131 tokens — recover: artifact://82 (region 4)]")],
+    )
+    found = run(path)
+    assert found["eviction"] == ["item:3"]
+    assert "tool_error" not in found
+
+
 def test_identical_repeated_call_is_a_duplicate(tmp_path: Path) -> None:
     path = write_session(
         tmp_path / "s.jsonl",
-        [msg("assistant", call("read", path="a")), msg("assistant", call("read", path="a"))],
+        [
+            msg("assistant", call("read", path="a")),
+            msg("assistant", call("read", path="a")),
+        ],
     )
     assert run(path)["duplicate_call"] == ["item:4 (read)"]
 
@@ -93,17 +119,33 @@ def write_claude(path: Path, entries: list[dict]) -> Path:
     return path
 
 
-def test_claude_results_take_their_tool_name_from_the_matching_tool_use(tmp_path: Path) -> None:
+def test_claude_results_take_their_tool_name_from_the_matching_tool_use(
+    tmp_path: Path,
+) -> None:
     path = write_claude(
         tmp_path / "c.jsonl",
         [
             claude_line(
                 "assistant",
-                [{"type": "tool_use", "id": "t1", "name": "Bash", "input": {"c": "ls"}}],
+                [
+                    {
+                        "type": "tool_use",
+                        "id": "t1",
+                        "name": "Bash",
+                        "input": {"c": "ls"},
+                    }
+                ],
             ),
             claude_line(
                 "user",
-                [{"type": "tool_result", "tool_use_id": "t1", "content": "boom", "is_error": True}],
+                [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "t1",
+                        "content": "boom",
+                        "is_error": True,
+                    }
+                ],
             ),
         ],
     )
@@ -117,7 +159,9 @@ def test_claude_user_corrections_count_but_injected_and_sidechain_text_does_not(
         tmp_path / "c.jsonl",
         [
             claude_line("user", "how many times do i have to say it"),
-            claude_line("user", "<system-reminder>i already told you</system-reminder>"),
+            claude_line(
+                "user", "<system-reminder>i already told you</system-reminder>"
+            ),
             claude_line("user", "This session is being continued: i told you so"),
             claude_line("user", "i told you", isSidechain=True),
         ],
@@ -133,7 +177,9 @@ def test_repeated_wait_is_polling_not_a_duplicate(tmp_path: Path) -> None:
     assert "duplicate_call" not in run(path)
 
 
-def test_successful_output_that_starts_with_error_is_not_a_tool_error(tmp_path: Path) -> None:
+def test_successful_output_that_starts_with_error_is_not_a_tool_error(
+    tmp_path: Path,
+) -> None:
     path = write_session(
         tmp_path / "s.jsonl",
         [

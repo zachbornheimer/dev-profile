@@ -327,6 +327,11 @@ me a menu or make me triage my own list.
 - **A discussion ask gets discussion first.** When the user says discuss, brainstorm,
   or "set it up right", nothing is written — no artifacts, plans, or bookkeeping —
   until the user accepts a direction.
+- **A status question gets an answer, then a stop.** "What's the assessment?",
+  "how is it going?", "what did you find?" ask for the answer only: report it, then
+  end the turn. Any continuation — subagents, worktrees, edits, filings — needs a
+  new user instruction, not inferred scope. (Evidence: omp session 01a1884f, two
+  correction turns for exactly this drift.)
 - **An accepted design is written to a file in the turn it is accepted.** Chat-only
   agreements die at compaction: the sketch, the chosen option, and the user's own
   words go into a durable file immediately.
@@ -364,12 +369,13 @@ Code roots only: `~/Developer/Software-Automation-Holdings/` (work/SAH) and
 or a new `*-LLC` org folder. Full rules: `~/.claude/rules/machine-layout.md`.
 **Keep Finale and Dorico both** (Finale discontinued but still required).
 
-Edit `~/.agents/...` on the live path; then `chezmoi re-add ~/.agents`. Source-side
-names use `dot_` / `private_` / `symlink_` / `executable_` prefixes — never a
-literal leading dot. `~/.claude/CLAUDE.md` is a symlink here. A dotfiles conflict,
-a dirty dotfiles checkout, or a merge that will not fast-forward is never a reason
-to skip a change: run `dotfiles-add --auto; dotfiles-sync` (`dotfiles-capture --auto`
-outside zsh), then continue.
+Fleet `dev-env` setup is Nix-managed (`~/Developer/Personal/dev-env/flake.nix`, `nix/`).
+Personal dotfiles in `~` are `mise dot`-managed (`mode = "track"`, auto-saved by
+`mise dot watch` and synced every `60s` to `zachbornheimer/dotfiles.git#history`;
+use `mise dot save && mise dot sync` / `mise dot pull` for immediate sync). `chezmoi`
+is retired — never call `chezmoi`. `~/.agents` is symlinked to
+`~/Developer/Personal/dev-profile/agents` (`~/.claude/CLAUDE.md` symlinks here);
+edit `~/.agents/...` on the live path and commit/push in `~/Developer/Personal/dev-profile`.
 Durable machine facts (which tool runs commands, where a roster lives, what a
 wrapper does) go to Hindsight or this file — never `~/.claude/projects/*/memory/`,
 which only the one project that wrote it ever reads.

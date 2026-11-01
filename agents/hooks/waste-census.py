@@ -22,6 +22,7 @@ last two an item id is the raw 1-based line number of the transcript file.
 
 Classes:
 
+    eviction           a harness receipt replacing an evicted tool result
     tool_error         a system item reporting an error or an unavailable tool
     repeat_denied_tool the same denied tool called again after denial
     duplicate_call     the same tool with the same arguments, again
@@ -41,6 +42,14 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
+# omp replaces an evicted tool result with a receipt such as
+# ``[shaken ~131 tokens — recover: artifact://82 (region 4)]``. The call itself
+# succeeded and the content lives on in the artifact store, so this is context
+# loss, not a tool failure: on omp_01a18dd0, 37 of 43 "tool errors" were these
+# receipts, overstating failure 7x and hiding that the agent worked from
+# amputated context.
+SHAKEN_RECEIPT = re.compile(r"\[shaken ~(\d+) tokens")
+
 RECOVERY_PHRASES = re.compile(
     r"why (aren't|are you not|didn't) you"
     r"|do you have"
@@ -48,7 +57,23 @@ RECOVERY_PHRASES = re.compile(
     r"|why (did|do) you stop"
     r"|you should (use|always)"
     r"|not complet"
-    r"|how many times|answer my question|i (already |just )?told you",
+    r"|how many times|answer my question|i (already |just )?told you"
+    # Forms a real session took that none of the above matched (omp_01a18dd0,
+    # T15-T17): the user supplying the correction the agent did not reach.
+    r"|how many (tokens|dollars|turns)"
+    r"|that'?s not a valid"
+    r"|(was|were) (that|those|the|this|these).{0,40}synthetic"
+    r"|(give|show) me the (actual|real)"
+    r"|i'?m really confused|i'?m confused"
+    r"|you decided to not do what i'?ve asked"
+    # omp_01a18960 items 17/18/21: an 8.75h-dead turn revived by "please
+    # continue", the identity question after a silent machine move, and the
+    # user reporting the move themselves. The gemini-filter-resume extension
+    # sends the same "please continue" — a turn that needed continuation is a
+    # recovery either way.
+    r"|please continue"
+    r"|which machine (are you|am i)"
+    r"|i'?(?:ve| have) switched you",
     re.IGNORECASE,
 )
 # Waiting on a job or subagent with the same arguments is polling, not a repeated request.
@@ -73,7 +98,9 @@ def omp_items(lines: list[str]) -> list[dict[str, Any]]:
             continue
         parts = message.get("content")
         parts = parts if isinstance(parts, list) else []
-        text = "\n".join(p["text"] for p in parts if p.get("type") == "text" and p.get("text"))
+        text = "\n".join(
+            p["text"] for p in parts if p.get("type") == "text" and p.get("text")
+        )
         role = message.get("role")
         if role == "user":
             items.append({"id": number, "source": "user", "text": text})
@@ -83,7 +110,9 @@ def omp_items(lines: list[str]) -> list[dict[str, Any]]:
                 for p in parts
                 if p.get("type") == "toolCall"
             ]
-            items.append({"id": number, "source": "agent", "text": text, "tool_calls": calls})
+            items.append(
+                {"id": number, "source": "agent", "text": text, "tool_calls": calls}
+            )
         elif role == "toolResult":
             items.append(
                 {
@@ -99,7 +128,8 @@ def omp_items(lines: list[str]) -> list[dict[str, Any]]:
 
 
 MACHINE_USER_TEXT = re.compile(
-    r"\s*(<[a-z][\w-]*[\s>]|\[Request interrupted|This session is being continued)", re.IGNORECASE
+    r"\s*(<[a-z][\w-]*[\s>]|\[Request interrupted|This session is being continued)",
+    re.IGNORECASE,
 )
 
 
@@ -136,7 +166,11 @@ def claude_items(lines: list[str]) -> list[dict[str, Any]]:
         if entry.get("isSidechain") or entry.get("isMeta"):
             continue
         content = message.get("content")
-        blocks = [b for b in content if isinstance(b, dict)] if isinstance(content, list) else []
+        blocks = (
+            [b for b in content if isinstance(b, dict)]
+            if isinstance(content, list)
+            else []
+        )
         if kind == "assistant":
             calls = [b for b in blocks if b.get("type") == "tool_use"]
             for block in calls:
@@ -147,7 +181,8 @@ def claude_items(lines: list[str]) -> list[dict[str, Any]]:
                     "source": "agent",
                     "text": _block_text(content),
                     "tool_calls": [
-                        {"name": b.get("name", "?"), "arguments": b.get("input")} for b in calls
+                        {"name": b.get("name", "?"), "arguments": b.get("input")}
+                        for b in calls
                     ],
                 }
             )
@@ -208,7 +243,11 @@ def load(path: Path) -> list[dict[str, Any]]:
             for side in ("user", "response"):
                 value = turn.get(side)
                 if isinstance(value, str):
-                    value = json.loads(value) if value.strip().startswith(("[", "{")) else []
+                    value = (
+                        json.loads(value)
+                        if value.strip().startswith(("[", "{"))
+                        else []
+                    )
                 # User items in this export carry only id/text/timestamp — no
                 # `source`. Without the side tag they fall through to the agent
                 # branch and every user recovery prompt is reported as zero.
@@ -218,7 +257,10 @@ def load(path: Path) -> list[dict[str, Any]]:
     head = [json.loads(line) for line in lines[:50] if line.strip()]
     if any(entry.get("type") == "session" for entry in head[:3]):
         return omp_items(lines)
-    if any(entry.get("type") in ("user", "assistant") and "message" in entry for entry in head):
+    if any(
+        entry.get("type") in ("user", "assistant") and "message" in entry
+        for entry in head
+    ):
         return claude_items(lines)
     return [json.loads(line) for line in lines if line.strip()]
 
@@ -269,8 +311,12 @@ def _target_of(arguments: str) -> str:
     return parsed.get("path", "") if isinstance(parsed, dict) else ""
 
 
-def census(items: list[dict[str, Any]]) -> dict[str, list[str]]:
+def census(items: list[dict[str, Any]]) -> tuple[dict[str, list[str]], int]:
     findings: dict[str, list[str]] = defaultdict(list)
+    # Total tokens the harness reported shaken out of context: a census that
+    # counts 193 evictions but not the ~N tokens behind them cannot say
+    # whether retention below N would change behavior or only cost.
+    evicted_tokens = 0
 
     seen_calls: Counter[tuple[str, str]] = Counter()
     seen_text: Counter[str] = Counter()
@@ -284,6 +330,13 @@ def census(items: list[dict[str, Any]]) -> dict[str, list[str]]:
 
         if side == "system":
             body = text_of(item)
+            # An eviction receipt is context loss, not a tool failure: count it
+            # as its own class so a diagnosis can say which one it is looking at.
+            receipt = SHAKEN_RECEIPT.search(body)
+            if receipt:
+                findings["eviction"].append(ref)
+                evicted_tokens += int(receipt.group(1))
+                continue
             # A structured transcript says whether the call failed; scanning output text for
             # "error" would also count the stdout of a command that succeeded.
             failed = (
@@ -296,7 +349,9 @@ def census(items: list[dict[str, Any]]) -> dict[str, list[str]]:
                 # Track denied tools. omp names the missing device ("No such tool: xd://x") and
                 # serves every device through one shared tool (`write`), so key on the device.
                 tool_name = item.get("tool_name") or ""
-                missing = re.search(r"no such tool:\s*(\S+?)\.?(?:\s|$)", body, re.IGNORECASE)
+                missing = re.search(
+                    r"no such tool:\s*(\S+?)\.?(?:\s|$)", body, re.IGNORECASE
+                )
                 if missing:
                     denied_tools.add(missing.group(1))
                 elif "no such tool" in body.lower() or "not available" in body.lower():
@@ -330,7 +385,7 @@ def census(items: list[dict[str, Any]]) -> dict[str, list[str]]:
             if seen_text[body] == 2:
                 findings["repeat_text"].append(f"{ref} ({body[:60]!r})")
 
-    return dict(findings)
+    return dict(findings), evicted_tokens
 
 
 def main(argv: list[str]) -> int:
@@ -346,15 +401,25 @@ def main(argv: list[str]) -> int:
         print(f"{path}: {error}", file=sys.stderr)
         return 2
 
-    findings = census(items)
+    findings, evicted_tokens = census(items)
     total = sum(len(refs) for refs in findings.values())
 
     if as_json:
-        print(json.dumps({"items": len(items), "waste": findings}, indent=2))
+        print(
+            json.dumps(
+                {
+                    "items": len(items),
+                    "waste": findings,
+                    "evicted_tokens": evicted_tokens,
+                },
+                indent=2,
+            )
+        )
         return 0
 
     print(f"{path.name}: {len(items)} items, {total} waste events\n")
     for name in (
+        "eviction",
         "tool_error",
         "repeat_denied_tool",
         "duplicate_call",
