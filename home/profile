@@ -33,7 +33,16 @@ path_prepend_unique() {
 [ -d "$HOME/.local/bin" ] && path_prepend_unique "$HOME/.local/bin"
 unset -f path_prepend_unique
 
-
+if [ -r "$HOME/.config/agent-state/env" ]; then
+  set -a
+  . "$HOME/.config/agent-state/env"
+  set +a
+fi
+if [ -z "${OP_SERVICE_ACCOUNT_TOKEN:-}" ] && [ -r "$HOME/.config/dev-env/secrets/op-service-account-token" ]; then
+  OP_SERVICE_ACCOUNT_TOKEN=$(cat "$HOME/.config/dev-env/secrets/op-service-account-token")
+  export OP_SERVICE_ACCOUNT_TOKEN
+  export OP_BIOMETRIC_UNLOCK_ENABLED=false
+fi
 builtin source "$HOME/.config/ai/env.sh"
 
 # Kiro CLI post block. Keep at the bottom of this file.

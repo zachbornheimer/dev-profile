@@ -45,9 +45,18 @@ if [[ -d $HOME/.agents/bin ]]; then
   export PATH
 fi
 
-# Remote compute arm: load Neon session/task URLs and path alias when present.
+# Remote compute arm: load Neon session/task URLs, 1Password service account, and AI keys when present.
 if [[ -r $HOME/.config/agent-state/env ]]; then
   set -a
   source "$HOME/.config/agent-state/env"
   set +a
+  if [[ -z ${OP_SERVICE_ACCOUNT_TOKEN:-} && -r $HOME/.config/dev-env/secrets/op-service-account-token ]]; then
+    export OP_SERVICE_ACCOUNT_TOKEN="$(<$HOME/.config/dev-env/secrets/op-service-account-token)"
+  fi
+  export OP_BIOMETRIC_UNLOCK_ENABLED=false
+  if [[ -r $HOME/.cache/ai/keys.env ]]; then
+    set -a
+    source "$HOME/.cache/ai/keys.env"
+    set +a
+  fi
 fi

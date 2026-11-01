@@ -1,8 +1,8 @@
 () {
 	emulate -L zsh
 	unsetopt xtrace verbose
-	# zsh -lic is interactive too; only a real terminal may recover via desktop.
-	[[ -o interactive && -t 0 && -t 1 ]] || return 0
+	# zsh -lic is interactive too; only a real macOS terminal may recover via 1Password Desktop + Keychain.
+	[[ $OSTYPE == darwin* && -o interactive && -t 0 && -t 1 ]] || return 0
 	local service='org.zysys.op-service-account'
 	local account="$USERNAME"
 	local source='op://Personal/Agent Service Token'
