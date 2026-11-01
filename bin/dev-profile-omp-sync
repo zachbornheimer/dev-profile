@@ -5,8 +5,50 @@ set -euo pipefail
 export PATH="$HOME/Developer/Personal/dev-profile/bin:$HOME/.local/share/mise/shims:$HOME/.local/bin:$HOME/.bun/bin:$HOME/.cargo/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
 
 REPO_DIR="${OMP_REPO_DIR:-$HOME/Developer/Personal/oh-my-pi}"
+REBUILD_CONFIG="${OMP_REBUILD_CONFIG:-$HOME/Developer/Personal/dev-profile/config/omp-rebuild.toml}"
 LOG_FILE="${OMP_SYNC_LOG:-$HOME/.local/state/omp-sync.log}"
 COMPILE_BINARY="${OMP_SYNC_COMPILE:-0}"
+BUILD_BRANCH="omp-build"
+
+read_configured_branches() {
+	if [ ! -f "$REBUILD_CONFIG" ]; then
+		return 0
+	fi
+	python3 - "$REBUILD_CONFIG" <<'PY'
+import sys, tomllib
+from pathlib import Path
+data = tomllib.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+for b in data.get("branches", []):
+    if isinstance(b, str) and b.strip():
+        print(b.strip())
+PY
+}
+
+update_rebuild_config() {
+	local op="$1" branch="$2"
+	[ -f "$REBUILD_CONFIG" ] || {
+		echo "Error: rebuild config not found at $REBUILD_CONFIG" >&2
+		exit 1
+	}
+	python3 - "$REBUILD_CONFIG" "$op" "$branch" <<'PY'
+import re, sys, tomllib
+from pathlib import Path
+path = Path(sys.argv[1])
+op = sys.argv[2]
+branch = sys.argv[3].strip()
+text = path.read_text(encoding="utf-8")
+data = tomllib.loads(text)
+branches = list(data.get("branches", []))
+if op == "include":
+    if branch not in branches:
+        branches.append(branch)
+elif op == "exclude":
+    branches = [b for b in branches if b != branch]
+formatted = "branches = [\n" + "".join(f'  "{b}",\n' for b in branches) + "]"
+new_text = re.sub(r"branches\s*=\s*\[[^\]]*\]", formatted, text, count=1, flags=re.DOTALL)
+path.write_text(new_text, encoding="utf-8")
+PY
+}
 
 show_status() {
 	if [ ! -d "$REPO_DIR/.git" ]; then
@@ -24,9 +66,15 @@ show_status() {
 		omp_ver="$(omp --version 2>/dev/null || echo "error")"
 	fi
 
-	local head_sha head_short
+	local active_branch head_sha head_short
+	active_branch="$(git symbolic-ref --short -q HEAD 2>/dev/null || echo "detached")"
 	head_sha="$(git rev-parse HEAD 2>/dev/null || echo "unknown")"
 	head_short="$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")"
+
+	local main_ahead="0"
+	if git rev-parse --verify --quiet origin/main >/dev/null && git rev-parse --verify --quiet main >/dev/null; then
+		main_ahead="$(git rev-list --count origin/main..main 2>/dev/null || echo "unknown")"
+	fi
 
 	local ahead_origin="unknown"
 	if git rev-parse --verify --quiet origin/main >/dev/null; then
@@ -34,21 +82,29 @@ show_status() {
 	fi
 
 	local ahead_fork="unknown" behind_fork="unknown"
-	if git rev-parse --verify --quiet fork/main >/dev/null; then
-		ahead_fork="$(git rev-list --count fork/main..HEAD 2>/dev/null || echo "unknown")"
-		behind_fork="$(git rev-list --count HEAD..fork/main 2>/dev/null || echo "unknown")"
+	if git rev-parse --verify --quiet "fork/$BUILD_BRANCH" >/dev/null; then
+		ahead_fork="$(git rev-list --count "fork/$BUILD_BRANCH..HEAD" 2>/dev/null || echo "unknown")"
+		behind_fork="$(git rev-list --count "HEAD..fork/$BUILD_BRANCH" 2>/dev/null || echo "unknown")"
 	fi
+
+	local branches_csv
+	branches_csv="$(read_configured_branches | paste -sd ',' - | sed 's/,/, /g')"
 
 	echo "platform:             $(uname -s)/$(uname -m)"
 	echo "omp version:          $omp_ver"
+	echo "active branch:        $active_branch"
 	echo "active HEAD SHA:      $head_sha ($head_short)"
 	echo "installed SHA stamp:  $(cat "$HOME/.local/bin/.omp-sha" 2>/dev/null || echo "linked-to-source")"
-	echo "ahead of origin/main: $ahead_origin"
-	echo "vs fork/main:         ahead $ahead_fork, behind $behind_fork"
+	echo "main == origin/main:  $([ "$main_ahead" = "0" ] && echo "clean (0 custom commits on main)" || echo "DIRTY ($main_ahead custom commits on main)")"
+	echo "ahead of origin/main: $ahead_origin (on $active_branch)"
+	echo "vs fork/$BUILD_BRANCH:    ahead $ahead_fork, behind $behind_fork"
+	echo "rebuild config:       $REBUILD_CONFIG"
+	echo "included branches:    ${branches_csv:-none}"
 	exit 0
 }
 
 INCLUDE_BRANCH=""
+EXCLUDE_BRANCH=""
 PUSH_FORK=0
 
 while [ $# -gt 0 ]; do
@@ -67,18 +123,22 @@ while [ $# -gt 0 ]; do
 		INCLUDE_BRANCH="$2"
 		shift
 		;;
+	--exclude)
+		[ $# -ge 2 ] || { echo "Error: --exclude requires a branch name" >&2; exit 2; }
+		EXCLUDE_BRANCH="$2"
+		shift
+		;;
 	-h | --help)
-		echo "Usage: dev-profile-omp-sync [--status|--compile|--include <branch>|--push|--help]"
+		echo "Usage: dev-profile-omp-sync [--status|--compile|--include <branch>|--exclude <branch>|--push|--help]"
 		echo ""
-		echo "Synchronize oh-my-pi repository with fork/main and upstream origin/main,"
-		echo "optionally cherry-pick an upstream PR branch (--include <branch>) onto main,"
-		echo "run bun install, ensure native addon (macOS darwin-arm64 or Linux x64),"
-		echo "wire or compile ~/.local/bin/omp, and optionally push fork/main (--push)."
+		echo "Synchronize oh-my-pi integration branch ($BUILD_BRANCH) from upstream origin/main"
+		echo "plus the declarative branch list in $REBUILD_CONFIG."
+		echo "Keeps 'main' 100% identical to upstream 'origin/main' (0 custom commits on main)."
 		exit 0
 		;;
 	*)
 		echo "Unknown argument: $1" >&2
-		echo "Usage: dev-profile-omp-sync [--status|--compile|--include <branch>|--push|--help]" >&2
+		echo "Usage: dev-profile-omp-sync [--status|--compile|--include <branch>|--exclude <branch>|--push|--help]" >&2
 		exit 1
 		;;
 	esac
@@ -95,6 +155,15 @@ log() {
 
 log "=== Starting dev-profile-omp-sync ($(uname -s)/$(uname -m)) ==="
 
+if [ -n "$INCLUDE_BRANCH" ]; then
+	log "Adding '$INCLUDE_BRANCH' to $REBUILD_CONFIG..."
+	update_rebuild_config include "$INCLUDE_BRANCH"
+fi
+if [ -n "$EXCLUDE_BRANCH" ]; then
+	log "Removing '$EXCLUDE_BRANCH' from $REBUILD_CONFIG..."
+	update_rebuild_config exclude "$EXCLUDE_BRANCH"
+fi
+
 if [ ! -d "$REPO_DIR/.git" ]; then
 	log "Cloning zachbornheimer/oh-my-pi into $REPO_DIR..."
 	mkdir -p "$(dirname "$REPO_DIR")"
@@ -104,7 +173,6 @@ fi
 
 cd "$REPO_DIR"
 
-# Stash any uncommitted changes before syncing
 stashed=0
 if ! git diff --quiet || ! git diff --cached --quiet; then
 	log "Working tree has uncommitted changes; stashing..."
@@ -115,11 +183,6 @@ fi
 if git remote get-url fork >/dev/null 2>&1; then
 	log "Fetching fork..."
 	git fetch --filter=blob:none fork >>"$LOG_FILE" 2>&1 || log "Warning: git fetch fork failed"
-	if git rev-parse --verify --quiet fork/main >/dev/null; then
-		if git merge-base --is-ancestor HEAD fork/main 2>/dev/null; then
-			git merge --ff-only fork/main >>"$LOG_FILE" 2>&1 || true
-		fi
-	fi
 fi
 
 if git remote get-url origin >/dev/null 2>&1; then
@@ -127,24 +190,55 @@ if git remote get-url origin >/dev/null 2>&1; then
 	git fetch --filter=blob:none origin main >>"$LOG_FILE" 2>&1 || log "Warning: git fetch origin failed"
 fi
 
+# Enforce invariant: local `main` must always match `origin/main` (0 custom commits on main).
 if git rev-parse --verify --quiet origin/main >/dev/null; then
-	log "Attempting rebase onto origin/main..."
+	if git rev-parse --verify --quiet "fork/$BUILD_BRANCH" >/dev/null; then
+		git checkout -B "$BUILD_BRANCH" "fork/$BUILD_BRANCH" >>"$LOG_FILE" 2>&1 || git checkout "$BUILD_BRANCH" >>"$LOG_FILE" 2>&1
+	else
+		git checkout -B "$BUILD_BRANCH" HEAD >>"$LOG_FILE" 2>&1
+	fi
+	git branch -f main origin/main >>"$LOG_FILE" 2>&1 || true
+	log "Verified local 'main' is pinned to pure upstream origin/main ($(git rev-parse --short origin/main))."
+fi
+
+# Rebase omp-build onto origin/main if possible
+if git rev-parse --verify --quiet origin/main >/dev/null; then
+	log "Attempting rebase of $BUILD_BRANCH onto origin/main..."
 	if git -c commit.gpgsign=false rebase origin/main >>"$LOG_FILE" 2>&1; then
 		log "Rebase onto origin/main succeeded cleanly."
 	else
-		log "Rebase conflict detected; safely aborting rebase to preserve working stack..."
+		log "Rebase conflict detected; safely aborting rebase to preserve $BUILD_BRANCH stack..."
 		git rebase --abort >>"$LOG_FILE" 2>&1 || true
-		log "Rebase aborted. Kept working stack at $(git rev-parse --short HEAD)."
 	fi
 fi
-if [ -n "$INCLUDE_BRANCH" ]; then
-	log "Folding commits from $INCLUDE_BRANCH (origin/main..$INCLUDE_BRANCH) onto main..."
-	git -c commit.gpgsign=false cherry-pick "origin/main..$INCLUDE_BRANCH" >>"$LOG_FILE" 2>&1 || {
-		log "Cherry-pick conflict from $INCLUDE_BRANCH; aborting cherry-pick..."
-		git cherry-pick --abort >>"$LOG_FILE" 2>&1 || true
-		exit 1
-	}
-fi
+
+# Fold any unapplied commits from configured branches in omp-rebuild.toml onto omp-build
+while IFS= read -r branch; do
+	[ -n "$branch" ] || continue
+	ref=""
+	if git rev-parse --verify --quiet "refs/heads/$branch" >/dev/null; then
+		ref="refs/heads/$branch"
+	elif git rev-parse --verify --quiet "refs/remotes/fork/$branch" >/dev/null; then
+		ref="refs/remotes/fork/$branch"
+	else
+		log "Warning: configured branch '$branch' not found locally or on fork; skipping."
+		continue
+	fi
+	unapplied="$(git cherry "$BUILD_BRANCH" "$ref" 2>/dev/null | awk '/^\+/ {print $2}')"
+	if [ -n "$unapplied" ]; then
+		log "Applying unapplied commits from '$branch' onto '$BUILD_BRANCH'..."
+		for sha in $unapplied; do
+			if git merge-base --is-ancestor "$sha" "$BUILD_BRANCH" 2>/dev/null; then
+				continue
+			fi
+			git -c commit.gpgsign=false cherry-pick "$sha" >>"$LOG_FILE" 2>&1 || {
+				log "Cherry-pick conflict on $sha from $branch; aborting cherry-pick..."
+				git cherry-pick --abort >>"$LOG_FILE" 2>&1 || true
+				break
+			}
+		done
+	fi
+done < <(read_configured_branches)
 
 if [ "$stashed" -eq 1 ]; then
 	log "Restoring stashed changes..."
@@ -154,7 +248,6 @@ fi
 log "Running bun install..."
 bun install >>"$LOG_FILE" 2>&1 || log "Warning: bun install returned non-zero"
 
-# Ensure platform-specific native addon exists (macOS darwin-arm64 or Linux x86_64)
 os_name="$(uname -s)"
 arch_name="$(uname -m)"
 mkdir -p "$REPO_DIR/packages/natives/native"
@@ -201,8 +294,13 @@ if [ "$current_version" = "failed" ]; then
 	exit 1
 fi
 log "omp version: $current_version"
+
 if [ "$PUSH_FORK" = "1" ] && git remote get-url fork >/dev/null 2>&1; then
-	log "Pushing main to fork/main..."
-	git push fork main --force-with-lease >>"$LOG_FILE" 2>&1
+	if [ -n "$INCLUDE_BRANCH" ] && git rev-parse --verify --quiet "refs/heads/$INCLUDE_BRANCH" >/dev/null; then
+		log "Pushing topic branch $INCLUDE_BRANCH to fork/$INCLUDE_BRANCH..."
+		git push fork "$INCLUDE_BRANCH:refs/heads/$INCLUDE_BRANCH" --force-with-lease >>"$LOG_FILE" 2>&1 || true
+	fi
+	log "Pushing integration branch $BUILD_BRANCH to fork/$BUILD_BRANCH..."
+	git push fork "$BUILD_BRANCH:refs/heads/$BUILD_BRANCH" --force-with-lease >>"$LOG_FILE" 2>&1
 fi
 log "=== dev-profile-omp-sync completed successfully ==="

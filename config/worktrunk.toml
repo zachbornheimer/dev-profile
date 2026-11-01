@@ -187,7 +187,7 @@ retire-legacy-hooks = "~/.local/share/dev-profile/bin/dev-profile-retire-legacy-
 
 [post-merge]
 omp-sync = """
-{% if repo == 'oh-my-pi' and target == default_branch %}
+{% if repo == 'oh-my-pi' and target == 'omp-build' %}
 ~/.local/share/dev-profile/bin/dev-profile-omp-sync --compile --push
 {% else %}
 true
@@ -197,7 +197,7 @@ true
 merge-if-clean = """
 {% if branch == 'chore/uncommited' and not target %}
 sh -c 'test \"${WT_AUTO_MERGE:-}\" = 1 && exit 0; git merge-base --is-ancestor HEAD {{ default_branch }} && exit 0; git merge-tree --write-tree --quiet {{ default_branch }} HEAD >/dev/null || exit 0; WT_AUTO_MERGE=1 exec wt merge'
-{% elif repo == 'oh-my-pi' and branch == default_branch %}
+{% elif repo == 'oh-my-pi' and branch == 'omp-build' %}
 ~/.local/share/dev-profile/bin/dev-profile-omp-sync --compile --push
 {% else %}
 true

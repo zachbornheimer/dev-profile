@@ -6,9 +6,17 @@ set -euo pipefail
 # Refuse a direct commit on main or master, except where that is the normal way
 # work lands: the initial commit on an unborn repository; finishing a merge,
 # cherry-pick, revert, or rebase; a repo with no origin (nothing to publish a
-# branch to); or an explicit opt-out.
+# branch to); or an explicit opt-out (EXCEPT in oh-my-pi, where `main` MUST
+# remain 100% identical to upstream origin/main and never accepts direct commits).
+if git remote get-url origin 2>/dev/null | grep -q 'oh-my-pi'; then
+	current_branch="$(git symbolic-ref --short -q HEAD 2>/dev/null || true)"
+	if [[ "$current_branch" == "main" || "$current_branch" == "master" ]]; then
+		echo "ERROR: Direct commits to '$current_branch' in oh-my-pi are forbidden (main mirrors upstream can1357/oh-my-pi)." >&2
+		echo "Create a topic branch off origin/main ('wt switch --create <branch> --base origin/main'), commit there, and add it to dev-profile/config/omp-rebuild.toml via 'dev-profile-omp-sync --include <branch> --compile --push'." >&2
+		exit 1
+	fi
+fi
 [[ -z "${DEV_PROFILE_ALLOW_DEFAULT_BRANCH_COMMIT:-}" ]] || exit 0
-git rev-parse --verify -q HEAD >/dev/null 2>&1 || exit 0
 for operation in MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD rebase-merge rebase-apply; do
 	if [[ -e "$(git rev-parse --git-path "${operation}")" ]]; then exit 0; fi
 done
