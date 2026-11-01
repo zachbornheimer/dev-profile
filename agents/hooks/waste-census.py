@@ -169,13 +169,39 @@ def claude_items(lines: list[str]) -> list[dict[str, Any]]:
     return items
 
 
+def _resolve_tool_names(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Carry each tool call's name onto its matching tool-result item.
+
+    ``annotated.json`` exports list ``tool_calls`` (with ``id`` and ``name``) on
+    the agent item and only ``tool_call_id`` on the system result item, so
+    without this join every ``tool_error`` in a ``turns`` export renders as
+    ``(?)``.
+    """
+    tool_names: dict[str, str] = {}
+    for item in items:
+        for tc in item.get("tool_calls") or []:
+            if not isinstance(tc, dict):
+                continue
+            call_id = tc.get("id") or tc.get("toolCallId") or tc.get("tool_call_id")
+            name = tc.get("name") or tc.get("tool_name") or tc.get("toolName")
+            if call_id and name:
+                tool_names[str(call_id)] = str(name)
+    resolved: list[dict[str, Any]] = []
+    for item in items:
+        call_id = item.get("tool_call_id") or item.get("toolCallId")
+        if call_id and item.get("tool_name") in (None, "", "?"):
+            item = {**item, "tool_name": tool_names.get(str(call_id), "?")}
+        resolved.append(item)
+    return resolved
+
+
 def load(path: Path) -> list[dict[str, Any]]:
     """Every item in the transcript, whichever export shape it arrived in."""
     raw = path.read_text()
     if path.suffix != ".jsonl":
         document = json.loads(raw)
         if isinstance(document, list):
-            return document
+            return _resolve_tool_names(document)
         turns = document.get("turns") or []
         items: list[dict[str, Any]] = []
         for turn in turns:
@@ -187,7 +213,7 @@ def load(path: Path) -> list[dict[str, Any]]:
                 # `source`. Without the side tag they fall through to the agent
                 # branch and every user recovery prompt is reported as zero.
                 items.extend({**item, "_side": side} for item in value or [])
-        return items
+        return _resolve_tool_names(items)
     lines = raw.splitlines()
     head = [json.loads(line) for line in lines[:50] if line.strip()]
     if any(entry.get("type") == "session" for entry in head[:3]):
@@ -207,9 +233,11 @@ def side_of(item: dict[str, Any]) -> str:
     explicit = item.get("source")
     if explicit:
         return explicit
+    if item.get("tool_call_id") or item.get("toolCallId"):
+        return "system"
     if "_side" in item:
         return "user" if item["_side"] == "user" else "agent"
-    return "system" if item.get("tool_call_id") else "agent"
+    return "agent"
 
 
 def text_of(item: dict[str, Any]) -> str:
@@ -264,10 +292,10 @@ def census(items: list[dict[str, Any]]) -> dict[str, list[str]]:
                 else "<tool_use_error>" in body or body.lower().startswith("error")
             )
             if failed:
-                findings["tool_error"].append(f"{ref} ({item.get('tool_name', '?')})")
+                findings["tool_error"].append(f"{ref} ({item.get('tool_name') or '?'})")
                 # Track denied tools. omp names the missing device ("No such tool: xd://x") and
                 # serves every device through one shared tool (`write`), so key on the device.
-                tool_name = item.get("tool_name", "")
+                tool_name = item.get("tool_name") or ""
                 missing = re.search(r"no such tool:\s*(\S+?)\.?(?:\s|$)", body, re.IGNORECASE)
                 if missing:
                     denied_tools.add(missing.group(1))

@@ -167,6 +167,14 @@ timeout = "15s"
 matcher = "Bash|bash|sh|zsh|shell|terminal|exec|run_terminal_cmd|run_terminal_command"
 on_failure = "block"
 
+[[hooks]]
+name = "pretooluse-eval-sleep-guard"
+events = ["tool.before"]
+command = ["/Users/zbornheimer/.agents/hooks/eval-sleep-guard.py"]
+timeout = "5s"
+matcher = "eval|mcp__eval"
+on_failure = "block"
+
 # Raw `lavish-axi <file>.html` opens skip the preflight gate (at-51q2ph /
 # MI-001): the editor's layout detector then reports only to the human's
 # warning badge and broken artifacts reach the user unread. Steer to
