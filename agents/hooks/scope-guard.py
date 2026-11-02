@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-# A PATH-resolved python3 is the fastest portable start (~0.35–0.96 s when the
-# resolved interpreter is 3.10+ with yaml, vs ~1.5 s for uv or mise exec), but
-# a fleet box can hand the hook an older, barer interpreter (lib/scope_decide.py
-# needs 3.10+ and yaml), so the bootstrap below re-execs through uv — whose
-# script env carries the PEP 723 requirements — and fails open when no capable
-# start exists. The PEP 723 header serves that fallback.
+# A PATH-resolved python3 keeps the start portable: no machine's home directory
+# is baked in. A fleet box can hand the hook an older, barer interpreter
+# (lib/scope_decide.py needs 3.10+ and yaml), so the bootstrap below re-execs
+# through uv — whose script env carries the PEP 723 requirements — and fails
+# open when no capable start exists. The PEP 723 header serves that fallback.
 #
-# Measured starts (env -i, 5-run medians): capable interpreter 0.35–0.96 s;
-# under omp's real PATH (mise shim -> /usr/bin/python3 3.9 -> uv re-exec)
-# ~2.4 s — the 1.6 s mise-shim hop is the dominant cost, tracked separately.
+# Measured under omp's real PATH (mise shim first, then ~/.local/bin/python3
+# 3.13 with yaml, so no uv re-exec; 9 interleaved runs, machine load ~600):
+# 189 ms CPU against 89 ms for the old hardcoded-interpreter shebang. The
+# ~100 ms difference is the mise shim hop; a uv re-exec costs ~1.5 s more.
 # /// script
 # requires-python = ">=3.10"
 # dependencies = ["pyyaml>=6.0"]
