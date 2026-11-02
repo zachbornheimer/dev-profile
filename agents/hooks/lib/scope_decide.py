@@ -26,12 +26,13 @@ from typing import Any
 
 import yaml
 from completion_gate_session_state import RejectLedger
-from completion_gate_transcript import read_transcript_facts
+from completion_gate_transcript import read_recent_facts, read_transcript_facts
 from completion_gate_transcript_events import command_of
 from hook_common import Clock, Decision, HookEvent, HookSettings, sha256_digest
 from scope_guard_rules import (
     evaluate_stop,
     evaluate_tool,
+    full_ci_candidate,
     is_read_only_probe,
     prohibited_full_ci,
 )
@@ -403,6 +404,11 @@ def _prompts(facts: Any) -> tuple[str, ...]:
 
 
 TASK_PROMPTS = 3
+# The recent window must hold every ask a judgment consumes: the task's
+# prompts plus the earlier ones the judge's context carries. `mise run ci`
+# candidates keep the whole-tail read — prohibited_full_ci consults prompts
+# older than any window.
+RECENT_PROMPTS = max(TASK_PROMPTS, PROMPTS_KEPT + 1)
 
 
 def _task_of(facts: Any) -> str:
@@ -475,19 +481,25 @@ def _observe(
         return Observation(request, skip="empty-candidate")
     # Read-only probes can never mutate state; judging them only burns model
     # calls and risks denying legitimate `--help`/presence checks.
+    execution_text = _execution_text(request) if request.kind == "tool" else ""
     if request.kind == "tool":
         if _is_read_only_tool(request.tool):
             return Observation(request, candidate=candidate, skip="read-only-tool")
-        execution_text = _execution_text(request)
         if execution_text and is_read_only_probe(execution_text):
             return Observation(request, candidate=candidate, skip="read-only-probe")
     # The reader returns the freshest copy (the session database's when omp keeps
     # the session there) and None for a run that already ended at session_exit.
-    facts = (
-        read_transcript_facts(request.transcript_path, TASK_ATTRIBUTIONS)
-        if request.transcript_path
-        else None
-    )
+    # Everything a judgment needs lives in the recent window — except the
+    # explicit `mise run ci` prohibition, which consults prompts older than any
+    # window, so its candidates take the whole-tail read.
+    facts = None
+    if request.transcript_path:
+        if request.kind == "tool" and full_ci_candidate(execution_text):
+            facts = read_transcript_facts(request.transcript_path, TASK_ATTRIBUTIONS)
+        else:
+            facts = read_recent_facts(
+                request.transcript_path, TASK_ATTRIBUTIONS, RECENT_PROMPTS
+            )
     task = _task_of(facts)
     if not task:
         return Observation(request, candidate=candidate, skip="no-user-task")

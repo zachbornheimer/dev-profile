@@ -82,6 +82,16 @@ def valid_scores(values: Mapping[str, object], expected: Sequence[str]) -> bool:
     )
 
 
+def full_ci_candidate(action: str) -> bool:
+    """True when the action itself would run `mise run ci`.
+
+    The explicit-instruction rule then scans the whole prompt history for the
+    latest word on it, so callers of that rule must not trade the history for a
+    recent-window read.
+    """
+    return bool(FULL_CI_CALL.search(action))
+
+
 def prohibited_full_ci(action: str, prompts: Sequence[str]) -> bool:
     """Honor the latest explicit instruction about `mise run ci`.
 
@@ -89,7 +99,7 @@ def prohibited_full_ci(action: str, prompts: Sequence[str]) -> bool:
     order, not tool output. An explicit later authorization overrides an earlier
     prohibition; an unrelated later prompt does not.
     """
-    if not FULL_CI_CALL.search(action):
+    if not full_ci_candidate(action):
         return False
     for prompt in reversed(prompts):
         negative = FULL_CI_NEGATIVE.search(prompt)

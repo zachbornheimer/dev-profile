@@ -1,4 +1,7 @@
-#!/usr/bin/env -S uv run --script
+#!/Users/zbornheimer/.local/share/mise/installs/python/3.13/bin/python3
+# uv's `--script` resolution costs seconds per tool call; this mise python
+# already carries pyyaml, so the hook boots in tens of milliseconds. The
+# PEP 723 header below still serves `uv run --script` when run that way.
 # /// script
 # requires-python = ">=3.10"
 # dependencies = ["pyyaml>=6.0"]
