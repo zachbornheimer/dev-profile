@@ -9,7 +9,9 @@
 # exits non-zero and leaves the installed binary and omp-build untouched.
 set -euo pipefail
 
-export PATH="$HOME/Developer/Personal/dev-profile/bin:$HOME/.local/share/mise/shims:$HOME/.local/bin:$HOME/.bun/bin:$HOME/.cargo/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+# rustup's proxies come first: they honor oh-my-pi's rust-toolchain.toml (a pinned nightly);
+# a mise or Homebrew stable cargo ahead of them fails the native build.
+export PATH="$HOME/.cargo/bin:$HOME/Developer/Personal/dev-profile/bin:$HOME/.local/share/mise/shims:$HOME/.local/bin:$HOME/.bun/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
 
 REPO_DIR="${OMP_REPO_DIR:-$HOME/Developer/Personal/oh-my-pi}"
 BUILD_DIR="${OMP_BUILD_DIR:-$(dirname "$REPO_DIR")/.worktrees/oh-my-pi-omp-build}"
