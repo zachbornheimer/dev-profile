@@ -4,6 +4,10 @@ After=network-online.target
 
 [Service]
 Type=simple
+# Every schedule row carries a null `timezone`, so `0 3,15 * * *` means whatever the process TZ is.
+# The fleet's clock is UTC; without this line the crons silently shift five hours off the wall-clock
+# times they were designed for (03:00/15:00, 00:00, 04:00, 06:30, 07:30 America/New_York).
+Environment=TZ=America/New_York
 WorkingDirectory=/home/zbornheimer/Developer/Personal/capability-replicas/mastra
 ExecStart=/bin/bash -lc 'export PATH="$HOME/Developer/Personal/dev-profile/bin:$HOME/.local/share/mise/shims:$HOME/.local/bin:$HOME/.bun/bin:$PATH"; set -a; [ -r ~/.config/agent-state/env ] && . ~/.config/agent-state/env; [ -r ~/.cache/ai/keys.env ] && . ~/.cache/ai/keys.env; set +a; export MASTRA_SCHEDULER=1; exec bun scripts/loop/mastra-scheduler.mts'
 Restart=always
