@@ -7,8 +7,10 @@ from hook_harness import HookRunner
 
 HOOK = "eval-sleep-guard.py"
 EXPECTED_DENY_REASON = (
-    "Multi-second sleep inside eval (>= 5s / 5000ms) is not allowed for polling or waiting. "
-    "Call agentmux_capability_wait (or arm a capability wait) instead."
+    "Time-driven wait refused: `sleep` wakes on a clock, not on the thing you are waiting for. "
+    "Use an event-driven wakeup instead: run the work with run_command `background` and `wait` "
+    "on its job_id, or arm a `wait` on `job_exit`, `job_output` (log grows), `path_changed` or "
+    "`process_exit`."
 )
 
 
@@ -40,8 +42,12 @@ ALLOWED_CODES = {
 
 @pytest.mark.parametrize("name", DENIED_CODES)
 @pytest.mark.parametrize("tool_name", ("eval", "mcp__eval"))
-def test_denies_multi_second_sleep(hooks: HookRunner, name: str, tool_name: str) -> None:
-    run = hooks.run_payload(HOOK, _eval_payload(DENIED_CODES[name], tool_name=tool_name))
+def test_denies_multi_second_sleep(
+    hooks: HookRunner, name: str, tool_name: str
+) -> None:
+    run = hooks.run_payload(
+        HOOK, _eval_payload(DENIED_CODES[name], tool_name=tool_name)
+    )
     assert run.exit_code == 0
     assert run.stderr == ""
     assert not run.failed_open

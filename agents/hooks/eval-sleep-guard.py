@@ -36,9 +36,13 @@ EVAL_TOOL_NAMES = frozenset(
 MIN_SLEEP_SECONDS = 5.0
 MIN_SLEEP_MS = 5000.0
 
+# The same event-driven-wakeup guidance agent-hooks' `wait-loop` policy gives
+# from its single definition (one owner per repo, one message).
 DENY_REASON = (
-    "Multi-second sleep inside eval (>= 5s / 5000ms) is not allowed for polling or waiting. "
-    "Call agentmux_capability_wait (or arm a capability wait) instead."
+    "Time-driven wait refused: `sleep` wakes on a clock, not on the thing you are waiting for. "
+    "Use an event-driven wakeup instead: run the work with run_command `background` and `wait` "
+    "on its job_id, or arm a `wait` on `job_exit`, `job_output` (log grows), `path_changed` or "
+    "`process_exit`."
 )
 
 _PY_SLEEP_CALL_RE = re.compile(r"\b(?:time|asyncio)\.sleep\s*\(")
