@@ -408,7 +408,7 @@ steps {
     profiles = List("slow")
   }
   ["check-added-large-files"] {
-    check = "hk util check-added-large-files {{files}}"
+    check = "dev-profile-check-added-large-files {{files}}"
     glob = List("**/*")
     exclude =
       List(
@@ -857,7 +857,7 @@ hooks {
         glob = List("**/*")
       }
       ["check-added-large-files"] {
-        check = "hk util check-added-large-files {{files}}"
+        check = "dev-profile-check-added-large-files {{files}}"
         glob = List("**/*")
         exclude =
           List(

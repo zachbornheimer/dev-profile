@@ -2,7 +2,7 @@
 # Guard fixtures for the push-time checks: broken symlinks, added large files,
 # and submodules. Usage: push.sh <generated-dir>
 set -euo pipefail
-. "$(dirname "$0")/world.sh" "$@"
+. "$(dirname "$0")/world.sh"
 
 fixture_broken_symlink_blocks() {
 	local repo
@@ -36,6 +36,21 @@ fixture_large_binary_still_blocks() {
 	expect_blocked "$repo" check-added-large-files "large binary"
 }
 
+# Editing a file the mainline (origin's default branch) already tracks adds nothing,
+# however large upstream made it: only new files are size-checked.
+fixture_large_upstream_file_edit_passes() {
+	local repo base
+	repo="$(new_repo large-upstream-file)"
+	head -c 2000000 /dev/zero | tr '\0' 'a' >"${repo}/big.txt"
+	git -C "$repo" add big.txt
+	base="$(GIT_AUTHOR_NAME=fixture GIT_AUTHOR_EMAIL=fixture@example.com GIT_COMMITTER_NAME=fixture GIT_COMMITTER_EMAIL=fixture@example.com git -C "$repo" commit-tree -m upstream "$(git -C "$repo" write-tree)")"
+	git -C "$repo" update-ref HEAD "$base"
+	git -C "$repo" update-ref refs/remotes/origin/main "$base"
+	printf 'b' >>"${repo}/big.txt"
+	git -C "$repo" add big.txt
+	push_check "$repo" check-added-large-files || fail "large upstream-tracked file edit: must pass"
+}
+
 fixture_gitmodules_blocks() {
 	local repo
 	repo="$(new_repo gitmodules)"
@@ -48,6 +63,7 @@ fixture_gitmodules_blocks() {
 fixture_broken_symlink_blocks
 fixture_large_file_blocks
 fixture_large_lockfile_passes
+fixture_large_upstream_file_edit_passes
 fixture_large_binary_still_blocks
 fixture_gitmodules_blocks
 echo "guard push fixtures ok"

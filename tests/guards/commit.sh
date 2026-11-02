@@ -5,7 +5,7 @@
 set -euo pipefail
 # Assigned by world.sh; declared here so this file lints on its own.
 work=''
-. "$(dirname "$0")/world.sh" "$@"
+. "$(dirname "$0")/world.sh"
 
 fixture_clean_change_passes() {
 	local repo
