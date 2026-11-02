@@ -26,6 +26,7 @@ from typing import Any
 
 import pytest
 from hook_harness import FIXTURES_DIR
+from test_completion_gate_judged import replay_answers
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "lib"))
 
@@ -174,10 +175,14 @@ def load_items() -> list[dict[str, Any]]:
 
 
 def recorded_verdicts(items: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
-    answers = json.loads(RECORDED_ANSWERS.read_text())
     return {
         item["id"]: turn_judge.decide_turn(
-            answers[item["id"]], item["envelope"]["evidence"]
+            replay_answers(item["id"]),
+            item["envelope"]["evidence"],
+            # judge-turn passes the envelope's user_prompt as the ask
+            # (typesafe.py); decide_turn vetoes every block without it, so the
+            # recorded replay must carry the same ask the live judge sees.
+            user_request=str(item["envelope"].get("user_prompt") or ""),
         ).as_json()
         for item in items
     }
@@ -228,7 +233,10 @@ def _ask_live(envelope: dict[str, Any]) -> dict[str, Any]:
     verdict: dict[str, Any] = {}
     for _ in range(LIVE_ATTEMPTS):
         done = subprocess.run(
-            [sys.executable, str(TYPESAFE_CLI), "judge-turn", "--json"],
+            # The suite runs under `uv run`, so PATH's python3 is this same
+            # interpreter; a literal program keeps the spawn a fixed command
+            # with only path arguments dynamic.
+            ["python3", str(TYPESAFE_CLI), "judge-turn", "--json"],
             input=json.dumps(envelope),
             capture_output=True,
             text=True,

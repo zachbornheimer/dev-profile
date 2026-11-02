@@ -78,12 +78,17 @@ QUESTIONS_ADDED_SINCE_RECORDING = (
 )
 
 
+def replay_answers(eval_id: str) -> dict:
+    """One recorded turn's answers, neutral-filled for questions added since recording."""
+    neutral = dict.fromkeys(QUESTIONS_ADDED_SINCE_RECORDING, NEUTRAL_NOUL)
+    recorded = json.loads(RECORDED_ANSWERS.read_text())[eval_id]
+    return neutral | recorded
+
+
 def replay(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, eval_id: str) -> None:
     """TypeSafe answers as recorded live for eval item ``eval_id``."""
     answers = tmp_path / f"answers-{eval_id}.json"
-    neutral = dict.fromkeys(QUESTIONS_ADDED_SINCE_RECORDING, NEUTRAL_NOUL)
-    recorded = json.loads(RECORDED_ANSWERS.read_text())[eval_id]
-    answers.write_text(json.dumps(neutral | recorded))
+    answers.write_text(json.dumps(replay_answers(eval_id)))
     use_fake_judge(monkeypatch, str(answers))
 
 
