@@ -2,8 +2,10 @@
 
 ``fake_session_db(tmp_path, sessions)`` returns the env a hook needs: ``PATH`` with a
 fake ``psql`` first and a ``SESSIONS_DB_URL`` that wins over any real configuration.
-The fake answers omp_session_store's two queries from ``sessions`` ({path: content})
-and records each call in ``calls.log``.
+The fake answers omp_session_store's two queries from ``sessions``: ``{path: content}``,
+or ``{path: [content, mtime_ms]}`` when a test needs the row's age (a bare content row
+is newer than any file). It applies TRANSCRIPT_SQL's rule in Python, and records each
+call in ``calls.log`` with ``sent``: ``"full"``, ``"appended"``, or ``"nothing"``.
 """
 
 from __future__ import annotations
@@ -13,27 +15,49 @@ import os
 from pathlib import Path
 
 FAKE_PSQL = r"""#!/usr/bin/env python3
-import json, os, sys
-args = sys.argv[1:]
-key = next(a.split("=", 1)[1] for a in args if a.startswith("key="))
+import hashlib, json, os, sys
+bound = dict(a.removeprefix("--set=").split("=", 1) for a in sys.argv[1:] if a.startswith("--set="))
+key = bound["key"]
 sql = sys.stdin.read()
 root = os.path.dirname(os.path.abspath(__file__))
-with open(os.path.join(root, "calls.log"), "a") as log:
-    log.write(json.dumps({"key": key, "host": os.environ.get("PGHOST"), "sql": sql.split()[1]}) + "\n")
+
+
+def record(sent):
+    with open(os.path.join(root, "calls.log"), "a") as log:
+        call = {"key": key, "host": os.environ.get("PGHOST"), "sql": sql.split()[1], "sent": sent}
+        log.write(json.dumps(call) + "\n")
+
+
 if os.environ.get("PGHOST") == "unreachable":
+    record("nothing")
     sys.exit(2)
 sessions = json.load(open(os.path.join(root, "sessions.json")))
 if sql.startswith("select path"):
+    record("nothing")
     suffix = key.replace("\\_", "_").lstrip("%")
     hits = [p for p in sessions if p.endswith(suffix)]
     print(hits[0] if hits else "")
+    sys.exit(0)
+row = sessions.get(key)
+if row is None:
+    record("nothing")
+    sys.exit(0)
+content, mtime_ms = (row, 4102444800000) if isinstance(row, str) else row
+held = int(bound["length"])
+held_tail = content[max(0, held - 4096):held].encode()
+if mtime_ms <= int(bound["since"]):
+    sent, body = "nothing", ""
+elif len(content) > held >= 0 and hashlib.sha256(held_tail).hexdigest() == bound["tail_hash"]:
+    sent, body = "appended", "+" + content[held:]
 else:
-    sys.stdout.write(sessions.get(key, ""))
+    sent, body = "full", "=" + content
+record(sent)
+print(f"{mtime_ms}\n{len(content)}\n{body}")
 """
 
 
 def fake_session_db(
-    tmp_path: Path, sessions: dict[str, str], host: str = "db.test"
+    tmp_path: Path, sessions: dict[str, str | list], host: str = "db.test"
 ) -> dict[str, str]:
     bin_dir = tmp_path / "fake-psql-bin"
     bin_dir.mkdir(exist_ok=True)
