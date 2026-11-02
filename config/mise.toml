@@ -19,8 +19,8 @@ path = ["~/.agents/bin", "~/.local/share/dev-profile/bin"]
 # versions). With a `git` shim on PATH that call re-enters mise, which resolves
 # the toolset again, which runs `git ls-remote` again: an unbounded fork loop
 # whenever mise has no warm cache (seen under aubx-skills' throwaway HOME).
-# conda:git (dev-profile) stays installed; these names just get no shim, so
-# `git` resolves to /opt/homebrew/bin/git (2.56, same as the pinned conda git).
+# conda:git (dev-profile) is pinned for Linux only; on macOS `git` is Homebrew's
+# (2.56), and these names never get a shim, so no git shim can re-enter mise.
 shims.exclude = [
   "git",
   "git-credential-osxkeychain",

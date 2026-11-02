@@ -8,7 +8,9 @@ worktrunk = "latest"
 stylua = "2.5.2"
 aube = "latest"
 jq = "1.8.2"
-"conda:git" = "2.56.0"
+# Linux-only: macOS gets git from Homebrew (same 2.56), so no conda wrapper
+# shadows it on PATH there. Linux has no equivalent portable git.
+"conda:git" = { version = "2.56.0", os = ["linux"] }
 betterleaks = "1.9.0"
 "aqua:gitleaks/gitleaks" = "8.30.1"
 "npm:markdownlint-cli" = "0.49.1"
