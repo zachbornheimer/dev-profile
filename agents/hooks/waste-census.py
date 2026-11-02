@@ -35,6 +35,7 @@ Classes:
     duplicate_call     the same tool with the same arguments, again
     repeat_text        the same agent message sent again (escalation loop)
     refetch            the same URL fetched more than once
+    rule_abort         a rule violation interrupting output, discarding the partial answer
     user_recovery      the user supplying the diagnosis the agent did not reach
 
 Exit 0 whenever the transcript parses. It reports; it does not judge.
@@ -100,6 +101,16 @@ def omp_items(lines: list[str]) -> list[dict[str, Any]]:
         if not line.strip():
             continue
         entry = json.loads(line)
+        # A rule abort record (``ttsr_injection``, or ``rule_violation`` in
+        # newer exports) is the harness interrupting output and discarding the
+        # partial answer. It carries no message, so it needs its own item:
+        # id is the raw line number, side is system, like a tool result.
+        if isinstance(entry, dict) and entry.get("type") in (
+            "ttsr_injection",
+            "rule_violation",
+        ):
+            items.append({"id": number, "source": "system", "rule_abort": True})
+            continue
         message = entry.get("message") if isinstance(entry, dict) else None
         if not isinstance(message, dict):
             continue
@@ -336,6 +347,11 @@ def census(items: list[dict[str, Any]]) -> tuple[dict[str, list[str]], int]:
         side = side_of(item)
 
         if side == "system":
+            # A rule abort is recorded structurally, not as prose; match the
+            # marker before the text heuristics below so it stays its own class.
+            if item.get("rule_abort"):
+                findings["rule_abort"].append(ref)
+                continue
             body = text_of(item)
             # An eviction receipt is context loss, not a tool failure: count it
             # as its own class so a diagnosis can say which one it is looking at.
@@ -802,6 +818,7 @@ def main(argv: list[str]) -> int:
         "duplicate_call",
         "repeat_text",
         "refetch",
+        "rule_abort",
         "user_recovery",
     ):
         refs = findings.get(name, [])
