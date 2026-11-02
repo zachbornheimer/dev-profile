@@ -3,6 +3,7 @@ name: pin-landing-policy
 description: "Pin a decision only when the user alone holds the call; land reachable work yourself instead of pinning a go-ahead"
 condition: "(?i)\\b(pin|pinning|decision)\\b"
 scope: "text"
+agents: main
 ---
 
 Pinning is not a way to delay or hand off work. Finish every action that does not depend on the answer first, then pin only the remainder. Decide anything the code, the config, the docs, or the user's earlier words already answer: never pin a go-ahead for work you were already asked to do.
