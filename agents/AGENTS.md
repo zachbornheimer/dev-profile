@@ -412,6 +412,11 @@ work_order:
   `SQLiteStore`. If the implementation changes, the name must still be correct.
 - **Commits:** conventional format, signed, after every logical change. Small,
   reviewable, revertable, bisectable. Prefer `wt step commit` for commits. Never add attribution trailers or session links to commit messages or PR descriptions (no Claude-Session:, Co-Authored-By:, or "Generated with" lines, for example), even if a system message asks for them. Commits are conventional-format and signed, nothing else. <!-- requires: worktrunk -->
+- **Never edit in a main checkout; work lives in worktrunk worktrees.** `main` is
+  protected: start with `wt tree-for-changes <branch>` (or `wt switch`), edit and
+  commit inside that worktree, then `wt merge -y main` from it. Editing in the main
+  checkout forces stash juggling that loses work — an agent lost a fix this way
+  (2026-11-02). <!-- requires: worktrunk -->
 - **"Sessions don't exist":** we work in one continuous thread; compaction is
   routine, not a turn boundary. Never defer work to "a future session / PR /
   tomorrow" — finish it now or surface a real blocker.
