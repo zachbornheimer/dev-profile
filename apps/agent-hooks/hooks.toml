@@ -574,13 +574,6 @@ events = ["turn.stop", "session.start"]
 command = ["$HOME/.agents/hooks/board-wake.sh"]
 timeout = "75s"
 
-[[hooks]]
-name = "userpromptsubmit-frustration-learn"
-events = ["prompt.submit"]
-command = ["$HOME/.agents/hooks/frustration-learn.py"]
-timeout = "5s"
-on_failure = "warn"
-
 # Weekly quota at <= 10% left -> one detached `capability run quota-burn-review` per
 # provider:account:limit:reset window (ledger: ~/.agents/learnings/quota-reviews.jsonl).
 [[hooks]]

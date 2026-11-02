@@ -3,19 +3,19 @@
 # requires-python = ">=3.10"
 # dependencies = []
 # ///
-"""UserPromptSubmit: learn from this session when the user sounds frustrated.
+"""Prompt route: learn from this session when a model judged the user frustrated.
 
-Two ways to decide. As its own hook it scores the prompt with
-``lib/frustration.py`` (lexical signals, repeated requests, a run of tool
-errors). Run as ``frustration-learn.py --judged <p>`` it takes the verdict of
-the ``detect_frustration`` capability, which ``prompt-submit-capabilities.sh``
-asks of every prompt, and skips the scoring. Either way it starts
-``~/.agents/bin/learn-launch`` detached, which runs the ``learn-from-transcript``
-workflow on the session, and lets the prompt through untouched.
-At most one launch per session every four hours: a stamp file per session in
-the state dir enforces it, across both ways. Set
-``FRUSTRATION_LEARN_COOLDOWN_SECONDS`` to change the window. The manual
-``/learn`` command in omp runs one at any time.
+Run as ``frustration-learn.py --judged <p>``. ``p`` is P(frustrated) from the
+``Frustrated`` question of the prompt-submit batch; the route that starts this
+script (omp's prompt-hooks extension, or prompt-respond.py elsewhere) already
+applied the bar. The verdict is always a model's: this script never scores the
+prompt's words, and without ``--judged`` it launches nothing.
+
+It starts ``~/.agents/bin/learn-launch`` detached, which runs the
+``learn-from-transcript`` workflow on the session, and lets the prompt through
+untouched. At most one launch per session every four hours: a stamp file per
+session in the state dir enforces it. Set ``FRUSTRATION_LEARN_COOLDOWN_SECONDS``
+to change the window. The manual ``/learn`` command in omp runs one at any time.
 
 A session with ``LEARNER=1`` never launches a learning run.
 
@@ -35,7 +35,6 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
 
-from frustration import score, transcript_signals
 from hook_common import Decision, HookEvent, run_hook
 from hook_common.settings import HookSettings
 
@@ -95,16 +94,23 @@ def claim_launch(ref: str, cooldown: float) -> Path | None:
 def launch(
     ref: str, reasons: str, env: dict[str, str], stamp: Path | None = None
 ) -> None:
-    command = env.get("LEARN_LAUNCH_CMD") or str(LAUNCHER)
-    argv = [command, ref, "--reason", f"frustration signals: {reasons}"]
+    # LEARN_LAUNCH_CMD is the test seam; production runs ~/.agents/bin/learn-launch.
+    launcher = env.get("LEARN_LAUNCH_CMD") or str(LAUNCHER)
     child_env = {**env, "LEARNER": "1", "AGENTMUX_NESTED_RUN": "1"}
     if stamp is not None:
         child_env["LEARN_STAMP_FILE"] = str(stamp)
     state = HookSettings.from_env().state_dir
     state.mkdir(parents=True, exist_ok=True)
     with (state / f"{HOOK_NAME}.err").open("ab") as errors:
+        # Argument list, no shell: /usr/bin/env executes the launcher with these exact arguments.
         subprocess.Popen(
-            argv,
+            [
+                "/usr/bin/env",
+                launcher,
+                ref,
+                "--reason",
+                f"frustration signals: {reasons}",
+            ],
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=errors,
@@ -114,29 +120,22 @@ def launch(
 
 
 def judged_probability(argv: list[str]) -> float | None:
-    """P(frustrated) from ``--judged <p>``, or None when the hook runs as itself."""
+    """P(frustrated) from ``--judged <p>``, or None when no model verdict was passed."""
     if len(argv) == 3 and argv[1] == "--judged":
         return float(argv[2])
     return None
 
 
-def decide(event: HookEvent, judged: float | None = None) -> Decision | None:
+def decide(event: HookEvent, judged: float | None) -> Decision | None:
     env = dict(os.environ)
     if env.get("LEARNER") == "1":
         return None
-    prompt = event.field("prompt", "prompt")
-    if not prompt.strip():
+    if judged is None:
+        return Decision.no_objection("no judged verdict", log_label="skip")
+    if not event.field("prompt", "prompt").strip():
         return None
 
-    ref, transcript = session_identity(event, env)
-    if judged is not None:
-        reasons = f"judged(p={judged:.2f})"
-    else:
-        prior, errors = transcript_signals(transcript, prompt)
-        result = score(prompt, prior, errors)
-        if not result.triggered:
-            return None
-        reasons = f"{','.join(result.reasons)} score={result.total}"
+    ref, _ = session_identity(event, env)
     if not ref:
         return Decision.no_objection("unnamed-session", log_label="skip")
     stamp = claim_launch(ref, cooldown_seconds(env))
@@ -145,6 +144,7 @@ def decide(event: HookEvent, judged: float | None = None) -> Decision | None:
             f"{ref} launched within the cooldown", log_label="skip"
         )
 
+    reasons = f"judged(p={judged:.2f})"
     launch(ref, reasons, env, stamp)
     return Decision.no_objection(f"{ref} {reasons}", log_label="launch")
 

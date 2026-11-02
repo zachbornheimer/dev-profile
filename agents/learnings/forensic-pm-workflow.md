@@ -12,7 +12,7 @@ Accepted 2026-10-30. Replaces the single-agent Mastra `learn-from-transcript` ti
 
 ## Intake Triggers
 
-1. **Real-Time Frustration Trigger (`frustration-learn.py`):** Fires when `prompt_answers` (`jev`) scores `Frustrated >= 0.7` or lexical/transcript signals cross threshold (`>= 3`).
+1. **Real-Time Frustration Trigger (`frustration-learn.py`):** Fires only when `prompt_answers` (`jev`) scores `Frustrated >= 0.7`; a model's verdict decides, never the prompt's words.
 2. **Daily Triage Trigger (`jev` Worst 3–5):** Pre-filters the day's sessions by deterministic waste metrics (active wall time, mega-turns, `tool_error` count, `correction` turns, model switches, USD/token burn) and uses `jev` to select the worst 3–5 sessions (if any).
 
 ## Stage 1: Forensic Assessor (`omp --model @slow`)
