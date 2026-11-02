@@ -36,8 +36,9 @@ STEER_MESSAGE = (
 GIT_PUSH_MAIN_RE = re.compile(
     r"\bgit\b(?:\s+-C\s+\S+)?\s+push\b[^\n;|&]*\b(?:fork|origin)\b[^\n;|&]*(?:\bHEAD:main\b|\bHEAD:refs/heads/main\b|\bmain\b|\bmain:main\b)"
 )
+# `(?![\w-])`: read-only plumbing such as `merge-base` / `merge-tree` is not a merge.
 GIT_COMMIT_MERGE_RE = re.compile(
-    r"\bgit\b(?:\s+-C\s+\S+|\s+-c\s+\S+)*\s+(?:commit|merge|cherry-pick)\b"
+    r"\bgit\b(?:\s+-C\s+\S+|\s+-c\s+\S+)*\s+(?:commit|merge|cherry-pick)(?![\w-])"
 )
 WT_MERGE_LAND_RE = re.compile(r"\bwt\b(?:\s+-C\s+\S+)?\s+(?:merge|land)\b([^\n;|&]*)")
 GIT_C_RE = re.compile(r"\b(?:git|wt)\s+-C\s+([^\s;|&]+)")

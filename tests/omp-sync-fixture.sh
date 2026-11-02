@@ -106,4 +106,27 @@ if run_sync; then fail "build without a required feature exited zero"; fi
 grep -q "lacks required 'SESSIONS_DB_URL'" "$OMP_SYNC_LOG" || fail "refusal does not name the missing feature"
 [ "$("$OMP_INSTALL_PATH")" = "$before_bin" ] || fail "a build missing a required feature was installed"
 
+# 7. A stale branch that another configured branch contains is merged through that branch:
+#    feat/old conflicts with upstream on its own; feat/new is feat/old with upstream merged in.
+topic feat/old old.txt "old"
+git -C "$OMP_REPO_DIR" switch -q feat/old
+commit_file "$OMP_REPO_DIR" upstream-new.txt "old edit" "feat/old edits a file upstream also changes"
+git -C "$OMP_REPO_DIR" push -q fork feat/old
+commit_file "$work/seed" upstream-new.txt "upstream edit" "upstream edits the same file"
+git -C "$work/seed" push -q "$work/upstream.git" main
+git -C "$OMP_REPO_DIR" fetch -q origin
+[ -n "$(git -C "$OMP_REPO_DIR" merge-tree --write-tree --name-only --no-messages origin/main feat/old | tail -n +2)" ] ||
+	fail "setup: feat/old should conflict with upstream on its own"
+git -C "$OMP_REPO_DIR" switch -q -c feat/new feat/old
+git -C "$OMP_REPO_DIR" merge -q origin/main >/dev/null 2>&1 || true
+printf 'old edit and upstream\n' >"$OMP_REPO_DIR/upstream-new.txt"
+git -C "$OMP_REPO_DIR" add upstream-new.txt
+git -C "$OMP_REPO_DIR" commit -q --no-edit
+git -C "$OMP_REPO_DIR" push -q fork feat/new
+git -C "$OMP_REPO_DIR" switch -q main
+configure feat/old feat/new
+run_sync || fail "a contained stale branch failed the build"
+grep -q "Merge feat/old: contained in feat/new" "$OMP_SYNC_LOG" || fail "contained branch was not merged through its container"
+contains feat/old && contains feat/new || fail "omp-build lacks the contained branches"
+
 echo "ok omp-sync fixture"

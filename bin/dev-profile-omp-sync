@@ -236,14 +236,38 @@ branch_ref() {
 	else return 1; fi
 }
 
-branches="$(read_configured_branches)"
-[ -n "$branches" ] || log "No branches configured; building plain $UPSTREAM_REMOTE/main"
+# Resolve every configured branch first: one that another configured branch already
+# contains is merged through that branch, so its stale copy never conflicts on its own.
+names=()
+refs=()
 while IFS= read -r branch; do
 	[ -n "$branch" ] || continue
 	status=0
 	ref="$(branch_ref "$branch")" || status=$?
 	[ $status -ne 1 ] || die "configured branch '$branch' exists neither locally nor on $FORK_REMOTE"
 	[ $status -ne 2 ] || die "'$branch' and $FORK_REMOTE/$branch have diverged; push or reset one of them"
+	names+=("$branch")
+	refs+=("$(git rev-parse "$ref")")
+done <<<"$(read_configured_branches)"
+[ ${#names[@]} -gt 0 ] || log "No branches configured; building plain $UPSTREAM_REMOTE/main"
+
+for i in "${!names[@]}"; do
+	branch="${names[$i]}"
+	ref="${refs[$i]}"
+	container=""
+	for j in "${!names[@]}"; do
+		[ "$j" != "$i" ] || continue
+		# Identical tips: only the last copy is merged.
+		[ "${refs[$j]}" != "$ref" ] || [ "$j" -gt "$i" ] || continue
+		if git merge-base --is-ancestor "$ref" "${refs[$j]}"; then
+			container="${names[$j]}"
+			break
+		fi
+	done
+	if [ -n "$container" ]; then
+		log "Merge $branch: contained in $container"
+		continue
+	fi
 	if bgit merge-base --is-ancestor "$ref" HEAD; then
 		log "Merge $branch: already contained"
 		continue
@@ -259,11 +283,11 @@ while IFS= read -r branch; do
 	fi
 	bgit merge --abort >/dev/null 2>&1 || true
 	die "$branch conflicts with $UPSTREAM_REMOTE/main + earlier branches in:
-$(printf '  %s\n' "$unresolved")
+$(printf '%s\n' "$unresolved" | sed 's/^/  /')
 Fix it once, either way, then rerun:
-  - rebase $branch onto $UPSTREAM_REMOTE/main and push it, or
-  - cd $BUILD_DIR && git merge $ref, resolve, git commit (rerere records the resolution)"
-done <<<"$branches"
+  - in a checkout of $branch: git merge $UPSTREAM_REMOTE/main, resolve, commit, push it, or
+  - cd $BUILD_DIR && git merge $ref (= $branch), resolve, git commit (rerere records the resolution)"
+done
 head="$(bgit rev-parse HEAD)"
 
 # Features this build must never ship without (e.g. Neon session storage), from `required_in_tree`.

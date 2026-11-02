@@ -17,11 +17,16 @@ def test_denies_push_to_fork_main_in_oh_my_pi(hooks: HookRunner) -> None:
         {
             "hook_event_name": "PreToolUse",
             "tool_name": "agentmux_capability_run_command",
-            "tool_input": {"command": "cd ~/Developer/Personal/oh-my-pi && git push fork main"},
+            "tool_input": {
+                "command": "cd ~/Developer/Personal/oh-my-pi && git push fork main"
+            },
         },
     )
     assert run.decision == "deny"
-    assert "omp-rebuild.toml" in (run.output or {})["hookSpecificOutput"]["permissionDecisionReason"]
+    assert (
+        "omp-rebuild.toml"
+        in (run.output or {})["hookSpecificOutput"]["permissionDecisionReason"]
+    )
 
 
 def test_denies_xd_write_push_to_main_in_oh_my_pi(hooks: HookRunner) -> None:
@@ -32,7 +37,11 @@ def test_denies_xd_write_push_to_main_in_oh_my_pi(hooks: HookRunner) -> None:
             "tool_name": "write",
             "tool_input": {
                 "path": "xd://mcp__capability_agentmux_capability_run_command",
-                "content": json.dumps({"command": "git -C ~/Developer/Personal/oh-my-pi push fork HEAD:main"}),
+                "content": json.dumps(
+                    {
+                        "command": "git -C ~/Developer/Personal/oh-my-pi push fork HEAD:main"
+                    }
+                ),
             },
         },
     )
@@ -56,31 +65,69 @@ def test_denies_wt_merge_and_wt_land_in_oh_my_pi_worktree(hooks: HookRunner) -> 
         assert run.decision == "deny", cmd
 
 
-def test_denies_commit_when_oh_my_pi_checkout_is_on_main(hooks: HookRunner, tmp_path: Path) -> None:
+def test_denies_commit_when_oh_my_pi_checkout_is_on_main(
+    hooks: HookRunner, tmp_path: Path
+) -> None:
     repo = tmp_path / "oh-my-pi"
     repo.mkdir()
-    subprocess.run(["git", "-C", str(repo), "init", "-b", "main"], check=True, capture_output=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "init", "-b", "main"], check=True, capture_output=True
+    )
     run = hooks.run_payload(
         HOOK,
         {
             "hook_event_name": "PreToolUse",
             "tool_name": "agentmux_capability_run_command",
-            "tool_input": {"command": f"cd {repo} && git commit -m 'bad commit on main'"},
+            "tool_input": {
+                "command": f"cd {repo} && git commit -m 'bad commit on main'"
+            },
         },
     )
     assert run.decision == "deny"
 
 
-def test_allows_push_of_topic_branch_and_omp_build(hooks: HookRunner, tmp_path: Path) -> None:
+def test_allows_read_only_merge_plumbing_when_checkout_is_on_main(
+    hooks: HookRunner, tmp_path: Path
+) -> None:
     repo = tmp_path / "oh-my-pi"
     repo.mkdir()
-    subprocess.run(["git", "-C", str(repo), "init", "-b", "omp-build"], check=True, capture_output=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "init", "-b", "main"], check=True, capture_output=True
+    )
+    for command in (
+        f"cd {repo} && git merge-base --is-ancestor feat/x origin/main",
+        f"cd {repo} && git merge-tree --write-tree origin/main feat/x",
+        f"git -C {repo} merge-base origin/main feat/x",
+    ):
+        run = hooks.run_payload(
+            HOOK,
+            {
+                "hook_event_name": "PreToolUse",
+                "tool_name": "agentmux_capability_run_command",
+                "tool_input": {"command": command},
+            },
+        )
+        assert run.decision == "none", command
+
+
+def test_allows_push_of_topic_branch_and_omp_build(
+    hooks: HookRunner, tmp_path: Path
+) -> None:
+    repo = tmp_path / "oh-my-pi"
+    repo.mkdir()
+    subprocess.run(
+        ["git", "-C", str(repo), "init", "-b", "omp-build"],
+        check=True,
+        capture_output=True,
+    )
     run = hooks.run_payload(
         HOOK,
         {
             "hook_event_name": "PreToolUse",
             "tool_name": "agentmux_capability_run_command",
-            "tool_input": {"command": f"cd {repo} && git push fork feat/my-topic omp-build"},
+            "tool_input": {
+                "command": f"cd {repo} && git push fork feat/my-topic omp-build"
+            },
         },
     )
     assert run.decision == "none"
