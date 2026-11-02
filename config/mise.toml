@@ -4,7 +4,9 @@ colima = "latest"
 gofumpt = "latest"
 # Custom omp: release tarballs from the fork. `matching = "omp-"` keeps the two
 # platform tarballs and drops SHA256SUMS; autodetect picks per-OS/arch.
-"github:zachbornheimer/oh-my-pi" = { version = "latest", matching = "omp-" }
+# `minimum_release_age = "0"`: the fork's own CI builds these releases (the
+# upstream supply-chain default of 24h would hide each day's build until the next).
+"github:zachbornheimer/oh-my-pi" = { version = "latest", matching = "omp-", minimum_release_age = "0" }
 node = "22.23.4"
 
 [env._]
