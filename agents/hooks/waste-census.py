@@ -438,6 +438,47 @@ def _intent_category(tools: list[tuple[str, str]]) -> str:
     return "other"
 
 
+_COMMAND_TOOL_NAMES = frozenset(
+    {
+        "bash",
+        "run_command",
+        "mcp__capability_agentmux_capability_bash",
+        "mcp__capability_agentmux_capability_run_command",
+    }
+)
+
+
+def _commands_of(parts: list[dict[str, Any]]) -> list[str]:
+    """Normalized command bodies this call dispatched (run_command / bash / xd device)."""
+    commands: list[str] = []
+    for part in parts:
+        name = part.get("name", "?")
+        arguments = part.get("arguments")
+        arguments = arguments if isinstance(arguments, dict) else {}
+        command = ""
+        if name in _COMMAND_TOOL_NAMES:
+            command = str(arguments.get("command") or "")
+        elif name == "write" and "run_command" in str(arguments.get("path") or ""):
+            content = arguments.get("content")
+            try:
+                payload = json.loads(content) if isinstance(content, str) else content
+                if isinstance(payload, dict):
+                    command = str(payload.get("command") or "")
+            except ValueError:
+                command = ""
+        if command:
+            commands.append(re.sub(r"\s+", " ", command.strip())[:150])
+    return commands
+
+
+def _percentile(sorted_values: list[int], fraction: float) -> int:
+    if not sorted_values:
+        return 0
+    return sorted_values[
+        min(len(sorted_values) - 1, int(len(sorted_values) * fraction))
+    ]
+
+
 def fleet_census(
     sessions_dir: Path,
     provider: str = "",
@@ -465,6 +506,9 @@ def fleet_census(
     cat_cost: Counter[str] = Counter()
     dup_groups: Counter[tuple[str, str]] = Counter()
     dup_cost: Counter[tuple[str, str]] = Counter()
+    command_groups: Counter[str] = Counter()
+    command_cost: Counter[str] = Counter()
+    contexts: list[int] = []
     intent_calls: Counter[str] = Counter()
     intent_cost: Counter[str] = Counter()
     session_cost: Counter[str] = Counter()
@@ -523,15 +567,26 @@ def fleet_census(
                 usage = message.get("usage") or {}
                 cost = ((usage.get("cost") or {}).get("total")) or 0.0
                 cache_read = usage.get("cacheRead") or 0
-                tools = [
-                    (part.get("name", "?"), part.get("intent") or "")
+                parts = [
+                    part
                     for part in message.get("content") or []
                     if part.get("type") == "toolCall"
+                ]
+                tools = [
+                    (part.get("name", "?"), part.get("intent") or "") for part in parts
                 ]
                 category = _intent_category(tools)
                 canon = " ".join(sorted({name for name, _ in tools})) or "text"
                 joined = " | ".join(f"{name}:{intent}" for name, intent in tools)[:120]
                 group = (canon, joined[:60])
+                contexts.append(
+                    cache_read
+                    + (usage.get("cacheWrite") or 0)
+                    + (usage.get("input") or 0)
+                )
+                for command in _commands_of(parts):
+                    command_groups[command] += 1
+                    command_cost[command] += cost
 
                 totals["calls"] += 1
                 totals["cost"] += cost
@@ -565,9 +620,21 @@ def fleet_census(
     duplicate_cost = sum(
         dup_cost[g] * (n - 1) / n for g, n in dup_groups.items() if n > 1
     )
+    command_extra = sum(n - 1 for n in command_groups.values() if n > 1)
+    command_duplicate_cost = sum(
+        command_cost[c] * (n - 1) / n for c, n in command_groups.items() if n > 1
+    )
+    contexts.sort()
     return {
         "files_scanned": scanned,
         "totals": totals,
+        "context_per_call": {
+            "p10": _percentile(contexts, 0.10),
+            "p50": _percentile(contexts, 0.50),
+            "p90": _percentile(contexts, 0.90),
+            "min": contexts[0] if contexts else 0,
+            "max": contexts[-1] if contexts else 0,
+        },
         "categories": {
             name: {"calls": cat_calls[name], "cost": round(cat_cost[name], 2)}
             for name in sorted(cat_cost, key=lambda k: -cat_cost[k])
@@ -583,6 +650,15 @@ def fleet_census(
                     "intent": g[1],
                 }
                 for g, n in dup_groups.most_common(10)
+                if n > 1
+            ],
+        },
+        "commands": {
+            "extra_calls": command_extra,
+            "est_cost": round(command_duplicate_cost, 2),
+            "top_repeats": [
+                {"repeat": n, "cost": round(command_cost[c], 2), "command": c}
+                for c, n in command_groups.most_common(10)
                 if n > 1
             ],
         },
@@ -662,11 +738,21 @@ def _fleet_main(argv: list[str]) -> int:
         f"  first-after-switch: {totals['first_after_switch_calls']} calls"
         f" ${totals['first_after_switch_cost']:.2f}"
     )
+    context = result["context_per_call"]
+    print(
+        f"  context/call (cacheRead+cacheWrite+input):"
+        f" p10={context['p10'] // 1000}K p50={context['p50'] // 1000}K"
+        f" p90={context['p90'] // 1000}K max={context['max'] // 1000}K"
+    )
     print("  categories:")
     for name, stats in result["categories"].items():
         print(f"    {name:20} ${stats['cost']:8.2f} ({stats['calls']} calls)")
     d = result["duplicates"]
     print(f"  duplicate calls: ~{d['extra_calls']} extra, ~${d['est_cost']:.2f}")
+    c = result["commands"]
+    print(f"  identical commands: ~{c['extra_calls']} extra, ~${c['est_cost']:.2f}")
+    for r in c["top_repeats"][:6]:
+        print(f"    x{r['repeat']:3d} ${r['cost']:6.2f}  {r['command'][:90]}")
     print("  top sessions:")
     for s in result["top_sessions"][:8]:
         print(f"    ${s['cost']:8.2f} {s['calls']:5d} calls  {s['file'][:58]}")
