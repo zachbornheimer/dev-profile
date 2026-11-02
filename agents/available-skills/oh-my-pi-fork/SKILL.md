@@ -1,22 +1,18 @@
 ---
 name: oh-my-pi-fork
-description: Use whenever modifying oh-my-pi (~/Developer/Personal/oh-my-pi), building or syncing the custom omp binary across macOS (MBP) and Linux (agent-fleet-backend / VPS), or preparing upstream PRs to can1357/oh-my-pi.
+description: Use whenever modifying oh-my-pi (~/Developer/Personal/oh-my-pi), releasing the custom omp build from the fork zachbornheimer/oh-my-pi, installing/updating omp via mise across macOS (MBP) and Linux (agent-fleet-backend / VPS), or preparing upstream PRs to can1357/oh-my-pi.
 ---
 
-# oh-my-pi Fork, Build, and Upstream PR Workflow
+# oh-my-pi Fork: CI Build, mise Install, Upstream PRs
 
-`~/Developer/Personal/oh-my-pi` is maintained as a two-remote fork across macOS (`darwin-arm64`) and the Linux compute arm (`agent-fleet-backend`, `linux-x64`) with **strict branch isolation** enforced by `dev-profile/config/omp-rebuild.toml`:
+`~/Developer/Personal/oh-my-pi` is a local fork of `can1357/oh-my-pi` with two remotes:
 
-- **`origin`** (`https://github.com/can1357/oh-my-pi.git`): Upstream repository.
-- **`main` (`local` and `fork/main`):** **Sacred upstream mirror (`main == origin/main`, 0 custom commits).** Direct commits or merges onto `main` in `oh-my-pi` are **forbidden and mechanically blocked** by `dev-profile-no-commit-to-default-branch` and `pretooluse-omp-main-branch-guard` (even if `DEV_PROFILE_ALLOW_DEFAULT_BRANCH_COMMIT=1` is set).
-- **Topic Branches (`fork/<branch>` on `zachbornheimer/oh-my-pi`):** Every custom feature or fix lives on its own named topic branch branched off `origin/main` and pushed to `fork/<branch>`.
-- **`dev-profile/config/omp-rebuild.toml` (`branches = [...]`):** The single declarative source of truth listing which topic branches are included in our custom `omp` build.
-- **`omp-build` (`fork/omp-build`):** The integration branch `dev-profile-omp-sync` rebuilds from scratch in a fresh temp clone of `origin/main` + the branches listed in `dev-profile/config/omp-rebuild.toml`, merged in order. The checkout at `~/Developer/Personal/oh-my-pi` is never checked out, rebased, cherry-picked, stashed, or fetched. On any merge conflict — or a configured branch missing on `fork` — the run reports the branch and the conflicting files and exits non-zero without installing a binary or pushing anything.
-- **`~/.local/bin/omp`:** The active binary on `$PATH`, compiled from `omp-build`.
+- **`origin`** (`https://github.com/can1357/oh-my-pi.git`): upstream.
+- **`fork`** (`https://github.com/zachbornheimer/oh-my-pi.git`): our fork. Its `main` is a **sacred upstream mirror** (`main == origin/main`, 0 custom commits); pushes to it are blocked by a GitHub ruleset, local commits by the reference-transaction hook (`bin/dev-profile-omp-main-lock`, run by `mise run setup`) and `pretooluse-omp-main-branch-guard` (even with `DEV_PROFILE_ALLOW_DEFAULT_BRANCH_COMMIT=1`).
 
 ## 1. Adding or Updating a Custom Feature / Fix in `omp`
 
-1. Always branch a clean worktree off `origin/main` (never `main` directly, and never commit on `main`):
+1. Branch a clean worktree off `origin/main` (never `main` directly, never commit on `main`):
 
    ```bash
    git -C ~/Developer/Personal/oh-my-pi fetch origin main
@@ -31,36 +27,19 @@ description: Use whenever modifying oh-my-pi (~/Developer/Personal/oh-my-pi), bu
    git push -u fork feat/<slug>
    ```
 
-4. Register `feat/<slug>` in `dev-profile/config/omp-rebuild.toml`, rebuild `omp-build` from `origin/main` + the configured branches in a fresh temp clone, compile `~/.local/bin/omp`, and push `fork/omp-build` in one command:
-
-   ```bash
-   dev-profile-omp-sync --include feat/<slug> --push
-   ```
-
-   If the merge conflicts with current upstream, the run reports the branch and the conflicting files and exits non-zero without installing or pushing: rebase `feat/<slug>` onto `origin/main`, push it to `fork`, and rerun.
+4. List `feat/<slug>` in the fork's `.github/omp-rebuild.toml` on the fork's `ci` branch (the default branch; scheduled workflows run only from the default branch), then push.
+5. CI (`.github/workflows/omp-build.yml`, daily 04:00 UTC + `workflow_dispatch`) assembles `omp-build` from upstream `main` + the listed branches in order. On conflict it fails, publishes nothing, and opens/updates one GitHub issue naming the branch and files; the previous release stays `latest`.
+6. Install the new release everywhere: `mise up github:zachbornheimer/oh-my-pi` (the daily launchd/systemd jobs run exactly this).
 
 ## 2. Removing a Branch From Our Custom `omp` Build
 
-When upstream merges one of our PRs or we no longer want a branch in our build:
+Delete `feat/<slug>` from the fork's `.github/omp-rebuild.toml` on `ci`, push, and let CI build the next release (or trigger it with `gh workflow run omp-build.yml --repo zachbornheimer/oh-my-pi`).
 
-```bash
-dev-profile-omp-sync --exclude feat/<slug> --push
-```
+## 3. Installing and Updating `omp`
 
-That removes `feat/<slug>` from `dev-profile/config/omp-rebuild.toml`, rebuilds `omp-build` cleanly in a fresh temp clone from `origin/main` + the remaining configured branches, and updates `~/.local/bin/omp`.
-
-## 3. Syncing & Verifying Across MBP and VPS (`agent-fleet-backend`)
-
-- **Check status, `main == origin/main` invariant, and configured branches:**
-
-  ```bash
-  dev-profile-omp-sync --status
-  ```
-
-- **Manual sync + compile on either machine (MBP or VPS):**
-
-  ```bash
-  dev-profile-omp-sync
-  ```
-
-- **Automatic daily sync:** Runs daily at `05:00` — macOS: the mise launchd agent `dev.mise.omp-daily-sync` from `~/.config/mise/config.toml` (install with `mise bootstrap macos launchd-agents apply`); Linux: the systemd user timer `omp-daily-sync.timer` (`apps/omp/omp-daily-sync.service`). Both run `dev-profile-omp-sync` with no flags.
+- **mise tool** (global `~/.config/mise/config.toml`, seeded from dev-profile `config/mise.toml`):
+  `"github:zachbornheimer/oh-my-pi" = { version = "latest", matching = "omp-" }`.
+  `matching = "omp-"` keeps `omp-darwin-arm64.tar.gz` / `omp-linux-x64.tar.gz` and drops `SHA256SUMS`; autodetect picks the right tarball per OS/arch. `latest` = the release marked Latest; prereleases are never used.
+- **Verify**: `mise which omp && omp --version`.
+- **Daily update**: runs at `05:00` — macOS: the mise launchd agent `dev.mise.omp-daily-sync` from `~/.config/mise/config.toml` (`mise bootstrap macos launchd-agents apply --yes`); Linux: the systemd user timer `omp-daily-sync.timer` (`apps/omp/omp-daily-sync.service` in dev-profile). Both run `mise up github:zachbornheimer/oh-my-pi`.
+- **Release tags**: `build-<YYYYMMDD>-<upstream-short-sha>-<build-short-sha>`, marked latest, never prerelease. Assets: `omp-darwin-arm64.tar.gz`, `omp-linux-x64.tar.gz` (one top-level `omp` executable), plus `SHA256SUMS`.

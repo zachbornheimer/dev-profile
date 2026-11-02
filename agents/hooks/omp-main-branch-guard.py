@@ -6,9 +6,10 @@
 """PreToolUse: forbid committing, merging (including `wt merge` / `wt land`), or pushing custom commits to `main` in oh-my-pi.
 
 `main` in ~/Developer/Personal/oh-my-pi (and `fork/main` on zachbornheimer/oh-my-pi)
-is a read-only upstream mirror of `can1357/oh-my-pi`. Custom changes must live on named
-topic branches off `origin/main` and be registered in `dev-profile/config/omp-rebuild.toml`
-(which `dev-profile-omp-sync` merges onto `omp-build`).
+is a read-only upstream mirror of `can1357/oh-my-pi`. Custom changes live on named
+topic branches off `origin/main`, pushed to the fork and listed in the fork's
+`.github/omp-rebuild.toml` (on the `ci` branch), which CI builds into a release
+that `mise up` installs.
 """
 
 from __future__ import annotations
@@ -29,8 +30,8 @@ STEER_MESSAGE = (
     "Direct commits, merges (including 'wt merge' / 'wt land'), or pushes to 'main' in oh-my-pi are forbidden "
     "('main' is a read-only mirror of upstream can1357/oh-my-pi). "
     "Create a topic branch off origin/main ('wt -C ~/Developer/Personal/oh-my-pi switch --create feat/<slug> --base origin/main'), "
-    "commit and push that topic branch to 'fork' ('git push -u fork feat/<slug>'), and register it in dev-profile/config/omp-rebuild.toml "
-    "via 'dev-profile-omp-sync --include feat/<slug> --push'."
+    "commit and push that topic branch to 'fork' ('git push -u fork feat/<slug>'), then add it to the fork's "
+    ".github/omp-rebuild.toml on the 'ci' branch so CI builds the next release; 'mise up' installs it."
 )
 
 GIT_PUSH_MAIN_RE = re.compile(
