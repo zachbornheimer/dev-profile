@@ -59,7 +59,11 @@ ai-keys::env() {
 	local tmp
 	tmp="$(mktemp -u "$cache_dir/keys.env.XXXXXX")"
 
-	if ! (umask 077 && op inject -f -i "$mustache_tmpl" -o "$tmp") >/dev/null 2>&1; then
+	# The service token comes from the ambient env (05-env.zsh loaded it from
+	# the Keychain; 06-env.defer.zsh validates and heals it). The hand-staged
+	# secrets file is never read — a reset at my.1password.com leaves it dead.
+	local op_token="${OP_SERVICE_ACCOUNT_TOKEN:-}"
+	if ! (umask 077 && OP_SERVICE_ACCOUNT_TOKEN="$op_token" op inject -f -i "$mustache_tmpl" -o "$tmp") >/dev/null 2>&1; then
 		rm -f "$tmp" "$mustache_tmpl"
 		__ -t failed "ai-keys::env: op inject failed; run 'ai-keys-refresh' after checking 1Password sign-in"
 		return 1

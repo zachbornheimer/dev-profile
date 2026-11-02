@@ -37,25 +37,28 @@ export OP_SSH_DIR="$HOME/.ssh/1p"
 	# sources the AI environment (which may run op inject). Desktop recovery stays
 	# in 06-env.defer.zsh and requires a terminal.
 	[[ -t 0 && -t 1 ]] || export OP_BIOMETRIC_UNLOCK_ENABLED=false
-	[[ -z ${OP_SERVICE_ACCOUNT_TOKEN:-} ]] || return 0
-	local token
-	if command -v security >/dev/null 2>&1 && token=$(security find-generic-password -a "$USERNAME" \
-		-s 'org.zysys.op-service-account' -w 2>/dev/null) && [[ -n "$token" ]]; then
-		export OP_SERVICE_ACCOUNT_TOKEN="$token"
-	elif [[ -r $HOME/.config/dev-env/secrets/op-service-account-token ]]; then
-		export OP_SERVICE_ACCOUNT_TOKEN="$(<$HOME/.config/dev-env/secrets/op-service-account-token)"
-	elif [[ -r /run/secrets/op-service-account-token ]]; then
-		export OP_SERVICE_ACCOUNT_TOKEN="$(</run/secrets/op-service-account-token)"
+	# Keychain first (06-env.defer.zsh validates it against the server and heals
+	# it after the first prompt), then the container's tmpfs seed. The Mac's
+	# hand-staged secrets file is never read: a reset at my.1password.com
+	# leaves it dead, and a dead token 403s every op call that carries it.
+	if [[ -z ${OP_SERVICE_ACCOUNT_TOKEN:-} ]] && command -v security >/dev/null 2>&1; then
+		local token
+		if token=$(security find-generic-password -a "$USERNAME" \
+			-s 'org.zysys.op-service-account' -w 2>/dev/null) && [[ -n "$token" ]]; then
+			export OP_SERVICE_ACCOUNT_TOKEN="$token"
+		elif [[ -r /run/secrets/op-service-account-token ]]; then
+			export OP_SERVICE_ACCOUNT_TOKEN="$(</run/secrets/op-service-account-token)"
+		fi
 	fi
 	return 0
 }
 
 export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 
-ulimit -n 4096
-export OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES
-
 # Shared Neon session store for omp across Mac front-end and remote compute arm.
 if [[ -z ${SESSIONS_DB_URL:-} && -s $HOME/.config/dev-env/runtime/omp-session-db-url ]]; then
 	export SESSIONS_DB_URL="$(<$HOME/.config/dev-env/runtime/omp-session-db-url)"
 fi
+
+ulimit -n 4096
+export OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES
