@@ -25,6 +25,8 @@ readonly KEYS_FILE="$HOME/.cache/ai/keys.env"
 readonly NESTED_RUN_GUARD="$HOME/.agents/hooks/nested-run-guard.sh"
 readonly SKILL_PICKS_DIR="$HOME/.agents/hooks/state/skill-picks"
 readonly SUGGEST_STATE_DIR="$HOME/.agents/hooks/state/suggest-context"
+# A session id names a state file; anything else (a `/`, a `..`) could reach outside the state directories.
+readonly SESSION_ID_PATTERN='^[A-Za-z0-9][A-Za-z0-9_-]*$'
 # The self-test points this at a directory holding a stub `capability`; nothing else sets it.
 readonly CAPABILITY_BIN_DIR="${CAPABILITY_BIN_DIR:-$HOME/.local/share/aube/bin}"
 readonly CAPABILITY_WALL_SECONDS=20
@@ -120,14 +122,14 @@ scope_line() {
 
 # Where the skill files are, for AGENTS.md's "read skill-picks/<session_id>.json" fallback. Read from the skill
 # XML; a prompt whose suggestion call failed leaves no file rather than the previous prompt's picks.
+# Reads SESSION_ID and RUN_DIR, which run_hook sets once per prompt.
 write_skill_pick() {
-	local session="$1" file="$2" pick
-	[[ -n "$session" ]] || return 0
-	pick="$SKILL_PICKS_DIR/$session.json"
+	[[ "$SESSION_ID" =~ $SESSION_ID_PATTERN ]] || return 0
+	local pick="$SKILL_PICKS_DIR/$SESSION_ID.json" skills_xml="$RUN_DIR/skills.xml"
 	mkdir -p "$SKILL_PICKS_DIR" 2>/dev/null || return 0
 	rm -f "$pick"
-	[[ "$(head -c 15 "$file" 2>/dev/null)" == '<system-context' ]] || return 0
-	python3 - "$file" >"$pick" 2>/dev/null <<'PY' || rm -f "$pick"
+	[[ "$(head -c 15 2>/dev/null <"$skills_xml")" == '<system-context' ]] || return 0
+	python3 - "$skills_xml" >"$pick" 2>/dev/null <<'PY' || rm -f "$pick"
 import json
 import sys
 import xml.etree.ElementTree as ET
@@ -140,11 +142,10 @@ print(json.dumps({"source": "capability", "choice": names[0] if names else "none
 PY
 }
 
-# The fingerprint of the suggestion set last emitted whole for this session, or empty when none was.
+# The fingerprint of the suggestion set last emitted whole for this session (SESSION_ID), or empty when none was.
 last_suggest_hash() {
-	local session="$1"
-	[[ -n "$session" ]] || return 0
-	cat "$SUGGEST_STATE_DIR/$session" 2>/dev/null || :
+	[[ "$SESSION_ID" =~ $SESSION_ID_PATTERN ]] || return 0
+	cat 2>/dev/null <"$SUGGEST_STATE_DIR/$SESSION_ID" || :
 }
 
 # The fingerprint of the suggestion SET in skills.xml: names and descriptions per kind, in order,
@@ -299,12 +300,12 @@ emit_context() {
 	for line in "$(intent_line "$dir/intent.json")" "$(project_line "$dir/project.json")" "$(scope_line "$session" "$cwd")"; do
 		[[ -n "$line" ]] && lines+="${lines:+$'\n'}$line"
 	done
-	xml="$(cat "$dir/skills.xml" 2>/dev/null)"
+	xml="$(cat 2>/dev/null <"$dir/skills.xml")"
 	if [[ "$xml" == '<system-context'* ]]; then
 		local hash prior
 		block="$(suggest_render block "$dir/skills.xml")"
 		hash="$(suggest_fingerprint "$dir/skills.xml")"
-		prior="$(last_suggest_hash "$session")"
+		prior="$(last_suggest_hash)"
 		if [[ -n "$hash" && "$prior" == "$hash" ]]; then
 			pointer="$(suggest_render pointer "$dir/skills.xml")"
 		fi
@@ -312,7 +313,7 @@ emit_context() {
 			lines+="${lines:+$'\n'}$pointer"
 		elif [[ -n "$block" ]]; then
 			lines+="${lines:+$'\n'}$block"
-			if [[ -n "$session" && -n "$hash" ]]; then
+			if [[ "$session" =~ $SESSION_ID_PATTERN && -n "$hash" ]]; then
 				mkdir -p "$SUGGEST_STATE_DIR" 2>/dev/null || :
 				printf '%s' "$hash" >"$SUGGEST_STATE_DIR/$session" 2>/dev/null || :
 			fi
@@ -331,6 +332,9 @@ emit_context() {
 # --- the hook --------------------------------------------------------------------------------------------
 
 run_hook() {
+	# omp's prompt-hooks extension (~/.config/omp/prompt-hooks) does this whole job in-process and exports
+	# OMP_PROMPT_HOOKS=1 to the agent-hooks it starts; answering here too would ask every model twice.
+	[[ -n "${OMP_PROMPT_HOOKS:-}" ]] && return 0
 	command -v jq >/dev/null && command -v capability >/dev/null || return 0
 	local payload prompt cwd session dir
 	payload="$(cat)"
@@ -345,8 +349,10 @@ run_hook() {
 		set +a
 	}
 	dir="$(mktemp -d)" || return 0
+	SESSION_ID="$session"
+	RUN_DIR="$dir"
 	run_all "$prompt" "${cwd:-$HOME}" "$dir" "$payload"
-	write_skill_pick "$session" "$dir/skills.xml"
+	write_skill_pick
 	emit_context "$dir" "$session" "${cwd:-$HOME}"
 	rm -rf "$dir"
 }
@@ -588,7 +594,7 @@ check_first_turn() {
 	local output="$1" context chars skills cards failed=0
 	if ! has_hook_shape "$output"; then
 		echo "self-test: first turn: output is not the hook shape (Intent line first, a Scope line, XML block last):" >&2
-		cat "$output" >&2
+		cat <"$output" >&2
 		return 1
 	fi
 	context="$(context_of "$output")"
@@ -618,7 +624,7 @@ check_repeat_turn() {
 	local output="$1" first="$2" context failed=0
 	if ! has_hook_shape "$output"; then
 		echo "self-test: repeat turn: output is not the hook shape:" >&2
-		cat "$output" >&2
+		cat <"$output" >&2
 		return 1
 	fi
 	context="$(context_of "$output")"
