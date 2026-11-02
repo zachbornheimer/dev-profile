@@ -57,7 +57,9 @@ URL_FILE = Path.home() / ".config" / "dev-env" / "runtime" / "omp-session-db-url
 OMP_ENV_FILE = Path.home() / ".omp" / ".env"
 POSTGRES_URL = re.compile(r"postgres(?:ql)?://[^\s'\"]+")
 SESSION_ID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
-OMP_SESSION_FILE = re.compile(rf"_({SESSION_ID.pattern})\.jsonl$")
+# omp's session file, `<stamp>_<id>.jsonl`, or a subagent's under it, `<stamp>_<id>/<Name>.jsonl`
+# (nested subagents add a directory per level).
+OMP_SESSION_FILE = re.compile(rf"_({SESSION_ID.pattern})((?:/[A-Za-z0-9_-]+)*)\.jsonl$")
 
 
 def readable_transcript(path: str | Path | None) -> Path | None:
@@ -65,10 +67,11 @@ def readable_transcript(path: str | Path | None) -> Path | None:
     if not path:
         return None
     transcript = Path(path).expanduser()
-    found = OMP_SESSION_FILE.search(transcript.name)
+    found = OMP_SESSION_FILE.search(transcript.as_posix())
     if not found:
         return transcript if transcript.is_file() else None
-    session_id = found.group(1)
+    # The copy's name in the state dir: the session id, then each subagent level.
+    session_id = found.group(1) + found.group(2).replace("/", ".")
     copy = Copy.load(session_id)
     local = max(
         (file for file in (transcript, copy and copy.path) if file and file.is_file()),

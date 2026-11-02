@@ -73,6 +73,21 @@ def test_a_session_only_in_the_database_gives_the_gate_the_users_prompt(
     assert facts.user_prompt == "fix the flaky test"
 
 
+def test_a_subagent_session_only_in_the_database_gives_the_guard_its_task(
+    store, tmp_path: Path
+) -> None:
+    """omp keeps a subagent's session at <session>/<Name>.jsonl. The store recognized
+    only <stamp>_<id>.jsonl, so the scope guard read no task and allowed every subagent call."""
+    subagent = STORED.removesuffix(".jsonl") + "/ScopeTests.jsonl"
+    store({STORED: TRANSCRIPT, subagent: transcript("repair the scope guard tests")})
+    facts = read_transcript_facts(subagent)
+    assert facts is not None
+    assert facts.user_prompt == "repair the scope guard tests"
+    parent = read_transcript_facts(STORED)
+    assert parent is not None
+    assert parent.user_prompt == "fix the flaky test"
+
+
 def test_the_connection_reaches_psql_through_libpq_variables_not_argv(
     store, tmp_path: Path
 ) -> None:

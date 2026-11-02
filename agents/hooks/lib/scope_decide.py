@@ -359,6 +359,21 @@ def _candidate(request: ScopeRequest) -> str:
     return _clip(f"{request.tool}: {command}", CANDIDATE_CHARS)
 
 
+# Tools that only look; like a read-only shell probe, they cannot act on the
+# world, so judging them costs a model call and risks denying a legitimate read.
+# Claude's names, omp's own, and the capability gateway's (prefix stripped).
+READ_ONLY_TOOLS = frozenset(
+    {"Read", "Grep", "Glob", "LS", "NotebookRead"}
+    | {"read", "grep", "glob", "find", "ast_grep"}
+    | {"bash_status", "wait"}
+)
+GATEWAY_PREFIX = re.compile(r"^mcp__capability_{1,2}agentmux_capability_")
+
+
+def _is_read_only_tool(tool: str) -> bool:
+    return GATEWAY_PREFIX.sub("", tool) in READ_ONLY_TOOLS
+
+
 def _is_execution_tool(tool: str) -> bool:
     """Avoid treating prose in a file write as a shell command."""
     return bool(
@@ -461,6 +476,8 @@ def _observe(
     # Read-only probes can never mutate state; judging them only burns model
     # calls and risks denying legitimate `--help`/presence checks.
     if request.kind == "tool":
+        if _is_read_only_tool(request.tool):
+            return Observation(request, candidate=candidate, skip="read-only-tool")
         execution_text = _execution_text(request)
         if execution_text and is_read_only_probe(execution_text):
             return Observation(request, candidate=candidate, skip="read-only-probe")
