@@ -10,6 +10,8 @@ description: Use whenever modifying oh-my-pi (~/Developer/Personal/oh-my-pi), re
 - **`origin`** (`https://github.com/can1357/oh-my-pi.git`): upstream.
 - **`fork`** (`https://github.com/zachbornheimer/oh-my-pi.git`): our fork. Its `main` is a **sacred upstream mirror** (`main == origin/main`, 0 custom commits); pushes to it are blocked by a GitHub ruleset, local commits by the reference-transaction hook (`bin/dev-profile-omp-machine-setup`, run by `mise run setup`) and `pretooluse-omp-main-branch-guard` (even with `DEV_PROFILE_ALLOW_DEFAULT_BRANCH_COMMIT=1`).
 
+Design, release contract, and what the 2026-11-02 cutover removed: [references/build-distribution.md](references/build-distribution.md).
+
 ## 1. Adding or Updating a Custom Feature / Fix in `omp`
 
 1. Branch a clean worktree off `origin/main` (never `main` directly, never commit on `main`):
