@@ -87,6 +87,9 @@ class TranscriptFacts:
         HistoryTurn, ...
     ] = ()  # the exchanges before user_prompt, oldest first
     prompts: tuple[UserPrompt, ...] = ()  # every real user message kept, oldest first
+    turn_reply: str = (
+        ""  # the current turn's last agent message, before it ends in history
+    )
 
     @property
     def turn_runs(self) -> tuple[ToolRun, ...]:
@@ -239,4 +242,5 @@ def _fold(events: Iterable[TranscriptEvent]) -> TranscriptFacts | None:
         turn_start,
         tuple(history[-HISTORY_TURNS_KEPT:]),
         tuple(prompts[-PROMPTS_KEPT:]),
+        reply,
     )

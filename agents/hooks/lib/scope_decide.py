@@ -58,6 +58,10 @@ TASK_CHARS = 1200
 CANDIDATE_CHARS = 2400
 CONTEXT_CHARS = 400
 LOG_CHARS = 400
+# A reply this short names no work; the agent message it answers carries the ask.
+SHORT_REPLY_CHARS = 80
+# The agent message joins the task trimmed to its final question, else this tail.
+AGENT_ASKED_CHARS = 400
 
 SECRET_ASSIGNMENT = re.compile(
     r"(?i)\b(token|secret|password|passwd|api[_-]?key|access[_-]?key|authorization)"
@@ -476,7 +480,38 @@ TASK_PROMPTS = 3
 RECENT_PROMPTS = max(TASK_PROMPTS, PROMPTS_KEPT + 1)
 
 
-def _task_of(asks: tuple[Ask, ...]) -> str:
+def _final_question(text: str) -> str:
+    """``text`` trimmed to its last question mark, else its final ``AGENT_ASKED_CHARS``."""
+    cut = text.rfind("?")
+    if cut >= 0:
+        return text[: cut + 1]
+    return text[-AGENT_ASKED_CHARS:]
+
+
+def _agent_asked(facts: Any, asks: tuple[Ask, ...]) -> str:
+    """The agent's last message before the newest ask, "" when none is stored.
+
+    A plain "yes" is the agent's question's answer, not a task: measured on omp
+    01a19986 the guard judged a bare "yes" as the whole task and denied the
+    approved ``gh repo create`` as off-task-and-unnecessary. ``_asks`` keeps a
+    recorded ask only when it is newer than the transcript's newest stored
+    prompt, so a newest ask past that prompt means the transcript ends
+    mid-turn — omp flushes in batches — and the question it answers is the
+    current turn's reply (``turn_reply``). Otherwise the newest ask is the
+    transcript's newest prompt, and the question it answers closed the
+    previous turn (``history``).
+    """
+    if facts is None or not asks:
+        return ""
+    stored = getattr(facts, "prompts", ()) or ()
+    newest_stored = str(stored[-1].at or "")[:ISO_SECONDS_CHARS] if stored else ""
+    if asks[-1].at[:ISO_SECONDS_CHARS] > newest_stored:
+        return str(getattr(facts, "turn_reply", "") or "").strip()
+    history = getattr(facts, "history", ()) or ()
+    return str(history[-1].reply.strip() if history else "")
+
+
+def _task_of(asks: tuple[Ask, ...], agent_message: str = "") -> str:
     """The recent asks, oldest first, so a bare path still carries its request.
 
     The newest ask alone can name no work. Measured on the live guard: when it
@@ -486,10 +521,18 @@ def _task_of(asks: tuple[Ask, ...]) -> str:
     and denied. The bar was never the problem — the task it was measured
     against named no work. The last few asks give the judge the conversation
     that message belongs to.
+
+    Only a newest ask shorter than ``SHORT_REPLY_CHARS`` is re-labeled with the
+    agent message it answers: a reply that short names no work, while a longer
+    ask is self-contained and must never be judged against the agent's words.
     """
     texts = [ask.text for ask in asks[-TASK_PROMPTS:]]
     if not texts:
         return ""
+    if agent_message and len(asks[-1].text) < SHORT_REPLY_CHARS:
+        reply = asks[-1].text
+        asked = _clip(_final_question(agent_message), AGENT_ASKED_CHARS)
+        return _clip(f"Agent asked: {asked}\nUser replied: {reply}", TASK_CHARS)
     return _clip("\n".join(texts), TASK_CHARS)
 
 
@@ -568,7 +611,10 @@ def _observe(
     asks = _asks(
         facts, _recorded_asks(HookSettings.from_env(env).state_dir, request.session_id)
     )
-    task = _task_of(asks)
+    # The agent's last message before the newest ask, "" when the fold kept none.
+    # A short reply answers it; a long ask is judged alone, as before.
+    agent_message = _agent_asked(facts, asks)
+    task = _task_of(asks, agent_message)
     if not task:
         return Observation(request, candidate=candidate, skip="no-user-task")
     task = _clip(task, TASK_CHARS)
