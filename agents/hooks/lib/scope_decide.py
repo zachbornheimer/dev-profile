@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from completion_gate_session_state import RejectLedger
+from completion_gate_session_state import ISO_SECONDS_CHARS, RejectLedger
 from completion_gate_transcript import read_recent_facts, read_transcript_facts
 from completion_gate_transcript_events import command_of
 from hook_common import Clock, Decision, HookEvent, HookSettings, sha256_digest
@@ -50,6 +50,7 @@ DEFAULT_TIMEOUT_SECS = 6.0
 DEFAULT_CAP = 8
 JUDGMENTS_LOG = "scope-judgments.jsonl"
 CORRECTIONS_LEDGER = "scope-corrections-{session}.tsv"
+ASKS_LOG = "scope-asks-{session}.jsonl"
 TASK_ATTRIBUTIONS = frozenset({"user", "agent"})
 PROMPTS_KEPT = 8
 RUNS_KEPT = 8
@@ -93,10 +94,15 @@ class ScopeRequest:
     tool_input: dict[str, Any]
     final_message: str
     stop_hook_active: bool
+    prompt: str = ""
 
     @property
     def kind(self) -> str | None:
-        return {"PreToolUse": "tool", "Stop": "conversation"}.get(self.event_name)
+        return {
+            "PreToolUse": "tool",
+            "Stop": "conversation",
+            "UserPromptSubmit": "ask",
+        }.get(self.event_name)
 
     @classmethod
     def from_event(cls, event: HookEvent) -> ScopeRequest:
@@ -128,6 +134,7 @@ class ScopeRequest:
                 event.payload.get("stop_hook_active") is True
                 or event.payload.get("stopHookActive") is True
             ),
+            prompt=_event_field(event, "prompt", "userPrompt"),
         )
 
 
@@ -397,10 +404,68 @@ def _execution_text(request: ScopeRequest) -> str:
     return value if isinstance(value, str) else ""
 
 
-def _prompts(facts: Any) -> tuple[str, ...]:
-    if facts is None:
+@dataclass(frozen=True, slots=True)
+class Ask:
+    """One user ask and when it was made."""
+
+    text: str
+    at: str
+
+
+def record_ask(state_dir: Path, session: str, prompt: str, at: str) -> None:
+    """Keep the session's newest asks as they are submitted.
+
+    omp flushes a session to its store in batches, so a turn's first tool calls
+    read a transcript that ends at the previous turn: measured on omp:01a19d6a,
+    the prompt was submitted at 18:00:40, judged against at 18:00:45 with no
+    ask at all, and stored at 18:01:15. The prompt hook sees the ask first.
+    """
+    text = prompt.strip()
+    if not session or not text:
+        return
+    path = state_dir / ASKS_LOG.format(session=session)
+    kept = [*_recorded_asks(state_dir, session), Ask(text, at)][-PROMPTS_KEPT:]
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary.write_text(
+            "".join(json.dumps({"text": ask.text, "at": ask.at}) + "\n" for ask in kept)
+        )
+        temporary.replace(path)
+    except OSError:
+        temporary.unlink(missing_ok=True)
+
+
+def _recorded_asks(state_dir: Path, session: str) -> tuple[Ask, ...]:
+    try:
+        lines = (state_dir / ASKS_LOG.format(session=session)).read_text().splitlines()
+    except OSError:
         return ()
-    return tuple(item.text.strip() for item in facts.prompts if item.text.strip())
+    asks = []
+    for line in lines:
+        with contextlib.suppress(ValueError, TypeError, KeyError, AttributeError):
+            value = json.loads(line)
+            if str(value["text"]).strip():
+                asks.append(Ask(str(value["text"]).strip(), str(value["at"])))
+    return tuple(asks)
+
+
+def _asks(facts: Any, recorded: tuple[Ask, ...]) -> tuple[Ask, ...]:
+    """The transcript's asks, then each recorded ask submitted after its newest one.
+
+    Newer is decided by time, not text: the store can hold a prompt in another
+    form than the hook received (an expanded command), and a text match would
+    then put every old recorded ask after the transcript, as the current task.
+    """
+    stored = tuple(
+        Ask(item.text.strip(), str(item.at or ""))
+        for item in (facts.prompts if facts is not None else ())
+        if item.text.strip()
+    )
+    newest = stored[-1].at[:ISO_SECONDS_CHARS] if stored else ""
+    return stored + tuple(
+        ask for ask in recorded if ask.at[:ISO_SECONDS_CHARS] > newest
+    )
 
 
 TASK_PROMPTS = 3
@@ -411,31 +476,31 @@ TASK_PROMPTS = 3
 RECENT_PROMPTS = max(TASK_PROMPTS, PROMPTS_KEPT + 1)
 
 
-def _task_of(facts: Any) -> str:
+def _task_of(asks: tuple[Ask, ...]) -> str:
     """The recent asks, oldest first, so a bare path still carries its request.
 
-    ``facts.user_prompt`` is only the newest message. Measured on the live guard:
-    when that message was ``/private/tmp/Downloads/scope-guard-dropin.zip`` the
-    judge scored a real ``pkill`` detour OffTopic 0.68 / UnnecessaryWork 0.83 and
-    allowed it; the identical candidate against a real request scored
-    0.94 / 0.96 / 0.03 and denied. The bar was never the problem — the task it
-    was measured against named no work. The last few asks give the judge the
-    conversation that message belongs to.
+    The newest ask alone can name no work. Measured on the live guard: when it
+    was ``/private/tmp/Downloads/scope-guard-dropin.zip`` the judge scored a
+    real ``pkill`` detour OffTopic 0.68 / UnnecessaryWork 0.83 and allowed it;
+    the identical candidate against a real request scored 0.94 / 0.96 / 0.03
+    and denied. The bar was never the problem — the task it was measured
+    against named no work. The last few asks give the judge the conversation
+    that message belongs to.
     """
-    prompts = _prompts(facts)[-TASK_PROMPTS:]
-    if not prompts:
+    texts = [ask.text for ask in asks[-TASK_PROMPTS:]]
+    if not texts:
         return ""
-    return _clip("\n".join(prompts), TASK_CHARS)
+    return _clip("\n".join(texts), TASK_CHARS)
 
 
-def _context(facts: Any) -> tuple[str, ...]:
+def _context(facts: Any, asks: tuple[Ask, ...]) -> tuple[str, ...]:
     """Make relevant prior instructions and the current trajectory visible to Jev."""
-    if facts is None:
-        return ()
     prior = [
-        "Earlier task message: " + _clip(text, CONTEXT_CHARS)
-        for text in _prompts(facts)[:-1][-PROMPTS_KEPT:]
+        "Earlier task message: " + _clip(ask.text, CONTEXT_CHARS)
+        for ask in asks[:-1][-PROMPTS_KEPT:]
     ]
+    if facts is None:
+        return tuple(prior)
     recent = []
     for run in facts.turn_runs[-RUNS_KEPT:]:
         command = str(run.command or "")
@@ -500,11 +565,14 @@ def _observe(
             facts = read_recent_facts(
                 request.transcript_path, TASK_ATTRIBUTIONS, RECENT_PROMPTS
             )
-    task = _task_of(facts)
+    asks = _asks(
+        facts, _recorded_asks(HookSettings.from_env(env).state_dir, request.session_id)
+    )
+    task = _task_of(asks)
     if not task:
         return Observation(request, candidate=candidate, skip="no-user-task")
     task = _clip(task, TASK_CHARS)
-    since_iso = str(facts.prompts[-1].at or "") if facts.prompts else ""
+    since_iso = asks[-1].at
     digest = sha256_digest(
         f"{request.session_id}:{since_iso}:{request.kind}:{candidate}"
     )
@@ -519,7 +587,7 @@ def _observe(
     # This explicit prohibition is enforced even if Jev fails, has timed out, or
     # the correction budget is exhausted. Only actual task messages count.
     if request.kind == "tool" and prohibited_full_ci(
-        _execution_text(request), _prompts(facts)
+        _execution_text(request), tuple(ask.text for ask in asks)
     ):
         return Observation(
             request=request,
@@ -559,7 +627,7 @@ def _observe(
     try:
         # The transcript's asks and tool runs: the historical state plus this call,
         # which is what the judge needs.
-        context = _context(facts)
+        context = _context(facts, asks)
         judgment = ScopeJudge.from_env(env).judge(
             task, candidate, request.kind, context
         )
@@ -649,11 +717,20 @@ def _write_log(
 def scope_decision(
     event: HookEvent, *, env: Mapping[str, str] | None = None
 ) -> Decision:
-    """Entrypoint for either hook; emits a decision immediately in this turn."""
+    """Entrypoint for every scope-guard event; emits a decision immediately in this turn.
+
+    A submitted prompt is only recorded (see ``record_ask``); a tool call or a
+    turn end is judged against the asks.
+    """
     environment = os.environ if env is None else env
     request = ScopeRequest.from_event(event)
     settings = HookSettings.from_env(environment)
     clock = Clock.from_env(environment)
+    if request.kind == "ask":
+        record_ask(
+            settings.state_dir, request.session_id, request.prompt, clock.now_iso()
+        )
+        return Decision.no_objection("ask-recorded")
     ledger = _ledger(settings, request.session_id)
     observation = _observe(request, ledger, environment)
     correction = _plan(observation)
