@@ -363,6 +363,13 @@ run_sync n2
 grep -q "resolved by recorded resolutions" "$RUN_OUT" || fail "n: rerun must report the rerere replay"
 [[ -x "$work/install-n2/omp" ]] || fail "n: rerere-resolved build must install"
 assert_user_repo_clean "n"
+# The same inputs again: up to date without a rebuild, though merge-tree alone
+# cannot reproduce a rerere-resolved merge.
+write_config n3 feat/conflict
+RUN_INSTALL_DIR="$work/install-n2" run_sync n3
+[[ "$RUN_STATUS" -eq 0 ]] || fail "n: unchanged inputs must succeed"
+grep -q "up to date" "$RUN_OUT" || fail "n: unchanged inputs after a rerere merge must be up to date"
+[[ ! -s "$work/bun-n3.log" ]] || fail "n: unchanged inputs must not rebuild"
 
 # o) A merged tree missing a required_in_tree string is refused before anything
 # is built or installed.

@@ -348,6 +348,11 @@ trap 'exit 130' INT
 
 WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/omp-sync.XXXXXX")"
 CLONE_DIR="$WORK_DIR/oh-my-pi"
+# The clone's mise.toml pins the toolchain its build runs with; the build already
+# executes the clone's code, so its config is trusted for this throwaway dir only
+# (resolved path: mise compares canonical paths, and /var is a symlink on macOS).
+MISE_TRUSTED_CONFIG_PATHS="$(cd "$WORK_DIR" && pwd -P)${MISE_TRUSTED_CONFIG_PATHS:+:$MISE_TRUSTED_CONFIG_PATHS}"
+export MISE_TRUSTED_CONFIG_PATHS
 log "Building in a fresh clone at $CLONE_DIR (removed on exit unless --keep)"
 
 phase_started="$(date +%s)"
@@ -404,7 +409,28 @@ phase_started="$(date +%s)"
 up_to_date=0
 computed_tree=""
 installed_sha="$(cat "$INSTALL_DIR/.omp-sha" 2>/dev/null || true)"
-if [ -n "$installed_sha" ] && git -C "$CACHE_DIR" cat-file -e "$installed_sha^{tree}" 2>/dev/null; then
+# Everything a build is a function of: upstream, each configured branch tip, the
+# required strings. Equal inputs mean an equal build even when a recorded
+# resolution (rerere, which merge-tree cannot replay) merged a branch.
+build_inputs="$(
+	{
+		git -C "$CACHE_DIR" rev-parse "refs/heads/$UPSTREAM_BRANCH"
+		while IFS= read -r branch; do
+			[ -n "$branch" ] || continue
+			printf '%s %s\n' "$branch" "$(git -C "$CACHE_DIR" rev-parse "refs/remotes/$FORK_REMOTE/$branch")"
+		done <<<"$branches_csv"
+		printf 'required %s\n' "$required_csv"
+	} | git hash-object --stdin
+)"
+# The installed build commit lives only in its throwaway clone unless it was
+# pushed, so equal inputs decide alone; a --push run also needs the fork to
+# already hold that build.
+if [ -n "$installed_sha" ] && [ -x "$INSTALL_DIR/omp" ] &&
+	[ "$(cat "$INSTALL_DIR/.omp-inputs" 2>/dev/null || true)" = "$build_inputs" ] &&
+	{ [ "$PUSH_FORK" != "1" ] || [ "$fork_build_sha" = "$installed_sha" ]; }; then
+	computed_tree="$(git -C "$CACHE_DIR" rev-parse -q --verify "$installed_sha^{tree}" 2>/dev/null || echo "inputs $build_inputs")"
+	up_to_date=1
+elif [ -n "$installed_sha" ] && git -C "$CACHE_DIR" cat-file -e "$installed_sha^{tree}" 2>/dev/null; then
 	chain="$(git -C "$CACHE_DIR" rev-parse "refs/heads/$UPSTREAM_BRANCH")"
 	chain_ok=1
 	while IFS= read -r branch; do
@@ -616,6 +642,7 @@ if [ "$os_name" = "Darwin" ] && [ -f "$CLONE_DIR/scripts/macos-entitlements.plis
 fi
 mv -f "$tmp_bin" "$INSTALL_DIR/omp"
 printf '%s\n' "$build_sha" >"$INSTALL_DIR/.omp-sha"
+printf '%s\n' "$build_inputs" >"$INSTALL_DIR/.omp-inputs"
 log "Installed compiled omp to $INSTALL_DIR/omp ($build_sha)"
 phase_done "install" "$phase_started"
 
