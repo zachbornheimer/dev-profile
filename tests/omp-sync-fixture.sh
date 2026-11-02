@@ -347,4 +347,32 @@ run_sync m
 grep -q "Merge feat/shallow: contained in feat/deep" "$RUN_OUT" || fail "m: contained branch must merge through its container"
 assert_user_repo_clean "m"
 
+# n) A conflict resolved once in a --keep clone is replayed by rerere on every
+# later run: the next sync merges the same branch unattended and installs.
+write_config n feat/conflict
+run_sync n --keep
+[[ "$RUN_STATUS" -ne 0 ]] || fail "n: first conflict run must fail"
+kept_n="$(find "$work/tmp-n" -maxdepth 2 -type d -name oh-my-pi | head -n 1)"
+[[ -n "$kept_n" ]] || fail "n: --keep must retain the conflicted clone"
+echo resolved >"$kept_n/a.txt"
+git -C "$kept_n" add a.txt
+git -C "$kept_n" commit -q --no-edit
+write_config n2 feat/conflict
+run_sync n2
+[[ "$RUN_STATUS" -eq 0 ]] || fail "n: a recorded resolution must let the rerun succeed"
+grep -q "resolved by recorded resolutions" "$RUN_OUT" || fail "n: rerun must report the rerere replay"
+[[ -x "$work/install-n2/omp" ]] || fail "n: rerere-resolved build must install"
+assert_user_repo_clean "n"
+
+# o) A merged tree missing a required_in_tree string is refused before anything
+# is built or installed.
+write_config o feat/ok
+printf '\nrequired_in_tree = ["SESSIONS_DB_URL"]\n' >>"$work/omp-rebuild-o.toml"
+run_sync o
+[[ "$RUN_STATUS" -ne 0 ]] || fail "o: a build missing a required string must fail"
+grep -q "lacks required 'SESSIONS_DB_URL'" "$RUN_OUT" || fail "o: refusal must name the missing string"
+[[ ! -e "$work/install-o/omp" ]] || fail "o: refused build must not install"
+[[ ! -s "$work/bun-o.log" ]] || fail "o: refused build must not run bun"
+assert_user_repo_clean "o"
+
 echo "ok omp-sync"

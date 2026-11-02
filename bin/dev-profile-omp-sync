@@ -46,9 +46,13 @@ print("build_branch\t" + value("build_branch", "omp-build"))
 for b in data.get("branches", []):
     if isinstance(b, str) and b.strip():
         print("branch\t" + b.strip())
+for s in data.get("required_in_tree", []):
+    if isinstance(s, str) and s.strip():
+        print("required\t" + s.strip())
 PY
 	)" || die "cannot parse $REBUILD_CONFIG"
 	branches_csv=""
+	required_csv=""
 	while IFS=$'\t' read -r key val; do
 		case "$key" in
 		upstream_remote) UPSTREAM_REMOTE="$val" ;;
@@ -56,6 +60,7 @@ PY
 		fork_remote) FORK_REMOTE="$val" ;;
 		build_branch) BUILD_BRANCH="$val" ;;
 		branch) branches_csv="${branches_csv:+$branches_csv$'\n'}$val" ;;
+		required) required_csv="${required_csv:+$required_csv$'\n'}$val" ;;
 		esac
 	done <<<"$parsed"
 }
@@ -450,6 +455,14 @@ if [ "${#clone_refs[@]}" -gt 0 ]; then
 		die "cannot import $FORK_REMOTE refs from the object cache"
 fi
 git checkout -B "$BUILD_BRANCH" "$UPSTREAM_REMOTE/$UPSTREAM_BRANCH"
+# A conflict resolved once (by hand, in a --keep clone) is replayed on every later
+# run: rerere's cache lives beside the object cache, outside the throwaway clone.
+mkdir -p "$CACHE_DIR/rr-cache"
+ln -s "$CACHE_DIR/rr-cache" "$CLONE_DIR/.git/rr-cache"
+git config rerere.enabled true
+git config rerere.autoUpdate true
+# Changelog entries from different branches stack instead of conflicting.
+echo '**/CHANGELOG.md merge=union' >>"$CLONE_DIR/.git/info/attributes"
 phase_done "clone" "$phase_started"
 
 # A configured branch another configured branch contains is merged through that
@@ -488,14 +501,20 @@ if [ "${#merge_names[@]}" -gt 0 ]; then
 		log "Integrating configured branch '$branch' into '$BUILD_BRANCH'..."
 		phase_started="$(date +%s)"
 		if ! git -c commit.gpgsign=false merge --no-ff --no-edit -m "Merge $branch into $BUILD_BRANCH" "$ref" >>"$LOG_FILE" 2>&1; then
+			unresolved="$(git diff --name-only --diff-filter=U)"
+			if [ -z "$unresolved" ] && git -c commit.gpgsign=false commit --no-edit >>"$LOG_FILE" 2>&1; then
+				log "Merge $branch: conflicts resolved by recorded resolutions (rerere)"
+				phase_done "merge $branch" "$phase_started"
+				continue
+			fi
 			err "ERROR: merge conflict while integrating configured branch '$branch' into '$BUILD_BRANCH'."
 			err "Conflicting files:"
 			while IFS= read -r conflict; do
 				if [ -n "$conflict" ]; then
 					err "  $conflict"
 				fi
-			done <<<"$(git diff --name-only --diff-filter=U)"
-			die "Nothing was installed and nothing was pushed. Rebase '$branch' onto current upstream $UPSTREAM_REMOTE/$UPSTREAM_BRANCH and push it to $FORK_REMOTE, or rerun with --keep to inspect the merge in $WORK_DIR."
+			done <<<"$unresolved"
+			die "Nothing was installed and nothing was pushed. Merge $UPSTREAM_REMOTE/$UPSTREAM_BRANCH into '$branch' and push it to $FORK_REMOTE, or rerun with --keep, resolve the merge in $WORK_DIR and commit it (rerere records the resolution for every later run)."
 		fi
 		phase_done "merge $branch" "$phase_started"
 	done
@@ -503,6 +522,12 @@ fi
 
 build_sha="$(git rev-parse HEAD)"
 log "Build branch $BUILD_BRANCH is at $build_sha"
+# Features this build must never ship without (e.g. Neon session storage), from `required_in_tree`.
+while IFS= read -r needle; do
+	[ -n "$needle" ] || continue
+	git grep -q -F "$needle" HEAD -- packages/coding-agent/src ||
+		die "merged tree lacks required '$needle' in packages/coding-agent/src; nothing was installed"
+done <<<"$required_csv"
 phase_started="$(date +%s)"
 log "Running bun install --frozen-lockfile..."
 bun install --frozen-lockfile >>"$LOG_FILE" 2>&1

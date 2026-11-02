@@ -13,7 +13,8 @@
 #    rebased, cherry-picked, stashed, or fetched.
 #    On any merge conflict — or a configured branch missing on `fork` — it reports
 #    the branch and the conflicting files and exits non-zero without installing a
-#    binary or pushing anything.
+#    binary or pushing anything. A conflict resolved once (rerun with --keep, resolve
+#    and commit in the kept clone) is replayed by git rerere on every later run.
 # 4. To add a branch to our custom omp build (push the branch to `fork` first):
 #      dev-profile-omp-sync --include <branch> --push
 #    To remove a branch from our custom omp build:
@@ -33,4 +34,10 @@ branches = [
   "feat/isolation-command-backend",
   "feat/fleet-and-xdev-fixes",
   "feat/browser-aria-ref-delegation",
+]
+
+# Strings packages/coding-agent/src must contain, or the build is refused:
+# SESSIONS_DB_URL is the Neon-backed session storage every machine relies on.
+required_in_tree = [
+  "SESSIONS_DB_URL",
 ]
