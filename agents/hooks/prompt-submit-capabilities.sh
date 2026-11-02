@@ -332,9 +332,6 @@ emit_context() {
 # --- the hook --------------------------------------------------------------------------------------------
 
 run_hook() {
-	# omp's prompt-hooks extension (~/.config/omp/prompt-hooks) does this whole job in-process and exports
-	# OMP_PROMPT_HOOKS=1 to the agent-hooks it starts; answering here too would ask every model twice.
-	[[ -n "${OMP_PROMPT_HOOKS:-}" ]] && return 0
 	command -v jq >/dev/null && command -v capability >/dev/null || return 0
 	local payload prompt cwd session dir
 	payload="$(cat)"
