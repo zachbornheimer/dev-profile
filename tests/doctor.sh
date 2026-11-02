@@ -24,6 +24,7 @@ bash "$root/tests/commit-fix-fixture.sh" "$root" >/dev/null || fail "commit-fix 
 bash "$root/tests/done-fixture.sh" "$root" >/dev/null || fail "done fixture"
 bash "$root/tests/skills-sync-fixture.sh" >/dev/null || fail "skills sync fixture"
 bash "$root/tests/unowned-repo-conventions-fixture.sh" >/dev/null || fail "unowned-repo-conventions fixture"
+bash "$root/tests/omp-sync-fixture.sh" >/dev/null || fail "omp-sync fixture"
 for f in "$root"/bin/*; do
 	bash -n "$f" || fail "bin/${f##*/}"
 done

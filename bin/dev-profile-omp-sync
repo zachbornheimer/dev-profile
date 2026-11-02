@@ -1,28 +1,44 @@
 #!/usr/bin/env bash
+# Rebuild the custom omp binary from scratch on every run:
+#   origin/main + every branch listed in config/omp-rebuild.toml, merged in order.
+#
+# The integration branch (omp-build) is regenerated each run, never patched in
+# place, so it can never fall behind upstream. Merges (not cherry-picks) keep
+# history shared between branches from conflicting twice, and git rerere replays
+# any conflict resolution recorded once. An unresolved conflict or a failed build
+# exits non-zero and leaves the installed binary and omp-build untouched.
 set -euo pipefail
 
-# Ensure environment PATH has necessary dev tools and shims on both macOS (MBP) and Linux (VPS)
 export PATH="$HOME/Developer/Personal/dev-profile/bin:$HOME/.local/share/mise/shims:$HOME/.local/bin:$HOME/.bun/bin:$HOME/.cargo/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
 
 REPO_DIR="${OMP_REPO_DIR:-$HOME/Developer/Personal/oh-my-pi}"
+BUILD_DIR="${OMP_BUILD_DIR:-$(dirname "$REPO_DIR")/.worktrees/oh-my-pi-omp-build}"
 REBUILD_CONFIG="${OMP_REBUILD_CONFIG:-$HOME/Developer/Personal/dev-profile/config/omp-rebuild.toml}"
 LOG_FILE="${OMP_SYNC_LOG:-$HOME/.local/state/omp-sync.log}"
-COMPILE_BINARY="${OMP_SYNC_COMPILE:-0}"
+INSTALL_PATH="${OMP_INSTALL_PATH:-$HOME/.local/bin/omp}"
+# The commit the installed binary was built from (read by dev-env/tools/vps/vps-up.sh).
+SHA_STAMP="$(dirname "$INSTALL_PATH")/.omp-sha"
+NATIVES_CACHE="${OMP_NATIVES_CACHE:-$HOME/.cache/omp-natives}"
+# Replaces the whole build step; must leave packages/coding-agent/dist/omp in the build tree.
+BUILD_CMD="${OMP_SYNC_BUILD_CMD:-}"
+UPSTREAM_REMOTE="origin"
+FORK_REMOTE="fork"
 BUILD_BRANCH="omp-build"
+USAGE="Usage: dev-profile-omp-sync [--status|--include <branch>|--exclude <branch>|--push|--help]"
 
-read_configured_branches() {
-	if [ ! -f "$REBUILD_CONFIG" ]; then
-		return 0
-	fi
-	python3 - "$REBUILD_CONFIG" <<'PY'
+# One string array from the rebuild config (missing key or file: nothing).
+read_config_list() {
+	[ -f "$REBUILD_CONFIG" ] || return 0
+	python3 - "$REBUILD_CONFIG" "$1" <<'PY'
 import sys, tomllib
 from pathlib import Path
 data = tomllib.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
-for b in data.get("branches", []):
+for b in data.get(sys.argv[2], []):
     if isinstance(b, str) and b.strip():
         print(b.strip())
 PY
 }
+read_configured_branches() { read_config_list branches; }
 
 update_rebuild_config() {
 	local op="$1" branch="$2"
@@ -37,292 +53,279 @@ path = Path(sys.argv[1])
 op = sys.argv[2]
 branch = sys.argv[3].strip()
 text = path.read_text(encoding="utf-8")
-data = tomllib.loads(text)
-branches = list(data.get("branches", []))
-if op == "include":
-    if branch not in branches:
-        branches.append(branch)
+branches = list(tomllib.loads(text).get("branches", []))
+if op == "include" and branch not in branches:
+    branches.append(branch)
 elif op == "exclude":
     branches = [b for b in branches if b != branch]
 formatted = "branches = [\n" + "".join(f'  "{b}",\n' for b in branches) + "]"
-new_text = re.sub(r"branches\s*=\s*\[[^\]]*\]", formatted, text, count=1, flags=re.DOTALL)
-path.write_text(new_text, encoding="utf-8")
+path.write_text(re.sub(r"branches\s*=\s*\[[^\]]*\]", formatted, text, count=1, flags=re.DOTALL), encoding="utf-8")
 PY
 }
 
 show_status() {
-	if [ ! -d "$REPO_DIR/.git" ]; then
+	[ -d "$REPO_DIR/.git" ] || {
 		echo "Error: oh-my-pi repository not found at $REPO_DIR" >&2
 		exit 1
-	fi
-
-	cd "$REPO_DIR"
-
-	local omp_bin="$HOME/.local/bin/omp"
-	local omp_ver="unknown"
-	if [ -x "$omp_bin" ]; then
-		omp_ver="$("$omp_bin" --version 2>/dev/null || echo "error")"
-	elif command -v omp >/dev/null 2>&1; then
-		omp_ver="$(omp --version 2>/dev/null || echo "error")"
-	fi
-
-	local active_branch head_sha head_short
-	active_branch="$(git symbolic-ref --short -q HEAD 2>/dev/null || echo "detached")"
-	head_sha="$(git rev-parse HEAD 2>/dev/null || echo "unknown")"
-	head_short="$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")"
-
-	local main_ahead="0"
-	if git rev-parse --verify --quiet origin/main >/dev/null && git rev-parse --verify --quiet main >/dev/null; then
-		main_ahead="$(git rev-list --count origin/main..main 2>/dev/null || echo "unknown")"
-	fi
-
-	local ahead_origin="unknown"
-	if git rev-parse --verify --quiet origin/main >/dev/null; then
-		ahead_origin="$(git rev-list --count origin/main..HEAD 2>/dev/null || echo "unknown")"
-	fi
-
-	local ahead_fork="unknown" behind_fork="unknown"
-	if git rev-parse --verify --quiet "fork/$BUILD_BRANCH" >/dev/null; then
-		ahead_fork="$(git rev-list --count "fork/$BUILD_BRANCH..HEAD" 2>/dev/null || echo "unknown")"
-		behind_fork="$(git rev-list --count "HEAD..fork/$BUILD_BRANCH" 2>/dev/null || echo "unknown")"
-	fi
-
-	local branches_csv
-	branches_csv="$(read_configured_branches | paste -sd ',' - | sed 's/,/, /g')"
-
-	echo "platform:             $(uname -s)/$(uname -m)"
-	echo "omp version:          $omp_ver"
-	echo "active branch:        $active_branch"
-	echo "active HEAD SHA:      $head_sha ($head_short)"
-	echo "installed SHA stamp:  $(cat "$HOME/.local/bin/.omp-sha" 2>/dev/null || echo "linked-to-source")"
-	echo "main == origin/main:  $([ "$main_ahead" = "0" ] && echo "clean (0 custom commits on main)" || echo "DIRTY ($main_ahead custom commits on main)")"
-	echo "ahead of origin/main: $ahead_origin (on $active_branch)"
-	echo "vs fork/$BUILD_BRANCH:    ahead $ahead_fork, behind $behind_fork"
+	}
+	local version="missing" built="never"
+	[ -x "$INSTALL_PATH" ] && version="$("$INSTALL_PATH" --version 2>/dev/null || echo error)"
+	[ -f "$SHA_STAMP" ] && built="$(cat "$SHA_STAMP")"
+	local build_sha behind
+	build_sha="$(git -C "$REPO_DIR" rev-parse --short -q --verify "refs/heads/$BUILD_BRANCH" || echo none)"
+	behind="$(git -C "$REPO_DIR" rev-list --count "$BUILD_BRANCH..$UPSTREAM_REMOTE/main" 2>/dev/null || echo unknown)"
+	echo "installed:            $INSTALL_PATH ($version)"
+	echo "installed from:       $built"
+	echo "$BUILD_BRANCH:            $build_sha ($behind commits behind $UPSTREAM_REMOTE/main)"
+	echo "build worktree:       $BUILD_DIR"
 	echo "rebuild config:       $REBUILD_CONFIG"
-	echo "included branches:    ${branches_csv:-none}"
+	echo "included branches:    $(read_configured_branches | paste -sd ',' - | sed 's/,/, /g')"
 	exit 0
 }
 
 INCLUDE_BRANCH=""
 EXCLUDE_BRANCH=""
 PUSH_FORK=0
-
 while [ $# -gt 0 ]; do
 	case "$1" in
-	--status)
-		show_status
-		;;
-	--compile)
-		COMPILE_BINARY=1
-		;;
-	--push)
-		PUSH_FORK=1
-		;;
+	--status) show_status ;;
+	--push) PUSH_FORK=1 ;;
 	--include)
-		[ $# -ge 2 ] || { echo "Error: --include requires a branch name" >&2; exit 2; }
+		[ $# -ge 2 ] || {
+			echo "Error: --include requires a branch name" >&2
+			exit 2
+		}
 		INCLUDE_BRANCH="$2"
 		shift
 		;;
 	--exclude)
-		[ $# -ge 2 ] || { echo "Error: --exclude requires a branch name" >&2; exit 2; }
+		[ $# -ge 2 ] || {
+			echo "Error: --exclude requires a branch name" >&2
+			exit 2
+		}
 		EXCLUDE_BRANCH="$2"
 		shift
 		;;
 	-h | --help)
-		echo "Usage: dev-profile-omp-sync [--status|--compile|--include <branch>|--exclude <branch>|--push|--help]"
-		echo ""
-		echo "Synchronize oh-my-pi integration branch ($BUILD_BRANCH) from upstream origin/main"
-		echo "plus the declarative branch list in $REBUILD_CONFIG."
-		echo "Keeps 'main' 100% identical to upstream 'origin/main' (0 custom commits on main)."
+		echo "$USAGE"
+		echo
+		echo "Rebuild $INSTALL_PATH from $UPSTREAM_REMOTE/main plus the branches in $REBUILD_CONFIG,"
+		echo "merged in order into a fresh $BUILD_BRANCH. Exits non-zero, installing nothing, when a"
+		echo "branch conflicts or the build fails."
 		exit 0
 		;;
 	*)
 		echo "Unknown argument: $1" >&2
-		echo "Usage: dev-profile-omp-sync [--status|--compile|--include <branch>|--exclude <branch>|--push|--help]" >&2
-		exit 1
+		echo "$USAGE" >&2
+		exit 2
 		;;
 	esac
 	shift
 done
 
 mkdir -p "$(dirname "$LOG_FILE")"
-
 log() {
-	local ts
-	ts="$(date '+%Y-%m-%d %H:%M:%S')"
-	echo "[$ts] $*" | tee -a "$LOG_FILE"
+	echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG_FILE"
+}
+die() {
+	log "FAILED: $*"
+	exit 1
 }
 
-log "=== Starting dev-profile-omp-sync ($(uname -s)/$(uname -m)) ==="
+# One run at a time: a second sync waits for nothing and fails fast.
+LOCK_DIR="$(dirname "$LOG_FILE")/omp-sync.lock"
+mkdir "$LOCK_DIR" 2>/dev/null || die "another dev-profile-omp-sync holds $LOCK_DIR (remove it if no sync is running)"
+trap 'rm -rf "$LOCK_DIR"' EXIT
 
-if [ -n "$INCLUDE_BRANCH" ]; then
-	log "Adding '$INCLUDE_BRANCH' to $REBUILD_CONFIG..."
+log "=== dev-profile-omp-sync ($(uname -s)/$(uname -m)) ==="
+
+[ -z "$INCLUDE_BRANCH" ] || {
+	log "Adding '$INCLUDE_BRANCH' to $REBUILD_CONFIG"
 	update_rebuild_config include "$INCLUDE_BRANCH"
-fi
-if [ -n "$EXCLUDE_BRANCH" ]; then
-	log "Removing '$EXCLUDE_BRANCH' from $REBUILD_CONFIG..."
+}
+[ -z "$EXCLUDE_BRANCH" ] || {
+	log "Removing '$EXCLUDE_BRANCH' from $REBUILD_CONFIG"
 	update_rebuild_config exclude "$EXCLUDE_BRANCH"
-fi
-
+}
 
 if [ ! -d "$REPO_DIR/.git" ]; then
-	log "Cloning zachbornheimer/oh-my-pi into $REPO_DIR..."
+	log "Cloning zachbornheimer/oh-my-pi into $REPO_DIR"
 	mkdir -p "$(dirname "$REPO_DIR")"
-	git clone --filter=blob:none -o fork https://github.com/zachbornheimer/oh-my-pi.git "$REPO_DIR" >>"$LOG_FILE" 2>&1
-	git -C "$REPO_DIR" remote add origin https://github.com/can1357/oh-my-pi.git >>"$LOG_FILE" 2>&1 || true
+	git clone --filter=blob:none -o "$FORK_REMOTE" https://github.com/zachbornheimer/oh-my-pi.git "$REPO_DIR" >>"$LOG_FILE" 2>&1
+	git -C "$REPO_DIR" remote add "$UPSTREAM_REMOTE" https://github.com/can1357/oh-my-pi.git >>"$LOG_FILE" 2>&1
 fi
+git() { command git -C "$REPO_DIR" "$@"; }
 
-cd "$REPO_DIR"
+# A resolution recorded once is replayed on every later merge (rr-cache is shared by all worktrees).
+git config rerere.enabled true
+git config rerere.autoUpdate true
+# Changelog entries from different branches stack instead of conflicting.
+attributes="$(git rev-parse --path-format=absolute --git-common-dir)/info/attributes"
+mkdir -p "$(dirname "$attributes")"
+grep -qxF '**/CHANGELOG.md merge=union' "$attributes" 2>/dev/null || echo '**/CHANGELOG.md merge=union' >>"$attributes"
 
-# Install Git reference-transaction hook so refs/heads/main is strictly read-only
-# except when fast-forwarding/resetting to refs/remotes/origin/main.
+log "Fetching $UPSTREAM_REMOTE and $FORK_REMOTE"
+git fetch --filter=blob:none "$UPSTREAM_REMOTE" main >>"$LOG_FILE" 2>&1 || die "git fetch $UPSTREAM_REMOTE failed"
+if git remote get-url "$FORK_REMOTE" >/dev/null 2>&1; then
+	git fetch --filter=blob:none "$FORK_REMOTE" >>"$LOG_FILE" 2>&1 || die "git fetch $FORK_REMOTE failed"
+fi
+upstream="$(git rev-parse "$UPSTREAM_REMOTE/main")"
+
+# `main` mirrors upstream and nothing else: a reference-transaction hook refuses any other value.
 mkdir -p "$REPO_DIR/.git/hooks"
 cat >"$REPO_DIR/.git/hooks/reference-transaction" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-state="${1:-}"
-[ "$state" = "prepared" ] || exit 0
+[ "${1:-}" = "prepared" ] || exit 0
 origin_main_sha="$(git rev-parse --verify -q refs/remotes/origin/main 2>/dev/null || true)"
 [ -n "$origin_main_sha" ] || exit 0
 while read -r _old_value new_value ref_name; do
-	if [ "$ref_name" = "refs/heads/main" ]; then
-		if [ "$new_value" != "0000000000000000000000000000000000000000" ] && [ "$new_value" != "$origin_main_sha" ]; then
-			echo "ERROR [oh-my-pi reference-transaction]: refs/heads/main is read-only and must match origin/main ($origin_main_sha)." >&2
-			echo "Never commit or merge onto 'main' in oh-my-pi. Create a topic branch off origin/main and add it to dev-profile/config/omp-rebuild.toml via 'dev-profile-omp-sync --include <branch> --compile --push'." >&2
-			exit 1
-		fi
+	if [ "$ref_name" = "refs/heads/main" ] && [ "$new_value" != "0000000000000000000000000000000000000000" ] && [ "$new_value" != "$origin_main_sha" ]; then
+		echo "ERROR [oh-my-pi reference-transaction]: refs/heads/main is read-only and must match origin/main ($origin_main_sha)." >&2
+		echo "Never commit or merge onto 'main' in oh-my-pi. Create a topic branch off origin/main and add it to dev-profile/config/omp-rebuild.toml via 'dev-profile-omp-sync --include <branch> --push'." >&2
+		exit 1
 	fi
 done
 EOF
 chmod +x "$REPO_DIR/.git/hooks/reference-transaction"
-stashed=0
-if ! git diff --quiet || ! git diff --cached --quiet; then
-	log "Working tree has uncommitted changes; stashing..."
-	git stash push -m "dev-profile-omp-sync auto-stash $(date +%s)" >>"$LOG_FILE" 2>&1
-	stashed=1
+
+# Fast-forward main to upstream: in place when a clean checkout holds it, as a bare ref otherwise.
+main_holder="$(git worktree list --porcelain | awk '/^worktree /{wt=substr($0,10)} $0=="branch refs/heads/main" {print wt}')"
+if ! git merge-base --is-ancestor main "$upstream" 2>/dev/null; then
+	log "Warning: local main is not an ancestor of $UPSTREAM_REMOTE/main; left as is"
+elif [ -z "$main_holder" ]; then
+	git update-ref refs/heads/main "$upstream"
+elif [ -z "$(command git -C "$main_holder" status --porcelain --untracked-files=no)" ]; then
+	command git -C "$main_holder" merge --ff-only --quiet "$upstream" >>"$LOG_FILE" 2>&1 || log "Warning: could not fast-forward main in $main_holder"
+else
+	log "Warning: main in $main_holder has local changes; not fast-forwarded"
 fi
 
-if git remote get-url fork >/dev/null 2>&1; then
-	log "Fetching fork..."
-	git fetch --filter=blob:none fork >>"$LOG_FILE" 2>&1 || log "Warning: git fetch fork failed"
-fi
+# omp-build is only ever written by this script, as a ref: a checkout of it elsewhere would desync.
+holder="$(git worktree list --porcelain | awk -v ref="refs/heads/$BUILD_BRANCH" '/^worktree /{wt=substr($0,10)} $0=="branch " ref {print wt}')"
+[ -z "$holder" ] || die "$BUILD_BRANCH is checked out in $holder; switch that checkout to another branch (e.g. 'git switch main')"
 
-if git remote get-url origin >/dev/null 2>&1; then
-	log "Fetching origin..."
-	git fetch --filter=blob:none origin main >>"$LOG_FILE" 2>&1 || log "Warning: git fetch origin failed"
+if [ ! -e "$BUILD_DIR/.git" ]; then
+	log "Creating build worktree $BUILD_DIR"
+	mkdir -p "$(dirname "$BUILD_DIR")"
+	git worktree add --detach "$BUILD_DIR" "$upstream" >>"$LOG_FILE" 2>&1 || die "could not create $BUILD_DIR"
 fi
+bgit() { command git -C "$BUILD_DIR" "$@"; }
+# Build commits: unsigned, a fixed identity, and no repo hooks (hk would lint every merge).
+mgit() { HK=0 command git -C "$BUILD_DIR" -c commit.gpgsign=false -c core.hooksPath=/dev/null -c user.name=dev-profile-omp-sync -c user.email=build@localhost "$@"; }
+bgit merge --abort >/dev/null 2>&1 || true
+bgit reset --hard --quiet "$upstream"
+bgit clean -fdq -e 'node_modules/' -e 'packages/natives/native/'
+log "Base: $UPSTREAM_REMOTE/main $(git rev-parse --short "$upstream")"
 
-# Enforce invariant: local `main` must always match `origin/main` (0 custom commits on main).
-if git rev-parse --verify --quiet origin/main >/dev/null; then
-	if git rev-parse --verify --quiet "fork/$BUILD_BRANCH" >/dev/null; then
-		git checkout -B "$BUILD_BRANCH" "fork/$BUILD_BRANCH" >>"$LOG_FILE" 2>&1 || git checkout "$BUILD_BRANCH" >>"$LOG_FILE" 2>&1
-	else
-		git checkout -B "$BUILD_BRANCH" HEAD >>"$LOG_FILE" 2>&1
-	fi
-	git branch -f main origin/main >>"$LOG_FILE" 2>&1 || true
-	log "Verified local 'main' is pinned to pure upstream origin/main ($(git rev-parse --short origin/main))."
-fi
+# The newer of the local branch and its fork copy; a branch that diverged from its fork copy is ambiguous.
+branch_ref() {
+	local branch="$1" local_ref="refs/heads/$1" fork_ref="refs/remotes/$FORK_REMOTE/$1" has_local=0 has_fork=0
+	git rev-parse -q --verify "$local_ref" >/dev/null && has_local=1
+	git rev-parse -q --verify "$fork_ref" >/dev/null && has_fork=1
+	if [ $has_local = 1 ] && [ $has_fork = 1 ]; then
+		if git merge-base --is-ancestor "$fork_ref" "$local_ref"; then
+			echo "$local_ref"
+		elif git merge-base --is-ancestor "$local_ref" "$fork_ref"; then
+			echo "$fork_ref"
+		else return 2; fi
+	elif [ $has_local = 1 ]; then
+		echo "$local_ref"
+	elif [ $has_fork = 1 ]; then
+		echo "$fork_ref"
+	else return 1; fi
+}
 
-# Rebase omp-build onto origin/main if possible
-if git rev-parse --verify --quiet origin/main >/dev/null; then
-	log "Attempting rebase of $BUILD_BRANCH onto origin/main..."
-	if git -c commit.gpgsign=false rebase origin/main >>"$LOG_FILE" 2>&1; then
-		log "Rebase onto origin/main succeeded cleanly."
-	else
-		log "Rebase conflict detected; safely aborting rebase to preserve $BUILD_BRANCH stack..."
-		git rebase --abort >>"$LOG_FILE" 2>&1 || true
-	fi
-fi
-
-# Fold any unapplied commits from configured branches in omp-rebuild.toml onto omp-build
+branches="$(read_configured_branches)"
+[ -n "$branches" ] || log "No branches configured; building plain $UPSTREAM_REMOTE/main"
 while IFS= read -r branch; do
 	[ -n "$branch" ] || continue
-	ref=""
-	if git rev-parse --verify --quiet "refs/heads/$branch" >/dev/null; then
-		ref="refs/heads/$branch"
-	elif git rev-parse --verify --quiet "refs/remotes/fork/$branch" >/dev/null; then
-		ref="refs/remotes/fork/$branch"
-	else
-		log "Warning: configured branch '$branch' not found locally or on fork; skipping."
+	status=0
+	ref="$(branch_ref "$branch")" || status=$?
+	[ $status -ne 1 ] || die "configured branch '$branch' exists neither locally nor on $FORK_REMOTE"
+	[ $status -ne 2 ] || die "'$branch' and $FORK_REMOTE/$branch have diverged; push or reset one of them"
+	if bgit merge-base --is-ancestor "$ref" HEAD; then
+		log "Merge $branch: already contained"
 		continue
 	fi
-	unapplied="$(git cherry "$BUILD_BRANCH" "$ref" 2>/dev/null | awk '/^\+/ {print $2}')"
-	if [ -n "$unapplied" ]; then
-		log "Applying unapplied commits from '$branch' onto '$BUILD_BRANCH'..."
-		for sha in $unapplied; do
-			if git merge-base --is-ancestor "$sha" "$BUILD_BRANCH" 2>/dev/null; then
-				continue
-			fi
-			git -c commit.gpgsign=false cherry-pick "$sha" >>"$LOG_FILE" 2>&1 || {
-				log "Cherry-pick conflict on $sha from $branch; aborting cherry-pick..."
-				git cherry-pick --abort >>"$LOG_FILE" 2>&1 || true
-				break
-			}
-		done
+	if mgit merge --no-ff --no-edit -m "build: merge $branch" "$ref" >>"$LOG_FILE" 2>&1; then
+		log "Merge $branch: clean"
+		continue
 	fi
-done < <(read_configured_branches)
+	unresolved="$(bgit diff --name-only --diff-filter=U)"
+	if [ -z "$unresolved" ] && mgit commit --no-edit >>"$LOG_FILE" 2>&1; then
+		log "Merge $branch: conflicts resolved by recorded resolutions (rerere)"
+		continue
+	fi
+	bgit merge --abort >/dev/null 2>&1 || true
+	die "$branch conflicts with $UPSTREAM_REMOTE/main + earlier branches in:
+$(printf '  %s\n' "$unresolved")
+Fix it once, either way, then rerun:
+  - rebase $branch onto $UPSTREAM_REMOTE/main and push it, or
+  - cd $BUILD_DIR && git merge $ref, resolve, git commit (rerere records the resolution)"
+done <<<"$branches"
+head="$(bgit rev-parse HEAD)"
 
-if [ "$stashed" -eq 1 ]; then
-	log "Restoring stashed changes..."
-	git stash pop >>"$LOG_FILE" 2>&1 || log "Warning: git stash pop reported conflict or issue"
-fi
+# Features this build must never ship without (e.g. Neon session storage), from `required_in_tree`.
+while IFS= read -r needle; do
+	[ -n "$needle" ] || continue
+	bgit grep -q -F "$needle" HEAD -- packages/coding-agent/src || die "merged tree lacks required '$needle' in packages/coding-agent/src"
+done <<<"$(read_config_list required_in_tree)"
 
-log "Running bun install..."
-bun install >>"$LOG_FILE" 2>&1 || log "Warning: bun install returned non-zero"
-
-os_name="$(uname -s)"
-arch_name="$(uname -m)"
-mkdir -p "$REPO_DIR/packages/natives/native"
-if [ "$os_name" = "Darwin" ]; then
-	native_pattern="pi_natives.darwin-*.node"
-else
-	native_pattern="pi_natives.linux-*.node"
-fi
-
-if ! compgen -G "$REPO_DIR/packages/natives/native/$native_pattern" >/dev/null; then
-	native_cached="$(find "$HOME/.omp/natives" -name "$native_pattern" 2>/dev/null | head -n 1 || true)"
-	if [ -n "$native_cached" ] && [ -f "$native_cached" ]; then
-		log "Copying cached native addon $native_cached into packages/natives/native/..."
-		cp -p "$native_cached" "$REPO_DIR/packages/natives/native/"
+# Native addon: built once per exact source tree, so a stale addon never ships.
+natives_key() {
+	local key=""
+	for path in crates packages/natives Cargo.toml Cargo.lock rust-toolchain.toml MODULE.bazel scripts/bazel-natives.ts; do
+		key+="$(bgit rev-parse -q --verify "HEAD:$path" 2>/dev/null || true)"
+	done
+	printf '%s' "$key" | command git hash-object --stdin | cut -c1-16
+}
+default_build() {
+	(cd "$BUILD_DIR" && bun install) >>"$LOG_FILE" 2>&1 || return 1
+	local cache_dir native_dir="$BUILD_DIR/packages/natives/native"
+	cache_dir="$NATIVES_CACHE/$(uname -s)-$(uname -m)-$(natives_key)"
+	if compgen -G "$cache_dir/*.node" >/dev/null; then
+		log "Native addon: cached ($(basename "$cache_dir"))"
 	else
-		log "Building native addon for $os_name/$arch_name..."
-		OMP_NATIVE_CARGO_PROFILE=ci bun --cwd=packages/natives run build >>"$LOG_FILE" 2>&1
+		log "Native addon: building for $(basename "$cache_dir")"
+		rm -f "$native_dir"/*.node
+		(cd "$BUILD_DIR" && OMP_NATIVE_CARGO_PROFILE=ci bun --cwd=packages/natives run build) >>"$LOG_FILE" 2>&1 || return 1
+		mkdir -p "$cache_dir"
+		cp -p "$native_dir"/*.node "$cache_dir/"
 	fi
-fi
+	mkdir -p "$native_dir"
+	rm -f "$native_dir"/*.node
+	cp -p "$cache_dir"/*.node "$native_dir/"
+	(cd "$BUILD_DIR" && bun --cwd=packages/coding-agent run build) >>"$LOG_FILE" 2>&1
+}
 
-mkdir -p "$HOME/.local/bin"
-head_sha="$(git rev-parse HEAD)"
-
-if [ "$COMPILE_BINARY" = "1" ]; then
-	log "Compiling standalone omp binary (bun --cwd=packages/coding-agent run build)..."
-	bun --cwd=packages/coding-agent run build >>"$LOG_FILE" 2>&1
-	install -m 0755 "$REPO_DIR/packages/coding-agent/dist/omp" "$HOME/.local/bin/omp"
-	if [ "$os_name" = "Darwin" ] && [ -f "$REPO_DIR/scripts/macos-entitlements.plist" ]; then
-		codesign --force --sign - --entitlements "$REPO_DIR/scripts/macos-entitlements.plist" "$HOME/.local/bin/omp" >>"$LOG_FILE" 2>&1 || true
-	fi
-	printf '%s\n' "$head_sha" >"$HOME/.local/bin/.omp-sha"
-	log "Installed compiled binary to $HOME/.local/bin/omp ($head_sha)"
+log "Building $(bgit rev-parse --short HEAD)"
+built="$BUILD_DIR/packages/coding-agent/dist/omp"
+rm -f "$built"
+if [ -n "$BUILD_CMD" ]; then
+	(cd "$BUILD_DIR" && bash -c "$BUILD_CMD") >>"$LOG_FILE" 2>&1 || die "build command failed (see $LOG_FILE)"
 else
-	target_script="$REPO_DIR/packages/coding-agent/scripts/omp"
-	chmod +x "$target_script"
-	ln -sf "$target_script" "$HOME/.local/bin/omp"
-	printf '%s\n' "$head_sha" >"$HOME/.local/bin/.omp-sha"
-	log "Linked $HOME/.local/bin/omp -> $target_script ($head_sha)"
+	default_build || die "build failed (see $LOG_FILE)"
 fi
+[ -x "$built" ] || die "build produced no $built"
+version="$("$built" --version 2>>"$LOG_FILE")" || die "smoke test failed: $built --version"
 
-current_version="$("$HOME/.local/bin/omp" --version 2>/dev/null || echo "failed")"
-if [ "$current_version" = "failed" ]; then
-	log "Error: $HOME/.local/bin/omp --version failed!"
-	exit 1
+mkdir -p "$(dirname "$INSTALL_PATH")"
+staged="$INSTALL_PATH.new.$$"
+cp "$built" "$staged"
+chmod 0755 "$staged"
+if [ "$(uname -s)" = "Darwin" ] && [ -f "$BUILD_DIR/scripts/macos-entitlements.plist" ]; then
+	codesign --force --sign - --entitlements "$BUILD_DIR/scripts/macos-entitlements.plist" "$staged" >>"$LOG_FILE" 2>&1 || true
 fi
-log "omp version: $current_version"
+mv -f "$staged" "$INSTALL_PATH"
+printf '%s\n' "$head" >"$SHA_STAMP"
+git update-ref "refs/heads/$BUILD_BRANCH" "$head"
+log "Installed $INSTALL_PATH ($version) from $BUILD_BRANCH $(git rev-parse --short "$head")"
 
-if [ "$PUSH_FORK" = "1" ] && git remote get-url fork >/dev/null 2>&1; then
-	if [ -n "$INCLUDE_BRANCH" ] && git rev-parse --verify --quiet "refs/heads/$INCLUDE_BRANCH" >/dev/null; then
-		log "Pushing topic branch $INCLUDE_BRANCH to fork/$INCLUDE_BRANCH..."
-		git push fork "$INCLUDE_BRANCH:refs/heads/$INCLUDE_BRANCH" --force-with-lease >>"$LOG_FILE" 2>&1 || true
-	fi
-	log "Pushing integration branch $BUILD_BRANCH to fork/$BUILD_BRANCH..."
-	git push fork "$BUILD_BRANCH:refs/heads/$BUILD_BRANCH" --force-with-lease >>"$LOG_FILE" 2>&1
+if [ "$PUSH_FORK" = 1 ]; then
+	[ -z "$INCLUDE_BRANCH" ] || ! git rev-parse -q --verify "refs/heads/$INCLUDE_BRANCH" >/dev/null ||
+		git push "$FORK_REMOTE" "$INCLUDE_BRANCH:refs/heads/$INCLUDE_BRANCH" >>"$LOG_FILE" 2>&1 || die "push of $INCLUDE_BRANCH failed"
+	git push --force "$FORK_REMOTE" "$BUILD_BRANCH:refs/heads/$BUILD_BRANCH" >>"$LOG_FILE" 2>&1 || die "push of $BUILD_BRANCH failed"
+	log "Pushed $BUILD_BRANCH to $FORK_REMOTE"
 fi
-log "=== dev-profile-omp-sync completed successfully ==="
+log "=== done ==="

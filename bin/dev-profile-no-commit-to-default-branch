@@ -12,7 +12,7 @@ if git remote get-url origin 2>/dev/null | grep -q 'oh-my-pi'; then
 	current_branch="$(git symbolic-ref --short -q HEAD 2>/dev/null || true)"
 	if [[ "$current_branch" == "main" || "$current_branch" == "master" ]]; then
 		echo "ERROR: Direct commits to '$current_branch' in oh-my-pi are forbidden (main mirrors upstream can1357/oh-my-pi)." >&2
-		echo "Create a topic branch off origin/main ('wt switch --create <branch> --base origin/main'), commit there, and add it to dev-profile/config/omp-rebuild.toml via 'dev-profile-omp-sync --include <branch> --compile --push'." >&2
+		echo "Create a topic branch off origin/main ('wt switch --create <branch> --base origin/main'), commit there, and add it to dev-profile/config/omp-rebuild.toml via 'dev-profile-omp-sync --include <branch> --push'." >&2
 		exit 1
 	fi
 fi

@@ -30,13 +30,15 @@ STEER_MESSAGE = (
     "('main' is a read-only mirror of upstream can1357/oh-my-pi). "
     "Create a topic branch off origin/main ('wt -C ~/Developer/Personal/oh-my-pi switch --create feat/<slug> --base origin/main'), "
     "commit and push that topic branch to 'fork' ('git push -u fork feat/<slug>'), and register it in dev-profile/config/omp-rebuild.toml "
-    "via 'dev-profile-omp-sync --include feat/<slug> --compile --push'."
+    "via 'dev-profile-omp-sync --include feat/<slug> --push'."
 )
 
 GIT_PUSH_MAIN_RE = re.compile(
     r"\bgit\b(?:\s+-C\s+\S+)?\s+push\b[^\n;|&]*\b(?:fork|origin)\b[^\n;|&]*(?:\bHEAD:main\b|\bHEAD:refs/heads/main\b|\bmain\b|\bmain:main\b)"
 )
-GIT_COMMIT_MERGE_RE = re.compile(r"\bgit\b(?:\s+-C\s+\S+|\s+-c\s+\S+)*\s+(?:commit|merge|cherry-pick)\b")
+GIT_COMMIT_MERGE_RE = re.compile(
+    r"\bgit\b(?:\s+-C\s+\S+|\s+-c\s+\S+)*\s+(?:commit|merge|cherry-pick)\b"
+)
 WT_MERGE_LAND_RE = re.compile(r"\bwt\b(?:\s+-C\s+\S+)?\s+(?:merge|land)\b([^\n;|&]*)")
 GIT_C_RE = re.compile(r"\b(?:git|wt)\s+-C\s+([^\s;|&]+)")
 CD_ONLY_RE = re.compile(r"^\s*cd\s+([^\s;|&]+)\s*$")

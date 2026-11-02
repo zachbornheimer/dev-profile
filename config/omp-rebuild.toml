@@ -1,23 +1,16 @@
-# Declarative rebuild configuration for custom oh-my-pi (`omp`) builds.
+# What goes into the custom oh-my-pi (`omp`) build. Read by `dev-profile-omp-sync`.
 #
-# INVARIANTS:
-# 1. `main` in ~/Developer/Personal/oh-my-pi (and `fork/main` on zachbornheimer/oh-my-pi)
-#    MUST remain 100% identical to upstream `origin/main` (can1357/oh-my-pi).
-#    Direct commits or merges onto `main` are forbidden and mechanically blocked.
-# 2. Every custom feature or fix lives on its own named branch on `fork`
-#    (zachbornheimer/oh-my-pi), branched off `origin/main`.
-# 3. `dev-profile-omp-sync` resets `build_branch` (`omp-build`) to `origin/main`,
-#    merges ONLY the branches listed in `branches` below in order, and builds/links
-#    `~/.local/bin/omp` from `omp-build`.
-# 4. To add a branch to our custom omp build:
-#      dev-profile-omp-sync --include <branch> --compile --push
-#    To remove a branch from our custom omp build:
-#      dev-profile-omp-sync --exclude <branch> --compile --push
-
-upstream_remote = "origin"
-upstream_branch = "main"
-fork_remote = "fork"
-build_branch = "omp-build"
+# Every run rebuilds `omp-build` from scratch: upstream `origin/main` plus each
+# branch below, merged in order, then compiles and installs `~/.local/bin/omp`.
+# A branch that conflicts (and has no recorded resolution) or a failed build
+# exits non-zero and installs nothing; the previous binary keeps running.
+#
+# - `main` (local and `fork/main`) mirrors upstream `origin/main` exactly; commits
+#   on it are blocked. Every custom change lives on its own branch off `origin/main`.
+# - Add / remove a branch:  dev-profile-omp-sync --include <branch> --push
+#                           dev-profile-omp-sync --exclude <branch> --push
+# - When a branch conflicts: rebase it onto origin/main and push it, or resolve the
+#   merge once in the build worktree; git rerere replays that resolution every run.
 
 branches = [
   "feat/capability-channel-and-deferral",
@@ -28,4 +21,10 @@ branches = [
   "feat/isolation-command-backend",
   "feat/fleet-and-xdev-fixes",
   "feat/browser-aria-ref-delegation",
+]
+
+# Strings packages/coding-agent/src must contain, or the build is refused:
+# SESSIONS_DB_URL is the Neon-backed session storage every machine relies on.
+required_in_tree = [
+  "SESSIONS_DB_URL",
 ]
