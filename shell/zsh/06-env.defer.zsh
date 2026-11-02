@@ -18,8 +18,9 @@
 	fi
 
 	export OP_SERVICE_ACCOUNT_TOKEN="$token"
-	if [[ -z "$token" ]] || ! identity=$(op whoami 2>&1) ||
-		[[ "${(L)identity}" == *'account is not signed in'* ]]; then
+	# `op whoami` decodes the token locally and still passes for a deleted service
+	# account; `op vault list` is a server round trip that fails with 403.
+	if [[ -z "$token" ]] || ! op vault list >/dev/null 2>&1; then
 		# Recovery must use desktop authentication, not the suspect service token.
 		if ! token=$(
 			unset OP_SERVICE_ACCOUNT_TOKEN
@@ -31,9 +32,9 @@
 			return 0
 		fi
 		export OP_SERVICE_ACCOUNT_TOKEN="$token"
-		if ! identity=$(op whoami 2>&1); then
+		if ! op vault list >/dev/null 2>&1; then
 			unset OP_SERVICE_ACCOUNT_TOKEN
-			__ -t failed '1Password: replacement service token failed op whoami; Keychain unchanged.'
+			__ -t failed '1Password: replacement service token failed op vault list; Keychain unchanged.'
 			return 0
 		fi
 	fi
