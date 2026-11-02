@@ -32,6 +32,7 @@ from completion_gate_transcript_events import (
     ToolResult,
     TranscriptEvent,
 )
+from omp_session_store import readable_transcript
 
 # ~0.5 s to decode under load; older test results than this are stale anyway.
 TRANSCRIPT_TAIL_BYTES = 8_000_000
@@ -93,9 +94,12 @@ def read_transcript_facts(
     Reads only the last TRANSCRIPT_TAIL_BYTES: a Stop hook has seconds, and a
     long session's transcript runs to hundreds of MB. ``prompt_attributions``
     decides which user-role messages count as a prompt (see
-    ``completion_gate_omp_transcript.PROMPT_ATTRIBUTIONS``).
+    ``completion_gate_omp_transcript.PROMPT_ATTRIBUTIONS``). An omp session kept
+    only in the session database is read from there (``omp_session_store``).
     """
-    log = Path(path)
+    log = readable_transcript(path)
+    if log is None:
+        return None
     decode = _decoder_for(log, prompt_attributions)
     with contextlib.suppress(OSError), log.open("rb") as handle:
         size = handle.seek(0, os.SEEK_END)

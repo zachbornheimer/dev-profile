@@ -37,6 +37,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
 
 from hook_common import Decision, HookEvent, run_hook
 from hook_common.settings import HookSettings
+from omp_session_store import readable_transcript
 
 HOOK_NAME = "frustration-learn"
 LAUNCHER = Path.home() / ".agents" / "bin" / "learn-launch"
@@ -50,13 +51,14 @@ def session_identity(event: HookEvent, env: dict[str, str]) -> tuple[str, Path |
 
     The payload's ``transcript_path`` is the only trusted source. omp's bridge adds it and
     reports the agent as ``claude``, so an omp transcript file name decides the harness. The
-    process env is not used: a nested omp inherits its parent's PI_SESSION_FILE.
+    process env is not used: a nested omp inherits its parent's PI_SESSION_FILE. An omp
+    session kept only in the session database counts as present (``omp_session_store``).
     """
     transcript = event.field("transcript_path", "transcriptPath")
     path = Path(transcript).expanduser() if transcript else None
     found = OMP_SESSION_NAME.search(transcript)
     if found:
-        if path is None or not path.is_file():
+        if readable_transcript(path) is None:
             return "", path
         return f"omp:{found.group(1)}", path
     if env.get("AGENT_HOOKS_HOST") == "omp":

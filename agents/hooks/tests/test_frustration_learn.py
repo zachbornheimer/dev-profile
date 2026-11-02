@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 from hook_harness import HookRunner
+from session_db_fake import fake_session_db
 
 HOOK = "frustration-learn.py"
 SESSION_UUID = "01a16640-e539-7216-8292-baf00dd35caa"
@@ -30,8 +31,12 @@ def omp_session(tmp_path: Path) -> Path:
     return session
 
 
-def env_for(script: Path, **extra: str) -> dict[str, str]:
-    return {"LEARN_LAUNCH_CMD": str(script), "LEARNER": "", **extra}
+def env_for(
+    script: Path, sessions: dict[str, str] | None = None, **extra: str
+) -> dict[str, str]:
+    """The hook's env: a fake launcher, and a fake session database (never the real one)."""
+    db = fake_session_db(script.parent, sessions or {})
+    return {"LEARN_LAUNCH_CMD": str(script), "LEARNER": "", **db, **extra}
 
 
 def launched(record: Path) -> list[str]:
@@ -142,6 +147,23 @@ def test_missing_transcript_file_launches_nothing(
     assert run.exit_code == 0 and "unnamed-session" in run.log
     time.sleep(0.3)
     assert not record.exists()
+
+
+def test_an_omp_session_kept_only_in_the_session_database_launches(
+    hooks: HookRunner, tmp_path: Path, launcher
+) -> None:
+    """omp with SESSIONS_DB_URL writes no transcript file; the session must still be named."""
+    script, record = launcher
+    stored = (
+        f"/home/u/.omp/agent/sessions/-w/2026-10-23T00-54-51-449Z_{SESSION_UUID}.jsonl"
+    )
+    env = env_for(script, {stored: '{"type":"session","id":"x"}\n'})
+    payload = {"prompt": ANGRY, "transcript_path": stored}
+    run = hooks.session(HOOK, env).run_payload(HOOK, payload, args=JUDGED)
+    assert run.exit_code == 0 and "launch" in run.log
+    assert launched(record) == [
+        f"omp:{SESSION_UUID} --reason frustration signals: judged(p=0.91)"
+    ]
 
 
 def test_a_judged_verdict_never_launches_in_a_learner_session(
