@@ -13,20 +13,20 @@ timeout = "30s"
 [[hooks]]
 name = "elicitationresult-aoe-status-sh"
 events = ["ElicitationResult", "prompt.submit"]
-command = ["/Users/zbornheimer/.agents/hooks/aoe-status.sh running"]
+command = ["$HOME/.agents/hooks/aoe-status.sh running"]
 timeout = "2s"
 
 [[hooks]]
 name = "notification-aoe-status-sh"
 events = ["Notification"]
-command = ["/Users/zbornheimer/.agents/hooks/aoe-status.sh waiting"]
+command = ["$HOME/.agents/hooks/aoe-status.sh waiting"]
 timeout = "2s"
 matcher = "permission_prompt|elicitation_dialog|agent_needs_input"
 
 [[hooks]]
 name = "notification-aoe-status-sh-2"
 events = ["Notification"]
-command = ["/Users/zbornheimer/.agents/hooks/aoe-status.sh idle"]
+command = ["$HOME/.agents/hooks/aoe-status.sh idle"]
 timeout = "2s"
 matcher = "idle_prompt|agent_completed"
 
@@ -61,14 +61,14 @@ matcher = "Agent|Task"
 [[hooks]]
 name = "posttooluse-work-order-report-py"
 events = ["tool.after"]
-command = ["/Users/zbornheimer/.agents/hooks/work-order-report.py"]
+command = ["$HOME/.agents/hooks/work-order-report.py"]
 timeout = "60s"
 matcher = "Agent|Task"
 
 [[hooks]]
 name = "posttooluse-aoe-status-sh"
 events = ["tool.after"]
-command = ["/Users/zbornheimer/.agents/hooks/aoe-status.sh running"]
+command = ["$HOME/.agents/hooks/aoe-status.sh running"]
 timeout = "2s"
 matcher = "AskUserQuestion"
 
@@ -104,7 +104,7 @@ command = [
 [[hooks]]
 name = "precompact-goals-note-compaction-py"
 events = ["context.compact.before"]
-command = ["/Users/zbornheimer/.agents/hooks/goals-note-compaction.py"]
+command = ["$HOME/.agents/hooks/goals-note-compaction.py"]
 timeout = "15s"
 # No matcher: see precompact-agentmux. A "manual|auto" filter only ever excluded payloads with
 # no trigger value, i.e. it could only turn a compaction into a silent miss.
@@ -124,13 +124,13 @@ timeout = "15s"
 [[hooks]]
 name = "precompact-handoff-doc-refresh"
 events = ["context.compact.before"]
-command = ["/Users/zbornheimer/.agents/hooks/handoff-doc-refresh.py"]
+command = ["$HOME/.agents/hooks/handoff-doc-refresh.py"]
 timeout = "30s"
 
 [[hooks]]
 name = "pretooluse-quality-guard-run-py"
 events = ["tool.before"]
-command = ["/Users/zbornheimer/.agents/hooks/quality-guard-run.py --mode=fast"]
+command = ["$HOME/.agents/hooks/quality-guard-run.py --mode=fast"]
 timeout = "15s"
 matcher = "Edit|Write|Update|MultiEdit"
 on_failure = "block"
@@ -138,7 +138,7 @@ on_failure = "block"
 [[hooks]]
 name = "pretooluse-quality-guard-run-py-2"
 events = ["tool.before"]
-command = ["/Users/zbornheimer/.agents/hooks/quality-guard-run.py --mode=pretool-review"]
+command = ["$HOME/.agents/hooks/quality-guard-run.py --mode=pretool-review"]
 timeout = "15s"
 matcher = "Edit|Write|Update|MultiEdit"
 on_failure = "block"
@@ -146,7 +146,7 @@ on_failure = "block"
 [[hooks]]
 name = "pretooluse-work-order-gate-py"
 events = ["tool.before"]
-command = ["/Users/zbornheimer/.agents/hooks/work-order-gate.py"]
+command = ["$HOME/.agents/hooks/work-order-gate.py"]
 timeout = "15s"
 matcher = "Agent|Task"
 on_failure = "block"
@@ -162,7 +162,7 @@ on_failure = "block"
 [[hooks]]
 name = "pretooluse-bash-tool-steer"
 events = ["tool.before"]
-command = ["/Users/zbornheimer/.agents/hooks/bash-tool-steer.py"]
+command = ["$HOME/.agents/hooks/bash-tool-steer.py"]
 timeout = "15s"
 matcher = "Bash|bash|sh|zsh|shell|terminal|exec|run_terminal_cmd|run_terminal_command"
 on_failure = "block"
@@ -170,7 +170,7 @@ on_failure = "block"
 [[hooks]]
 name = "pretooluse-eval-sleep-guard"
 events = ["tool.before"]
-command = ["/Users/zbornheimer/.agents/hooks/eval-sleep-guard.py"]
+command = ["$HOME/.agents/hooks/eval-sleep-guard.py"]
 timeout = "5s"
 matcher = "eval|mcp__eval"
 on_failure = "block"
@@ -178,7 +178,7 @@ on_failure = "block"
 [[hooks]]
 name = "pretooluse-omp-main-branch-guard"
 events = ["tool.before"]
-command = ["/Users/zbornheimer/.agents/hooks/omp-main-branch-guard.py"]
+command = ["$HOME/.agents/hooks/omp-main-branch-guard.py"]
 timeout = "5s"
 matcher = "Write|write|Bash|bash|sh|zsh|shell|terminal|exec|run_terminal_cmd|run_terminal_command|mcp__capability__agentmux_capability_run_command|agentmux_capability_run_command|mcp__capability_agentmux_capability_run_command"
 on_failure = "block"
@@ -193,7 +193,7 @@ on_failure = "block"
 [[hooks]]
 name = "pretooluse-lavish-preflight-steer"
 events = ["tool.before"]
-command = ["/Users/zbornheimer/.agents/hooks/lavish-preflight-steer.py"]
+command = ["$HOME/.agents/hooks/lavish-preflight-steer.py"]
 timeout = "15s"
 matcher = "Bash|bash|sh|zsh|shell|terminal|exec|run_terminal_cmd|run_terminal_command|mcp__capability__agentmux_capability_run_command|agentmux_capability_run_command"
 on_failure = "block"
@@ -206,7 +206,7 @@ on_failure = "block"
 [[hooks]]
 name = "pretooluse-promotion-gate"
 events = ["tool.before"]
-command = ["/Users/zbornheimer/.agents/hooks/promotion-gate.py"]
+command = ["$HOME/.agents/hooks/promotion-gate.py"]
 timeout = "10s"
 matcher = "Write|Edit|MultiEdit|NotebookEdit"
 
@@ -232,7 +232,7 @@ events = ["tool.before"]
 # command, so the tripwire never ran. The matcher lists the run_command
 # spellings too (hook_common aliases them to Bash), plus omp's raw `eval`,
 # whose code can call run_command directly.
-command = ["/Users/zbornheimer/.agents/hooks/gate-bypass-tripwire.py"]
+command = ["$HOME/.agents/hooks/gate-bypass-tripwire.py"]
 timeout = "5s"
 matcher = "Bash|bash|sh|zsh|shell|terminal|exec|run_terminal_cmd|run_terminal_command|mcp__capability__agentmux_capability_run_command|agentmux_capability_run_command|eval|mcp__capability_agentmux_capability_run_command|mcp__capability_always_on_agentmux_capability_run_command|mcp__capability_agentmux__capability_run_command"
 on_failure = "block"
@@ -241,7 +241,7 @@ on_failure = "block"
 name = "pretooluse-gate-bypass-tripwire-write"
 events = ["tool.before"]
 # `write` is omp's raw name, and also how omp runs run_command (`write xd://…`).
-command = ["/Users/zbornheimer/.agents/hooks/gate-bypass-tripwire.py"]
+command = ["$HOME/.agents/hooks/gate-bypass-tripwire.py"]
 timeout = "5s"
 matcher = "Edit|Write|write"
 on_failure = "block"
@@ -262,7 +262,7 @@ on_failure = "block"
 [[hooks]]
 name = "pretooluse-search-scope-guard"
 events = ["tool.before"]
-command = ["/Users/zbornheimer/.agents/hooks/search-scope-guard.py"]
+command = ["$HOME/.agents/hooks/search-scope-guard.py"]
 timeout = "5s"
 matcher = "Bash|Glob|Grep|glob|grep|mcp__capability__agentmux_capability_run_command|agentmux_capability_run_command"
 on_failure = "block"
@@ -286,7 +286,7 @@ on_failure = "block"
 [[hooks]]
 name = "pretooluse-worktree-write-guard-py"
 events = ["tool.before"]
-command = ["/Users/zbornheimer/.agents/hooks/worktree-write-guard.py"]
+command = ["$HOME/.agents/hooks/worktree-write-guard.py"]
 timeout = "10s"
 matcher = "Write|Edit"
 on_failure = "block"
@@ -294,7 +294,7 @@ on_failure = "block"
 [[hooks]]
 name = "pretooluse-shared-checkout-guard-py"
 events = ["tool.before"]
-command = ["/Users/zbornheimer/.agents/hooks/shared-checkout-guard.py"]
+command = ["$HOME/.agents/hooks/shared-checkout-guard.py"]
 timeout = "30s"
 matcher = "Bash"
 on_failure = "block"
@@ -310,7 +310,7 @@ on_failure = "block"
 [[hooks]]
 name = "pretooluse-aoe-status-sh"
 events = ["tool.before"]
-command = ["/Users/zbornheimer/.agents/hooks/aoe-status.sh running from-stdin"]
+command = ["$HOME/.agents/hooks/aoe-status.sh running from-stdin"]
 timeout = "2s"
 
 [[hooks]]
@@ -364,7 +364,7 @@ on_failure = "block"
 [[hooks]]
 name = "sessionstart-relocate-synced-skills-py"
 events = ["session.start"]
-command = ["/Users/zbornheimer/.agents/hooks/relocate-synced-skills.py"]
+command = ["$HOME/.agents/hooks/relocate-synced-skills.py"]
 timeout = "5s"
 matcher = "startup|resume|compact|fork"
 
@@ -379,20 +379,20 @@ timeout = "5s"
 [[hooks]]
 name = "sessionstart-goals-recall-py"
 events = ["session.start"]
-command = ["/Users/zbornheimer/.agents/hooks/goals-recall.py"]
+command = ["$HOME/.agents/hooks/goals-recall.py"]
 timeout = "15s"
 matcher = "startup|resume|compact"
 
 [[hooks]]
 name = "sessionstart-aoe-extract-session-sh"
 events = ["session.start", "prompt.submit"]
-command = ["/Users/zbornheimer/.agents/hooks/aoe-extract-session.sh"]
+command = ["$HOME/.agents/hooks/aoe-extract-session.sh"]
 timeout = "5s"
 
 [[hooks]]
 name = "sessionstart-memory-recall-py"
 events = ["session.start"]
-command = ["/Users/zbornheimer/.agents/hooks/memory-recall.py"]
+command = ["$HOME/.agents/hooks/memory-recall.py"]
 timeout = "15s"
 matcher = "startup|resume|compact"
 
@@ -408,14 +408,14 @@ timeout = "5s"
 name = "stop-find"
 events = ["turn.stop"]
 command = [
-  "find -L /Users/zbornheimer/.claude/skills \\( -name \"*.py\" -o -name \"*.sh\" \\) -newer /tmp/.claude_lint_sentinel 2>/dev/null | grep -q . && { touch /tmp/.claude_lint_sentinel; (cd /Users/zbornheimer/.claude && mise run lint || true); }; touch /tmp/.claude_lint_sentinel",
+  "find -L $HOME/.claude/skills \\( -name \"*.py\" -o -name \"*.sh\" \\) -newer /tmp/.claude_lint_sentinel 2>/dev/null | grep -q . && { touch /tmp/.claude_lint_sentinel; (cd $HOME/.claude && mise run lint || true); }; touch /tmp/.claude_lint_sentinel",
 ]
 timeout = "15s"
 
 [[hooks]]
 name = "stop-completion-gate-py"
 events = ["turn.stop"]
-command = ["/Users/zbornheimer/.agents/hooks/completion-gate.py"]
+command = ["$HOME/.agents/hooks/completion-gate.py"]
 # The gate's own budget is the TypeSafe judge plus up to three reads of the
 # session log, and a long session's log is large: on omp:01a169a2 (16 MB,
 # 5,016 rows) one Stop took 16.5 s and was killed at 15 s, which is a silent
@@ -426,31 +426,31 @@ timeout = "26s"
 [[hooks]]
 name = "stop-duplicate-turn-breaker-py"
 events = ["turn.stop"]
-command = ["/Users/zbornheimer/.agents/hooks/duplicate-turn-breaker.py"]
+command = ["$HOME/.agents/hooks/duplicate-turn-breaker.py"]
 timeout = "15s"
 
 [[hooks]]
 name = "stop-reviewer-nudge-py"
 events = ["turn.stop"]
-command = ["/Users/zbornheimer/.agents/hooks/reviewer-nudge.py"]
+command = ["$HOME/.agents/hooks/reviewer-nudge.py"]
 timeout = "15s"
 
 [[hooks]]
 name = "stop-aoe-status-sh"
 events = ["turn.stop", "StopFailure", "session.end"]
-command = ["/Users/zbornheimer/.agents/hooks/aoe-status.sh idle"]
+command = ["$HOME/.agents/hooks/aoe-status.sh idle"]
 timeout = "2s"
 
 [[hooks]]
 name = "subagentstop-work-order-verify-py"
 events = ["subagent.stop"]
-command = ["/Users/zbornheimer/.agents/hooks/work-order-verify.py"]
+command = ["$HOME/.agents/hooks/work-order-verify.py"]
 timeout = "300s"
 
 [[hooks]]
 name = "worktreecreate-worktree-provision-py"
 events = ["worktree.create"]
-command = ["/Users/zbornheimer/.agents/hooks/worktree-provision.py"]
+command = ["$HOME/.agents/hooks/worktree-provision.py"]
 timeout = "300s"
 provides = ["worktree_path"]
 
@@ -485,79 +485,70 @@ timeout = "5s"
 [[hooks]]
 name = "promptsubmit-transcript-path"
 events = ["prompt.submit"]
-command = ["/Users/zbornheimer/.agents/hooks/transcript-path-note.py"]
+command = ["$HOME/.agents/hooks/transcript-path-note.py"]
 timeout = "5s"
 
 [[hooks]]
 name = "hindsight-claude-sessionstart"
 events = ["session.start"]
 agents = ["claude"]
-command = ["/Users/zbornheimer/.agents/hooks/hindsight-hook.sh", "claude-sessionstart-hook.js"]
-shell = false
+command = ['exec "$HOME/.agents/hooks/hindsight-hook.sh" claude-sessionstart-hook.js']
 timeout = "30s"
 
 [[hooks]]
 name = "hindsight-claude-prompt"
 events = ["prompt.submit"]
 agents = ["claude"]
-command = ["/Users/zbornheimer/.agents/hooks/hindsight-hook.sh", "claude-hook.js"]
-shell = false
+command = ['exec "$HOME/.agents/hooks/hindsight-hook.sh" claude-hook.js']
 timeout = "30s"
 
 [[hooks]]
 name = "hindsight-claude-stop"
 events = ["turn.stop"]
 agents = ["claude"]
-command = ["/Users/zbornheimer/.agents/hooks/hindsight-hook.sh", "claude-stop-hook.js"]
-shell = false
+command = ['exec "$HOME/.agents/hooks/hindsight-hook.sh" claude-stop-hook.js']
 timeout = "60s"
 
 [[hooks]]
 name = "hindsight-codex-sessionstart"
 events = ["session.start"]
 agents = ["codex"]
-command = ["node", "/Users/zbornheimer/.hindsight/coding-agents/dist/codex-sessionstart-hook.js"]
-shell = false
+command = ['exec node "$HOME/.hindsight/coding-agents/dist/codex-sessionstart-hook.js"']
 timeout = "30s"
 
 [[hooks]]
 name = "hindsight-codex-prompt"
 events = ["prompt.submit"]
 agents = ["codex"]
-command = ["node", "/Users/zbornheimer/.hindsight/coding-agents/dist/codex-hook.js"]
-shell = false
+command = ['exec node "$HOME/.hindsight/coding-agents/dist/codex-hook.js"']
 timeout = "30s"
 
 [[hooks]]
 name = "hindsight-codex-stop"
 events = ["turn.stop"]
 agents = ["codex"]
-command = ["node", "/Users/zbornheimer/.hindsight/coding-agents/dist/codex-stop-hook.js"]
-shell = false
+command = ['exec node "$HOME/.hindsight/coding-agents/dist/codex-stop-hook.js"']
 timeout = "60s"
 
 [[hooks]]
 name = "hindsight-grok-sessionstart"
 events = ["session.start"]
 agents = ["grok"]
-command = ["node", "/Users/zbornheimer/.hindsight/coding-agents/dist/grok-sessionstart-hook.js"]
-shell = false
+command = ['exec node "$HOME/.hindsight/coding-agents/dist/grok-sessionstart-hook.js"']
 timeout = "30s"
 
 [[hooks]]
 name = "hindsight-grok-prompt"
 events = ["prompt.submit", "tool.after"]
 agents = ["grok"]
-command = ["node", "/Users/zbornheimer/.hindsight/coding-agents/dist/grok-hook.js"]
-shell = false
+command = ['exec node "$HOME/.hindsight/coding-agents/dist/grok-hook.js"']
 timeout = "30s"
 
 [[hooks]]
 name = "hindsight-grok-stop"
 events = ["turn.stop"]
 agents = ["grok"]
-command = ["node", "/Users/zbornheimer/.hindsight/coding-agents/dist/grok-stop-hook.js"]
-shell = false
+command = ['exec node "$HOME/.hindsight/coding-agents/dist/grok-stop-hook.js"']
 timeout = "60s"
 
 # One prompt-submit batch answers frustration, dictation (for prompts of at least 500 characters), and skill/tool fit.
@@ -565,7 +556,7 @@ timeout = "60s"
 [[hooks]]
 name = "userpromptsubmit-capability-xml-sh"
 events = ["prompt.submit"]
-command = ["/Users/zbornheimer/.agents/hooks/prompt-submit-capabilities.sh"]
+command = ["$HOME/.agents/hooks/prompt-submit-capabilities.sh"]
 timeout = "45s"
 
 # A denied shell tool is a routing signal: the hook injects the one instruction
@@ -573,20 +564,20 @@ timeout = "45s"
 [[hooks]]
 name = "permissiondenied-shell-denial-steer-py"
 events = ["PermissionDenied", "PostToolUseFailure"]
-command = ["/Users/zbornheimer/.agents/hooks/shell-denial-steer.py"]
+command = ["$HOME/.agents/hooks/shell-denial-steer.py"]
 timeout = "5s"
 matcher = "Bash|sh|zsh|exec|shell|terminal|run_terminal_command"
 
 [[hooks]]
 name = "stop-agentmux-board-wake"
 events = ["turn.stop", "session.start"]
-command = ["/Users/zbornheimer/.agents/hooks/board-wake.sh"]
+command = ["$HOME/.agents/hooks/board-wake.sh"]
 timeout = "75s"
 
 [[hooks]]
 name = "userpromptsubmit-frustration-learn"
 events = ["prompt.submit"]
-command = ["/Users/zbornheimer/.agents/hooks/frustration-learn.py"]
+command = ["$HOME/.agents/hooks/frustration-learn.py"]
 timeout = "5s"
 on_failure = "warn"
 
@@ -595,6 +586,6 @@ on_failure = "warn"
 [[hooks]]
 name = "stop-quota-burn-watch"
 events = ["turn.stop"]
-command = ["/Users/zbornheimer/.agents/hooks/quota-burn-watch.py"]
+command = ["$HOME/.agents/hooks/quota-burn-watch.py"]
 timeout = "5s"
 on_failure = "warn"
