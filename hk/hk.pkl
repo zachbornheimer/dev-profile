@@ -384,7 +384,7 @@ steps {
     profiles = List("slow")
   }
   ["ruff"] {
-    check = "ruff check --force-exclude {{files}}"
+    check = "dev-profile-ruff-new {{files}}"
     fix = "ruff check --force-exclude --fix {{files}}"
     check_diff =
       "ruff check --force-exclude --diff --exit-non-zero-on-fix {{ files }} && ruff check --force-exclude {{ files }}"
@@ -833,7 +833,7 @@ hooks {
         glob = List("**/*.php")
       }
       ["ruff"] {
-        check = "ruff check --force-exclude {{files}}"
+        check = "dev-profile-ruff-new {{files}}"
         fix = "ruff check --force-exclude --fix {{files}}"
         check_diff =
           "ruff check --force-exclude --diff --exit-non-zero-on-fix {{ files }} && ruff check --force-exclude {{ files }}"

@@ -25,8 +25,13 @@ bash "$root/tests/commit-fix-fixture.sh" "$root" >/dev/null || fail "commit-fix 
 bash "$root/tests/done-fixture.sh" "$root" >/dev/null || fail "done fixture"
 bash "$root/tests/skills-sync-fixture.sh" >/dev/null || fail "skills sync fixture"
 bash "$root/tests/unowned-repo-conventions-fixture.sh" >/dev/null || fail "unowned-repo-conventions fixture"
+bash "$root/tests/ruff-new-fixture.sh" >/dev/null || fail "ruff-new fixture"
 for f in "$root"/bin/*; do
-	bash -n "$f" || fail "bin/${f##*/}"
+	if head -1 "$f" | grep -q python; then
+		python3 -m py_compile "$f" || fail "bin/${f##*/}"
+	else
+		bash -n "$f" || fail "bin/${f##*/}"
+	fi
 done
 node --check "$root/dev-relay.mjs" || fail dev-relay.mjs
 [ -f "$root/config/personal-overlay.toml" ] || fail config/personal-overlay.toml
