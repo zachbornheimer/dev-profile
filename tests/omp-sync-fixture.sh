@@ -358,7 +358,7 @@ echo resolved >"$kept_n/a.txt"
 git -C "$kept_n" add a.txt
 git -C "$kept_n" commit -q --no-edit
 write_config n2 feat/conflict
-run_sync n2
+run_sync n2 --push --allow-drop
 [[ "$RUN_STATUS" -eq 0 ]] || fail "n: a recorded resolution must let the rerun succeed"
 grep -q "resolved by recorded resolutions" "$RUN_OUT" || fail "n: rerun must report the rerere replay"
 [[ -x "$work/install-n2/omp" ]] || fail "n: rerere-resolved build must install"
@@ -370,6 +370,19 @@ RUN_INSTALL_DIR="$work/install-n2" run_sync n3
 [[ "$RUN_STATUS" -eq 0 ]] || fail "n: unchanged inputs must succeed"
 grep -q "up to date" "$RUN_OUT" || fail "n: unchanged inputs after a rerere merge must be up to date"
 [[ ! -s "$work/bun-n3.log" ]] || fail "n: unchanged inputs must not rebuild"
+
+# Another machine (fresh HOME: no object cache, no recorded resolutions) learns
+# the resolution from the merge n2 pushed to fork/omp-build and builds unattended.
+mkdir -p "$work/home-q/Developer/Personal/dev-profile/bin" "$work/home-q/.omp"
+cp "$work/home/Developer/Personal/dev-profile/bin/bun" "$work/home-q/Developer/Personal/dev-profile/bin/bun"
+cp -R "$work/home/.omp/natives" "$work/home-q/.omp/natives"
+write_config q feat/conflict
+RUN_HOME="$work/home-q" run_sync q
+[[ "$RUN_STATUS" -eq 0 ]] || fail "q: another machine must replay the pushed resolution"
+grep -q "Learned 1 merge resolution" "$RUN_OUT" || fail "q: resolutions must be learned from fork/omp-build"
+grep -q "resolved by recorded resolutions" "$RUN_OUT" || fail "q: the learned resolution must be replayed"
+[[ "$(cat "$work/install-q/.omp-sha")" != "" ]] || fail "q: the build must install"
+assert_user_repo_clean "q"
 
 # o) A merged tree missing a required_in_tree string is refused before anything
 # is built or installed.

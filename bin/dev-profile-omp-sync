@@ -491,6 +491,30 @@ git config rerere.autoUpdate true
 echo '**/CHANGELOG.md merge=union' >>"$CLONE_DIR/.git/info/attributes"
 phase_done "clone" "$phase_started"
 
+# Resolutions travel with the fork: each merge in the last pushed build
+# (fork/<build branch>) is replayed and its result recorded with rerere, so a
+# machine that never resolved a conflict by hand replays it too.
+if [ -n "$fork_build_sha" ]; then
+	phase_started="$(date +%s)"
+	train_dir="$WORK_DIR/rerere-train"
+	if git worktree add -q --detach "$train_dir" "$fork_build_sha" >>"$LOG_FILE" 2>&1; then
+		learned=0
+		while read -r merge_commit first_parent second_parent _; do
+			[ -n "${second_parent:-}" ] || continue
+			git -C "$train_dir" checkout -q --detach "$first_parent" >>"$LOG_FILE" 2>&1 || continue
+			if ! git -C "$train_dir" -c commit.gpgsign=false merge --no-commit --no-ff "$second_parent" >>"$LOG_FILE" 2>&1 &&
+				[ -n "$(git -C "$train_dir" diff --name-only --diff-filter=U)" ]; then
+				git -C "$train_dir" checkout "$merge_commit" -- . >>"$LOG_FILE" 2>&1 &&
+					git -C "$train_dir" rerere >>"$LOG_FILE" 2>&1 && learned=$((learned + 1))
+			fi
+			git -C "$train_dir" merge --abort >/dev/null 2>&1 || git -C "$train_dir" reset -q --hard
+		done < <(git rev-list --parents --merges --first-parent -n 50 "$fork_build_sha")
+		git worktree remove --force "$train_dir" >>"$LOG_FILE" 2>&1 || true
+		[ "$learned" = 0 ] || log "Learned $learned merge resolution(s) from $FORK_REMOTE/$BUILD_BRANCH"
+	fi
+	phase_done "rerere training" "$phase_started"
+fi
+
 # A configured branch another configured branch contains is merged through that
 # branch, so its stale copy never conflicts on its own (identical tips merge
 # once, from the last copy listed).
@@ -540,7 +564,7 @@ if [ "${#merge_names[@]}" -gt 0 ]; then
 					err "  $conflict"
 				fi
 			done <<<"$unresolved"
-			die "Nothing was installed and nothing was pushed. Merge $UPSTREAM_REMOTE/$UPSTREAM_BRANCH into '$branch' and push it to $FORK_REMOTE, or rerun with --keep, resolve the merge in $WORK_DIR and commit it (rerere records the resolution for every later run)."
+			die "Nothing was installed and nothing was pushed. Merge $UPSTREAM_REMOTE/$UPSTREAM_BRANCH into '$branch' and push it to $FORK_REMOTE, or rerun with --keep, resolve the merge in $WORK_DIR and commit it: rerere replays that resolution on every later run here, and the next --push carries it to other machines through $FORK_REMOTE/$BUILD_BRANCH."
 		fi
 		phase_done "merge $branch" "$phase_started"
 	done
