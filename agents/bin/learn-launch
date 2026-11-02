@@ -5,7 +5,7 @@
 # ///
 """Run the learn-from-transcript workflow on one session.
 
-Both /learn (the omp command) and the agent-hooks frustration-learn hook call
+Both /learn (the omp command) and the agent-hooks question pipeline's learn effect call
 this. The source is `<harness>:<id>` (omp, claude, codex, grok, cursor,
 copilot, opencode, pi, hermes, agentmux), a bare omp id, or a Mastra thread
 (`mastra:thread:<id>` or a Studio thread URL). The workflow resolves and

@@ -71,14 +71,14 @@ Different state or conditional on `judge-turn` allowing: a wave-2 request behind
 TypeSafe requests behind one UserPromptSubmit, from `capability run` usage and `hooks.log`:
 
 **Stop side:** `clarity-gate.py` still exists but exits 0 at the top of `__main__` (no TypeSafe call); remove that
-`sys.exit(0)` to re-enable. `dictation-rewrite.py` is live.
+`sys.exit(0)` to re-enable. Dictation runs in the `question-pipeline` policy (`~/.config/agent-hooks/pipeline`).
 
-| hook                                                | calls                                                        | state                                   | note                                                                                                          |
-| --------------------------------------------------- | ------------------------------------------------------------ | --------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `dictation-rewrite.py`                              | 1 request, 3 Noul, direct `systemone.ask`                    | the prompt (first 8000 chars)           | only after `tokuin` says > 500 tokens: 54 of 74 logged prompts never reached TypeSafe; 12 judged, 4 rewritten |
-| `prompt-submit-capabilities.sh` -> `select_project` | 1                                                            | thread plus every project (up to 16 KB) | state unrelated to the others                                                                                 |
-| same -> `suggest_skills_tools_and_mcp`              | 7 on a 698-candidate catalog (kind x 48 000-character batch) | the prompt                              | all `benefit::<name>` Noul, about 65k input tokens                                                            |
-| same -> `identify_intent`                           | 1 generative split, then 1 request per part                  | part plus whole prompt                  | per-part state re-sends the whole prompt                                                                      |
+| hook                                                | calls                                                         | state                                   | note                                                                 |
+| --------------------------------------------------- | ------------------------------------------------------------- | --------------------------------------- | -------------------------------------------------------------------- |
+| `question-pipeline` policy (Rust + Rhai handlers)   | 1 batched ask for every passing handler (via `ask-mastra.sh`) | the prompt                              | dictation questions join only for prompts of at least 500 characters |
+| `prompt-submit-capabilities.sh` -> `select_project` | 1                                                             | thread plus every project (up to 16 KB) | state unrelated to the others                                        |
+| same -> `suggest_skills_tools_and_mcp`              | 7 on a 698-candidate catalog (kind x 48 000-character batch)  | the prompt                              | all `benefit::<name>` Noul, about 65k input tokens                   |
+| same -> `identify_intent`                           | 1 generative split, then 1 request per part                   | part plus whole prompt                  | per-part state re-sends the whole prompt                             |
 
 Measured: a TypeSafe request takes about 0.65 s and they run in parallel, so `suggest` costs about 4.6 s of wall,
 almost all of it the `capability` process start and catalog scan. The `--output xml` re-run that used to follow the
@@ -122,7 +122,7 @@ missing key).
 
 `TYPESAFE_API_KEY`, else Keychain service `typesafe-api-key`; the OpenRouter hop uses `OPENROUTER_API_KEY` or
 Keychain `openrouter-api-key`. Each Keychain read is a `security` subprocess (2 s cap) on every hook run.
-`typesafe.py install-key` copies the key into the login keychain. `dictation-rewrite.py` also reads
+`typesafe.py install-key` copies the key into the login keychain. The pipeline's `ask-mastra.sh` also reads
 `~/.cache/ai/keys.env`. A missing key fails open silently, so make it visible in the log.
 
 ## Logging hygiene

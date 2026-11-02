@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# UserPromptSubmit hook: batches prompt-level questions, then runs the intent, project and suggestion capabilities.
+# UserPromptSubmit hook: runs the intent, project and suggestion capabilities.
 # It returns the session's scope line, intent/project text and the suggester's XML context: at most 5 skills (name and
 # one line) and 3 tool cards, 3,000 characters in all, so nothing here shortens or drops a block for size. The block's
 # description tells the agent to reach skills via skill_search and tool_call({ address: "skill/<name>" }), tools via
 # tool_search and tool_call({ address, args }). The same set repeated in one session is emitted as a names-only pointer.
 # The per-session skill-picks JSON is a fallback, not the injection path.
-# One prompt_submit_questions answer map is forwarded to the frustration and dictation consumers; they do not re-ask.
+# Frustration and dictation run in agent-hooks' question-pipeline policy (~/.config/agent-hooks/pipeline), not here.
 # The capability runtime calls model APIs or the local proxy; this hook never starts a harness session.
 # Each capability declares the access it needs (tools, mcp, hooks) in its definition; the runtime grants only that.
 #
@@ -82,18 +82,11 @@ run_capability() {
 }
 
 run_all() {
-	local prompt="$1" cwd="$2" dir="$3" event_payload="$4" xml_input batch_input answers consumer_payload
-	batch_input="$(jq -nc --arg t "$prompt" '{text: $t, includeDictation: true}')"
-	run_capability "$dir/questions.json" "$cwd" prompt_submit_questions --input "$batch_input"
-	answers="$(jq -c '.output.answers // {} | if type == "object" then . else {} end' "$dir/questions.json" 2>/dev/null)"
-	if [[ -z "$answers" ]]; then answers='{}'; fi
-	consumer_payload="$(jq -c --argjson a "$answers" '. + {answers: $a}' <<<"$event_payload")"
+	local prompt="$1" cwd="$2" dir="$3" xml_input
 	xml_input="$(jq -nc --arg t "$prompt" '{text: $t, output: "xml"}')"
 	run_capability "$dir/intent.json" "$cwd" identify_intent --input "$(jq -nc --arg t "$prompt" '{text: $t}')" &
 	run_capability "$dir/project.json" "$cwd" select_project --text "$prompt" &
 	run_capability "$dir/skills.xml" "$cwd" suggest_skills_tools_and_mcp --input "$xml_input" &
-	printf '%s' "$consumer_payload" | timeout 35 "$HOME/.agents/hooks/prompt-respond.py" >"$dir/respond.json" 2>/dev/null &
-	printf '%s' "$consumer_payload" | timeout 60 "$HOME/.agents/hooks/dictation-rewrite.py" >"$dir/dictation.json" 2>/dev/null &
 	wait
 }
 
@@ -319,11 +312,6 @@ emit_context() {
 			fi
 		fi
 	fi
-	for line in "$dir/respond.json" "$dir/dictation.json"; do
-		local consumer_context
-		consumer_context="$(jq -r '.hookSpecificOutput.additionalContext // empty' "$line" 2>/dev/null)"
-		[[ -n "$consumer_context" ]] && lines+="${lines:+$'\n'}$consumer_context"
-	done
 	[[ -n "$lines" ]] || return 0
 	jq -nc --arg context "$lines" \
 		'{hookSpecificOutput: {hookEventName: "UserPromptSubmit", additionalContext: $context}}'
@@ -348,7 +336,7 @@ run_hook() {
 	dir="$(mktemp -d)" || return 0
 	SESSION_ID="$session"
 	RUN_DIR="$dir"
-	run_all "$prompt" "${cwd:-$HOME}" "$dir" "$payload"
+	run_all "$prompt" "${cwd:-$HOME}" "$dir"
 	write_skill_pick
 	emit_context "$dir" "$session" "${cwd:-$HOME}"
 	rm -rf "$dir"
@@ -501,10 +489,10 @@ after the user's message. It was not authored by the user.
 XML
 }
 
-# A `capability` that answers from the fixtures in <dir>, and the consumer hook's answer command, so the self-test
-# needs no model, no network and no installed runtime.
+# A `capability` that answers from the fixtures in <dir>, so the self-test needs no model, no network and no
+# installed runtime.
 write_stubs() {
-	local dir="$1" no_answers='{"output":{"answers":{}}}'
+	local dir="$1"
 	mkdir -p "$dir/bin"
 	printf '%s' '{"output":{"Parts":[{"Type":{"Value":"task"},"Intent":{"Value":"fix"}}]}}' >"$dir/intent.json"
 	printf '%s' '{"output":{"ProjectName":"agent-hooks","NeedsNewProject":false,"Probabilities":{"agent-hooks":0.39}}}' \
@@ -512,15 +500,13 @@ write_stubs() {
 	cat >"$dir/bin/capability" <<STUB
 #!/bin/sh
 case "\$2" in
-prompt_submit_questions) echo '$no_answers' ;;
 identify_intent) cat "$dir/intent.json" ;;
 select_project) cat "$dir/project.json" ;;
 suggest_skills_tools_and_mcp) cat "$dir/suggestions.xml" ;;
 *) exit 1 ;;
 esac
 STUB
-	printf '#!/bin/sh\necho '"'%s'"'\n' "$no_answers" >"$dir/bin/prompt-answers"
-	chmod +x "$dir/bin/capability" "$dir/bin/prompt-answers"
+	chmod +x "$dir/bin/capability"
 }
 
 # Runs the hook once on <payload> and leaves its stdout in <output>; the harness or MCP commands seen under it go to
@@ -528,7 +514,7 @@ STUB
 observe_hook() {
 	local dir="$1" payload="$2" output="$3" pid started
 	PATH="$dir:$PATH" PROMPT_SUBMIT_FRESH=1 env -u AGENTMUX_NESTED_RUN \
-		CAPABILITY_BIN_DIR="$dir/bin" PROMPT_ANSWERS_CMD="$dir/bin/prompt-answers" \
+		CAPABILITY_BIN_DIR="$dir/bin" \
 		"$SELF" --skip-guard <<<"$payload" >"$output" &
 	pid=$!
 	started=$SECONDS

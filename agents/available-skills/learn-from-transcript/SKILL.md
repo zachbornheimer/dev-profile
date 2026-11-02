@@ -5,7 +5,7 @@ description: Use when the user is frustrated, when the token count has been high
 
 # /learn and the frustration hook
 
-`/learn` (omp) and the `frustration-learn` hook no longer start a fresh learner with a prompt.
+`/learn` (omp) and the agent-hooks question pipeline's `learn` effect no longer start a fresh learner with a prompt.
 Both run the `learn-from-transcript` workflow
 (`capability run learn-from-transcript --input '{"source":"<harness>:<id>"}'`), which resolves
 and annotates the session itself, asks its analyze and synthesize questions in one thread, and
@@ -13,9 +13,9 @@ files every ticket it names as an atask objective. There is no handoff note and 
 `## Full annotated transcript` prompt anymore.
 
 `/learn` also delegates: it passes `--dispatch` through `~/.agents/bin/learn-launch`, so the
-workflow starts one `start_atask_task` worker per objective atask will claim. The
-`frustration-learn` hook does not pass it, so a frustrated prompt files tickets without spending
-a fleet of workers. A ticket the model could not give a proof is filed as a draft: it starts no
+workflow starts one `start_atask_task` worker per objective atask will claim. The pipeline's
+`learn` effect (`~/.config/agent-hooks/pipeline/effects/learn.py`) passes `--no-dispatch`, so a frustrated prompt
+files tickets without spending a fleet of workers. A ticket the model could not give a proof is filed as a draft: it starts no
 worker until someone gives it checks (`atask update <id> --proof ... --regression ...`) and
 delegates it (`capability run start_atask_task --input '{"id":"<id>"}'`).
 
