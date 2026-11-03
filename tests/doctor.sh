@@ -25,6 +25,7 @@ bash "$root/tests/done-fixture.sh" "$root" >/dev/null || fail "done fixture"
 bash "$root/tests/skills-sync-fixture.sh" >/dev/null || fail "skills sync fixture"
 bash "$root/tests/unowned-repo-conventions-fixture.sh" >/dev/null || fail "unowned-repo-conventions fixture"
 bash "$root/tests/ruff-new-fixture.sh" >/dev/null || fail "ruff-new fixture"
+bash "$root/tests/lint-ratchet-fixture.sh" >/dev/null || fail "lint-ratchet fixture"
 bash "$root/tests/mise-dot-encryption-heal-fixture.sh" >/dev/null || fail "mise dot encryption heal fixture"
 for f in "$root"/bin/*; do
 	if head -1 "$f" | grep -q python; then
