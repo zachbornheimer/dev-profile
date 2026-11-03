@@ -37,6 +37,7 @@
     "generated",
     "mise/conf.d/**",
     "dprint.jsonc",
+    "**/*.pb.go",
     "**/.beads/**"
   ],
   "exec": {
