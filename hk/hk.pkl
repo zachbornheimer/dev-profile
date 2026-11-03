@@ -171,7 +171,8 @@ local gates = new Mapping<String, Step> {
       )
   }
   ["gosec"] {
-    check = "gosec ./..."
+    check =
+      "for d in $(dirname {{files}} | sort -u); do (cd \"$d\" && gosec -quiet ./...) || exit 1; done"
     glob = List("**/*.go")
     dir = "{{workspace}}"
     workspace_indicator = "go.mod"
@@ -307,9 +308,12 @@ hooks {
   ["commit-msg"] {
     steps {
       // Conventional Commits subject: type(scope)!: description, under 72 characters.
+      // A merge commit carries Git's own "Merge ..." subject instead, so the merge
+      // commit being created is exempt: MERGE_HEAD exists only while it is in
+      // flight, and every other commit still has to be conventional.
       ["conventional-commit"] {
         check =
-          "head -n1 {{commit_msg_file}} | grep -Eq '^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\\([^)]+\\))?!?: .{1,60}$'"
+          "git rev-parse -q --verify MERGE_HEAD >/dev/null || head -n1 {{commit_msg_file}} | grep -Eq '^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\\([^)]+\\))?!?: .{1,60}$'"
       }
     }
   }
