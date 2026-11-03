@@ -439,11 +439,15 @@ work_order:
 <!-- requires: orchestrator -->
 
 - Always follow the `clarify-unknown-tool` skill (/Users/zbornheimer/.agents/available-skills/clarify-unknown-tool/SKILL.md).
-- **A model the user names is pinned for the whole session.** Launch with it
-  (`omp --model <name>` or the harness's pin) and add
-  `--config ~/.omp/agent/overlays/pin-model.yml` so a rate limit fails loudly instead
-  of silently hopping to another vendor's model. Never let a fallback chain quietly
-  swap the model the user chose.
+- **A model the user names is the session's preference, never its only option.** Launch
+  with it (`omp --model <name>` or the harness's pin), and keep
+  `--config ~/.omp/agent/overlays/pin-model.yml` in the launch because it carries the rest
+  of the pin overlay — but `modelFallback` stays **true** in it. There is no circumstance
+  where a session skips fallback: a run that cannot fall through simply dies, which is how
+  the nightly learning flow and the atask workers ended up dead on exhausted Google and
+  anthropic weekly pools (2026-11-03). Fallback thrash is a separate problem and its fix is
+  the shake guard (`~/.config/omp/fallback-shake`) plus `retry.fallbackOn`, never switching
+  fallback off.
 - **On the first invalid-arguments rejection, pull the tool's own docs before
   retrying** (`?` in omp; the schema in the tool description elsewhere). Guessing the
   envelope again multiplies the error and can write the envelope itself into the file.
