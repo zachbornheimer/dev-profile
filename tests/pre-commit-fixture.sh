@@ -37,10 +37,11 @@ IFS=: read -ra path_entries <<<"${PATH}"
 for entry in "${path_entries[@]}"; do
 	[[ "${entry}" == */dev-profile/bin ]] || cleaned+=("${entry}")
 done
-export PATH="$(
+cleaned_path="$(
 	IFS=:
 	printf '%s' "${cleaned[*]}"
 )"
+export PATH="${cleaned_path}"
 
 # The machine's own mise config puts its deployed bin back in front of every mise-built
 # environment ([env._] path entries), so the hook's `mise x hk` would resolve the deployed
