@@ -11,7 +11,7 @@ findings the change adds block. Findings are matched by rule code and the
 stripped text of the line they point at, so a finding that only moved with
 surrounding edits is still recognized as inherited.
 
-Usage: dev-profile-new-findings [--fix] <ruff|markdownlint> <file>...
+Usage: dev-profile-new-findings [--fix] <ruff|markdownlint|oxlint|dprint> <file>...
 
 With --fix the tool's own fixer runs first, so a pre-push step heals what it
 can and blocks only the findings the change introduced.
@@ -25,11 +25,12 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 from collections import Counter
 from dataclasses import dataclass
 
 ZERO_SHA = re.compile(r"^0+$")
-# Both tools exit 1 to report findings and 0 to report none.
+# These tools exit 1 to report findings and 0 to report none.
 TOOL_EXIT_CODES = (0, 1)
 ROOT: str | None = None
 
@@ -208,9 +209,125 @@ def markdownlint_content(path: str, content: str) -> list[Finding]:
     ]
 
 
+def write_temp_sibling(path: str, content: str) -> str:
+    """A scratch copy of path's content beside it: oxlint and dprint read no
+    stdin, and a sibling with the same extension keeps their config discovery
+    in the same directory as the file on disk."""
+    directory = os.path.dirname(os.path.join(repo_root(), path))
+    stem, ext = os.path.splitext(os.path.basename(path))
+    fd, temp = tempfile.mkstemp(
+        prefix=f"{stem}.new-findings-", suffix=ext, dir=directory
+    )
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        handle.write(content)
+    return temp
+
+
+def oxlint_diagnostics(out: str) -> list[dict]:
+    # Only error-severity diagnostics make a bare oxlint run exit non-zero;
+    # warnings never blocked a push, so they are not findings to judge.
+    return [
+        d
+        for d in json.loads(out or "{}").get("diagnostics", [])
+        if d.get("severity") == "error" and d.get("labels")
+    ]
+
+
+def oxlint_now(paths: list[str]) -> list[Finding]:
+    out = run(["oxlint", "--format=json", *paths])
+    return [
+        Finding(
+            relative(d["filename"]),
+            d["labels"][0]["span"]["line"],
+            d["code"],
+            d.get("message") or "",
+        )
+        for d in oxlint_diagnostics(out)
+    ]
+
+
+def oxlint_content(path: str, content: str) -> list[Finding]:
+    temp = write_temp_sibling(path, content)
+    try:
+        out = run(["oxlint", "--format=json", temp])
+    finally:
+        os.unlink(temp)
+    return [
+        Finding(path, d["labels"][0]["span"]["line"], d["code"])
+        for d in oxlint_diagnostics(out)
+    ]
+
+
+def dprint_exit(paths: list[str]) -> int:
+    """dprint check's exit code for the whole set at once."""
+    proc = subprocess.run(
+        ["dprint", "check", "--allow-no-files", *paths],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if proc.returncode not in TOOL_EXIT_CODES:
+        sys.stderr.write(proc.stderr or proc.stdout)
+        raise SystemExit(proc.returncode)
+    return proc.returncode
+
+
+def dprint_check(paths: list[str]) -> list[str]:
+    """The paths dprint names as its own to change: a file a format run
+    would rewrite, or one it cannot parse. A failure that names no file is
+    dprint's own trouble and aborts rather than passing as inherited debt."""
+    refused = []
+    for path in paths:
+        proc = subprocess.run(
+            ["dprint", "check", "--allow-no-files", path],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if proc.returncode not in TOOL_EXIT_CODES:
+            sys.stderr.write(proc.stderr or proc.stdout)
+            raise SystemExit(proc.returncode)
+        if proc.returncode != 1:
+            continue
+        output = proc.stdout + proc.stderr
+        # dprint spells a file's refusal with its own path (the diff's "from"
+        # header, or "Error formatting"); anything else is dprint's trouble.
+        spellings = {os.path.abspath(path), os.path.realpath(path)}
+        if not any(spelling in output for spelling in spellings):
+            sys.stderr.write(output)
+            raise SystemExit(1)
+        refused.append(path)
+    return refused
+
+
+def dprint_now(paths: list[str]) -> list[Finding]:
+    # One run for the whole set: when dprint changes nothing it exits 0 and
+    # the per-file scan never runs. A set dprint still refuses is taken apart
+    # to find which files are this change's to answer.
+    if dprint_exit(paths) == 0:
+        return []
+    return [
+        Finding(relative(path), 0, "unformatted", "dprint fmt would change it")
+        for path in dprint_check(paths)
+    ]
+
+
+def dprint_content(path: str, content: str) -> list[Finding]:
+    # A formatter's finding is the whole file: row 0 has no line text, so the
+    # finding matches any base version dprint would also have refused.
+    temp = write_temp_sibling(path, content)
+    try:
+        refused = dprint_check([temp])
+    finally:
+        os.unlink(temp)
+    return [Finding(path, 0, "unformatted")] if refused else []
+
+
 TOOLS = {
     "ruff": (ruff_now, ruff_content),
     "markdownlint": (markdownlint_now, markdownlint_content),
+    "oxlint": (oxlint_now, oxlint_content),
+    "dprint": (dprint_now, dprint_content),
 }
 
 
@@ -218,6 +335,10 @@ def fix_command(tool: str, paths: list[str]) -> None:
     """Run the tool's fixer; what it cannot fix is judged by the caller."""
     if tool == "ruff":
         run(["ruff", "check", "--force-exclude", "--fix", *paths])
+    elif tool == "oxlint":
+        run(["oxlint", "--fix", *paths])
+    elif tool == "dprint":
+        run(["dprint", "fmt", "--allow-no-files", *paths])
     else:
         run(["markdownlint", "--fix", *paths], findings_on_stderr=True)
 
@@ -228,7 +349,7 @@ def main(argv: list[str]) -> int:
         argv = argv[1:]
     if not argv or argv[0] not in TOOLS:
         sys.stderr.write(
-            "usage: dev-profile-new-findings [--fix] <ruff|markdownlint> <file>...\n"
+            "usage: dev-profile-new-findings [--fix] <ruff|markdownlint|oxlint|dprint> <file>...\n"
         )
         return 2
     tool, paths = argv[0], argv[1:]

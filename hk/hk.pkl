@@ -3,8 +3,8 @@ amends "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pk
 // Native replacement for the frozen dev-profile hook set: every step calls a mise-pinned tool directly.
 // Steps that existed only as dev-profile bin wrappers (hardcoded-dev-port, identity-guard, no-trunk-prettier,
 // suppressions, go-mod-tidy, perlcritic, php-lint, ty, clang-tidy, pushed-diagnostics) are deliberately absent.
-// ruff and markdownlint route through dev-profile-new-findings, which blocks only the findings a change
-// introduces: a fork branch that merged upstream is not judged on upstream's own lines.
+// ruff, markdownlint, oxlint and dprint route through dev-profile-new-findings, which blocks only the
+// findings a change introduces: a fork branch that merged upstream is not judged on upstream's own lines.
 fail_fast = false
 stash_backup_count = 20
 exclude =
@@ -92,8 +92,8 @@ local shellFiles =
   """
 local fixers = new Mapping<String, Step> {
   ["dprint"] {
-    check = "dprint check --allow-no-files {{files}}"
-    fix = "dprint fmt --allow-no-files {{files}}"
+    check = "dev-profile-new-findings dprint {{files}}"
+    fix = "dev-profile-new-findings --fix dprint {{files}}"
     exclude = lockfiles
     depends =
       List(
@@ -116,16 +116,18 @@ local fixers = new Mapping<String, Step> {
     glob = List("**/*.go")
   }
   ["oxlint-fix"] {
-    fix = "oxlint --fix {{files}}"
+    fix = "dev-profile-new-findings --fix oxlint {{files}}"
     glob = jsGlobs
   }
+  // --fix-only never reports or exits non-zero on leftover violations, so this
+  // fixer cannot block a push on inherited findings and stays bare.
   ["ruff-fix"] {
     fix =
       "ruff check --force-exclude --fix-only --unsafe-fixes --extend-select UP,FURB,SIM,PERF,C4,PIE {{files}}"
     glob = List("**/*.py", "**/*.pyi")
   }
   ["markdownlint-fix"] {
-    fix = "markdownlint --fix {{files}}"
+    fix = "dev-profile-new-findings --fix markdownlint {{files}}"
     glob = List("**/*.md", "**/*.markdown")
     exclude = List("agents/learnings/**")
   }
@@ -193,7 +195,11 @@ local gates = new Mapping<String, Step> {
     dir = "{{workspace}}"
     workspace_indicator = "go.mod"
   }
-  ["oxlint"] { check = "oxlint {{files}}"; fix = "oxlint --fix {{files}}"; glob = jsGlobs }
+  ["oxlint"] {
+    check = "dev-profile-new-findings oxlint {{files}}"
+    fix = "dev-profile-new-findings --fix oxlint {{files}}"
+    glob = jsGlobs
+  }
   // Foxguard judges every TypeScript file with the retained pack plus its own built-ins. Findings are fixed by hand.
   // It replaced the semgrep gate on 2026-11-03: semgrep's own transitive pins carried Dependabot moderates no
   // semgrep release fixes (mcp==1.29.0, opentelemetry-api~=1.37.0 are hard requirements of the scanner itself).

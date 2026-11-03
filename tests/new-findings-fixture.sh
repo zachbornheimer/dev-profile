@@ -100,4 +100,41 @@ printf '# Doc\n\n```\nno language\n```\n' >fixed.md
 if gate --fix markdownlint fixed.md; then fail "--fix must still block an introduced finding"; fi
 grep -q 'MD040' "$work/out" || fail "the introduced finding must be printed: $(cat "$work/out")"
 
+# oxlint: an error the base already carried is inherited; one the change adds
+# blocks. A comment carries the pusher's edit so the file differs from its base.
+if command -v oxlint >/dev/null 2>&1; then
+	git switch -q main
+	git switch -q -c ox-upstream
+	printf 'function f() {\n  debugger;\n}\n' >debug.js
+	printf '{\n  "rules": {\n    "no-debugger": "error"\n  }\n}\n' >.oxlintrc.json
+	git add .oxlintrc.json debug.js
+	git commit -q -m debug-js
+	git update-ref refs/remotes/origin/main HEAD
+	git switch -q -c ox-edit
+	printf '// the pusher touched the file\n' >>debug.js
+	gate oxlint debug.js || fail "inherited oxlint findings must not block: $(cat "$work/out")"
+	printf '\nfunction g() {\n  debugger;\n}\n' >>debug.js
+	if gate oxlint debug.js; then fail "an introduced oxlint finding must block"; fi
+	grep -q 'no-debugger' "$work/out" || fail "the introduced finding must be printed: $(cat "$work/out")"
+	git checkout -q -- debug.js
+fi
+
+# dprint: a file the base already left unparseable is inherited debt; one the
+# change introduces is its own finding. The local config pins one cached
+# plugin so the judgement is the fixture's, not the machine's global config.
+if command -v dprint >/dev/null 2>&1; then
+	git switch -q main
+	git switch -q -c dprint-upstream
+	printf '{\n  "plugins": ["npm:@dprint/json@0.25.2"],\n  "includes": ["**/*.json"]\n}\n' >dprint.json
+	printf '{"unformatted"\n' >unformatted.json
+	git add dprint.json unformatted.json
+	git commit -q -m dprint-files
+	git update-ref refs/remotes/origin/main HEAD
+	git switch -q -c dprint-edit
+	gate dprint unformatted.json || fail "inherited dprint finding must not block: $(cat "$work/out")"
+	printf '{"authored"\n' >authored.json
+	if gate dprint authored.json; then fail "an introduced unparseable file must block"; fi
+	grep -q 'unformatted' "$work/out" || fail "the introduced finding must be printed: $(cat "$work/out")"
+fi
+
 echo "ok new-findings fixture"

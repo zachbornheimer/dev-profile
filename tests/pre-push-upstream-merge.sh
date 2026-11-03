@@ -23,8 +23,11 @@ fail() {
 
 mkdir -p "${scratch}/hk-config"
 ln -s "${repo}/hk/hk.pkl" "${scratch}/hk-config/config.pkl"
-printf '[hook "hk-pre-push"]\n\tevent = pre-push\n\tcommand = PATH="%s/bin:${PATH}" dev-profile-pre-push -S markdownlint -S betterleaks -S gitleaks\n' \
-	"${repo}" >"${scratch}/gitconfig"
+steps="-S markdownlint -S markdownlint-fix -S betterleaks -S gitleaks"
+command -v oxlint >/dev/null 2>&1 && steps="$steps -S oxlint -S oxlint-fix"
+command -v dprint >/dev/null 2>&1 && steps="$steps -S dprint"
+printf '[hook "hk-pre-push"]\n\tevent = pre-push\n\tcommand = PATH="%s/bin:${PATH}" dev-profile-pre-push %s\n' \
+	"${repo}" "$steps" >"${scratch}/gitconfig"
 printf '[user]\n\tname = fixture\n\temail = fixture@example.invalid\n[commit]\n\tgpgsign = false\n' \
 	>"${scratch}/plain-gitconfig"
 export HK_CONFIG_DIR="${scratch}/hk-config" GIT_CONFIG_GLOBAL="${scratch}/gitconfig" GIT_CONFIG_SYSTEM=/dev/null
@@ -51,6 +54,13 @@ git -C "${scratch}/work" remote add upstream "${scratch}/upstream.git"
 
 # The fork's main: the fork's own work, with no markdown config of its own.
 printf '# Fork\n\nfork notes\n' >"${scratch}/work/README.md"
+# oxlint's local config pins the one rule this fixture judges, so it does not
+# depend on which rules a default run enables.
+printf '{\n  "rules": {\n    "no-debugger": "error"\n  }\n}\n' >"${scratch}/work/.oxlintrc.json"
+# dprint's local config pins the fixture's judgement to one cached plugin, so
+# the step judges these files and not the machine's global config; it is inert
+# when dprint is not installed, because the step is then not selected.
+printf '{\n  "plugins": ["npm:@dprint/json@0.25.2"],\n  "includes": ["**/*.json"]\n}\n' >"${scratch}/work/dprint.json"
 commit "docs: fork readme"
 setup push -q origin main
 setup fetch -q origin
@@ -64,6 +74,11 @@ git -C "${scratch}/work" switch -q -c upstream main
 mkdir -p "${scratch}/work/docs"
 printf '# Changelog\n\n## Changed\n\n- one\n\n## Changed\n\n- two\n' >"${scratch}/work/CHANGELOG.md"
 printf '```\nno language\n```\n\nprompt text\n' >"${scratch}/work/docs/prompt.md"
+# Upstream also ships what a fixer cannot heal: a debugger statement oxlint
+# leaves in place, and JSON dprint cannot parse.
+mkdir -p "${scratch}/work/scripts"
+printf 'function upstream() {\n  debugger;\n}\n' >"${scratch}/work/scripts/upstream.js"
+printf '{"broken"\n' >"${scratch}/work/broken.json"
 commit "docs: upstream changelog and prompt"
 setup push -q upstream upstream:main
 setup fetch -q upstream
@@ -82,12 +97,28 @@ git -C "${scratch}/work" merge -q --no-edit upstream/main
 if (cd "${scratch}/work" && markdownlint CHANGELOG.md docs/prompt.md) >/dev/null 2>&1; then
 	fail "control: upstream's own findings must be present in the merged tree"
 fi
+if command -v oxlint >/dev/null 2>&1; then
+	if (cd "${scratch}/work" && oxlint scripts/upstream.js) >/dev/null 2>&1; then
+		fail "control: upstream's own oxlint finding must be present in the merged tree"
+	fi
+fi
+if command -v dprint >/dev/null 2>&1; then
+	if (cd "${scratch}/work" && dprint check broken.json) >/dev/null 2>&1; then
+		fail "control: upstream's own dprint finding must be present in the merged tree"
+	fi
+fi
 
 # 1. The upstream-merge push passes.
 if ! push push -q origin topic; then
 	fail "an upstream-merge push must pass the hook"
 fi
 grep -q 'markdownlint' "${scratch}/push.txt" || fail "the markdownlint step must have run"
+if command -v oxlint >/dev/null 2>&1 && ! grep -q 'oxlint' "${scratch}/push.txt"; then
+	fail "the oxlint step must have run"
+fi
+if command -v dprint >/dev/null 2>&1 && ! grep -q 'dprint' "${scratch}/push.txt"; then
+	fail "the dprint step must have run"
+fi
 
 # 2. A finding the pusher's own commit introduces still blocks.
 git -C "${scratch}/work" switch -q -c authored
@@ -98,6 +129,32 @@ if push push -q origin authored; then
 fi
 grep -q '✗ markdownlint' "${scratch}/push.txt" || fail "the markdownlint step must be the one that fails"
 grep -q 'MD040' "${scratch}/push.txt" || fail "the introduced finding must be reported"
+
+# 2b. An oxlint error the pusher's own commit introduces still blocks.
+if command -v oxlint >/dev/null 2>&1; then
+	git -C "${scratch}/work" switch -q topic
+	git -C "${scratch}/work" switch -q -c authored-js
+	printf 'function authored() {\n  debugger;\n}\n' >"${scratch}/work/authored.js"
+	commit "feat: add authored debugger"
+	if push push -q origin authored-js; then
+		fail "an oxlint finding this push introduces must fail the hook"
+	fi
+	grep -q '✗ oxlint' "${scratch}/push.txt" || fail "the oxlint step must be the one that fails"
+	grep -q 'no-debugger' "${scratch}/push.txt" || fail "the introduced oxlint finding must be reported"
+fi
+
+# 2c. A file dprint cannot parse, introduced by the pusher's own commit, still
+# blocks: a formatter cannot heal it, so the finding is the pusher's answer.
+if command -v dprint >/dev/null 2>&1; then
+	git -C "${scratch}/work" switch -q topic
+	git -C "${scratch}/work" switch -q -c authored-json
+	printf '{"authored"\n' >"${scratch}/work/authored.json"
+	commit "feat: add authored json"
+	if push push -q origin authored-json; then
+		fail "an unparseable file this push introduces must fail the hook"
+	fi
+	grep -q '✗ dprint' "${scratch}/push.txt" || fail "the dprint step must be the one that fails"
+fi
 
 # 3. The security steps still cover the pushed range: an authored secret fails.
 git -C "${scratch}/work" switch -q -c leaked
