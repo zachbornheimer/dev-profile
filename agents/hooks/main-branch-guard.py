@@ -200,9 +200,12 @@ def decide(event: HookEvent) -> Decision | None:
         if argv[0] == "wt":
             wt_args = skip_global_options(argv[1:])
             sub = wt_args[0] if wt_args else ""
-            if sub in WT_SUBCOMMANDS and in_oh_my_pi:
-                if "omp-build" not in " ".join(wt_args[1:]):
-                    return _deny(shown, OH_MY_PI_FLOW, "omp-wt-merge-main")
+            if (
+                sub in WT_SUBCOMMANDS
+                and in_oh_my_pi
+                and "omp-build" not in " ".join(wt_args[1:])
+            ):
+                return _deny(shown, OH_MY_PI_FLOW, "omp-wt-merge-main")
             continue
 
         sub, args = _git_subcommand(argv)
