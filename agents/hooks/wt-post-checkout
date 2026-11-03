@@ -5,10 +5,11 @@
 # hook.wt-worktree-bootstrap (git 2.54+ config-defined hooks; coexists with the
 # hk stanzas and any repo-local hooks). Every creator fires this — wt, Claude
 # Code, herdr, plain `git worktree add` — and Worktrunk's global config owns
-# what happens: only the named user hook runs (`pre-start user:bootstrap`), so
-# agent worktrees skip the dev-server post-start entirely.
+# what happens: only the named user pre-start hook runs (`pre-start user:copy`,
+# the name Worktrunk's config gives it), so agent worktrees skip the dev-server
+# post-start entirely.
 [ "${3:-}" = "1" ] || exit 0
 [ "${1:-}" = "0000000000000000000000000000000000000000" ] || exit 0
 command -v wt >/dev/null 2>&1 || exit 0
 cd "$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
-wt hook pre-start user:bootstrap
+wt hook pre-start user:copy
