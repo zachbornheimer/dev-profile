@@ -38,7 +38,13 @@
     "mise/conf.d/**",
     "dprint.jsonc",
     "**/.beads/**",
-    "**/*.pb.go"
+    "**/*.pb.*",
+    "**/*.dist.*",
+    "**/*.gen.*",
+    "**/*.generated.*",
+    "**/*.min.*",
+    "**/*.map",
+    "**/*.snap"
   ],
   "exec": {
     "cwd": "${configDir}",

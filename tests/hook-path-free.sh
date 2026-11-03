@@ -19,8 +19,10 @@ fail() {
 
 [[ -d "${bin_dir}" ]] || fail "${bin_dir} is not installed; run: mise dot apply"
 
-# Config-based hooks need the profile's pinned git; the system git (2.50) ignores them.
-git_bin="$(mise which git)"
+# Config-based hooks need git >= 2.36; the system git (2.50) on macOS ignores them.
+# Take mise's pinned git when it manages one (Linux), else the PATH's (Homebrew on
+# macOS), and follow the symlink so the restricted PATH below holds no other wrapper.
+git_bin="$(readlink -f "$(mise which git 2>/dev/null || command -v git)")"
 git_dir="$(dirname "${git_bin}")"
 hk_config="${scratch}/hk-config"
 mkdir -p "${hk_config}"
