@@ -61,15 +61,28 @@ is_owned_owner "${origin_owner}" || exit 1
 # A personal fork (zachbornheimer/<repo>) of an external upstream repository is
 # still an unowned codebase whose upstream conventions win. Cache the parent owner
 # in the git common dir so gh is asked at most once per clone.
+#
+# Only a GitHub login counts as an owner answer. gh prints the HTTP error body on stdout when
+# it cannot read the repository — a checkout that was never authenticated, a rate limit, no
+# network — so its output is an answer only when it is a login and gh exited 0: a repository
+# gh cannot see stays classified by its own remote. A cache file holding anything but a login
+# is ignored, so a clone poisoned by an older profile does not inherit that verdict.
+login_re='^[A-Za-z0-9]([A-Za-z0-9-]{0,37}[A-Za-z0-9])?$'
 common_dir="$(git rev-parse --git-common-dir 2>/dev/null || true)"
 cache_file="${common_dir:+"${common_dir}/dev-profile-effective-owner"}"
 effective_owner=""
 if [[ -n "${cache_file}" && -r "${cache_file}" ]]; then
 	effective_owner="$(<"${cache_file}")"
-elif command -v gh >/dev/null 2>&1; then
-	effective_owner="$(gh api "repos/${origin_slug}" \
+fi
+[[ "${effective_owner}" =~ ${login_re} ]] || effective_owner=""
+if [[ -z "${effective_owner}" ]] && command -v gh >/dev/null 2>&1; then
+	if effective_owner="$(gh api "repos/${origin_slug}" \
 		--jq 'if .fork and .parent.owner.login then .parent.owner.login else .owner.login end' \
-		2>/dev/null || true)"
+		2>/dev/null)"; then
+		[[ "${effective_owner}" =~ ${login_re} ]] || effective_owner=""
+	else
+		effective_owner=""
+	fi
 	if [[ -n "${effective_owner}" && -n "${cache_file}" ]]; then
 		printf '%s\n' "${effective_owner}" >"${cache_file}" 2>/dev/null || true
 	fi
