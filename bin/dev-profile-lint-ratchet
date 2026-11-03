@@ -17,6 +17,7 @@ Usage: dev-profile-lint-ratchet <actionlint|yamllint|zizmor> [tool args...] -- <
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -124,18 +125,26 @@ def run_yamllint(extra: list[str], paths: list[str], cwd: Path) -> list[dict]:
 
 
 def run_zizmor(extra: list[str], paths: list[str], cwd: Path) -> list[dict]:
+    # zizmor reads GH_TOKEN; hk exports GITHUB_TOKEN, and an unauthenticated
+    # API call only slows the action-pin audits down.
+    env = dict(os.environ)
+    if env.get("GITHUB_TOKEN") and not env.get("GH_TOKEN"):
+        env["GH_TOKEN"] = env["GITHUB_TOKEN"]
     proc = subprocess.run(
         ["zizmor", "--format", "sarif", "--no-progress", *extra, *paths],
         capture_output=True,
         text=True,
         check=False,
         cwd=cwd,
+        env=env,
     )
-    if proc.returncode not in (0, 1):
+    if not proc.stdout.strip():
+        # Nothing to parse: a clean run, or a real failure. zizmor's own exit
+        # codes separate findings (non-zero) from errors, so trust the output.
+        if proc.returncode == 0:
+            return []
         sys.stderr.write(proc.stderr)
         raise SystemExit(proc.returncode)
-    if not proc.stdout.strip():
-        return []
     found: list[dict] = []
     for run in json.loads(proc.stdout).get("runs", []):
         for result in run.get("results", []):
