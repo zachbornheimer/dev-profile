@@ -176,8 +176,10 @@ fi
 wt tree-for-changes -- wt land --landing=merge"""
 commit-fix = "~/.local/share/dev-profile/bin/dev-profile-commit-fix step commit {{ args }}"
 
-[post-start]
+[pre-start]
 copy = "~/.local/share/dev-profile/bin/dev-profile-worktree-copy"
+
+[post-start]
 
 [post-remove]
 reap = "~/.local/share/dev-profile/bin/dev-profile-dev reap {{ worktree_path }}"

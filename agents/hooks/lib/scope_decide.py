@@ -689,7 +689,7 @@ def _observe(
     return Observation(request, task, candidate, since_iso, digest, judgment=judgment)
 
 
-def _plan(observation: Observation) -> Correction | None:
+def _plan(observation: Observation, prior_denials: int = 0) -> Correction | None:
     """Turn one verdict into actionable feedback, with no system mutations."""
     if observation.skip:
         return None
@@ -709,11 +709,26 @@ def _plan(observation: Observation) -> Correction | None:
         reason = outcome.reason
 
     if request.kind == "tool":
+        # A denied agent retries because its own instructions say the call is
+        # required (measured on omp 01a188f: one landing call refused four more
+        # times, a judge call each). Name the count, forbid the retry, and
+        # offer the one action that can change the answer: the user.
+        escalation = (
+            f"This is denial {prior_denials + 1} for this request; earlier "
+            "attempts were also denied. "
+            if prior_denials
+            else ""
+        )
         details = (
             "Scope guard: DO NOT execute that proposed tool call.\n"
             f"Current task: {observation.task}\n"
             f"Rejected call: {_clip(observation.candidate, 400)}\n"
             f"Reason: {reason}.\n"
+            f"{escalation}"
+            "Do not retry this call or a rephrased variant of it; a retry is "
+            "denied too. If you believe this call is genuinely required by the "
+            "user's request, ask the user to authorize it explicitly instead "
+            "of retrying.\n"
             "Return to the user's request. Use only the smallest necessary next action; "
             "do not replace this detour with another CPU, disk, or CI investigation. "
             "If verification is unnecessary, answer with the evidence available."
@@ -779,7 +794,14 @@ def scope_decision(
         return Decision.no_objection("ask-recorded")
     ledger = _ledger(settings, request.session_id)
     observation = _observe(request, ledger, environment)
-    correction = _plan(observation)
+    # The refusal escalates with the denials already recorded inside this
+    # request's window, so a denied agent stops retrying and asks the user.
+    prior_denials = (
+        ledger.count(observation.since_iso)
+        if ledger is not None and observation.since_iso
+        else 0
+    )
+    correction = _plan(observation, prior_denials)
     if correction is None:
         decision = Decision.no_objection(
             observation.skip

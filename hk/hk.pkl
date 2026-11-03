@@ -1,6 +1,8 @@
 amends "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pkl"
 
-// Frozen from the live hk module. A checkout must not amend a path outside the repo.
+// Native replacement for the frozen dev-profile hook set: every step calls a mise-pinned tool directly.
+// Steps that existed only as dev-profile bin wrappers (hardcoded-dev-port, identity-guard, no-trunk-prettier,
+// suppressions, go-mod-tidy, perlcritic, php-lint, ty, clang-tidy, pushed-diagnostics) are deliberately absent.
 fail_fast = false
 stash_backup_count = 20
 exclude =
@@ -18,33 +20,67 @@ exclude =
     "**/.turbo",
     "**/.cache",
     "**/.beads",
-    "**/.build",
-    // Generated artifacts: a .dist/.gen/.generated suffix marks a file the generator owns.
-    // Formatting one rewrites generated output, and a formatter's own .dist.* config is not
-    // input at all — `config/.php-cs-fixer.dist.php` matched **/*.php and php-cs-fixer then
-    // tried to read composer.json to format its own config, failing every commit in this repo.
-    "**/*.dist.*",
-    "**/*.gen.*",
-    "**/*.generated.*",
-    "**/*.min.*",
-    "**/*.map",
-    "**/*.snap",
   )
 
-// Shellcheck receives shell files only. A script in home/*/bin carries no
-// suffix, so the shebang is the second half of the rule (a shell interpreter
-// only: a Python or Node shebang is not shellcheck input); both are needed.
-// It is a function, not a prefix: a multi-line Pkl value cannot end in the
-// newline a caller needs between the filter and the shellcheck call.
+local lockfiles =
+  List(
+    "**/aube-lock.yaml",
+    "**/pnpm-lock.yaml",
+    "**/package-lock.json",
+    "**/go.sum",
+    "**/bun.lock*",
+    "**/*.lock",
+  )
+
+local jsGlobs =
+  List(
+    "**/*.js",
+    "**/*.mjs",
+    "**/*.cjs",
+    "**/*.ts",
+    "**/*.mts",
+    "**/*.cts",
+    "**/*.jsx",
+    "**/*.tsx",
+    "**/*.vue",
+    "**/*.svelte",
+    "**/*.astro",
+  )
+
+local k8sGlobs =
+  List(
+    "**/k8s/**/*.yaml",
+    "**/k8s/**/*.yml",
+    "**/kubernetes/**/*.yaml",
+    "**/kubernetes/**/*.yml",
+    "**/manifests/**/*.yaml",
+    "**/manifests/**/*.yml",
+    "**/deploy/**/*.yaml",
+    "**/deploy/**/*.yml",
+    "**/deployments/**/*.yaml",
+    "**/deployments/**/*.yml",
+  )
+
+local k8sExclude =
+  List(
+    "**/templates/**",
+    "**/values.yaml",
+    "**/values.yml",
+    "**/values-*.yaml",
+    "**/values-*.yml",
+    "**/kustomization.yaml",
+    "**/kustomization.yml",
+  )
+
+// shellcheck 0.11.0 has no zsh dialect: a shell directive errors (SC1103) and
+// the sh parser cannot read zsh constructs. .zsh files are sourced by zsh and
+// are excluded from shellcheck on purpose.
 local shellFiles =
   """
   shell_files() {
     for f in "$@"; do
       case "$f" in
-        *.bash|*.ksh|*.dash|*.bats) echo "$f" ;;
-        *.sh)
-          if ! head -n 1 "$f" 2>/dev/null | grep -Eq '^#![[:space:]]*(/usr/bin/env[[:space:]]+(-S[[:space:]]+)?)?([^[:space:]]*/)?zsh([[:space:]]|$)'; then echo "$f"; fi
-          ;;
+        *.sh|*.bash|*.ksh|*.dash|*.bats) echo "$f" ;;
         *)
           if head -n 1 "$f" 2>/dev/null | grep -Eq '^#![[:space:]]*(/usr/bin/env[[:space:]]+(-S[[:space:]]+)?)?([^[:space:]]*/)?(sh|bash|ksh|dash|bats)([[:space:]]|$)'; then echo "$f"; fi
           ;;
@@ -52,133 +88,46 @@ local shellFiles =
     done
   }
   """
-steps {
+local fixers = new Mapping<String, Step> {
   ["dprint"] {
-    check = "dev-profile-format check {{files}}"
-    fix = "dev-profile-format fmt {{files}}"
-    check_list_files = "dev-profile-format list-different {{files}}"
-    exclude =
-      List(
-        "**/aube-lock.yaml",
-        "**/pnpm-lock.yaml",
-        "**/package-lock.json",
-        "**/go.sum",
-        "**/bun.lock*",
-        "**/*.lock",
-      )
+    check = "dprint check --allow-no-files {{files}}"
+    fix = "dprint fmt --allow-no-files {{files}}"
+    exclude = lockfiles
     depends =
       List(
         "stylelint",
-        "dotnet-format",
-        "go-fix",
-        "go-imports",
-        "go-mod-tidy-fix",
-        "go-modernize",
-        "golangci-lint-fix",
         "oxlint-fix",
-        "markdownlint-fix",
-        "perltidy",
-        "php-fmt",
-        "rector",
         "ruff-fix",
-        "check-shebang-scripts-are-executable",
+        "go-imports",
+        "tofu-fix",
         "newlines",
         "trailing-whitespace",
-        "uv-instead-of-python-in-tasks",
-        "rubocop-fix",
-        "clippy-fix",
-        "rustfmt",
-        "shellcheck-fix",
-        "swift-format",
-        "swiftlint-fix",
-        "tofu-fix",
       )
   }
   ["stylelint"] {
-    fix = "dev-profile-stylelint-fix {{files}}"
+    fix = "stylelint --fix {{files}}"
     glob = List("**/*.css", "**/*.scss", "**/*.sass")
-  }
-  ["dotnet-format"] {
-    fix = "dev-profile-dotnet-format-fix {{files}}"
-    glob = List("**/*.cs", "**/*.vb")
-  }
-  ["go-fix"] {
-    fix = "dev-profile-go-fix {{files}}"
-    glob = List("**/*.go")
-    depends = List("go-imports")
   }
   ["go-imports"] {
     fix = "goimports -w {{files}}"
-    check_list_files =
-      "FILES=$(goimports -l {{files}})\nif [ -n \"$FILES\" ]; then\necho \"$FILES\"\nexit 1\nfi"
-    check_diff =
-      "DIFF=$(goimports -d {{files}})\nif [ -n \"$DIFF\" ]; then\necho \"$DIFF\"\nexit 1\nfi"
+    check_list_files = "goimports -l {{files}}"
     glob = List("**/*.go")
-  }
-  ["go-mod-tidy-fix"] {
-    fix = "dev-profile-go-mod-tidy {{files}}"
-    glob = List("**/*.go", "**/go.mod", "**/go.sum")
-    depends = List("go-imports", "go-fix", "go-modernize", "golangci-lint-fix")
-    stage = List("**/go.mod", "**/go.sum")
-  }
-  ["go-modernize"] {
-    fix = "dev-profile-go-modernize {{files}}"
-    glob = List("**/*.go")
-    depends = List("go-imports", "go-fix")
-  }
-  ["golangci-lint-fix"] {
-    fix =
-      "dev-profile-fix golangci-lint run --fix --allow-parallel-runners --new-from-rev=HEAD ./..."
-    glob = List("**/*.go")
-    dir = "{{workspace}}"
-    workspace_indicator = "go.mod"
   }
   ["oxlint-fix"] {
-    fix = "dev-profile-oxlint-fix {{files}}"
-    glob =
-      List(
-        "**/*.js",
-        "**/*.mjs",
-        "**/*.cjs",
-        "**/*.ts",
-        "**/*.mts",
-        "**/*.cts",
-        "**/*.jsx",
-        "**/*.tsx",
-        "**/*.vue",
-        "**/*.svelte",
-        "**/*.astro",
-      )
-  }
-  ["markdownlint-fix"] {
-    fix = "dev-profile-markdownlint --fix {{files}}"
-    glob = List("**/*.md", "**/*.markdown")
-    exclude = List("vim/bundle/**", "agents/learnings/**", "agents/skills.pre-unified-link-*/**")
-  }
-  ["perltidy"] {
-    fix = "dev-profile-perltidy-fix {{files}}"
-    glob = List("**/*.pl", "**/*.pm", "**/*.t")
-  }
-  ["php-fmt"] {
-    fix = "dev-profile-php-fmt {{files}}"
-    glob = List("**/*.php")
-    depends = List("rector")
-  }
-  ["rector"] {
-    fix = "dev-profile-rector-fix {{files}}"
-    glob = List("**/*.php")
+    fix = "oxlint --fix {{files}}"
+    glob = jsGlobs
   }
   ["ruff-fix"] {
     fix =
       "ruff check --force-exclude --fix-only --unsafe-fixes --extend-select UP,FURB,SIM,PERF,C4,PIE {{files}}"
     glob = List("**/*.py", "**/*.pyi")
-    exclude = List("vim/bundle/**")
   }
-  ["check-shebang-scripts-are-executable"] {
-    fix = "dev-profile-shebang-scripts-executable {{files}}"
+  ["markdownlint-fix"] {
+    fix = "markdownlint --fix {{files}}"
+    glob = List("**/*.md", "**/*.markdown")
+    exclude = List("agents/learnings/**")
   }
-  // hk runs a glob-less step even when the commit holds no files, and `hk util` then exits
-  // with a usage error for the empty {{files}}. A glob lets hk skip the step instead.
+  // hk runs a glob-less step even for an empty commit; a glob lets hk skip it.
   ["newlines"] {
     fix = "hk util end-of-file-fixer --fix {{files}}"
     check_diff = "hk util end-of-file-fixer --diff {{files}}"
@@ -189,68 +138,25 @@ steps {
     check_diff = "hk util trailing-whitespace --diff {{files}}"
     glob = List("**/*")
   }
-  ["uv-instead-of-python-in-tasks"] {
-    fix = "dev-profile-uv-instead-of-python-in-tasks {{files}}"
-    glob = List("**/mise.toml", "**/.mise.toml", "**/mise-tasks/**", "**/.mise/tasks/**")
-  }
-  ["rubocop-fix"] {
-    fix = "dev-profile-rubocop-fix {{files}}"
-    glob = List("**/*.rb", "**/*.rake")
-    exclude = List("vim/bundle/**")
-  }
-  ["clippy-fix"] {
-    fix = "dev-profile-clippy-fix {{files}}"
-    glob = List("**/*.rs")
-  }
-  ["rustfmt"] {
-    fix = "dev-profile-rustfmt {{files}}"
-    glob = List("**/*.rs")
-    depends = List("clippy-fix")
-  }
-  ["shellcheck-fix"] {
-    fix = "dev-profile-shellcheck-fix {{files}}"
-    types = List("bash", "sh")
-  }
-  ["swift-format"] {
-    fix = "dev-profile-swift-format {{files}}"
-    glob = List("**/*.swift")
-    depends = List("swiftlint-fix")
-  }
-  ["swiftlint-fix"] {
-    fix = "dev-profile-swiftlint-fix {{files}}"
-    glob = List("**/*.swift")
-  }
   ["tofu-fix"] {
     fix = "tofu fmt {{files}}"
     glob = List("**/*.tf", "**/*.tfvars")
   }
-  ["no-commit-to-branch"] {
-    check = "dev-profile-no-commit-to-default-branch"
-    profiles = List("!lint")
-  }
-  ["clang-tidy"] {
-    check = "dev-profile-clang-tidy {{files}}"
-    glob = List("**/*.c", "**/*.cc", "**/*.cpp", "**/*.cxx", "**/*.h", "**/*.hpp")
-    profiles = List("slow")
-  }
-  ["hadolint"] {
-    check = "hadolint {{files}}"
-    glob = List("**/Dockerfile*")
-    profiles = List("slow")
-  }
+}
+
+local gates = new Mapping<String, Step> {
+  ["hadolint"] { check = "hadolint {{files}}"; glob = List("**/Dockerfile*") }
   ["actionlint"] {
     check = "actionlint {{files}}"
     glob = List(".github/workflows/*.yml", ".github/workflows/*.yaml")
-    profiles = List("slow")
     diagnostic_format = "gcc"
   }
   ["pinact"] {
-    check = "dev-profile-if-installed pinact pinact run --verify-comment --check {{files}}"
+    check = "pinact run --verify-comment --check {{files}}"
     glob = List(".github/workflows/*", "**/action.*")
-    profiles = List("slow")
   }
   ["zizmor"] {
-    check = "dev-profile-if-installed zizmor zizmor --no-progress {{files}}"
+    check = "zizmor --no-progress {{files}}"
     glob =
       List(
         ".github/workflows/*.yml",
@@ -259,274 +165,106 @@ steps {
         "**/action.yml",
         "**/action.yaml",
       )
-    profiles = List("slow")
   }
-  ["go-mod-tidy"] {
-    check = "dev-profile-go-mod-tidy --diff {{files}}"
-    glob = List("**/*.go", "**/go.mod", "**/go.sum")
-    profiles = List("slow")
-  }
-  ["go-sec"] {
-    check = "dev-profile-gosec-packages {{files}}"
+  ["gosec"] {
+    check = "gosec ./..."
     glob = List("**/*.go")
-    profiles = List("slow")
     dir = "{{workspace}}"
     workspace_indicator = "go.mod"
   }
   ["go-vet"] {
-    check = "dev-profile-pushed-diagnostics go vet ./... :: {{files}}"
+    check = "go vet ./..."
     glob = List("**/*.go")
-    profiles = List("slow")
     dir = "{{workspace}}"
     workspace_indicator = "go.mod"
   }
   ["golangci-lint"] {
-    check = "dev-profile-golangci-ratchet"
-    fix = "golangci-lint run --fix --allow-parallel-runners ./..."
+    check = "golangci-lint run --fix=false --allow-parallel-runners ./..."
+    fix = "golangci-lint run --fix ./..."
     glob = List("**/*.go")
-    profiles = List("slow", "!lint")
     dir = "{{workspace}}"
     workspace_indicator = "go.mod"
   }
   ["govulncheck"] {
     check = "govulncheck ./..."
     glob = List("**/go.mod", "**/go.sum")
-    profiles = List("slow")
     dir = "{{workspace}}"
     workspace_indicator = "go.mod"
   }
-  ["oxlint"] {
-    check = "oxlint {{files}}"
-    fix = "dev-profile-oxlint-fix {{files}}"
-    glob =
-      List(
-        "**/*.js",
-        "**/*.mjs",
-        "**/*.cjs",
-        "**/*.ts",
-        "**/*.mts",
-        "**/*.cts",
-        "**/*.jsx",
-        "**/*.tsx",
-        "**/*.vue",
-        "**/*.svelte",
-        "**/*.astro",
-      )
-    profiles = List("slow")
-  }
-  // Semgrep's TypeScript pack on every committed TypeScript file. Judge only:
-  // findings are fixed by hand, and dev-profile-suppressions refuses nosemgrep.
-  // No if-installed guard: this profile pins semgrep, so a missing one is a
-  // broken install that must fail, not an optional scanner to skip.
-  ["semgrep-typescript"] {
-    check = "dev-profile-semgrep {{files}}"
+  ["oxlint"] { check = "oxlint {{files}}"; fix = "oxlint --fix {{files}}"; glob = jsGlobs }
+  // Foxguard judges every TypeScript file with the retained pack plus its own built-ins. Findings are fixed by hand.
+  // It replaced the semgrep gate on 2026-11-03: semgrep's own transitive pins carried Dependabot moderates no
+  // semgrep release fixes (mcp==1.29.0, opentelemetry-api~=1.37.0 are hard requirements of the scanner itself).
+  // security/fixtures/manifest.json records the measured detections, including the pack rules Foxguard misses.
+  ["foxguard-typescript"] {
+    check =
+      "RAYON_NUM_THREADS=2 mise x github:0sec-labs/foxguard@0.14.1 -- foxguard diff --rules ~/.config/foxguard/typescript.yml origin/main"
     glob = List("**/*.ts", "**/*.mts", "**/*.cts", "**/*.tsx")
   }
   ["kube-linter"] {
-    check =
-      "dev-profile-if-installed kube-linter kube-linter lint --fail-if-no-objects-found {{files}}"
-    glob =
-      List(
-        "**/k8s/**/*.yaml",
-        "**/k8s/**/*.yml",
-        "**/kubernetes/**/*.yaml",
-        "**/kubernetes/**/*.yml",
-        "**/manifests/**/*.yaml",
-        "**/manifests/**/*.yml",
-        "**/deploy/**/*.yaml",
-        "**/deploy/**/*.yml",
-        "**/deployments/**/*.yaml",
-        "**/deployments/**/*.yml",
-      )
-    exclude =
-      List(
-        "**/templates/**",
-        "**/values.yaml",
-        "**/values.yml",
-        "**/values-*.yaml",
-        "**/values-*.yml",
-        "**/kustomization.yaml",
-        "**/kustomization.yml",
-      )
-    profiles = List("slow")
+    check = "kube-linter lint --fail-if-no-objects-found {{files}}"
+    glob = k8sGlobs
+    exclude = k8sExclude
   }
   ["kubeconform"] {
-    check =
-      "dev-profile-if-installed kubeconform kubeconform -summary -strict -ignore-missing-schemas {{files}}"
-    glob =
-      List(
-        "**/k8s/**/*.yaml",
-        "**/k8s/**/*.yml",
-        "**/kubernetes/**/*.yaml",
-        "**/kubernetes/**/*.yml",
-        "**/manifests/**/*.yaml",
-        "**/manifests/**/*.yml",
-        "**/deploy/**/*.yaml",
-        "**/deploy/**/*.yml",
-        "**/deployments/**/*.yaml",
-        "**/deployments/**/*.yml",
-      )
-    exclude =
-      List(
-        "**/templates/**",
-        "**/values.yaml",
-        "**/values.yml",
-        "**/kustomization.yaml",
-        "**/kustomization.yml",
-      )
-    profiles = List("slow")
+    check = "kubeconform -summary -strict -ignore-missing-schemas {{files}}"
+    glob = k8sGlobs
+    exclude = k8sExclude
   }
   ["markdownlint"] {
-    check = "dev-profile-markdownlint {{files}}"
-    fix = "dev-profile-markdownlint --fix {{files}}"
+    check = "markdownlint {{files}}"
+    fix = "markdownlint --fix {{files}}"
     glob = List("**/*.md", "**/*.markdown")
-    exclude = List("vim/bundle/**", "agents/learnings/**", "agents/skills.pre-unified-link-*/**")
-    profiles = List("slow")
-  }
-  ["perlcritic"] {
-    check = "dev-profile-perlcritic {{files}}"
-    glob = List("**/*.pl", "**/*.pm", "**/*.t")
-    profiles = List("slow")
-  }
-  ["php-lint"] {
-    check = "dev-profile-php-lint {{files}}"
-    glob = List("**/*.php")
-    profiles = List("slow")
+    exclude = List("agents/learnings/**")
   }
   ["ruff"] {
-    check = "dev-profile-ruff-new {{files}}"
+    check = "ruff check --force-exclude {{files}}"
     fix = "ruff check --force-exclude --fix {{files}}"
-    check_diff =
-      "ruff check --force-exclude --diff --exit-non-zero-on-fix {{ files }} && ruff check --force-exclude {{ files }}"
     glob = List("**/*.py", "**/*.pyi")
-    exclude = List("vim/bundle/**")
-    profiles = List("slow")
-  }
-  ["ty"] {
-    check = "dev-profile-ty {{files}}"
-    glob = List("**/*.py", "**/*.pyi")
-    profiles = List("slow")
   }
   ["betterleaks"] {
-    check =
-      "dev-profile-if-installed betterleaks bash -c 'cfg=(); for c in .betterleaks.toml .gitleaks.toml; do [ -f \"$c\" ] && { cfg=(-c \"$c\"); break; }; done; exec betterleaks dir \"${cfg[@]}\" --redact --verbose --no-banner \"$@\"' -- {{files}}"
-    profiles = List("slow")
-  }
-  ["case-conflicts"] {
-    check = "hk util check-case-conflict {{files}}"
+    check = "betterleaks dir --redact --verbose --no-banner --confidence medium {{files}}"
     glob = List("**/*")
-    profiles = List("slow")
   }
+  ["case-conflicts"] { check = "hk util check-case-conflict {{files}}"; glob = List("**/*") }
   ["check-added-large-files"] {
-    check = "dev-profile-check-added-large-files {{files}}"
+    check = "hk util check-added-large-files {{files}}"
     glob = List("**/*")
-    exclude =
-      List(
-        "**/aube-lock.yaml",
-        "**/pnpm-lock.yaml",
-        "**/package-lock.json",
-        "**/go.sum",
-        "**/bun.lock*",
-        "**/*.lock",
-      )
-    profiles = List("slow")
+    exclude = lockfiles
   }
   ["check-executables-have-shebangs"] {
     check = "hk util check-executables-have-shebangs {{files}}"
-    exclude = List("vim/.netrwhist", "vim/bundle/**")
-    profiles = List("slow")
-  }
-  ["check-symlinks"] {
-    check = "hk util check-symlinks {{files}}"
     glob = List("**/*")
-    profiles = List("slow")
   }
-  ["destroyed-symlinks"] {
-    check = "hk util destroyed-symlinks"
-    profiles = List("slow")
-  }
-  ["forbid-submodules"] {
-    check = "hk util forbid-submodules"
-    glob = List("**/.gitmodules")
-    profiles = List("slow")
-  }
+  ["check-symlinks"] { check = "hk util check-symlinks {{files}}"; glob = List("**/*") }
+  ["destroyed-symlinks"] { check = "hk util destroyed-symlinks" }
+  ["forbid-submodules"] { check = "hk util forbid-submodules"; glob = List("**/.gitmodules") }
+  // gitleaks FTLs on a missing --config path, so pass one only when the repository ships it.
   ["gitleaks"] {
-    check = "gitleaks git --redact --no-banner --log-opts=\"HEAD --not --remotes\""
-    profiles = List("slow")
-  }
-  ["hardcoded-dev-port"] {
-    check = "dev-profile-hardcoded-dev-port {{files}}"
-    exclude =
-      List(
-        "**/aube-lock.yaml",
-        "**/pnpm-lock.yaml",
-        "**/package-lock.json",
-        "**/go.sum",
-        "**/bun.lock*",
-        "**/*.lock",
-        "**/tests/**",
-        "**/test/**",
-        "**/__tests__/**",
-        "**/testdata/**",
-        "**/fixtures/**",
-        "**/*_test.go",
-        "**/*.test.*",
-        "**/*.spec.*",
-        "**/test_*.py",
-        "**/*_test.py",
-        "**/conftest.py",
-        "**/docs/**",
-        "**/*.md",
-        "**/*.mdx",
-        "**/*.rst",
-        "**/*.txt",
-      )
-    profiles = List("slow")
-  }
-  ["identity-guard"] {
-    check = "dev-profile-identity-guard"
-    profiles = List("slow")
+    check =
+      "config=\"\"\nif [ -f .gitleaks.toml ]; then\n  config=\"--config .gitleaks.toml\"\nfi\ngitleaks git $config --redact --no-banner --log-opts=\"HEAD --not --remotes\""
   }
   ["merge-conflicts"] {
     check = "hk util check-merge-conflict --assume-in-merge {{files}}"
-    profiles = List("slow")
+    glob = List("**/*")
   }
-  ["no-trunk-prettier"] {
-    check = "dev-profile-ban-trunk-prettier"
-    profiles = List("slow")
-  }
-  ["private-keys"] {
-    check = "hk util detect-private-key {{files}}"
-    exclude =
-      List("tests/pre-push-empty-file-list-fixture.sh", "more/grok/agents/rules-yaml-author.md")
-    profiles = List("slow")
-  }
+  ["private-keys"] { check = "hk util detect-private-key {{files}}"; glob = List("**/*") }
   ["strict-json"] {
     check =
       "status=0\nfor file in {{files}}; do\n  jq empty \"$file\" || { echo \"not strict JSON: $file\" >&2; status=1; }\ndone\nexit $status"
     glob = List("**/*.json")
     exclude =
-      List(
-        "**/aube-lock.yaml",
-        "**/pnpm-lock.yaml",
-        "**/package-lock.json",
-        "**/go.sum",
-        "**/bun.lock*",
-        "**/*.lock",
-        "**/tsconfig*.json",
-        "**/jsconfig*.json",
-        "**/.devcontainer/**",
-        "**/.vscode/**",
-        "**/zed/**/*.json",
-      )
-    profiles = List("slow")
-  }
-  ["suppressions"] {
-    check = "dev-profile-suppressions --unpushed"
-    profiles = List("slow")
+      lockfiles
+        + List(
+          "**/tsconfig*.json",
+          "**/jsconfig*.json",
+          "**/.devcontainer/**",
+          "**/.vscode/**",
+          "**/zed/**/*.json",
+        )
   }
   ["brakeman"] {
-    check = "dev-profile-brakeman {{files}}"
+    check = "brakeman --no-pager --quiet"
     glob =
       List(
         "**/*.rb",
@@ -537,592 +275,53 @@ steps {
         "**/Gemfile.lock",
         "**/Rakefile",
       )
-    profiles = List("slow")
   }
-  ["bundle-audit"] {
-    check = "dev-profile-bundle-audit {{files}}"
-    glob = List("**/Gemfile.lock")
-    profiles = List("slow")
-  }
-  ["rubocop"] {
-    check = "rubocop --force-exclusion {{files}}"
-    fix = "rubocop --force-exclusion --autocorrect {{files}}"
-    check_list_files = "rubocop --force-exclusion --format files {{files}}"
-    glob =
-      List(
-        "**/*.rb",
-        "**/*.arb",
-        "**/*.axlsx",
-        "**/*.builder",
-        "**/*.gemfile",
-        "**/*.gemspec",
-        "**/*.jb",
-        "**/*.jbuilder",
-        "**/*.mspec",
-        "**/*.opal",
-        "**/*.pluginspec",
-        "**/*.podspec",
-        "**/*.rabl",
-        "**/*.rake",
-        "**/*.rbw",
-        "**/*.ru",
-        "**/*.ruby",
-        "**/*.schema",
-        "**/*.spec",
-        "**/*.thor",
-        "**/.irbrc",
-        "**/.pryrc",
-        "**/.simplecov",
-        "**/buildfile",
-        "**/Appraisals",
-        "**/Berksfile",
-        "**/Brewfile",
-        "**/Buildfile",
-        "**/Capfile",
-        "**/Dangerfile",
-        "**/Deliverfile",
-        "**/Fastfile",
-        "**/*Fastfile",
-        "**/Gemfile",
-        "**/Guardfile",
-        "**/Jarfile",
-        "**/Mavenfile",
-        "**/Podfile",
-        "**/Puppetfile",
-        "**/Rakefile",
-        "**/rakefile",
-        "**/Schemafile",
-        "**/Snapfile",
-        "**/Steepfile",
-        "**/Thorfile",
-        "**/Vagrantfile",
-      )
-    exclude =
-      List(
-        "node_modules/**/*",
-        "tmp/**/*",
-        "vendor/**/*",
-        ".git/**/*",
-        "vim/bundle/**",
-        "**/Brewfile",
-      )
-    profiles = List("slow")
-  }
-  ["cargo-check"] {
-    check = "cargo check --quiet"
-    fix = "cargo fix --allow-dirty --allow-staged --quiet"
-    glob = List("**/*.rs")
-    profiles = List("slow")
-    env {
-      ["CARGO_TERM_COLOR"] = "{% if color %}always{% else %}never{% endif %}"
-      ["CARGO_BUILD_WARNINGS"] = "deny"
-    }
-  }
+  ["bundle-audit"] { check = "bundle-audit check"; glob = List("**/Gemfile.lock") }
   ["cargo-deny"] {
-    check = "dev-profile-if-installed cargo-deny cargo-deny --locked --workspace check"
-    glob =
-      List(
-        "**/Cargo.toml",
-        "**/Cargo.lock",
-        "**/deny.toml",
-        "**/.deny.toml",
-        "**/deny.exceptions.toml",
-        "**/.deny.exceptions.toml",
-      )
-    profiles = List("slow")
+    check = "cargo-deny --locked --workspace check"
+    glob = List("**/Cargo.toml", "**/Cargo.lock", "**/deny.toml", "**/.deny.toml")
     dir = "{{workspace}}"
-    // The lock file exists only at a cargo workspace root. Keyed on Cargo.toml
-    // instead, every member crate is its own "workspace", so hk ran the same
-    // `--workspace check` once per member, and the copies raced on cargo-deny's
-    // single advisory-DB lock (at-gt0wr6: "failed to acquire lock within the
-    // specified duration").
     workspace_indicator = "Cargo.lock"
-  }
-  ["clippy"] {
-    check =
-      "dev-profile-pushed-diagnostics cargo clippy --quiet --message-format=short :: {{files}}"
-    fix =
-      "cargo clippy --manifest-path {{workspace_indicator}} --fix --allow-dirty --allow-staged --quiet"
-    glob = List("**/*.rs")
-    profiles = List("slow")
-    workspace_indicator = "Cargo.toml"
-    env {
-      ["CARGO_TERM_PROGRESS_WHEN"] = "never"
-    }
   }
   ["shellcheck"] {
     check =
       "\(shellFiles)\nFILES=$(shell_files {{files}})\n[ -n \"$FILES\" ] || exit 0\nshellcheck --severity=warning $FILES"
-    check_diff =
-      "\(shellFiles)\nFILES=$(shell_files {{files}})\n[ -n \"$FILES\" ] || exit 0\nshellcheck --format=diff $FILES"
-    profiles = List("slow")
   }
-  ["swiftlint"] {
-    check = "swiftlint lint {{files}}"
-    fix = "swiftlint --fix {{files}}"
-    glob = List("**/*.swift")
-    profiles = List("slow")
-  }
-  ["tofu"] {
-    check = "tofu fmt -check {{files}}"
-    glob = List("**/*.tf", "**/*.tfvars")
-    profiles = List("slow")
-  }
+  ["tofu"] { check = "tofu fmt -check {{files}}"; glob = List("**/*.tf", "**/*.tfvars") }
   ["yamllint"] {
-    check = "dev-profile-yamllint {{files}}"
+    check = "yamllint --strict {{files}}"
     glob = List("**/*.yml", "**/*.yaml")
-    exclude =
-      List(
-        "**/aube-lock.yaml",
-        "**/pnpm-lock.yaml",
-        "**/package-lock.json",
-        "**/go.sum",
-        "**/bun.lock*",
-        "**/*.lock",
-      )
-    profiles = List("slow")
-  }
-  ["golangci-lint-full-tree"] {
-    check = "golangci-lint run --fix=false --allow-parallel-runners ./..."
-    glob = List("**/*.go")
-    profiles = List("lint")
-    dir = "{{workspace}}"
-    workspace_indicator = "go.mod"
+    exclude = lockfiles + List("**/cloud-init.yaml")
   }
 }
+
 hooks {
   ["commit-msg"] {
     steps {
+      // Conventional Commits subject: type(scope)!: description, under 72 characters.
       ["conventional-commit"] {
-        check = "dev-profile-commit-msg {{commit_msg_file}}"
+        check =
+          "head -n1 {{commit_msg_file}} | grep -Eq '^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\\([^)]+\\))?!?: .{1,60}$'"
       }
     }
+  }
+  ["pre-commit"] {
+    fix = true
+    stash = "git"
+    steps = fixers
   }
   ["pre-push"] {
-    steps {
-      ["clang-tidy"] {
-        check = "dev-profile-clang-tidy {{files}}"
-        glob = List("**/*.c", "**/*.cc", "**/*.cpp", "**/*.cxx", "**/*.h", "**/*.hpp")
-      }
-      ["hadolint"] {
-        check = "hadolint {{files}}"
-        glob = List("**/Dockerfile*")
-      }
-      ["actionlint"] {
-        check = "actionlint {{files}}"
-        glob = List(".github/workflows/*.yml", ".github/workflows/*.yaml")
-        diagnostic_format = "gcc"
-      }
-      ["pinact"] {
-        check = "dev-profile-if-installed pinact pinact run --verify-comment --check {{files}}"
-        glob = List(".github/workflows/*", "**/action.*")
-      }
-      ["zizmor"] {
-        check = "dev-profile-if-installed zizmor zizmor --no-progress {{files}}"
-        glob =
-          List(
-            ".github/workflows/*.yml",
-            ".github/workflows/*.yaml",
-            ".github/dependabot.yml",
-            "**/action.yml",
-            "**/action.yaml",
-          )
-      }
-      ["go-mod-tidy"] {
-        check = "dev-profile-go-mod-tidy --diff {{files}}"
-        glob = List("**/*.go", "**/go.mod", "**/go.sum")
-      }
-      ["go-sec"] {
-        check = "dev-profile-gosec-packages {{files}}"
-        glob = List("**/*.go")
-        dir = "{{workspace}}"
-        workspace_indicator = "go.mod"
-      }
-      ["go-vet"] {
-        check = "dev-profile-pushed-diagnostics go vet ./... :: {{files}}"
-        glob = List("**/*.go")
-        dir = "{{workspace}}"
-        workspace_indicator = "go.mod"
-      }
-      ["golangci-lint"] {
-        check = "dev-profile-golangci-ratchet"
-        fix = "golangci-lint run --fix --allow-parallel-runners ./..."
-        glob = List("**/*.go")
-        dir = "{{workspace}}"
-        workspace_indicator = "go.mod"
-      }
-      ["govulncheck"] {
-        check = "govulncheck ./..."
-        glob = List("**/go.mod", "**/go.sum")
-        dir = "{{workspace}}"
-        workspace_indicator = "go.mod"
-      }
-      ["oxlint"] {
-        check = "oxlint {{files}}"
-        fix = "dev-profile-oxlint-fix {{files}}"
-        glob =
-          List(
-            "**/*.js",
-            "**/*.mjs",
-            "**/*.cjs",
-            "**/*.ts",
-            "**/*.mts",
-            "**/*.cts",
-            "**/*.jsx",
-            "**/*.tsx",
-            "**/*.vue",
-            "**/*.svelte",
-            "**/*.astro",
-          )
-      }
-      ["kube-linter"] {
-        check =
-          "dev-profile-if-installed kube-linter kube-linter lint --fail-if-no-objects-found {{files}}"
-        glob =
-          List(
-            "**/k8s/**/*.yaml",
-            "**/k8s/**/*.yml",
-            "**/kubernetes/**/*.yaml",
-            "**/kubernetes/**/*.yml",
-            "**/manifests/**/*.yaml",
-            "**/manifests/**/*.yml",
-            "**/deploy/**/*.yaml",
-            "**/deploy/**/*.yml",
-            "**/deployments/**/*.yaml",
-            "**/deployments/**/*.yml",
-          )
-        exclude =
-          List(
-            "**/templates/**",
-            "**/values.yaml",
-            "**/values.yml",
-            "**/values-*.yaml",
-            "**/values-*.yml",
-            "**/kustomization.yaml",
-            "**/kustomization.yml",
-          )
-      }
-      ["kubeconform"] {
-        check =
-          "dev-profile-if-installed kubeconform kubeconform -summary -strict -ignore-missing-schemas {{files}}"
-        glob =
-          List(
-            "**/k8s/**/*.yaml",
-            "**/k8s/**/*.yml",
-            "**/kubernetes/**/*.yaml",
-            "**/kubernetes/**/*.yml",
-            "**/manifests/**/*.yaml",
-            "**/manifests/**/*.yml",
-            "**/deploy/**/*.yaml",
-            "**/deploy/**/*.yml",
-            "**/deployments/**/*.yaml",
-            "**/deployments/**/*.yml",
-          )
-        exclude =
-          List(
-            "**/templates/**",
-            "**/values.yaml",
-            "**/values.yml",
-            "**/kustomization.yaml",
-            "**/kustomization.yml",
-          )
-      }
-      ["markdownlint"] {
-        check = "dev-profile-markdownlint {{files}}"
-        fix = "dev-profile-markdownlint --fix {{files}}"
-        glob = List("**/*.md", "**/*.markdown")
-        exclude =
-          List("vim/bundle/**", "agents/learnings/**", "agents/skills.pre-unified-link-*/**")
-      }
-      ["perlcritic"] {
-        check = "dev-profile-perlcritic {{files}}"
-        glob = List("**/*.pl", "**/*.pm", "**/*.t")
-      }
-      ["php-lint"] {
-        check = "dev-profile-php-lint {{files}}"
-        glob = List("**/*.php")
-      }
-      ["ruff"] {
-        check = "dev-profile-ruff-new {{files}}"
-        fix = "ruff check --force-exclude --fix {{files}}"
-        check_diff =
-          "ruff check --force-exclude --diff --exit-non-zero-on-fix {{ files }} && ruff check --force-exclude {{ files }}"
-        glob = List("**/*.py", "**/*.pyi")
-        exclude = List("vim/bundle/**")
-      }
-      ["ty"] {
-        check = "dev-profile-ty {{files}}"
-        glob = List("**/*.py", "**/*.pyi")
-      }
-      // A file step needs a glob: hk runs a glob-less step even when the push holds no
-      // files, and an empty {{files}} makes `betterleaks dir` scan the process cwd and the
-      // hk util checks exit with a usage error (tests/pre-push-empty-file-list-fixture.sh).
-      ["betterleaks"] {
-        check =
-          "dev-profile-if-installed betterleaks bash -c 'cfg=(); for c in .betterleaks.toml .gitleaks.toml; do [ -f \"$c\" ] && { cfg=(-c \"$c\"); break; }; done; exec betterleaks dir \"${cfg[@]}\" --redact --verbose --no-banner \"$@\"' -- {{files}}"
-        glob = List("**/*")
-      }
-      ["case-conflicts"] {
-        check = "hk util check-case-conflict {{files}}"
-        glob = List("**/*")
-      }
-      ["check-added-large-files"] {
-        check = "dev-profile-check-added-large-files {{files}}"
-        glob = List("**/*")
-        exclude =
-          List(
-            "**/aube-lock.yaml",
-            "**/pnpm-lock.yaml",
-            "**/package-lock.json",
-            "**/go.sum",
-            "**/bun.lock*",
-            "**/*.lock",
-          )
-      }
-      ["check-executables-have-shebangs"] {
-        check = "hk util check-executables-have-shebangs {{files}}"
-        glob = List("**/*")
-        exclude = List("vim/.netrwhist", "vim/bundle/**")
-      }
-      ["check-symlinks"] {
-        check = "hk util check-symlinks {{files}}"
-        glob = List("**/*")
-      }
-      ["destroyed-symlinks"] {
-        check = "hk util destroyed-symlinks"
-      }
-      ["forbid-submodules"] {
-        check = "hk util forbid-submodules"
-        glob = List("**/.gitmodules")
-      }
-      ["gitleaks"] {
-        check = "gitleaks git --redact --no-banner --log-opts=\"HEAD --not --remotes\""
-      }
-      ["hardcoded-dev-port"] {
-        check = "dev-profile-hardcoded-dev-port {{files}}"
-        exclude =
-          List(
-            "**/aube-lock.yaml",
-            "**/pnpm-lock.yaml",
-            "**/package-lock.json",
-            "**/go.sum",
-            "**/bun.lock*",
-            "**/*.lock",
-            "**/tests/**",
-            "**/test/**",
-            "**/__tests__/**",
-            "**/testdata/**",
-            "**/fixtures/**",
-            "**/*_test.go",
-            "**/*.test.*",
-            "**/*.spec.*",
-            "**/test_*.py",
-            "**/*_test.py",
-            "**/conftest.py",
-            "**/docs/**",
-            "**/*.md",
-            "**/*.mdx",
-            "**/*.rst",
-            "**/*.txt",
-          )
-      }
-      ["identity-guard"] {
-        check = "dev-profile-identity-guard"
-      }
-      ["merge-conflicts"] {
-        check = "hk util check-merge-conflict --assume-in-merge {{files}}"
-        glob = List("**/*")
-      }
-      ["no-trunk-prettier"] {
-        check = "dev-profile-ban-trunk-prettier"
-      }
-      ["private-keys"] {
-        check = "hk util detect-private-key {{files}}"
-        glob = List("**/*")
-        exclude =
-          List("tests/pre-push-empty-file-list-fixture.sh", "more/grok/agents/rules-yaml-author.md")
-      }
-      ["strict-json"] {
-        check =
-          "status=0\nfor file in {{files}}; do\n  jq empty \"$file\" || { echo \"not strict JSON: $file\" >&2; status=1; }\ndone\nexit $status"
-        glob = List("**/*.json")
-        exclude =
-          List(
-            "**/aube-lock.yaml",
-            "**/pnpm-lock.yaml",
-            "**/package-lock.json",
-            "**/go.sum",
-            "**/bun.lock*",
-            "**/*.lock",
-            "**/tsconfig*.json",
-            "**/jsconfig*.json",
-            "**/.devcontainer/**",
-            "**/.vscode/**",
-            "**/zed/**/*.json",
-          )
-      }
-      ["suppressions"] {
-        check = "dev-profile-suppressions --unpushed"
-      }
-      ["brakeman"] {
-        check = "dev-profile-brakeman {{files}}"
-        glob =
-          List(
-            "**/*.rb",
-            "**/*.rake",
-            "**/*.erb",
-            "**/*.ru",
-            "**/Gemfile",
-            "**/Gemfile.lock",
-            "**/Rakefile",
-          )
-      }
-      ["bundle-audit"] {
-        check = "dev-profile-bundle-audit {{files}}"
-        glob = List("**/Gemfile.lock")
-      }
-      ["rubocop"] {
-        check = "rubocop --force-exclusion {{files}}"
-        fix = "rubocop --force-exclusion --autocorrect {{files}}"
-        check_list_files = "rubocop --force-exclusion --format files {{files}}"
-        glob =
-          List(
-            "**/*.rb",
-            "**/*.arb",
-            "**/*.axlsx",
-            "**/*.builder",
-            "**/*.gemfile",
-            "**/*.gemspec",
-            "**/*.jb",
-            "**/*.jbuilder",
-            "**/*.mspec",
-            "**/*.opal",
-            "**/*.pluginspec",
-            "**/*.podspec",
-            "**/*.rabl",
-            "**/*.rake",
-            "**/*.rbw",
-            "**/*.ru",
-            "**/*.ruby",
-            "**/*.schema",
-            "**/*.spec",
-            "**/*.thor",
-            "**/.irbrc",
-            "**/.pryrc",
-            "**/.simplecov",
-            "**/buildfile",
-            "**/Appraisals",
-            "**/Berksfile",
-            "**/Brewfile",
-            "**/Buildfile",
-            "**/Capfile",
-            "**/Dangerfile",
-            "**/Deliverfile",
-            "**/Fastfile",
-            "**/*Fastfile",
-            "**/Gemfile",
-            "**/Guardfile",
-            "**/Jarfile",
-            "**/Mavenfile",
-            "**/Podfile",
-            "**/Puppetfile",
-            "**/Rakefile",
-            "**/rakefile",
-            "**/Schemafile",
-            "**/Snapfile",
-            "**/Steepfile",
-            "**/Thorfile",
-            "**/Vagrantfile",
-          )
-        exclude =
-          List(
-            "node_modules/**/*",
-            "tmp/**/*",
-            "vendor/**/*",
-            ".git/**/*",
-            "vim/bundle/**",
-            "**/Brewfile",
-          )
-      }
-      ["cargo-check"] {
-        check = "cargo check --quiet"
-        fix = "cargo fix --allow-dirty --allow-staged --quiet"
-        glob = List("**/*.rs")
-        env {
-          ["CARGO_TERM_COLOR"] = "{% if color %}always{% else %}never{% endif %}"
-          ["CARGO_BUILD_WARNINGS"] = "deny"
-        }
-      }
-      ["cargo-deny"] {
-        check = "dev-profile-if-installed cargo-deny cargo-deny --locked --workspace check"
-        glob =
-          List(
-            "**/Cargo.toml",
-            "**/Cargo.lock",
-            "**/deny.toml",
-            "**/.deny.toml",
-            "**/deny.exceptions.toml",
-            "**/.deny.exceptions.toml",
-          )
-        dir = "{{workspace}}"
-        // Root-only marker: see the top-level cargo-deny step.
-        workspace_indicator = "Cargo.lock"
-      }
-      ["clippy"] {
-        check =
-          "dev-profile-pushed-diagnostics cargo clippy --quiet --message-format=short :: {{files}}"
-        fix =
-          "cargo clippy --manifest-path {{workspace_indicator}} --fix --allow-dirty --allow-staged --quiet"
-        glob = List("**/*.rs")
-        workspace_indicator = "Cargo.toml"
-        env {
-          ["CARGO_TERM_PROGRESS_WHEN"] = "never"
-        }
-      }
-      ["shellcheck"] {
-        check =
-          "\(shellFiles)\nFILES=$(shell_files {{files}})\n[ -n \"$FILES\" ] || exit 0\nshellcheck --severity=warning $FILES"
-        check_diff =
-          "\(shellFiles)\nFILES=$(shell_files {{files}})\n[ -n \"$FILES\" ] || exit 0\nshellcheck --format=diff $FILES"
-      }
-      ["swiftlint"] {
-        check = "swiftlint lint {{files}}"
-        fix = "swiftlint --fix {{files}}"
-        glob = List("**/*.swift")
-      }
-      ["tofu"] {
-        check = "tofu fmt -check {{files}}"
-        glob = List("**/*.tf", "**/*.tfvars")
-      }
-      ["yamllint"] {
-        check = "dev-profile-yamllint {{files}}"
-        glob = List("**/*.yml", "**/*.yaml")
-        exclude =
-          List(
-            "**/aube-lock.yaml",
-            "**/pnpm-lock.yaml",
-            "**/package-lock.json",
-            "**/go.sum",
-            "**/bun.lock*",
-            "**/*.lock",
-          )
-      }
-    }
+    // Magic by default: fix everything fixable before gating, so a push heals
+    // its own lint debt instead of bouncing.
+    fix = true
+    stash = "git"
+    steps = new Mapping<String, Step> { ...fixers; ...gates }
   }
   ["fix"] {
-    steps {
-      ["no-commit-to-branch"] {
-        check = "dev-profile-no-commit-to-default-branch"
-        step_condition = "false"
-      }
-    }
+    fix = true
+    steps = fixers
   }
   ["check"] {
-    steps {
-      ["no-commit-to-branch"] {
-        check = "dev-profile-no-commit-to-default-branch"
-        step_condition = "false"
-      }
-    }
+    steps = new Mapping<String, Step> { ...fixers; ...gates }
   }
 }
