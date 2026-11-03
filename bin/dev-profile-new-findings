@@ -11,10 +11,14 @@ findings the change adds block. Findings are matched by rule code and the
 stripped text of the line they point at, so a finding that only moved with
 surrounding edits is still recognized as inherited.
 
-Usage: dev-profile-new-findings [--fix] <ruff|markdownlint> <file>...
+Usage: dev-profile-new-findings [--fix] <ruff|markdownlint|actionlint|yamllint|zizmor|pinact> <file>...
 
 With --fix the tool's own fixer runs first, so a pre-push step heals what it
 can and blocks only the findings the change introduced.
+
+pinact reports through a diff rather than per file, and refuses any SHA pin
+whose trailing comment does not name the commit's tag, so it is handed the
+change's own added lines (git diff BASE -- <file>) through --diff-file.
 """
 
 from __future__ import annotations
@@ -25,6 +29,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 from collections import Counter
 from dataclasses import dataclass
 
@@ -208,9 +213,188 @@ def markdownlint_content(path: str, content: str) -> list[Finding]:
     ]
 
 
+def actionlint_now(paths: list[str]) -> list[Finding]:
+    return actionlint_parse(run(["actionlint", "-format", "{{json .}}", *paths]))
+
+
+def actionlint_content(path: str, content: str) -> list[Finding]:
+    return lint_content(
+        ["actionlint", "-format", "{{json .}}"], path, content, actionlint_parse
+    )
+
+
+def actionlint_parse(out: str, path: str = "") -> list[Finding]:
+    return [
+        Finding(
+            path or relative(f["filepath"]),
+            f["line"],
+            f"{f.get('kind') or ''}:{re.sub(r'[0-9]+', 'N', f.get('message') or '')}",
+            f.get("message") or "",
+        )
+        for f in json.loads(out or "[]")
+    ]
+
+
+def yamllint_now(paths: list[str]) -> list[Finding]:
+    return yamllint_parse(run(["yamllint", "-f", "parsable", *paths]))
+
+
+def yamllint_content(path: str, content: str) -> list[Finding]:
+    return lint_content(["yamllint", "-f", "parsable"], path, content, yamllint_parse)
+
+
+def yamllint_parse(out: str, path: str = "") -> list[Finding]:
+    findings = []
+    for raw in out.splitlines():
+        parts = raw.split(":", 3)
+        if len(parts) < 4:
+            continue
+        body = parts[3].strip()
+        rule = body.rsplit("(", 1)[-1].rstrip(")") if body.endswith(")") else body
+        findings.append(Finding(path or relative(parts[0]), int(parts[1]), rule, body))
+    return findings
+
+
+def run_zizmor(cmd: list[str], cwd: str | None = None) -> str:
+    """Run zizmor and report findings from its SARIF, not from its exit code.
+
+    zizmor leaves SARIF mode's exit code at 0 for findings, but an audit that
+    cannot reach the GitHub API (a rate limit, a flaky network) makes it exit
+    non-zero with a WARN on stderr while the SARIF it did produce is still
+    usable. Only an empty SARIF alongside a non-zero code is a real failure.
+    """
+    proc = subprocess.run(
+        cmd, cwd=cwd, capture_output=True, text=True, check=False, env=zizmor_env()
+    )
+    if proc.returncode != 0 and not proc.stdout.strip():
+        sys.stderr.write(proc.stderr)
+        raise SystemExit(proc.returncode)
+    return proc.stdout
+
+
+def zizmor_env() -> dict[str, str]:
+    """zizmor reads GH_TOKEN for its action-pin audits; hk exports GITHUB_TOKEN."""
+    env = dict(os.environ)
+    if env.get("GITHUB_TOKEN") and not env.get("GH_TOKEN"):
+        env["GH_TOKEN"] = env["GITHUB_TOKEN"]
+    return env
+
+
+def zizmor_now(paths: list[str]) -> list[Finding]:
+    return zizmor_parse(
+        run_zizmor(["zizmor", "--format", "json", "--no-progress", *paths])
+    )
+
+
+def zizmor_content(path: str, content: str) -> list[Finding]:
+    return lint_content(
+        ["zizmor", "--format", "sarif", "--no-progress"], path, content, zizmor_parse
+    )
+
+
+def zizmor_parse(out: str, path: str = "") -> list[Finding]:
+    if not out.strip():
+        return []
+    findings = []
+    for item in json.loads(out):
+        location = (item.get("locations") or [{}])[0]
+        symbolic = location.get("symbolic") or {}
+        concrete = (location.get("concrete") or {}).get("location") or {}
+        uri = ((symbolic.get("key") or {}).get("Local") or {}).get("verbatim_path", "")
+        findings.append(
+            Finding(
+                path or relative(uri),
+                int((concrete.get("start_point") or {}).get("row") or 0),
+                str(item.get("ident") or ""),
+                symbolic.get("annotation") or item.get("desc") or "",
+            )
+        )
+    return findings
+
+
+def zizmor_base(base: str, paths: list[str]) -> list[Finding]:
+    """Judge every base version of the given files in one zizmor run.
+
+    zizmor audits action pins over the network, so a run costs a minute or more:
+    judging each file's base version one process at a time would make the gate
+    unusable. The base versions go into one scratch tree and one run covers them.
+    """
+    with tempfile.TemporaryDirectory() as scratch:
+        written = []
+        for path in paths:
+            content = git("show", f"{base}:{path}", raw=True)
+            if content is None:
+                continue
+            target = os.path.join(scratch, path)
+            os.makedirs(os.path.dirname(target) or scratch, exist_ok=True)
+            with open(target, "w", encoding="utf-8") as handle:
+                handle.write(content)
+            written.append(path)
+        if not written:
+            return []
+        return zizmor_parse(
+            run_zizmor(
+                ["zizmor", "--format", "json", "--no-progress", *written],
+                cwd=scratch,
+            )
+        )
+
+
+def zizmor_main(paths: list[str]) -> int:
+    current = zizmor_now(paths)
+    if not current:
+        return 0
+    inherited: Counter[tuple[str, str, str]] = Counter()
+    for base in base_commits():
+        for finding in zizmor_base(base, list(dict.fromkeys(f.path for f in current))):
+            content = git("show", f"{base}:{finding.path}", raw=True)
+            if content is None:
+                continue
+            inherited[
+                (finding.path, finding.rule, line_text(content, finding.row))
+            ] += 1
+    introduced = []
+    for finding in current:
+        key = (finding.path, finding.rule, line_text(read(finding.path), finding.row))
+        if inherited[key] > 0:
+            inherited[key] -= 1
+            continue
+        introduced.append(finding)
+    for finding in introduced:
+        print(
+            f"{finding.path}:{finding.row}: {finding.rule} {finding.message}".rstrip()
+        )
+    if introduced:
+        print(
+            f"zizmor: {len(introduced)} finding(s) introduced by this change"
+            " (inherited ones are not counted)",
+            file=sys.stderr,
+        )
+        return 1
+    return 0
+
+
+def lint_content(command: list[str], path: str, content: str, parse) -> list[Finding]:
+    """Judge one base version of a file with a linter that wants a real path.
+
+    actionlint and yamllint resolve configuration and project state from the
+    file's location, so the base content is written at the same relative path in
+    a scratch tree and the linter is run from there.
+    """
+    with tempfile.TemporaryDirectory() as scratch:
+        target = os.path.join(scratch, path)
+        os.makedirs(os.path.dirname(target) or scratch, exist_ok=True)
+        with open(target, "w", encoding="utf-8") as handle:
+            handle.write(content)
+        return parse(run([*command, path], cwd=scratch), path)
+
+
 TOOLS = {
     "ruff": (ruff_now, ruff_content),
     "markdownlint": (markdownlint_now, markdownlint_content),
+    "actionlint": (actionlint_now, actionlint_content),
+    "yamllint": (yamllint_now, yamllint_content),
+    "zizmor": (zizmor_now, zizmor_content),
 }
 
 
@@ -222,18 +406,61 @@ def fix_command(tool: str, paths: list[str]) -> None:
         run(["markdownlint", "--fix", *paths], findings_on_stderr=True)
 
 
+def pinact_main(paths: list[str]) -> int:
+    """Block only the pin lines this change adds or edits.
+
+    pinact refuses any SHA pin whose trailing comment does not name the commit's
+    tag, and it reports through a diff rather than per file — over a whole file it
+    aborts on a pin whose comment can never be verified, such as an internal
+    reusable-workflow ref pinned to a branch tip. So hand it the change's own
+    added lines, one diff against each base, and block only what comes back.
+    """
+    findings: dict[str, None] = {}
+    for base in base_commits():
+        diff = git("diff", base, "--", *paths, raw=True)
+        if not diff:
+            continue
+        proc = subprocess.run(
+            ["pinact", "run", "--verify-comment", "--check", "--diff-file", "-"],
+            input=diff,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if proc.returncode not in TOOL_EXIT_CODES:
+            sys.stderr.write(proc.stderr)
+            return proc.returncode
+        if proc.stdout.strip():
+            findings[proc.stdout.strip()] = None
+    if not findings:
+        return 0
+    for block in findings:
+        print(block)
+    print(
+        f"pinact: {len(findings)} finding(s) introduced by this change",
+        file=sys.stderr,
+    )
+    return 1
+
+
 def main(argv: list[str]) -> int:
     fix = argv[:1] == ["--fix"]
     if fix:
         argv = argv[1:]
-    if not argv or argv[0] not in TOOLS:
+    if not argv or argv[0] not in (*TOOLS, "pinact"):
         sys.stderr.write(
-            "usage: dev-profile-new-findings [--fix] <ruff|markdownlint> <file>...\n"
+            "usage: dev-profile-new-findings [--fix] "
+            "<ruff|markdownlint|actionlint|yamllint|zizmor|pinact> <file>...\n"
         )
         return 2
     tool, paths = argv[0], argv[1:]
     if not paths:
         return 0
+    if tool == "pinact":
+        # No fixer for pinact: it reports the comment a pin should carry.
+        return pinact_main(paths)
+    if tool == "zizmor":
+        return zizmor_main(paths)
     if fix:
         fix_command(tool, paths)
     findings_now, findings_of_content = TOOLS[tool]

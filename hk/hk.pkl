@@ -149,16 +149,16 @@ local fixers = new Mapping<String, Step> {
 local gates = new Mapping<String, Step> {
   ["hadolint"] { check = "hadolint {{files}}"; glob = List("**/Dockerfile*") }
   ["actionlint"] {
-    check = "actionlint {{files}}"
+    check = "dev-profile-new-findings actionlint {{files}}"
     glob = List(".github/workflows/*.yml", ".github/workflows/*.yaml")
     diagnostic_format = "gcc"
   }
   ["pinact"] {
-    check = "pinact run --verify-comment --check {{files}}"
+    check = "dev-profile-new-findings pinact {{files}}"
     glob = List(".github/workflows/*", "**/action.*")
   }
   ["zizmor"] {
-    check = "zizmor --no-progress {{files}}"
+    check = "dev-profile-new-findings zizmor {{files}}"
     glob =
       List(
         ".github/workflows/*.yml",
@@ -291,7 +291,7 @@ local gates = new Mapping<String, Step> {
   }
   ["tofu"] { check = "tofu fmt -check {{files}}"; glob = List("**/*.tf", "**/*.tfvars") }
   ["yamllint"] {
-    check = "yamllint --strict {{files}}"
+    check = "dev-profile-new-findings yamllint {{files}}"
     glob = List("**/*.yml", "**/*.yaml")
     exclude = lockfiles + List("**/cloud-init.yaml")
   }
