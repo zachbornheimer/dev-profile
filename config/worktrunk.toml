@@ -146,28 +146,48 @@ if ! git rev-parse --verify -q HEAD >/dev/null 2>&1; then
 fi
 wt tree-for-changes -- wt land --landing=merge
 {% elif landing | default(\"\") == \"merge\" %}
-if ! git diff --quiet || ! git diff --cached --quiet || [ -n \"$(git ls-files --others --exclude-standard)\" ]; then
-  wt step commit || exit 1
+if ! git diff --quiet || ! git diff --cached --quiet; then
+  wt step commit --stage=tracked || exit 1
 fi
-wt merge
+untracked=$(git ls-files --others --exclude-standard)
+if [ -n \"$untracked\" ]; then
+  echo 'wt land: left these untracked files uncommitted (git add the ones you mean to keep):' >&2
+  echo \"$untracked\" >&2
+fi
+wt merge --stage=tracked
 {% elif landing | default(\"\") == \"pr\" %}
-if ! git diff --quiet || ! git diff --cached --quiet || [ -n \"$(git ls-files --others --exclude-standard)\" ]; then
-  wt step commit || exit 1
+if ! git diff --quiet || ! git diff --cached --quiet; then
+  wt step commit --stage=tracked || exit 1
 fi
-wt pr-auto
+untracked=$(git ls-files --others --exclude-standard)
+if [ -n \"$untracked\" ]; then
+  echo 'wt land: left these untracked files uncommitted (git add the ones you mean to keep):' >&2
+  echo \"$untracked\" >&2
+fi
+wt pr-auto --stage=tracked
 {% elif landing | default(\"\") != \"\" %}
 echo \"wt land: --landing must be merge or pr\" >&2
 exit 1
 {% elif owner | default(\"\") | lower == \"zachbornheimer\" or \"github.com/zachbornheimer/\" in remote_url | default(\"\") | lower or \"github.com:zachbornheimer/\" in remote_url | default(\"\") | lower %}
-if ! git diff --quiet || ! git diff --cached --quiet || [ -n \"$(git ls-files --others --exclude-standard)\" ]; then
-  wt step commit || exit 1
+if ! git diff --quiet || ! git diff --cached --quiet; then
+  wt step commit --stage=tracked || exit 1
 fi
-wt merge
+untracked=$(git ls-files --others --exclude-standard)
+if [ -n \"$untracked\" ]; then
+  echo 'wt land: left these untracked files uncommitted (git add the ones you mean to keep):' >&2
+  echo \"$untracked\" >&2
+fi
+wt merge --stage=tracked
 {% else %}
-if ! git diff --quiet || ! git diff --cached --quiet || [ -n \"$(git ls-files --others --exclude-standard)\" ]; then
-  wt step commit || exit 1
+if ! git diff --quiet || ! git diff --cached --quiet; then
+  wt step commit --stage=tracked || exit 1
 fi
-wt pr-auto
+untracked=$(git ls-files --others --exclude-standard)
+if [ -n \"$untracked\" ]; then
+  echo 'wt land: left these untracked files uncommitted (git add the ones you mean to keep):' >&2
+  echo \"$untracked\" >&2
+fi
+wt pr-auto --stage=tracked
 {% endif %}"""
 commit-unstaged = """
 if ! git rev-parse --verify -q HEAD >/dev/null 2>&1; then

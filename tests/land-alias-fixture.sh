@@ -110,6 +110,27 @@ chmod +x "${work}/bin/_llm"
 XDG_CONFIG_HOME="${work}/xdg" PATH="${work}/bin:${PATH}" wt -y --config "${cfg}" -C "${unborn}" commit-unstaged
 [[ "$(git -C "${unborn}" show HEAD:a.txt)" == "init" ]] ||
 	fail "commit-unstaged on unborn repo did not create initial commit with a.txt"
+# Real run: land --landing=merge commits the tracked modification and never sweeps
+# the untracked file into it; the alias names what it left alone.
+scratch="${work}/scratch"
+init_repo "${scratch}" feature "https://github.com/zachbornheimer/example.git"
+printf 'tracked\n' >"${scratch}/tracked.txt"
+git -C "${scratch}" add tracked.txt
+git -C "${scratch}" commit -q -m "feat: tracked"
+printf 'modified\n' >>"${scratch}/tracked.txt"
+printf 'draft\n' >"${scratch}/untracked.txt"
+land_out="$(PATH="${work}/bin:${PATH}" XDG_CONFIG_HOME="${work}/xdg" wt -y --config "${cfg}" -C "${scratch}" land --landing=merge 2>&1)" ||
+	fail "land --landing=merge failed: ${land_out}"
+[[ "$(git -C "${scratch}" show main:tracked.txt)" == "tracked"$'\n'"modified" ]] ||
+	fail "land --landing=merge did not commit the tracked modification, main: $(git -C "${scratch}" show main:tracked.txt 2>&1)"
+if git -C "${scratch}" cat-file -e main:untracked.txt 2>/dev/null; then
+	fail "land --landing=merge committed untracked.txt into main"
+fi
+[[ -f "${scratch}/untracked.txt" ]] ||
+	fail "land --landing=merge removed untracked.txt from disk"
+grep -F -q "untracked.txt" <<<"${land_out}" ||
+	fail "land --landing=merge did not report the untracked file it left alone, got: ${land_out}"
+
 # Real move: an untracked file leaves the invoking tree and lands on a uuid branch.
 move="${work}/move"
 init_repo "${move}" main "https://github.com/zachbornheimer/example.git"
