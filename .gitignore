@@ -85,3 +85,6 @@ apps/herdr/oneshot/
 apps/herdr/session-snapshots/
 apps/herdr/session.json
 apps/herdr/sessions/
+
+# Hook claim state: per-machine runtime state, never merged (see quota-burn-watch.py)
+agents/learnings/quota-reviews.jsonl
