@@ -110,7 +110,11 @@ def run_yamllint(extra: list[str], paths: list[str], cwd: Path) -> list[dict]:
         check=False,
         cwd=cwd,
     )
-    if proc.returncode not in (0, 1):
+    # yamllint reports a verdict as its exit code: 0 nothing found, 1 errors, and
+    # 2 warnings-only under the --strict every caller passes. Only anything else is
+    # the tool failing rather than judging the file, and warnings must reach the
+    # ratchet so inherited ones can be excused instead of aborting the run.
+    if proc.returncode not in (0, 1, 2):
         sys.stderr.write(proc.stderr)
         raise SystemExit(proc.returncode)
     found: list[dict] = []
