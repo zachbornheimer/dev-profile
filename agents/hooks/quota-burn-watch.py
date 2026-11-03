@@ -7,12 +7,13 @@
 
 Reads the latest row per `(provider, account_key, limit_id)` from `~/.omp/agent/agent.db`'s
 `usage_history` table (a ~1 ms local SQLite query). Whenever a weekly / 7-day limit has
-`used_fraction >= 0.90` (`<= 10%` left), it claims that limit's reset period --
-`provider:limit_id:resets_at`, deliberately not the account, because one exhausted weekly
-window is one question -- in the hook's state ledger
-(`~/.local/state/agent-hooks/quota-reviews.jsonl`) under an exclusive file lock and launches
-`OMP_REMOTE=auto capability run quota-burn-review` detached in the background.
-Every account sharing the period is recorded on the one claim line.
+`used_fraction >= 0.90` (`<= 10%` left) and the window is weekly (a 5-hour or session window is
+never a review trigger), it claims that provider's reset period -- `provider:resets_at`,
+deliberately not the limit bucket or the account: one spent weekly window is one question, so a
+provider gets one review of that window however many buckets and accounts share it -- in the
+hook's state ledger (`~/.local/state/agent-hooks/quota-reviews.jsonl`) under an exclusive file
+lock and launches `OMP_REMOTE=auto capability run quota-burn-review` detached in the background.
+Every limit bucket and account sharing the period is recorded on the one claim line.
 
 Three guards keep this to one review per period: a period already in the ledger is never
 claimed again; the `force` flag is not passed on, so the review's own shared-store claim is
@@ -58,17 +59,17 @@ def min_interval_seconds(env: dict[str, str]) -> float:
         return float(DEFAULT_MIN_INTERVAL_SECONDS)
 
 
-def quota_period_key(provider: str, limit_id: str, resets_at: object) -> str:
-    """One exhausted weekly window is one question: the account is left out on purpose.
+def quota_period_key(provider: str, resets_at: object) -> str:
+    """One exhausted weekly window is one question: the provider and the reset instant define it.
 
-    Two accounts sharing a provider, limit and reset instant produce one key, so one review
-    answers the whole period. A new reset instant is a new period and a new review.
+    Limit buckets and accounts are left out on purpose. A provider whose weekly window is spent
+    gets one review of that window, not one per limit, per account, or per fallback event.
     """
     try:
         reset = int(resets_at or 0)
     except (TypeError, ValueError):
         reset = 0
-    return f"{provider}:{limit_id}:{reset}"
+    return f"{provider}:{reset}"
 
 
 def agent_db_path(env: dict[str, str]) -> Path:
@@ -133,7 +134,7 @@ def low_weekly_quotas(
         resets_at,
     ) in rows:
         used = float(used_fraction or 0.0)
-        key = quota_period_key(provider, limit_id, resets_at)
+        key = quota_period_key(provider, resets_at)
         results.append(
             {
                 "provider": provider,
