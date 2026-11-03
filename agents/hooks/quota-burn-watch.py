@@ -9,8 +9,9 @@ Reads the latest row per `(provider, account_key, limit_id)` from `~/.omp/agent/
 `usage_history` table (a ~1 ms local SQLite query). Whenever a weekly / 7-day limit has
 `used_fraction >= 0.90` (`<= 10%` left), it claims that limit's reset period --
 `provider:limit_id:resets_at`, deliberately not the account, because one exhausted weekly
-window is one question -- in `~/.agents/learnings/quota-reviews.jsonl` under an exclusive file
-lock and launches `OMP_REMOTE=auto capability run quota-burn-review` detached in the background.
+window is one question -- in the hook's state ledger
+(`~/.local/state/agent-hooks/quota-reviews.jsonl`) under an exclusive file lock and launches
+`OMP_REMOTE=auto capability run quota-burn-review` detached in the background.
 Every account sharing the period is recorded on the one claim line.
 
 Three guards keep this to one review per period: a period already in the ledger is never
@@ -26,6 +27,7 @@ import fcntl
 import json
 import os
 import re
+import shutil
 import sqlite3
 import subprocess
 import sys
@@ -77,10 +79,16 @@ def agent_db_path(env: dict[str, str]) -> Path:
 
 
 def ledger_path(env: dict[str, str]) -> Path:
+    """Runtime state, so it lives under the state dir, not in the dotfiles tree.
+
+    It was at `~/.agents/learnings/quota-reviews.jsonl`, where every machine appends its own
+    rows to a tracked file: git could never merge the copies, and the pull from the other
+    machine collided with the local one. Per-machine claim state has no business in the repo.
+    """
     override = env.get("QUOTA_REVIEWS_LEDGER", "").strip()
     if override:
         return Path(override).expanduser()
-    return Path.home() / ".agents" / "learnings" / "quota-reviews.jsonl"
+    return Path.home() / ".local" / "state" / "agent-hooks" / "quota-reviews.jsonl"
 
 
 def low_weekly_quotas(
@@ -205,12 +213,27 @@ def claim_unreviewed_periods(
 SAFE_LAUNCHER = re.compile(r"^/?[A-Za-z0-9_][A-Za-z0-9._/@:+-]*$")
 
 
+def resolve_launcher(cmd: str) -> str | None:
+    """A launcher override must be an extant executable, resolved by path or by PATH lookup.
+
+    It reaches execve as one argv element with no shell, so there is nothing to inject; the
+    check exists so a value cannot point at an arbitrary non-executable or a directory.
+    """
+    if not cmd or not SAFE_LAUNCHER.match(cmd):
+        return None
+    if cmd.startswith("/"):
+        path = Path(cmd)
+        return cmd if path.is_file() and os.access(path, os.X_OK) else None
+    return shutil.which(cmd)
+
+
 def launch_argv(cmd: str) -> list[str]:
     """The argv for one review launch. `force` is deliberately absent: it would bypass the
     review's own per-period claim in the shared store, which is the only guard that survives a
     launcher whose local ledger has diverged."""
-    if cmd and SAFE_LAUNCHER.match(cmd):
-        return [cmd]
+    resolved = resolve_launcher(cmd)
+    if resolved:
+        return [resolved]
     return [
         "capability",
         "run",
