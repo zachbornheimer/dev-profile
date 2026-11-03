@@ -9,6 +9,9 @@ trap 'rm -rf "$work"' EXIT
 
 mkdir -p "$work/.config/mise" "$work/bin"
 export HOME="$work"
+# The heal resolves the config through XDG_CONFIG_HOME when the caller sets it, as the CI
+# runner does; point it at the scratch HOME or it reads a config this fixture never wrote.
+export XDG_CONFIG_HOME="$work/.config"
 # The heal calls python3. Keep the caller's PATH — mise shims above all, which fail when the
 # tool is not in this scratch HOME's config — out of it: the fixture's own mise stub and the
 # system tools are all it needs.
