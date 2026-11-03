@@ -9,7 +9,10 @@ trap 'rm -rf "$work"' EXIT
 
 mkdir -p "$work/.config/mise" "$work/bin"
 export HOME="$work"
-export PATH="$work/bin:$PATH"
+# The heal calls python3. Keep the caller's PATH — mise shims above all, which fail when the
+# tool is not in this scratch HOME's config — out of it: the fixture's own mise stub and the
+# system tools are all it needs.
+export PATH="$work/bin:/usr/bin:/bin"
 calls="$work/mise-calls"
 printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$*" >>"%s"\n' "$calls" >"$work/bin/mise"
 chmod +x "$work/bin/mise"
@@ -40,7 +43,8 @@ write_cfg
 bash "$heal" --dry-run >"$work/plan" 2>"$work/plan.err"
 grep -qx 'would heal ~/.config/enc/dropped.sh' "$work/plan" || fail "dry run missed the bare child"
 grep -qx 'would heal ~/.config/enc/nested/deep/deeper.sh' "$work/plan" || fail "dry run missed the nested child"
-[ "$(wc -l <"$work/plan" | tr -d ' ')" = 2 ] || fail "dry run named the wrong set: $(tr '\n' ' ' <"$work/plan")"
+grep -qx 'would heal ~/.config/plain/other.sh' "$work/plan" || fail "dry run missed the bare entry in no encrypted directory"
+[ "$(wc -l <"$work/plan" | tr -d ' ')" = 3 ] || fail "dry run named the wrong set: $(tr '\n' ' ' <"$work/plan")"
 grep -q '"~/.config/enc/dropped.sh" = { mode = "track" }$' "$cfg" || fail "dry run wrote the config"
 [ ! -e "$calls" ] || fail "dry run ran mise"
 
@@ -50,7 +54,7 @@ bash "$heal" >"$work/log" 2>&1
 grep -q '"~/.config/enc/dropped.sh" = { mode = "track", encrypt = true }' "$cfg" || fail "bare child not healed"
 grep -q '"~/.config/enc/nested/deep/deeper.sh" = { mode = "track", encrypt = true }' "$cfg" || fail "nested child not healed"
 grep -q '"~/.config/enc/chosen.sh" = { mode = "track", encrypt = false }' "$cfg" || fail "a deliberate encrypt = false was overwritten"
-grep -q '"~/.config/plain/other.sh" = { mode = "track" }' "$cfg" || fail "a path without an encrypted ancestor was changed"
+grep -q '"~/.config/plain/other.sh" = { mode = "track", encrypt = true }' "$cfg" || fail "a bare entry in no encrypted directory was left bare"
 grep -q '"~/.config/enc/already.sh" = { mode = "track", encrypt = true }' "$cfg" || fail "an already-correct entry was rewritten"
 grep -q '"~/.worktrunk" = { source = "~/somewhere" }' "$cfg" || fail "a source entry was touched"
 grep -qx '\[history\]' "$cfg" || fail "an unrelated section was dropped"
@@ -61,15 +65,5 @@ before="$(wc -l <"$calls" | tr -d ' ')"
 bash "$heal" >"$work/log2" 2>&1
 [ ! -s "$work/log2" ] || fail "second run was not silent: $(cat "$work/log2")"
 [ "$(wc -l <"$calls" | tr -d ' ')" = "$before" ] || fail "second run saved again"
-
-# A sibling whose name merely starts with the directory's must not inherit it.
-cat >"$cfg" <<'EOF'
-[dotfiles]
-"~/.config/enc2" = { mode = "track", encrypt = true }
-"~/.config/enc2x/child.sh" = { mode = "track" }
-EOF
-if bash "$heal" --dry-run | grep -q 'would heal'; then
-	fail "a prefix-matching sibling directory counted as an ancestor"
-fi
 
 echo 'mise dot encryption heal: ok'
