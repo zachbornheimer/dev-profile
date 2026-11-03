@@ -44,7 +44,8 @@
     "**/*.generated.*",
     "**/*.min.*",
     "**/*.map",
-    "**/*.snap"
+    "**/*.snap",
+    "**/robomp/web/index.html"
   ],
   "exec": {
     "cwd": "${configDir}",
