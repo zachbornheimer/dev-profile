@@ -1,267 +1,219 @@
 ---
 name: agent-hooks
 description: >-
-  Operate the agent-hooks dispatcher (~/Developer/Personal/agent-hooks): one hooks.toml catalog
-  (~/.config/agent-hooks/hooks.toml, chezmoi-managed) that runs guards and gates for Claude Code, Codex, Gemini,
-  Grok, Hermes, Copilot, OpenCode, and Mastra. Use whenever the user adds, changes, reorders, tests, installs,
-  or debugs a hook, guard, or gate: PreToolUse deny/ask/rewrite, PostToolUse, Stop (completion-gate, "stop the
-  agent ending turns / asking permission"), UserPromptSubmit context, SessionStart, PreCompact, WorktreeCreate;
-  scripts under ~/.agents/hooks; `agent-hooks validate|list|doctor|install`; hooks.log; or a hook that "did not
-  fire", "fired twice", "blocked with the wrong reason", "failed open", "panicked / exit 101", or "reverted after
-  chezmoi apply". Also use when a hook calls TypeSafe (judge-turn) or someone wants to merge
-  TypeSafe checks. NOT for git hooks (husky, lefthook, pre-commit, zq), worktrunk `wt` hooks or "a hook denied
-  my git command, what is the allowed alternative" (worktrunk-index), third-party plugins that install their own
-  hooks (Hindsight, AOE), React hooks, webhooks, or TypeSafe question design and threshold tuning
-  (typesafe-ai-effective-use).
+  Operate the agent-hooks system (~/Developer/Personal/agent-hooks): a Rhai handler pipeline whose live
+  deployment (~/.config/agent-hooks/pipeline) runs guards and gates for every harness (omp, Claude Code,
+  Codex, Gemini, Grok, Hermes, Copilot, OpenCode, Mastra). Use whenever the user adds, edits, tests,
+  deploys, or debugs a hook, guard, or gate: a PreToolUse deny/ask, scope guard, edit/tool steer,
+  PostToolUse record, Stop completion gate, UserPromptSubmit or SessionStart context, PreCompact;
+  Rhai handlers under pipeline/handlers; fixtures under pipeline/tests; question YAML under
+  pipeline/questions; capabilities/effects; the question-pipeline ask flow; `mise run deploy-pipeline`;
+  AGENT_HOOKS_DUMP_* / DEBUG_ASK diagnostics; the hooks.toml dispatch rows; or a hook that "did not
+  fire", "fired twice", "blocked with the wrong reason", "failed open", "panicked / exit 101", or
+  "compiled but the fixtures fail". NOT for git hooks (husky, lefthook, pre-commit, zq), worktrunk `wt`
+  hooks or "a hook denied my git command, what is the allowed alternative" (worktrunk-index), React
+  hooks, webhooks, or TypeSafe question wording/threshold tuning (typesafe-ai-effective-use).
 ---
 
 # agent-hooks
 
-`agent-hooks <SELECTOR...>` is the one command every harness's native hook entry calls. It reads the harness's
-event JSON on stdin, runs every matching hook from one TOML catalog **concurrently**, merges the results, and
-prints one native response. Adapters own each harness's quirks.
+Two layers, one repo (`~/Developer/Personal/agent-hooks`):
 
-Repo `~/Developer/Personal/agent-hooks`: `README.md` and `docs/adr/0001-dispatcher.md` describe it (`SPEC.md` is
-a stub); `LAYOUT.md` is the module map. Catalog: `~/.config/agent-hooks/hooks.toml`. Scripts: `~/.agents/hooks/`.
-Both are **chezmoi-managed**.
+1. **Dispatch** — `~/.config/agent-hooks/hooks.toml` rows point each harness event at a policy. The
+   pipeline rows are minimal: `name = "pretooluse-question-pipeline"`, `events = ["tool.before"]`,
+   `policy = "question-pipeline"`, `timeout = "28s"` (plus stop and prompt.submit rows). No `command`,
+   no matcher: the pipeline sees every call and filters per handler.
+2. **Logic** — the Rhai pipeline: `pipeline/handlers/*.rhai` (one file per hook), `pipeline/questions/*.yaml`
+   (model questions), `pipeline/capabilities/*.toml` + `effects` (external work), `pipeline/ask-mastra.sh`
+   (the live asker). Deployed to `~/.config/agent-hooks/pipeline/` by `mise run deploy-pipeline`, which
+   also regenerates the live `pipeline.toml` (handlers list is auto-derived from the handlers dir — no
+   registration edit needed) and installs the `agent-hooks` binary via cargo.
 
-| If the task is                                                 | Go to                                                     |
-| -------------------------------------------------------------- | --------------------------------------------------------- |
-| a hook did not fire / fired twice / wrong reason / failed open | Debugging                                                 |
-| add or change a hook                                           | Add or change a hook (steps 1-7)                          |
-| what JSON to return, per harness                               | Output shape per harness                                  |
-| matcher, selector, agent filtering                             | Mental model, Matching                                    |
-| a TypeSafe call inside a hook                                  | TypeSafe in hooks, then `references/typesafe-batching.md` |
-| harness event names, install paths                             | `references/events-and-harnesses.md`                      |
-| known live defects (dated)                                     | `references/known-issues.md`                              |
-
-## Mental model
-
-1. **The catalog is the source of truth; harness config is generated.** `agent-hooks install <agent|all>` writes
-   one entry per native event (`AGENT_HOOKS_AGENT=claude agent-hooks PreToolUse`, timeout = max(`default_timeout`,
-   slowest hook for that event) + 2 s). A new hook on an event the harness already calls needs no re-install.
-2. **Selector = group name, then hook name, then event name** (canonical or native: `tool.before` = `PreToolUse`).
-   The event that runs comes from the **payload**, not the selector: selecting `PostToolUse` with a PreToolUse
-   payload runs nothing. A group named like an event shadows event selection. Unknown selectors and events with no
-   hooks warn "skipping unknown selector" and exit 0. A hook with empty `events` runs when named, never by event.
-3. **Hooks are independent parallel processes** (bounded by `max_concurrency`). They share nothing; event wall time
-   is the slowest hook. Work several hooks need (a model call, a transcript parse) is repeated per hook.
-4. **Fail-open is the default.** Crashes, bad output, and timeouts warn and the action proceeds. Never assume a
-   guard guards until you have seen it deny.
+| If the task is                                        | Go to                                                    |
+| ----------------------------------------------------- | -------------------------------------------------------- |
+| add or edit a hook (the main workflow)                | Add or change a hook (steps 1-8)                         |
+| handler authoring: metadata block, input fields, deny | Handler anatomy                                          |
+| fixture shape, seeding, answers                       | Fixture contract                                         |
+| asking a model question from a handler                | Questions and the ask pipeline                           |
+| external commands / scripts from a handler            | Capabilities and effects                                 |
+| Rhai code that won't compile or behaves oddly         | Engine notes (Rhai is not Python)                        |
+| a hook did not fire / wrong reason / failed open      | Debugging                                                |
+| non-pipeline `command` rows, matchers, output shapes  | Legacy script rows, `references/events-and-harnesses.md` |
 
 ## Add or change a hook (in order)
 
-```toml
-[[hooks]]
-name = "pretooluse-my-guard" # unique; a same-name row silently REPLACES an earlier one
-events = ["tool.before"]
-command = ["/Users/zbornheimer/.agents/hooks/my-guard.py"]
-matcher = "Bash|bash" # exact, case-sensitive names (see Matching)
-timeout = "10s" # humantime; default 30s
-on_failure = "warn" # ignore | warn (default) | block  (read "Blast radius" before block)
-protocol = "native" # native (default) | common
-agents = ["claude", "codex"] # empty = all
-env = { MY_FLAG = "1" }
+Work on a branch, never in the main checkout (main is protected; `wt` enforces it):
+
+```bash
+cd ~/Developer/Personal/agent-hooks && wt tree-for-changes <slug>
+# edit inside the created ~/Developer/Personal/.worktrees/agent-hooks-<uuid>
 ```
 
-1. **Write the script** with the house runner (stdin, logging, fail-open). Copy the structure of
-   `~/.agents/hooks/process-kill-guard.py` (the pattern, not a live guard: its catalog row is a command-less stub)
-   and test with `~/.agents/hooks/tests/hook_harness.py`:
-
-   ```python
-   #!/usr/bin/env -S uv run --script
-   # /// script
-   # requires-python = ">=3.10"
-   # dependencies = []
-   # ///
-   import sys
-   from pathlib import Path
-
-   sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
-   from command_words import (
-       simple_commands,
-   )  # parse the command; do not substring-match it
-   from hook_common import Decision, HookEvent, run_hook
-
-
-   def is_bad(argv: list[str]) -> bool: ...  # your rule, on one parsed argv
-   def decide(event: HookEvent) -> Decision | None:
-       if event.tool_name != "Bash":
-           return None
-       for argv in simple_commands(event.tool_input("command") or ""):
-           if is_bad(argv):
-               return Decision.deny("what you did, what to do instead")
-       return Decision.no_objection(
-           "my-guard:ok"
-       )  # logs a line; returning None logs nothing
-
-
-   if __name__ == "__main__":
-       run_hook("my-guard", decide)
-   ```
-
-   `Decision` has `deny`, `allow` (optional `updated_input`), `block` (Stop), `context(text, event_name)`,
-   `no_objection`. All emit **Claude-shaped** JSON. `run_hook` is **always fail-open**: an exception inside `decide`
-   is logged `fail-open:` and exits 0, so a guard that must not fail open wraps its logic in `try/except` and returns
-   `Decision.deny(...)` itself. The script must live in `~/.agents/hooks/` for the `lib` path to resolve.
-2. Add the catalog row. Time the script with `~/.agents/hooks/suggested-timeout-for.py --payload event.json -- <script>`
-   (needs `hyperfine`; the default payload `{}` hits the early-return path; `ceil(p95)` has no headroom). Native
-   timeouts fail open, so leave margin.
-3. **Validate, then audit**: `agent-hooks validate` (schema, version, agents, durations, group cycles, name
-   clashes, duplicate exclusive `provides`), then `~/.agents/available-skills/agent-hooks/scripts/audit-catalog.py
-   [file]` for what `validate` accepts silently (see "What validate misses").
-4. **Dry-run both paths with a real payload**, isolating state so tests do not write the live log. Select your hook
-   **by catalog name** (`... hooks.toml pretooluse-my-guard`); selecting `tool.before` also runs every live guard
-   (e.g. `bash-tool-steer` denies Bash itself), which can look like your guard working:
+1. **Write the handler** `pipeline/handlers/<stage>-<name>.rhai` — see Handler anatomy. File basename IS
+   the hook name; it auto-registers at deploy.
+2. **Write fixtures** `pipeline/tests/<hook-name>/<case>.json` — one JSON per case, see Fixture
+   contract. Fixtures are ground truth: prefer changing the handler over the fixture, and change a
+   fixture only when it contradicts the harness contract.
+3. **Test the hook alone** (harness lives in the main checkout; filters match HOOK names only, never
+   fixture case names):
 
    ```bash
-   HC_STATE_DIR_OVERRIDE=$(mktemp -d) sh -c 'echo "{\"session_id\":\"s\",\"cwd\":\"/tmp\",\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git push --force\"}}" \
-     | agent-hooks --agent claude --config hooks.toml pretooluse-my-guard 2>&1; echo rc=$?'
+   cd ~/Developer/Personal/agent-hooks && \
+     AGENT_HOOKS_PIPELINE_DIR=<your worktree>/pipeline cargo test --test handlers -- <hook-name>
+   # green = "test result: ok. N passed; 0 failed" and exit 0 — print ${PIPESTATUS[0]} if you pipe
    ```
 
-   A denial prints `{"hookSpecificOutput":{"permissionDecision":"deny",...}}` and exits **0**: that is the protocol.
-   Allow and never-matched are both silent; tell them apart with `no_objection` log lines or a canary hook (same
-   `events`/`matcher`, writes stdin to `/tmp`).
-5. `agent-hooks install <agent>` only if the event is new to that harness or a timeout grew. **Install replaces the
-   whole array for every event it writes**, deleting other tools' hooks on those events in that harness file (the
-   live Claude file has AOE entries on SessionStart/UserPromptSubmit); it also rewrites the JSON with sorted keys.
-   It merges `./.agent-hooks.toml`/`./hooks.toml` from the cwd and ignores `--config` (use
-   `AGENT_HOOKS_CONFIG=file agent-hooks install ...`). Preview safely: `T=$(mktemp -d); mkdir -p $T/.claude; cp ~/.claude/settings.json $T/.claude/; cd $T; HOME=$T
-   AGENT_HOOKS_CONFIG=~/.config/agent-hooks/hooks.toml agent-hooks install claude`, then diff against the copy.
-   `uninstall` restores the first backup (`*.agent-hooks.bak`) wholesale; later edits to that file are lost.
-6. **Persist.** `chezmoi re-add ~/.config/agent-hooks ~/.agents/hooks` (`chezmoi add` for a new script; source names
-   use `dot_`/`executable_`). An unre-added live edit is silently reverted by the next `chezmoi apply`. Check with
-   `chezmoi status ~/.agents/hooks ~/.config/agent-hooks` and `chezmoi re-add -n -v <paths>`. (`chezmoi-guard.py
-   --check` is currently broken; see known-issues.)
-7. Prove it live in the harness on one real event, then read its log line.
+4. **Run the full suite** to catch cross-hook drift: `cargo test --test handlers` (main checkout).
+5. **Commit** in the worktree: `git add <files> && git commit -S -m "<type>(pipeline): ..."`
+   (conventional, signed, no attribution trailers). Review the diff before merging — stray debug
+   blocks have ridden along in merges before (`input.block = dbg` shipped live for two minutes once).
+6. **Merge**: `wt merge -y main` from the worktree, then `git push origin main` from the main checkout.
+   If the merge hits conflicts, resolve to main's side when main is a superset.
+7. **Deploy**: `mise run deploy-pipeline` (script `scripts/deploy-pipeline.sh`). It syncs handlers,
+   questions, capabilities, effects, and ask-mastra.sh to the live dir, reinstalls the binary, runs
+   validate + a smoke probe, and REFUSES an unhealthy deploy. Run it after every green merge.
+8. **Prove it live** on one real event (a deliberate probe in a scratch session), then read the
+   state log the handler appends.
 
-**Blast radius.** With the house runner, `on_failure="block"` fires only when the script cannot start (bad import,
-missing `uv`), and then it blocks **every** matching call, including the one you need to fix it. Use it only with a
-narrow matcher and an env bypass the script checks first. Otherwise fail closed inside the script (step 1).
+## Handler anatomy
 
-## Config loading and command forms
+```rhai
+// One paragraph: what the hook stops or injects, and why. The guard's deny text
+// must name the alternative, not just the refusal.
+#{
+    stage: "PreToolUse",          // PreToolUse | PostToolUse | Stop | UserPromptSubmit | SessionStart | PreCompact
+    priority: 10,                 // lower runs earlier inside the chain
+    tools: "^(Edit|Write|bash)$", // regex over the tool name; omit to see all tools
+    on_error: "block",            // a handler that dies still stops the edit
+    handle: |input, data, next| {
+        let raw = input.tool_name;   // string
+        if type_of(raw) != "string" { raw = ""; }
+        let ti = input.tool_input;   // map (the tool's arguments)
+        let cwd = input.cwd;         // string
 
-`--config FILE` (beats `AGENT_HOOKS_CONFIG`) loads that file alone. Otherwise: user file, then `./.agent-hooks.toml`,
-then `./hooks.toml` from the cwd (any project with a `hooks.toml` gets it merged in). A later same-name hook replaces
-the earlier one in place. `[defaults]` (agents, protocol, shell, timeout, on_failure) applies per file.
+        // deny: set input.block and return input. The text is shown to the model;
+        // say what to do instead, name the replacement tool or command.
+        input.block = "Built-in X is disabled here; use Y instead.";
+        return input;
 
-- `shell = true` (live `[defaults]`; code default is false): `command[0]` runs under `/bin/sh -c`; extra items become
-  `$0`, `$1`, so they are **not** passed as arguments (put arguments inside the string). **Never `["sh","-c","..."]` here** (becomes `sh -c sh -c ...`; the live `stop-payload-dump-tmp` is
-  broken this way). Put the whole command in element 0.
-- `shell = false`: literal argv, no `~`/`$HOME` expansion; a single string that is a command plus arguments is one
-  program name and fails to spawn (a path that happens to contain spaces is fine).
-- Child env: `AGENT_HOOKS_AGENT`, `AGENT_HOOKS_HARNESS` (e.g. `claude-code`), inherited env, and `env`.
-- Limits: stdin 8 MiB, each of stdout/stderr 1 MiB.
+        // otherwise pass to the next handler in the chain
+        next.call(input)
+    },
+}
+```
 
-## Output shape per harness (not "write once")
+Facts that bite:
 
-`protocol = "native"` means **each harness's own JSON**. "Claude-shape" = Claude, Grok, OpenCode, Mastra. Others
-differ (verified in the adapters): Copilot has its own adapter (deny is flat `{"permissionDecision":...}`, context
-dropped on deny); Gemini ignores `hookSpecificOutput.permissionDecision` (needs top-level
-`{"decision":"deny","reason":...}`); Hermes understands only `{"decision":"block"}` and `{"context":...}`; Codex's
-encoding of deny and Stop-block does not match Codex's published output schema (upstream schema checked, no live
-Codex run) and drops the nested reason; verify on a live Codex. House scripts and `hook_common` speak Claude-shape. For identical behavior everywhere use
-`protocol = "common"`: stdin is normalized (`version`, `agent`, `event`, `native_event`, `session.id`, `cwd`,
-`context`, `data`, `raw`) and stdout is `{"effect": "none|allow|ask|deny|retry|halt", "reason",
-"additional_context", "system_message", "replacement": {"tool_input": ...}}`. Common quirks: empty or non-JSON
-stdout is an invalid-output failure; the exit code is ignored.
+- `input.tool_name`, `input.tool_input` (map), `input.cwd` are the useful request keys. Probe any
+  nested value with `type_of(...)` guards before string ops — the harness feeds raw harness payloads.
+- A deny is `input.block = "<reason>"` + `return input`. Everything else is `next.call(input)`.
+  A handler that neither blocks nor calls next silently ends the chain.
+- `on_error: "block"` makes an exception/compile error in the handler deny the call instead of
+  fail-open — use it for guards, not for context injectors.
+- State: `state_set(scope, key, value)` stores JSON text; `state_get(scope, key)` PARSES it back
+  (returns unit when missing); `state_append(log_name, record)` appends a record to a JSONL ledger
+  (e.g. `scope-judgments`). Round-trip through strings, not raw arrays.
+- To ask the model questions: `ask(...)` (see Questions below). To run external work:
+  `capability("<name>", args)` (see Capabilities).
+- `home()` returns the seeded HOME (fixtures seed it via `"env"`); resolve relative paths against
+  `input.cwd` yourself.
 
-| Goal (Claude-shape)           | How                                                                                                                                                                                 |
-| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| deny a tool / reject a prompt | `permissionDecision:"deny"` + reason, or exit 2 + stderr (exit 2 only works on `tool.before`, `permission.request`, `prompt.submit`, `turn.stop`)                                   |
-| keep Stop from ending         | `{"decision":"block","reason":...}` or exit 2                                                                                                                                       |
-| ask the user                  | `permissionDecision:"ask"` (no-op on `prompt.submit`)                                                                                                                               |
-| add context                   | `hookSpecificOutput.additionalContext`; plain stdout also counts on SessionStart/UserPromptSubmit for Claude-shape, Copilot, Hermes (Codex ignores it; Gemini treats it as invalid) |
-| rewrite tool input            | `hookSpecificOutput.updatedInput`                                                                                                                                                   |
+## Fixture contract
 
-`halt` and `{"continue":false}` do **not** stop the run on Claude or Codex: on Stop they become a block, on
-PreToolUse/UserPromptSubmit they are dropped, on PostToolUse/SessionStart the dispatcher errors. Use deny/retry.
-Exit 2 on a non-blocking event makes the dispatcher exit 2 ("unsupported capability") and loses the reason.
-`additionalContext` is capped at 10 000 bytes (Claude-shape and Copilot); a multibyte character on that boundary
-panics the dispatcher (exit 101), so keep context far below it (`references/known-issues.md`).
-Per-event capabilities and non-Claude event names: `references/events-and-harnesses.md`.
+One JSON file per case under `pipeline/tests/<hook-name>/`. Each fixture runs its hook ALONE (that is
+the contract — fixtures were captured standalone); add `"with": ["other-hook"]` to chain more handlers
+ahead of it. Shape (all keys seen in the live suite):
 
-## Matching
+```json
+{
+  "input": {
+    "stage": "PreToolUse",
+    "event": {
+      "session_id": "s1",
+      "cwd": "/tmp",
+      "hook_event_name": "PreToolUse",
+      "tool_name": "Edit",
+      "tool_input": { "path": "/sg-work/Developer/repo/src/a.rs" }
+    }
+  },
+  "env": { "HOME": "/sg-work" },
+  "clock": { "now_epoch": 1793650800 },
+  "state": { "session": { "scope-asks": [] } },
+  "answers": { "scope-guard-tool.yaml#OffTopic": 0.05 },
+  "expect": { "block": "exact deny text" }
+}
+```
 
-- `matcher` is an **exact, case-sensitive name list** split on `|` or `,`: not a regex (`Ba.*`, `Bash*` never
-  match). Tested against the tool name and the payload's `source`, `trigger`, `notification_type`, `agent_type`,
-  `compact_trigger`. `""` and `*` match all. Prompt text is never matched.
-- Events with none of those fields (Stop, plain UserPromptSubmit) never match a non-empty matcher; omit it there.
-  Compaction hooks omit it too because OpenCode sends no `trigger`.
-- Tool names differ per harness (`Bash`, `bash`, `run_command`, `mcp__...`); list each spelling a guard must cover:
-  `bash-tool-steer` uses `Bash|bash|sh|zsh|shell|terminal|exec|run_terminal_cmd|run_terminal_command`. Hermes renames
-  only `terminal`, `write_file`, `patch`, `delegate_task` to Bash/Write/Edit/Task.
-- `agents` filters by harness. Detection: `--agent`, `AGENT_HOOKS_AGENT`, Grok env, one matching harness env var,
-  then payload shape; ambiguity is an error (exit 2).
+- `"expect": {}` means pass-through (no block, no error).
+- `"expect": { "appended": { "<ledger>": [ { "...": "exact records" } ] } }` asserts state appends.
+- `"answers"` keys are `"<question file>#<asked text>"` -> numeric/string answer; seeded because
+  scope-guard-tool.yaml and scope-guard-stop.yaml share identical question text and answers route
+  per (file, text).
+- `"state"` seeds namespaced state (`{"session": {...}}` is what `state_get("session", ...)` reads).
+- `"clock"` fixes timestamps; `"env"` fixes `home()`.
+- Prefer fixing the handler; fixtures are the recorded behavior. If the user explicitly overrules a
+  recorded behavior, update the fixture in the same change and say so in the commit message.
 
-## Failure and aggregation (verified by experiment)
+## Questions and the ask pipeline
 
-| Situation                                                                      | Result                                                                                                                                                                                                                                          |
-| ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| native hook times out                                                          | killed, warning; **action proceeds even with `on_failure="block"`**                                                                                                                                                                             |
-| `common` hook times out or prints nothing                                      | invalid-output failure: **blocks** under `on_failure="block"`                                                                                                                                                                                   |
-| native non-zero exit (not 2), no JSON on stdout                                | failure: `warn` proceeds, `ignore` silent, `block` blocks (blockable events)                                                                                                                                                                    |
-| native hook killed by a signal                                                 | silent pass, even under `block` (no exit code)                                                                                                                                                                                                  |
-| native exit 0, non-JSON stdout                                                 | Claude-shape/Copilot/Hermes: ignored (injected as context on SessionStart/UserPromptSubmit); Codex: ignored; **Gemini: invalid-output failure, blocks under `block`**                                                                           |
-| native JSON plus exit 1                                                        | JSON wins; exit 2 still forces at least a deny                                                                                                                                                                                                  |
-| failing hook with `block` on a non-blockable event (PostToolUse, SessionStart) | dispatcher errors, exit 2                                                                                                                                                                                                                       |
-| several hooks deny                                                             | strongest effect wins (deny > ask > allow); the **reason comes from the first hook in plan order that has any reason**, even a failing hook's stderr, an allow/ask reason, or an empty string; contexts and system messages from all are joined |
-| two hooks return `updatedInput`                                                | objects deep-merge; a conflicting key exits 2. `provides` is only a validate-time declaration                                                                                                                                                   |
-| Hermes: exit 1, garbage, or timeout with `block`                               | allowed (only exit 2 blocks)                                                                                                                                                                                                                    |
+- Question files `pipeline/questions/<name>.yaml` declare the questions a hook asks (id + asked text +
+  choice record like `choices: {"true": "", "false": ""}` — choices are a RECORD of value->text, never
+  an array) and route to an asker.
+- The host batches **one ask per event**: all questions from all handlers in the chain go in one
+  request. Answers come back as `{qid: answer}`.
+- The wire contract: the backend (`ask-mastra.sh` -> `capability run prompt_submit_questions`, 15 s
+  per pipeline.toml) receives `{state, questions: [{id, question, choices}]}` — NO `file` field; the
+  host strips its internal routing key before calling the backend (a leaked `file` key made the
+  capability misparse every question as a file reference and all live answers read as defaults, so
+  the guard allowed everything).
+- A failed asker reads as defaults — design handler thresholds so defaults fail SAFE (deny) for
+  guards, fail open for context hooks.
+- Debug ask wiring live: `AGENT_HOOKS_DEBUG_ASK=1` plus `-- --nocapture` prints
+  `ask: keyed=... answers=...`.
 
-Plan order is the selector's expansion order: config order for event selectors, member order for groups. Put the most
-actionable denier first, give every blocking hook a self-contained reason, and never rely on a timeout to stop
-anything.
+## Capabilities and effects
 
-## What validate misses
+`capability("<name>", args)` runs an external tool declared in `pipeline/capabilities/*.toml`; heavier
+scripts live under `pipeline/effects/`. Handlers must treat a capability reply of `()`/empty as
+"unknown" and decide explicitly (fail open or closed per the hook's fixtures) — see the goals-recall
+handler for the pattern.
 
-`validate` rejects bad schema, agents, durations, group cycles, and name clashes, but `validate`, `doctor`, and `list`
-do not catch: unknown keys (`matchr`, `on_failur`, `enabled`, `async`, `priority`,
-`filter`, `script`, `policy` are all ignored; `enabled=false` still fires), event-name typos, duplicate names
-(replaced silently), or a row with no `command` (skipped: **a `policy=`/`script=` row with no `command` never
-runs**). `list` prints only `name (Some(Native))`. Run `scripts/audit-catalog.py [file]`: it flags all of these plus
-regex-looking or never-matching matchers, `[shell, "-c", ...]` and stray arguments under `shell=true`, `~`/`$HOME`
-under `shell=false`, missing or non-executable scripts, and unknown agents. It audits one file.
+## Engine notes (Rhai is not Python)
+
+- Strings are immutable: `trim(s)`/`replace(s, a, b)` here are PURE — they return new strings (the
+  host registered them; rhai builtins mutate in-place). Assign the result.
+- `to_lowercase`/`to_uppercase` exist. Top-level `const NAME = value;` works (the host converts consts
+  to functions and rewrites references — named `fn`s cannot see script consts, so prefer consts).
+- Use `type_of(x)` before method calls on `Dynamic` values; `starts_with`/`ends_with`/`contains`,
+  array `.len()`, map indexing are available.
+- Compile failures dump per-handler transformed source with
+  `AGENT_HOOKS_DUMP_HANDLERS=/tmp/dir cargo test ...`; the combined AST with
+  `AGENT_HOOKS_DUMP_SCRIPT=/tmp/x.rhai`.
 
 ## Debugging (stop at the first step that explains it)
 
-0. **Evidence first.** `tail -f ~/.agents/hooks/state/hooks.log` while triggering the event (grep the **script**
-   name such as `bash-tool-steer`, not the catalog row name). Lines: `<iso>\t<hook>\t<decision>\t<detail>`; a native
-   timeout shows as `fail-open: cancelled (SIGTERM)`. **No line is ambiguous**: not selected, or the script
-   returned `None`/bailed early, or it is not a house-runner script, or the log rotated (5 MB to `hooks.log.1`).
-   The dispatcher's own warnings go to stderr, which the harness hides; for non-house hooks run the dispatcher by
-   hand with `2>&1`. Stop judgments: `completion-gate-judgments.jsonl` (`path`, `fallback_reason`, `signals`).
-1. Did the harness call the dispatcher? Look at its generated config for that event.
-2. Run `audit-catalog.py`: command-less stub, regex matcher, event typo, duplicate name, shell/array misuse.
-3. Matcher exactness against the payload's real field (tool name, `source`, `trigger`).
-4. `agents` and agent detection (wrong agent changes filtering and output shape).
-5. Fired twice: two entries (harness-native plus dispatcher, or user file plus `./hooks.toml`), or overlapping events.
-6. Odd block reason: an earlier hook in plan order supplied it.
-7. Failed open: native timeout, `warn` default, exit-0 garbage, signal death, `run_hook` swallowing an exception.
-8. Exit 101 from the dispatcher is a Rust panic (context cap), not a hook failure.
-9. Behavior differs from the source: the binary on PATH may be stale. `agent-hooks --version` has no commit, so
-   compare `which -a agent-hooks` (mise shim and `~/.cargo/bin`) file mtimes with `git log -1 --format=%cd`;
-   `cargo build` does not update `~/.cargo/bin`, use `cargo install --path ~/Developer/Personal/agent-hooks`.
+1. **Which binary, which pipeline?** Live deployment is `~/.config/agent-hooks/pipeline` at the last
+   `mise run deploy-pipeline` ref — main-checkout edits do nothing live until deployed. Check the
+   dispatch row exists in `~/.config/agent-hooks/hooks.toml` for that event.
+2. **Fixtures green but live wrong** -> usually the asker: run
+   `echo '{"state":{"user_message":"t"},"questions":[{"id":"q0","question":"t?","choices":{"true":"","false":""}}]}' | bash ~/.config/agent-hooks/pipeline/ask-mastra.sh`
+   and expect an answers map (exit 0). Empty output + nonzero exit = every answer defaulted.
+3. **Did the handler see the payload you think it did?** Drop the DUMP_SCRIPT/DUMP_HANDLERS env vars
+   and read the transformed source; run the single-hook fixture test with `-- --nocapture`.
+4. **Fired twice / merged reason from another hook** — the pipeline aggregates: strongest effect
+   wins, the FIRST reason in chain order is surfaced. Give every blocking handler a self-contained
+   deny text.
+5. **Exit 101** is a Rust panic in the host (e.g. context length cap), not your handler.
+6. Stale binary: `which -a agent-hooks`; deploy reinstalls via cargo.
 
-## TypeSafe in hooks
+## Legacy script rows
 
-The dispatcher has no ordering field (`HookSpec` has no `after`/`stage`), and parallel hooks share nothing, so
-"one request, then parallel follow-ups" must live **inside one owner hook per (event, state)**:
-
-1. Prefilter in code; return early without a request.
-2. **Wave 1: one request** holding every question about the shared primary state (namespaced ids). Decide in code.
-3. **Wave 2: parallel requests** (threads, one total deadline) only for follow-ups that need a different state or
-   are conditional on wave 1. Independent and cheap ones start with wave 1.
-4. Merge in code: one reason naming every failed rule; one log row.
-
-Two separate hooks calling TypeSafe give two requests, two verdicts, and one surfaced reason (the first in plan
-order), and the second cannot wait for the first. Fail open on any TypeSafe error and log why; budget one deadline
-across the up-to-three-hop fallback chain; replay and shadow-test before changing a shared request.
-Placement rules, the Stop and UserPromptSubmit inventories, keys, logging:
-`references/typesafe-batching.md`. Question wording, primitives, thresholds: `typesafe-ai-effective-use`.
-
-## Developing agent-hooks itself
-
-Rust 2024; modules per `LAYOUT.md` (`adapters/*` protocol, `resolver`, `executor`, `aggregator`, `installer`).
-`cargo test`; `tests/acceptance.rs` drives the real binary with `hook-fixture` (`--stdout --exit --sleep-ms
---record`). New harness behavior = adapter change plus an acceptance test. Dated defects: `references/known-issues.md`.
+`hooks.toml` still carries non-pipeline rows (built-in `policy = "..."` guards like
+process-kill-guard, and some `command = [...]` python rows for other harnesses). Those keep the OLD
+rules: `matcher` is an exact case-sensitive name list split on `|` (never a regex); hooks are
+independent parallel processes; default is fail-open; `agent-hooks validate` misses unknown keys,
+duplicate names (a same-name row silently REPLACES), event typos, and command-less rows — run the
+audit: `~/.agents/available-skills/agent-hooks/scripts/audit-catalog.py [file]`. Output shapes per
+harness and event vocabularies: `references/events-and-harnesses.md`. Dated defects:
+`references/known-issues.md`. Python-row authoring (uv script header, `hook_common.run_hook`,
+`Decision.deny`) is retained for the remaining script rows only — new hooks go in the Rhai pipeline.
