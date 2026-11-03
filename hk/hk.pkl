@@ -19,6 +19,16 @@ exclude =
     "**/.cache",
     "**/.beads",
     "**/.build",
+    // Generated artifacts: a .dist/.gen/.generated suffix marks a file the generator owns.
+    // Formatting one rewrites generated output, and a formatter's own .dist.* config is not
+    // input at all — `config/.php-cs-fixer.dist.php` matched **/*.php and php-cs-fixer then
+    // tried to read composer.json to format its own config, failing every commit in this repo.
+    "**/*.dist.*",
+    "**/*.gen.*",
+    "**/*.generated.*",
+    "**/*.min.*",
+    "**/*.map",
+    "**/*.snap",
   )
 
 // Shellcheck receives shell files only. A script in home/*/bin carries no
