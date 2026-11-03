@@ -1,20 +1,45 @@
 ---
 name: updating-oh-my-pi
-description: Use when landing a new branch into the custom omp build (fork zachbornheimer/oh-my-pi), adding or removing a branch from that build, fixing a failed omp-build run or conflict issue, or installing, updating, verifying or rolling back omp via mise on the Mac and the fleet.
+description: Use for anything about omp itself — landing a branch into the custom omp build (fork zachbornheimer/oh-my-pi), adding or removing a branch from that build, fixing a failed omp-build run or conflict issue, installing, updating, verifying or rolling back omp via mise on the Mac and the fleet, making an upstream PR to can1357/oh-my-pi, or when the user wants personal omp behavior (a slash command, a transcript hide, a presentation toggle, a session hook, "an omp command" such as /thinking or /calm) or is about to edit oh-my-pi, packages/coding-agent or packages/tui for something they want for themselves. Personal omp behavior is an extension in ~/.config/omp/, listed in ~/.omp/agent/config.yml; do not modify the omp repo for that. Not for a Pi extension.
+user-invokable: true
 ---
 
-# Updating oh-my-pi: landing a branch in the custom omp
+# oh-my-pi: extensions, landing branches, install
 
-The `omp` you run is **upstream `can1357/oh-my-pi` main + an ordered list of topic branches**, assembled and built once in GitHub Actions on the fork `zachbornheimer/oh-my-pi`, published as a release, and installed everywhere by mise.
+The `omp` you run is **upstream `can1357/oh-my-pi` main + an ordered list of topic branches**, assembled and built once in GitHub Actions on the fork `zachbornheimer/oh-my-pi`, published as a release, and installed on every machine by mise.
 
 - Checkout: `~/Developer/Personal/oh-my-pi`. Remotes: **`origin`** = upstream `can1357/oh-my-pi`, **`fork`** = `zachbornheimer/oh-my-pi`.
 - **`main` is a read-only upstream mirror.** Never commit, merge or push to it. A GitHub ruleset, the local reference-transaction hook (installed by `bin/dev-profile-omp-machine-setup`) and `pretooluse-omp-main-branch-guard` all refuse it. Do not bypass them.
-- **The branch list** is `.github/omp-rebuild.toml` (`branches = [ ... ]`, merged in order) on the fork's default branch **`ci`**. `ci` holds only that file, `.github/workflows/omp-build.yml` and `scripts/omp-build/resolve-branches.ts`.
+- **The branch list** is `.github/omp-rebuild.toml` (`branches = [ ... ]`, merged in order) on the fork's default branch **`ci`**, which holds only that file, `.github/workflows/omp-build.yml` and `scripts/omp-build/resolve-branches.ts`.
 - **CI** (`omp-build`, daily 04:00 UTC + manual dispatch) merges each listed branch with `git merge --no-ff` onto upstream main, builds darwin-arm64 + linux-x64, and publishes release `build-<YYYYMMDD>-<upstream7>-<build7>` as Latest.
 
 Design and history: [references/build-distribution.md](references/build-distribution.md).
 
-## Land a new branch (in order)
+## First: is this personal behavior or a change to omp itself?
+
+**Personal behavior is an extension in `~/.config/omp/`.** The omp repo is not the place for a command or a hide the user wants for themselves. If the user explicitly says to change omp itself, or names an omp bug in the product, edit the repo and land it like any other branch (§2). Otherwise stop and write an extension (§1).
+
+The failure this prevents: `/thinking` and `/calm` were patched into oh-my-pi. The user wanted `~/.config/omp/`. The installed omp never saw the commands, and the patch folded open tool rows because one apply path did two jobs.
+
+## 1. A personal extension
+
+1. `~/.config/omp/<name>/index.ts` — default export `function (pi: ExtensionAPI)`. Keep the pure rule in a sibling file with a `bun` test next to it.
+2. List the directory in `~/.omp/agent/config.yml`:
+
+   ```yaml
+   extensions:
+     - ~/.config/omp/<name>
+   ```
+
+   A directory that is not listed does not load; `~/.config/omp/` is not scanned. Restart omp — the running process will not see the command.
+3. Draw and input only: not the message, the model context, or the export. Wrap `AssistantMessageComponent.prototype.updateContent` once for display, keep the raw message, and redraw already-drawn rows only on the user's toggle.
+4. Prove it with `bun test` on the pure file, and confirm the omp repo diff does not contain the feature.
+
+Detail, seams and the two working extensions to copy: [references/extensions.md](references/extensions.md) and [references/omp-seams.md](references/omp-seams.md). Read them before writing; do not re-derive the seams from the omp repo.
+
+`~/.omp/agent/extensions/*.ts` (learn-command, undo-clear) is a different pile. New personal extensions go in `~/.config/omp/` and get listed.
+
+## 2. Land a branch in the custom omp (in order)
 
 1. **Branch off upstream in a worktree**, never off `main`:
 
@@ -23,7 +48,7 @@ Design and history: [references/build-distribution.md](references/build-distribu
    wt -C ~/Developer/Personal/oh-my-pi switch --create feat/<slug> --base origin/main
    ```
 
-2. **Build the change.** Format with `npx oxfmt` (`useTabs: true` per `.oxfmtrc.json`; never `dprint` on oh-my-pi `.ts`). Run `bun check` and the targeted `bun test` files. Commit with `wt step commit`.
+2. **Build the change.** Format with `bunx oxfmt` (`useTabs: true` per `.oxfmtrc.json`; never `dprint` on oh-my-pi `.ts`). Run `bun check` and the targeted `bun test` files. Commit with `wt step commit`.
 3. **Push the branch to the fork:** `git push -u fork feat/<slug>`.
 4. **Probe the assembly exactly as CI will** (must exit 0):
 
@@ -31,18 +56,18 @@ Design and history: [references/build-distribution.md](references/build-distribu
    ~/.agents/skills/updating-oh-my-pi/scripts/probe-build.sh --add feat/<slug>
    ```
 
-   It fetches `origin/main`, `fork/ci` and every listed branch, then merges them in order with `git merge-tree` (no branch is changed). `CONFLICT ... with upstream main`: merge `origin/main` into your branch, resolve, push. `CONFLICT ... with an earlier branch in the list`: merge that branch into yours (or yours into it) and resolve once, so the later branch in the list already contains the resolution. **Merge, never rebase or force-push** a branch that is pushed or listed.
+   It fetches `origin/main`, `fork/ci` and every listed branch, then merges them in order with `git merge-tree` (no branch is changed). `CONFLICT ... with upstream main`: merge `origin/main` into your branch, resolve, push. `CONFLICT ... with an earlier branch in the list`: merge that branch into yours (or yours into it) and resolve once, so the later entry in the list already contains the resolution. **Merge, never rebase or force-push** a branch that is pushed or listed.
 5. **Add the branch to the list on `ci`:**
 
    ```bash
    git -C ~/Developer/Personal/oh-my-pi fetch fork ci
    wt -C ~/Developer/Personal/oh-my-pi switch ci   # first time: switch --create ci --base fork/ci
    git pull --ff-only fork ci
-   # edit .github/omp-rebuild.toml: append "feat/<slug>" to branches (after any branch it depends on)
+   # edit .github/omp-rebuild.toml: append "feat/<slug>" after any branch it depends on
    wt step commit && git push fork ci
    ```
 
-   If the branch makes another listed branch redundant (it contains it: `git merge-base --is-ancestor fork/<old> fork/feat/<slug>`), replace that entry instead of appending. Re-run the probe with no flags: it reads the pushed list.
+   If your branch contains another listed branch (`git merge-base --is-ancestor fork/<old> fork/feat/<slug>`), replace that entry instead of appending. Re-run the probe with no flags: it reads the pushed list.
 6. **Build now** instead of waiting for 04:00 UTC, and watch the exact run id:
 
    ```bash
@@ -51,8 +76,8 @@ Design and history: [references/build-distribution.md](references/build-distribu
    gh run watch <that-id> --repo zachbornheimer/oh-my-pi --exit-status
    ```
 
-   Copy the id; a mistyped id makes `gh run watch` return at once and look like success. A cold build (upstream touched Rust) takes about 23 min; warm about 4 min; no change since the latest release skips the build after about 1 min.
-7. **Install and prove the branch is in the binary** on each machine (the daily jobs do the install at 05:00 local, but do not wait):
+   Copy the id: a mistyped id makes `gh run watch` return at once and look like success. A cold build (upstream touched Rust) takes about 23 min, warm about 4 min, and an unchanged tree skips the build after about 1 min.
+7. **Install and prove the branch is in the binary** on each machine (the daily jobs do this at 05:00 local; do not wait):
 
    ```bash
    mise up github:zachbornheimer/oh-my-pi
@@ -60,32 +85,36 @@ Design and history: [references/build-distribution.md](references/build-distribu
    rg -a -c -F '<string only your branch adds>' "$(mise which omp)"   # > 0
    ```
 
-   `omp --version` is NOT proof: an upstream-only build prints the same version. Fleet: run the same three lines over `ssh backend.ai`.
+   `omp --version` is NOT proof: an upstream-only build prints the same version. Fleet: the same three lines over `ssh backend.ai`.
 
-Do not use `branches_override` to land anything. A dispatch with a non-empty override publishes a **prerelease**, which mise never installs; it is for experiments only.
+Never use `branches_override` to land anything. A dispatch with a non-empty override publishes a **prerelease**, which mise never installs; it is for experiments only.
 
-## When a run fails
+## 3. When a run fails
 
-| Run error                                                                                                 | Cause                                                                      | Fix                                                                                                                          |
-| --------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `Conflict: omp-build: <branch> conflicts with upstream` (one GitHub issue per branch, updated on repeats) | That branch conflicts with upstream main or with a branch merged before it | Run the probe to see which; fix as in step 4; push; re-dispatch; close the issue                                             |
-| `Missing branch`                                                                                          | A listed branch is not on the fork                                         | Push it, or remove it from the list                                                                                          |
-| `Branchless assembly`                                                                                     | The assembled SHA equals upstream (empty list)                             | Restore the list; CI refuses to publish plain upstream                                                                       |
-| Build or publish job failed                                                                               | Compile or test error on the assembled tree                                | Reproduce on the probe's result: `git merge` the listed branches into a scratch worktree off `origin/main`, then `bun check` |
+| Run error                                                                                          | Cause                                                                      | Fix                                                                                                           |
+| -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `Conflict: omp-build: <branch> conflicts with upstream` (one issue per branch, updated on repeats) | That branch conflicts with upstream main or with a branch merged before it | Run the probe to see which; fix as in step 4; push; re-dispatch; close the issue                              |
+| `Missing branch`                                                                                   | A listed branch is not on the fork                                         | Push it, or remove it from the list                                                                           |
+| `Branchless assembly`                                                                              | The assembled SHA equals upstream (empty list)                             | Restore the list; CI refuses to publish plain upstream                                                        |
+| Build or publish job failed                                                                        | Compile or test error on the assembled tree                                | Merge the listed branches into a scratch worktree off `origin/main`, run `bun check`, fix on the branch, push |
 
-A failed run publishes nothing; the previous release stays Latest, so every machine keeps working.
+A failed run publishes nothing, so the previous release stays Latest and every machine keeps working.
 
-## Remove a branch
+## 4. Remove a branch
 
 When upstream has merged a branch, `git cherry origin/main fork/feat/<slug>` prints only `-` lines. Delete it from `.github/omp-rebuild.toml` on `ci` (step 5), run the probe, push, dispatch (step 6).
 
-## Install facts
+## 5. Install facts
 
 - mise tool (global `~/.config/mise/config.toml`, seeded from dev-profile `config/mise.toml`): `"github:zachbornheimer/oh-my-pi" = { version = "latest", matching = "omp-", minimum_release_age = "0" }`. `minimum_release_age = "0"` because the fork's own CI builds each release; the 24h default would hide every daily build.
-- Stable entrypoint `~/.local/bin/omp` is a symlink to the mise shim, created by `bin/dev-profile-omp-machine-setup` (`mise run setup`). The capability gateway runs plain `omp` with only `~/.local/bin` on PATH: never delete it. Check: `env -i HOME="$HOME" PATH="$HOME/.local/bin:/usr/bin:/bin" ~/.local/bin/omp --version`.
+- Stable entrypoint `~/.local/bin/omp` is a symlink to the mise shim, created by `bin/dev-profile-omp-machine-setup` (`mise run setup`). The capability gateway runs plain `omp` with only `~/.local/bin` on PATH: never delete it. Check with `env -i HOME="$HOME" PATH="$HOME/.local/bin:/usr/bin:/bin" ~/.local/bin/omp --version`.
 - Daily update: macOS launchd agent `dev.mise.omp-daily-sync`, Linux systemd user timer `omp-daily-sync.timer`; both run `mise up github:zachbornheimer/oh-my-pi`.
 
-## Roll back one machine
+## 6. Upstream pull requests
+
+PRs to `can1357/oh-my-pi` come off a branch based on `origin/main`, never off another topic branch and never off `fork/main`. Read `CONTRIBUTING.md` and `.github/PULL_REQUEST_TEMPLATE.md` in the checkout first, keep the contributor's own sentence explaining the change, and get confirmation before posting any comment. A branch upstream accepts drops off the branch list (§4).
+
+## 7. Roll back one machine
 
 Pin a known-good tag in the machine-local `~/.config/mise/config.local.toml` (not synced), then `mise install`:
 
