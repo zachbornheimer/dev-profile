@@ -24,6 +24,7 @@ bash "$root/tests/commit-fix-fixture.sh" "$root" >/dev/null || fail "commit-fix 
 bash "$root/tests/done-fixture.sh" "$root" >/dev/null || fail "done fixture"
 bash "$root/tests/skills-sync-fixture.sh" >/dev/null || fail "skills sync fixture"
 bash "$root/tests/unowned-repo-conventions-fixture.sh" >/dev/null || fail "unowned-repo-conventions fixture"
+bash "$root/tests/worktree-copy-excludes-fixture.sh" "$root" >/dev/null || fail "worktree copy excludes fixture"
 bash "$root/tests/changed-files-fixture.sh" >/dev/null || fail "changed-files fixture"
 bash "$root/tests/pre-push-upstream-merge.sh" >/dev/null || fail "pre-push upstream merge fixture"
 bash "$root/tests/mise-dot-encryption-heal-fixture.sh" >/dev/null || fail "mise dot encryption heal fixture"
