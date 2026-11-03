@@ -106,8 +106,11 @@ local fixers = new Mapping<String, Step> {
         "trailing-whitespace",
       )
   }
+  // stylelint exits 78 with a ConfigurationError when the repo supplies no config, and hk
+  // dumps that stderr whenever any unrelated step fails. dev-profile-stylelint-fix absorbs
+  // the no-config and unfixable-lint output and falls back to the profile's config.
   ["stylelint"] {
-    fix = "stylelint --fix {{files}}"
+    fix = "dev-profile-stylelint-fix {{files}}"
     glob = List("**/*.css", "**/*.scss", "**/*.sass")
   }
   ["go-imports"] {
@@ -151,16 +154,16 @@ local fixers = new Mapping<String, Step> {
 local gates = new Mapping<String, Step> {
   ["hadolint"] { check = "hadolint {{files}}"; glob = List("**/Dockerfile*") }
   ["actionlint"] {
-    check = "actionlint {{files}}"
+    check = "dev-profile-lint-ratchet actionlint -- {{files}}"
     glob = List(".github/workflows/*.yml", ".github/workflows/*.yaml")
     diagnostic_format = "gcc"
   }
   ["pinact"] {
-    check = "pinact run --verify-comment --check {{files}}"
+    check = "dev-profile-pinact-ratchet {{files}}"
     glob = List(".github/workflows/*", "**/action.*")
   }
   ["zizmor"] {
-    check = "zizmor --no-progress {{files}}"
+    check = "dev-profile-lint-ratchet zizmor -- {{files}}"
     glob =
       List(
         ".github/workflows/*.yml",
@@ -272,8 +275,11 @@ local gates = new Mapping<String, Step> {
           "**/zed/**/*.json",
         )
   }
+  // Brakeman takes one application path, never the changed files, and bundle-audit takes
+  // a project directory, never a lockfile: both wrappers scan each file from the root that
+  // holds it, so an app below the repo root is scanned as its own project.
   ["brakeman"] {
-    check = "brakeman --no-pager --quiet"
+    check = "dev-profile-brakeman {{files}}"
     glob =
       List(
         "**/*.rb",
@@ -285,7 +291,7 @@ local gates = new Mapping<String, Step> {
         "**/Rakefile",
       )
   }
-  ["bundle-audit"] { check = "bundle-audit check"; glob = List("**/Gemfile.lock") }
+  ["bundle-audit"] { check = "dev-profile-bundle-audit {{files}}"; glob = List("**/Gemfile.lock") }
   ["cargo-deny"] {
     check = "cargo-deny --locked --workspace check"
     glob = List("**/Cargo.toml", "**/Cargo.lock", "**/deny.toml", "**/.deny.toml")
@@ -298,7 +304,7 @@ local gates = new Mapping<String, Step> {
   }
   ["tofu"] { check = "tofu fmt -check {{files}}"; glob = List("**/*.tf", "**/*.tfvars") }
   ["yamllint"] {
-    check = "yamllint --strict {{files}}"
+    check = "dev-profile-lint-ratchet yamllint --strict -- {{files}}"
     glob = List("**/*.yml", "**/*.yaml")
     exclude = lockfiles + List("**/cloud-init.yaml")
   }

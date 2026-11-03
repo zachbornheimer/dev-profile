@@ -26,10 +26,13 @@ bash "$root/tests/skills-sync-fixture.sh" >/dev/null || fail "skills sync fixtur
 bash "$root/tests/unowned-repo-conventions-fixture.sh" >/dev/null || fail "unowned-repo-conventions fixture"
 bash "$root/tests/new-findings-fixture.sh" >/dev/null || fail "new-findings fixture"
 bash "$root/tests/pre-push-upstream-merge.sh" >/dev/null || fail "pre-push upstream merge fixture"
+bash "$root/tests/lint-ratchet-fixture.sh" >/dev/null || fail "lint-ratchet fixture"
 bash "$root/tests/mise-dot-encryption-heal-fixture.sh" >/dev/null || fail "mise dot encryption heal fixture"
 for f in "$root"/bin/*; do
+	[[ -f "$f" ]] || continue
 	if head -1 "$f" | grep -q python; then
-		python3 -m py_compile "$f" || fail "bin/${f##*/}"
+		# Bytecode outside the checkout: a run must not leave bin/__pycache__ behind it.
+		PYTHONPYCACHEPREFIX="${TMPDIR:-/tmp}/dev-profile-pycache" python3 -m py_compile "$f" || fail "bin/${f##*/}"
 	else
 		bash -n "$f" || fail "bin/${f##*/}"
 	fi

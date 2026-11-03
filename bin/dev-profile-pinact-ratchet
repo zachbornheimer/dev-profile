@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# Push gate: judge only the pin lines the change adds or edits, so a comment
+# already wrong on the upstream default branch never blocks a push. Without a
+# base ref (no remote, fresh clone) fall back to judging the whole file.
+base=""
+for ref in "$(git symbolic-ref -q --short refs/remotes/origin/HEAD || true)" origin/main origin/master; do
+	if [[ -n "${ref}" ]] && git rev-parse -q --verify "${ref}^{commit}" >/dev/null 2>&1; then
+		base="${ref}"
+		break
+	fi
+done
+if [[ -z "${base}" ]]; then
+	exec pinact run --verify-comment --check "$@"
+fi
+base="$(git merge-base HEAD "${base}")"
+git diff "${base}" -- "$@" | exec pinact run --verify-comment --check --diff-file -
