@@ -1,0 +1,108 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# Protect every repository's default branch on GitHub, so a direct push is
+# refused on the server no matter which process made it.
+#
+# The three layers that stop an agent writing to main are: the harness guard
+# (main-branch-guard.py, before the command runs), the git-level guard (hk
+# pre-commit / pre-push), and this server-side rule. Only this one survives a
+# bypass: --no-verify, a raw git in a shell, or an agent that never loads the
+# hooks.
+#
+# Usage:
+#   dev-profile-protect-main                 # list what would change
+#   dev-profile-protect-main --apply         # require a PR, block force-push
+#                                            # and deletion; admins still bypass
+#   dev-profile-protect-main --apply --enforce-admins
+#                                            # also stop the account owner's
+#                                            # own direct pushes (PR only)
+#   dev-profile-protect-main --apply owner/repo
+#
+# Without --enforce-admins the account's own token (every agent on this machine
+# pushes as the owner) is an admin and bypasses every rule below, so the rule
+# is only enforced for other collaborators. That is why the meaningful mode is
+# --enforce-admins.
+
+ROOTS=(
+	"$HOME/Developer/Software-Automation-Holdings"
+	"$HOME/Developer/Personal"
+)
+
+apply=false
+enforce_admins=false
+repos=()
+for arg in "$@"; do
+	case "$arg" in
+	--apply) apply=true ;;
+	--enforce-admins) enforce_admins=true ;;
+	-h | --help)
+		sed -n '2,26p' "$0" | sed 's/^# \{0,1\}//'
+		exit 0
+		;;
+	*/*) repos+=("$arg") ;;
+	*)
+		echo "ERROR: expected owner/repo, got '$arg'" >&2
+		exit 2
+		;;
+	esac
+done
+
+if [[ ${#repos[@]} -eq 0 ]]; then
+	login="$(gh api user --jq .login)"
+	while IFS= read -r dir; do
+		url="$(git -C "$dir" remote get-url origin 2>/dev/null || true)"
+		[[ -n "$url" ]] || continue
+		slug="$(printf '%s' "$url" | sed -E 's#^(git@github\.com:|https://github\.com/)##; s#\.git$##')"
+		[[ "$slug" == */* ]] || continue
+		# Skip checkouts that are clones or forks of somebody else's repo:
+		# this script protects the account's own repositories, never upstreams.
+		if [[ "${slug%%/*}" != "$login" ]]; then
+			continue
+		fi
+		repos+=("$slug")
+	done < <(fd -HI -d 1 -t d . "${ROOTS[@]}" 2>/dev/null | sort -u)
+	deduped="$(printf '%s\n' "${repos[@]}" | sort -u)"
+	repos=()
+	while IFS= read -r slug; do
+		[[ -n "$slug" ]] && repos+=("$slug")
+	done <<<"$deduped"
+fi
+
+if [[ ${#repos[@]} -eq 0 ]]; then
+	echo "No GitHub repositories found under ${ROOTS[*]}" >&2
+	exit 1
+fi
+
+for repo in "${repos[@]}"; do
+	branch="$(gh api "repos/${repo}" --jq .default_branch 2>/dev/null || true)"
+	if [[ -z "$branch" ]]; then
+		echo "skip ${repo}: not a GitHub repository this token can read" >&2
+		continue
+	fi
+
+	if [[ "$apply" != true ]]; then
+		printf 'would protect %s@%s (enforce_admins=%s)\n' "$repo" "$branch" "$enforce_admins"
+		continue
+	fi
+
+	payload="$(jq -n \
+		--argjson enforce "$enforce_admins" \
+		'{
+			required_status_checks: null,
+			enforce_admins: $enforce,
+			required_pull_request_reviews: {dismiss_stale_reviews: true, require_code_owner_reviews: false, required_approving_review_count: 0},
+			restrictions: null,
+			required_linear_history: false,
+			allow_force_pushes: false,
+			allow_deletions: false,
+			required_conversation_resolution: true
+		}')"
+
+	if gh api -X PUT "repos/${repo}/branches/${branch}/protection" \
+		-H 'Accept: application/vnd.github+json' \
+		--input - >/dev/null <<<"$payload"; then
+		printf 'protected %s@%s (enforce_admins=%s)\n' "$repo" "$branch" "$enforce_admins"
+	else
+		printf 'FAILED %s@%s\n' "$repo" "$branch" >&2
+	fi
+done

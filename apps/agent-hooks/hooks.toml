@@ -176,9 +176,9 @@ matcher = "eval|mcp__eval"
 on_failure = "block"
 
 [[hooks]]
-name = "pretooluse-omp-main-branch-guard"
+name = "pretooluse-main-branch-guard"
 events = ["tool.before"]
-command = ["$HOME/.agents/hooks/omp-main-branch-guard.py"]
+command = ["$HOME/.agents/hooks/main-branch-guard.py"]
 timeout = "5s"
 matcher = "Write|write|Bash|bash|sh|zsh|shell|terminal|exec|run_terminal_cmd|run_terminal_command|mcp__capability__agentmux_capability_run_command|agentmux_capability_run_command|mcp__capability_agentmux_capability_run_command"
 on_failure = "block"

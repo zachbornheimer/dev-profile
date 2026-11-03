@@ -3,6 +3,8 @@ amends "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pk
 // Native replacement for the frozen dev-profile hook set: every step calls a mise-pinned tool directly.
 // Steps that existed only as dev-profile bin wrappers (hardcoded-dev-port, identity-guard, no-trunk-prettier,
 // suppressions, go-mod-tidy, perlcritic, php-lint, ty, clang-tidy, pushed-diagnostics) are deliberately absent.
+// ruff and markdownlint route through dev-profile-new-findings, which blocks only the findings a change
+// introduces: a fork branch that merged upstream is not judged on upstream's own lines.
 fail_fast = false
 stash_backup_count = 20
 exclude =
@@ -212,14 +214,14 @@ local gates = new Mapping<String, Step> {
     exclude = k8sExclude
   }
   ["markdownlint"] {
-    check = "markdownlint {{files}}"
-    fix = "markdownlint --fix {{files}}"
+    check = "dev-profile-new-findings markdownlint {{files}}"
+    fix = "dev-profile-new-findings --fix markdownlint {{files}}"
     glob = List("**/*.md", "**/*.markdown")
     exclude = List("agents/learnings/**")
   }
   ["ruff"] {
-    check = "ruff check --force-exclude {{files}}"
-    fix = "ruff check --force-exclude --fix {{files}}"
+    check = "dev-profile-new-findings ruff {{files}}"
+    fix = "dev-profile-new-findings --fix ruff {{files}}"
     glob = List("**/*.py", "**/*.pyi")
   }
   ["betterleaks"] {
@@ -308,7 +310,13 @@ hooks {
   ["pre-commit"] {
     fix = true
     stash = "git"
-    steps = fixers
+    // A direct commit on main/master is refused here, before anything else runs.
+    // The step is glob-less on purpose: hk still runs it for an empty commit, so
+    // the branch check cannot be skipped by having nothing staged.
+    steps = new Mapping<String, Step> {
+      ...fixers
+      ["no-commit-to-default-branch"] { check = "dev-profile-no-commit-to-default-branch" }
+    }
   }
   ["pre-push"] {
     // Magic by default: fix everything fixable before gating, so a push heals
