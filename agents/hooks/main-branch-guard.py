@@ -48,10 +48,14 @@ IN_PROGRESS_FLAGS = frozenset({"--abort", "--continue", "--quit", "--skip"})
 RESET_MUTATING_FLAGS = frozenset({"--hard", "--merge", "--keep"})
 WT_SUBCOMMANDS = frozenset({"merge", "land"})
 GIT_TIMEOUT_SECONDS = 2
-# The same explicit override the git-level guard (dev-profile-no-commit-to-
-# default-branch) honours. It exists for the human working in the profile
-# checkout, where main is the live branch; it is documented, not hidden.
-ALLOW_ENV = "DEV_PROFILE_ALLOW_DEFAULT_BRANCH_COMMIT"
+# The same explicit overrides the git-level guards honour:
+# dev-profile-no-commit-to-default-branch reads ..._COMMIT, and
+# dev-profile-pre-push reads ..._PUSH. They exist for the human working in the
+# profile checkout, where main is the live branch; documented, not hidden.
+ALLOW_ENVS = (
+    "DEV_PROFILE_ALLOW_DEFAULT_BRANCH_COMMIT",
+    "DEV_PROFILE_ALLOW_DEFAULT_BRANCH_PUSH",
+)
 PUSH_OPTIONS_WITH_ARG = frozenset(
     {"-o", "--push-option", "--repo", "--receive-pack", "--exec"}
 )
@@ -174,7 +178,7 @@ def decide(event: HookEvent) -> Decision | None:
     command = extract_command(event)
     if not command:
         return None
-    if os.environ.get(ALLOW_ENV) or f"{ALLOW_ENV}=" in command:
+    if any(os.environ.get(name) or f"{name}=" in command for name in ALLOW_ENVS):
         return None
 
     cwd = event.field("cwd", "cwd") or os.getcwd()
