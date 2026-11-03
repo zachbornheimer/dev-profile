@@ -62,6 +62,9 @@ STOP_ALLOW = "scores:0.87,0.92"  # OffTopic under 0.88: allow
 # Before the harness's pinned now (2000-01-01T00:00:00Z), so a correction recorded this
 # run falls inside the current request's window when the cap filters by its timestamp.
 PROMPT_AT = "1999-12-31T00:00:00Z"
+# A newer ask, past the harness's pinned now (2000-01-01T00:00:00Z): it opens a
+# fresh request window, so denials recorded this run fall outside it.
+LATER_PROMPT_AT = "2000-01-02T00:00:00Z"
 
 
 @pytest.fixture
@@ -104,6 +107,7 @@ def transcript(
     tasks: list[str] | None = None,
     name: str = "t",
     attribution: str | None = None,
+    prompt_at: str = PROMPT_AT,
 ) -> str:
     """An omp session log: a session header, the user's turns, and one tool call.
 
@@ -120,7 +124,7 @@ def transcript(
             message["attribution"] = attribution
         lines.append(
             json.dumps(
-                {"type": "message", "timestamp": PROMPT_AT, "message": message},
+                {"type": "message", "timestamp": prompt_at, "message": message},
                 separators=(",", ":"),
             )
         )
@@ -128,7 +132,7 @@ def transcript(
             json.dumps(
                 {
                     "type": "message",
-                    "timestamp": PROMPT_AT,
+                    "timestamp": prompt_at,
                     "message": {
                         "role": "assistant",
                         "content": [
@@ -149,7 +153,7 @@ def transcript(
             json.dumps(
                 {
                     "type": "message",
-                    "timestamp": PROMPT_AT,
+                    "timestamp": prompt_at,
                     "message": {
                         "role": "toolResult",
                         "toolCallId": "c1",
@@ -470,6 +474,41 @@ def test_the_same_denied_call_is_denied_again_without_a_second_judgment(
     assert row["decision"] == "off-task-tool-call"
     assert row["source"] == "explicit-constraint"
     assert row["scores"] == {}
+
+
+def test_a_denied_call_refusal_forbids_the_retry(state: HookSession) -> None:
+    """A refusal the agent can act on: no retry, and the user can authorize."""
+    result = run(state, tool_payload(transcript(state), HOST_DRIFT))
+    reason = reason_of(result)
+    assert "Do not retry this call" in reason
+    assert "ask the user to authorize it explicitly" in reason
+    # The first denial of a request carries no count.
+    assert "This is denial" not in reason
+
+
+def test_a_rephrased_retry_names_its_denial_number(state: HookSession) -> None:
+    """A second, rephrased attempt is denied again and says it is the second.
+
+    The exact-repeat ledger cannot catch it (the text differs), so the refusal
+    itself must close the loop: measured on omp 01a188f, one landing call was
+    refused four more times, a judge call each, because the refusal never said
+    the retry was futile.
+    """
+    assert run(state, tool_payload(transcript(state), HOST_DRIFT)).decision == "deny"
+    rephrased = "ps aux --sort=-%cpu | head -20; pkill -f node"
+    second = run(state, tool_payload(transcript(state, name="t2"), rephrased))
+    assert second.decision == "deny", second.output
+    assert len(asked(state)) == 2
+    assert "This is denial 2 for this request" in reason_of(second)
+
+
+def test_a_new_ask_resets_the_denial_count(state: HookSession) -> None:
+    """A newer ask opens a fresh window; the count does not carry over."""
+    assert run(state, tool_payload(transcript(state), HOST_DRIFT)).decision == "deny"
+    tpath = transcript(state, [TASK], name="t3", prompt_at=LATER_PROMPT_AT)
+    result = run(state, tool_payload(tpath, HOST_DRIFT))
+    assert result.decision == "deny", result.output
+    assert "This is denial 2" not in reason_of(result)
 
 
 def test_reaching_the_correction_cap_allows(state: HookSession) -> None:

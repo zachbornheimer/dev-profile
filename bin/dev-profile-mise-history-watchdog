@@ -58,14 +58,14 @@ for lock in operation sync.lock; do
 	fi
 done
 
-# 4. Encryption declarations: a tracked path inside an `encrypt = true`
-# directory that declares no encryption of its own — exactly what `mise dot
-# track` writes — is recorded as plaintext while the origin holds its
-# ciphertext, and publishing stops for EVERY path until the two agree
-# (2026-11-02: "cannot publish: encrypted path … has an unencrypted or invalid
-# version in commit …", 39 attempts, nothing notified). The repair is
-# deterministic — the policy is already the directory's and no edit is lost —
-# so write it down and save. A deliberate `encrypt = false` is left alone.
+# 4. Encryption declarations: the policy is encrypt-by-default, and a bare
+# `{ mode = "track" }` — exactly what `mise dot track` writes — records the
+# path as plaintext while any encrypted sibling exists, and publishing stops
+# for EVERY path until the declarations agree (2026-11-02: "cannot publish:
+# encrypted path … has an unencrypted or invalid version in commit …", 39
+# attempts, nothing notified). The repair is deterministic and no edit is
+# lost: write the default down and save. A deliberate `encrypt = false` is
+# left alone.
 heal="$(dirname "$0")/dev-profile-mise-dot-encryption-heal"
 if [ -x "$heal" ]; then
 	if healed=$("$heal" 2>&1); then

@@ -16,10 +16,13 @@
 # 2026-11-02 outage: 39 failed sync attempts over 21 hours, nothing notified,
 # local checkpoints piling up unpublished.
 #
-# The rule enforced here is the one mise reads: a tracked path inside an
-# `encrypt = true` directory inherits that policy unless it says otherwise, so
-# make the declaration say it, then re-save so the path is recorded under it.
-# An explicit `encrypt = false` is a deliberate choice and is never touched.
+# The policy is: every tracked file is encrypted by default. A bare
+# `{ mode = "track" }` — what `mise dot track` writes — silently opts the
+# path out of any `encrypt = true` around it (or none exists), so the store
+# records it as plaintext and publishing stalls for EVERY path the moment
+# the declaration disagrees. Make the default explicit: heal every bare
+# track entry to `encrypt = true`. An explicit `encrypt = false` is a
+# deliberate choice and is never touched.
 # Idempotent: silent and exit 0 when the declarations already agree.
 #
 # Usage: dev-profile-mise-dot-encryption-heal [--dry-run]
@@ -56,18 +59,13 @@ def quoted(key: str) -> str:
     return '"' + key.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
-def inherits_encryption(key: str) -> bool:
-    """True when the closest declared ancestor encrypts and this entry is silent."""
+def default_encrypts(key: str) -> bool:
+    """True for a bare track entry: tracked files are encrypted by default."""
     value = maps[key]
-    if value.get("mode") != "track" or "encrypt" in value:
-        return False
-    ancestors = [k for k in maps if k != key and key.startswith(k.rstrip("/") + "/")]
-    if not ancestors:
-        return False
-    return maps[max(ancestors, key=len)].get("encrypt") is True
+    return value.get("mode") == "track" and "encrypt" not in value
 
 
-todo = {key for key in maps if inherits_encryption(key)}
+todo = {key for key in maps if default_encrypts(key)}
 if not todo:
     raise SystemExit
 
