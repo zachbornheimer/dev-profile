@@ -61,7 +61,11 @@ if [[ ${#repos[@]} -eq 0 ]]; then
 		fi
 		repos+=("$slug")
 	done < <(fd -HI -d 1 -t d . "${ROOTS[@]}" 2>/dev/null | sort -u)
-	repos=($(printf '%s\n' "${repos[@]}" | sort -u))
+	deduped="$(printf '%s\n' "${repos[@]}" | sort -u)"
+	repos=()
+	while IFS= read -r slug; do
+		[[ -n "$slug" ]] && repos+=("$slug")
+	done <<<"$deduped"
 fi
 
 if [[ ${#repos[@]} -eq 0 ]]; then

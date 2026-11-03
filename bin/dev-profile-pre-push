@@ -52,7 +52,7 @@ if [[ -z "${DEV_PROFILE_ALLOW_DEFAULT_BRANCH_PUSH:-}" ]]; then
 	while read -r _local_ref _local_sha remote_ref _remote_sha; do
 		case "${remote_ref}" in
 		refs/heads/main | refs/heads/master)
-			printf 'ERROR: refusing to push %s. Open a PR (`wt pr`) or land it with `wt land`; set DEV_PROFILE_ALLOW_DEFAULT_BRANCH_PUSH=1 to override.\n' "${remote_ref}" >&2
+			printf 'ERROR: refusing to push %s. Open a PR with wt pr, or land it with wt land; set DEV_PROFILE_ALLOW_DEFAULT_BRANCH_PUSH=1 to override.\n' "${remote_ref}" >&2
 			exit 1
 			;;
 		esac
