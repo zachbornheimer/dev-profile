@@ -327,8 +327,12 @@ local gates = new Mapping<String, Step> {
     workspace_indicator = "Cargo.lock"
   }
   ["shellcheck"] {
+    // The filter can hand the pipe nothing even when the push has files (a
+    // YAML-only change), and GNU xargs still runs its command once with no
+    // arguments, so shellcheck exited 2 on a usage error. Collect the filtered
+    // paths and run shellcheck only when there is at least one.
     check =
-      "dev-profile-changed-files sh -c '\(shellcheckFilter)' sh -- {{files}} | xargs shellcheck --severity=warning"
+      "dev-profile-changed-files sh -c '\(shellcheckFilter)' sh -- {{files}} | { set --; while IFS= read -r file; do set -- \"$@\" \"$file\"; done; [ \"$#\" -eq 0 ] || shellcheck --severity=warning \"$@\"; }"
   }
   ["tofu"] {
     check = "dev-profile-changed-files tofu fmt -check -- {{files}}"
