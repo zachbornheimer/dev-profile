@@ -45,5 +45,19 @@ if [[ "$(git rev-parse --is-bare-repository 2>/dev/null)" == "true" ]]; then
 	exit 0
 fi
 
+# Refuse publishing the default branch. `main`/`master` move through a merge
+# request (`wt pr`) or `wt land`, never a direct push. The opt-out is the
+# human's: an agent must not have a reason to set it.
+if [[ -z "${DEV_PROFILE_ALLOW_DEFAULT_BRANCH_PUSH:-}" ]]; then
+	while read -r _local_ref _local_sha remote_ref _remote_sha; do
+		case "${remote_ref}" in
+		refs/heads/main | refs/heads/master)
+			printf 'ERROR: refusing to push %s. Open a PR (`wt pr`) or land it with `wt land`; set DEV_PROFILE_ALLOW_DEFAULT_BRANCH_PUSH=1 to override.\n' "${remote_ref}" >&2
+			exit 1
+			;;
+		esac
+	done <"${refs}"
+fi
+
 export DEV_PROFILE_PUSH_REFS="${refs}"
 hk run pre-push "$@" < <(dev-profile-push-base <"${refs}")

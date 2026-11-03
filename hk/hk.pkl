@@ -308,7 +308,13 @@ hooks {
   ["pre-commit"] {
     fix = true
     stash = "git"
-    steps = fixers
+    // A direct commit on main/master is refused here, before anything else runs.
+    // The step is glob-less on purpose: hk still runs it for an empty commit, so
+    // the branch check cannot be skipped by having nothing staged.
+    steps = new Mapping<String, Step> {
+      ...fixers
+      ["no-commit-to-default-branch"] { check = "dev-profile-no-commit-to-default-branch" }
+    }
   }
   ["pre-push"] {
     // Magic by default: fix everything fixable before gating, so a push heals
