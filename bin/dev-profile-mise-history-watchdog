@@ -58,11 +58,39 @@ for lock in operation sync.lock; do
 	fi
 done
 
-# 4. Conflicts block every publish while local checkpoints wait; the
-# 2026-11-01 outage was silent for hours. Notify, never auto-resolve.
-# Match "conflict(s)": the status boilerplate mentions "sync conflicts"
-# unconditionally and must not trigger this.
-if mise dot status 2>/dev/null | grep -q 'conflict(s)'; then
-	osascript -e 'display notification "Sync conflicts are blocking dotfile publishing. Run: mise dot conflicts" with title "mise history watchdog"' >/dev/null 2>&1 || true
-	log "conflicts present; publishing blocked; notified"
+# 4. Encryption declarations: a tracked path inside an `encrypt = true`
+# directory that declares no encryption of its own — exactly what `mise dot
+# track` writes — is recorded as plaintext while the origin holds its
+# ciphertext, and publishing stops for EVERY path until the two agree
+# (2026-11-02: "cannot publish: encrypted path … has an unencrypted or invalid
+# version in commit …", 39 attempts, nothing notified). The repair is
+# deterministic — the policy is already the directory's and no edit is lost —
+# so write it down and save. A deliberate `encrypt = false` is left alone.
+heal="$(dirname "$0")/dev-profile-mise-dot-encryption-heal"
+if [ -x "$heal" ]; then
+	if healed=$("$heal" 2>&1); then
+		if [ -n "$healed" ]; then
+			log "healed encryption declarations: $(tr '\n' ' ' <<<"$healed")"
+		fi
+	else
+		log "encryption heal failed: $(tr '\n' ' ' <<<"$healed")"
+	fi
+fi
+
+# 5. Any failing publish blocks every path while local checkpoints wait, and
+# only `mise dot status` says so: the 2026-11-01 outage was silent for hours and
+# the 2026-11-02 one for 21. Report whatever error the status carries, not just
+# the literal "conflict(s)" (the status boilerplate mentions "sync conflicts"
+# unconditionally and must not trigger this). Notify, never auto-resolve:
+# resolving a conflict, or publishing over a secret-scan refusal, is a call
+# only the user makes.
+status="$(mise dot status 2>/dev/null || true)"
+stall="$(sed -n 's/.*✗ last error: //p' <<<"$status" | head -1)"
+if [ -z "$stall" ] && grep -q 'conflict(s)' <<<"$status"; then
+	stall="sync conflicts are blocking publishing; run mise dot conflicts"
+fi
+if [ -n "$stall" ]; then
+	stall="${stall//\"/}"
+	osascript -e "display notification \"${stall:0:140}\" with title \"mise history watchdog: publishing blocked\"" >/dev/null 2>&1 || true
+	log "publishing blocked: $stall"
 fi
