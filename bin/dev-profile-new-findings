@@ -1,0 +1,281 @@
+#!/usr/bin/env python3
+"""Block only the findings a change introduces.
+
+A finding the file already carried at any base the change was built on is debt
+the change inherited, not a finding it wrote. The bases are the file's content
+at the merge base with origin's default branch, at each pushed ref's remote tip,
+and at each parent of a pushed ref that is already on a remote. The last one
+covers a fork branch that merged upstream: upstream's own lines came in from a
+parent the push did not write, so they are not the pusher's to answer for. Only
+findings the change adds block. Findings are matched by rule code and the
+stripped text of the line they point at, so a finding that only moved with
+surrounding edits is still recognized as inherited.
+
+Usage: dev-profile-new-findings [--fix] <ruff|markdownlint> <file>...
+
+With --fix the tool's own fixer runs first, so a pre-push step heals what it
+can and blocks only the findings the change introduced.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+import re
+import subprocess
+import sys
+from collections import Counter
+from dataclasses import dataclass
+
+ZERO_SHA = re.compile(r"^0+$")
+# Both tools exit 1 to report findings and 0 to report none.
+TOOL_EXIT_CODES = (0, 1)
+ROOT: str | None = None
+
+
+@dataclass(frozen=True)
+class Finding:
+    path: str
+    row: int
+    rule: str
+    message: str = ""
+
+
+def run(
+    cmd: list[str],
+    cwd: str | None = None,
+    stdin: str | None = None,
+    findings_on_stderr: bool = False,
+) -> str:
+    proc = subprocess.run(
+        cmd, cwd=cwd, input=stdin, capture_output=True, text=True, check=False
+    )
+    if proc.returncode not in TOOL_EXIT_CODES:
+        sys.stderr.write(proc.stderr)
+        raise SystemExit(proc.returncode)
+    # markdownlint logs its findings to stderr; ruff writes them to stdout.
+    return proc.stderr if findings_on_stderr else proc.stdout
+
+
+def git(*args: str, raw: bool = False) -> str | None:
+    proc = subprocess.run(["git", *args], capture_output=True, text=True, check=False)
+    if proc.returncode != 0:
+        return None
+    return proc.stdout if raw else proc.stdout.strip()
+
+
+def is_commit(sha: str | None) -> bool:
+    if not sha or ZERO_SHA.match(sha):
+        return False
+    return git("rev-parse", "-q", "--verify", f"{sha}^{{commit}}") is not None
+
+
+def default_branch() -> str:
+    ref = git("symbolic-ref", "-q", "--short", "refs/remotes/origin/HEAD")
+    return ref or "origin/main"
+
+
+def pushed_refs() -> list[tuple[str, str]]:
+    """The (local tip, remote tip) pairs git handed the pre-push hook."""
+    path = os.environ.get("DEV_PROFILE_PUSH_REFS", "")
+    if not path:
+        return []
+    try:
+        with open(path, encoding="utf-8") as handle:
+            lines = handle.read().splitlines()
+    except OSError:
+        return []
+    refs = []
+    for line in lines:
+        parts = line.split()
+        if len(parts) == 4:
+            refs.append((parts[1], parts[3]))
+    return refs
+
+
+def published(sha: str) -> bool:
+    """True when the commit is already reachable from a remote-tracking ref."""
+    return bool(
+        git("for-each-ref", f"--contains={sha}", "--format=%(refname)", "refs/remotes")
+    )
+
+
+def base_commits() -> list[str]:
+    """Every commit whose version of a file this change inherited."""
+    seen: set[str] = set()
+    bases: list[str] = []
+
+    def add(sha: str | None) -> None:
+        if is_commit(sha) and sha not in seen:
+            seen.add(sha)
+            bases.append(sha)
+
+    add(git("merge-base", "HEAD", default_branch()))
+    for local_sha, remote_sha in pushed_refs():
+        add(remote_sha)
+        for parent in (
+            git("rev-list", "--parents", "-n", "1", local_sha) or ""
+        ).split()[1:]:
+            # A parent already on a remote is content the push inherited rather
+            # than wrote: a fork branch that merged upstream must not answer for
+            # upstream's own lines. A parent the push wrote itself is not a base.
+            if published(parent):
+                add(parent)
+    return bases
+
+
+def line_text(content: str, row: int) -> str:
+    lines = content.splitlines()
+    return lines[row - 1].strip() if 0 < row <= len(lines) else ""
+
+
+def repo_root() -> str:
+    global ROOT
+    if ROOT is None:
+        ROOT = git("rev-parse", "--show-toplevel") or os.getcwd()
+    return ROOT
+
+
+def relative(path: str) -> str:
+    """The path as git spells it: relative to the repository root."""
+    return os.path.relpath(os.path.abspath(path), repo_root())
+
+
+def read(path: str) -> str:
+    with open(os.path.join(repo_root(), path), encoding="utf-8") as handle:
+        return handle.read()
+
+
+def ruff_now(paths: list[str]) -> list[Finding]:
+    out = run(["ruff", "check", "--force-exclude", "--output-format=json", *paths])
+    return [
+        Finding(
+            relative(f["filename"]),
+            f["location"]["row"],
+            f.get("code") or "",
+            f.get("message") or "",
+        )
+        for f in json.loads(out or "[]")
+    ]
+
+
+def ruff_content(path: str, content: str) -> list[Finding]:
+    out = run(
+        [
+            "ruff",
+            "check",
+            "--force-exclude",
+            "--output-format=json",
+            "--stdin-filename",
+            path,
+            "-",
+        ],
+        stdin=content,
+    )
+    return [
+        Finding(path, f["location"]["row"], f.get("code") or "")
+        for f in json.loads(out or "[]")
+    ]
+
+
+def markdownlint_now(paths: list[str]) -> list[Finding]:
+    out = run(["markdownlint", "--json", *paths], findings_on_stderr=True)
+    return [
+        Finding(
+            relative(f["fileName"]),
+            f["lineNumber"],
+            (f.get("ruleNames") or [""])[0],
+            f.get("ruleDescription") or "",
+        )
+        for f in json.loads(out or "[]")
+    ]
+
+
+def markdownlint_content(path: str, content: str) -> list[Finding]:
+    # STDIN mode reads the repository's own .markdownlint* config from the file's
+    # directory, so run there and the base version is judged by the same rules as
+    # the file on disk.
+    out = run(
+        ["markdownlint", "--stdin", "--json"],
+        cwd=os.path.join(repo_root(), os.path.dirname(path)) or repo_root(),
+        stdin=content,
+        findings_on_stderr=True,
+    )
+    return [
+        Finding(path, f["lineNumber"], (f.get("ruleNames") or [""])[0])
+        for f in json.loads(out or "[]")
+    ]
+
+
+TOOLS = {
+    "ruff": (ruff_now, ruff_content),
+    "markdownlint": (markdownlint_now, markdownlint_content),
+}
+
+
+def fix_command(tool: str, paths: list[str]) -> None:
+    """Run the tool's fixer; what it cannot fix is judged by the caller."""
+    if tool == "ruff":
+        run(["ruff", "check", "--force-exclude", "--fix", *paths])
+    else:
+        run(["markdownlint", "--fix", *paths], findings_on_stderr=True)
+
+
+def main(argv: list[str]) -> int:
+    fix = argv[:1] == ["--fix"]
+    if fix:
+        argv = argv[1:]
+    if not argv or argv[0] not in TOOLS:
+        sys.stderr.write(
+            "usage: dev-profile-new-findings [--fix] <ruff|markdownlint> <file>...\n"
+        )
+        return 2
+    tool, paths = argv[0], argv[1:]
+    if not paths:
+        return 0
+    if fix:
+        fix_command(tool, paths)
+    findings_now, findings_of_content = TOOLS[tool]
+    current = findings_now(paths)
+    if not current:
+        return 0
+
+    inherited: Counter[tuple[str, str, str]] = Counter()
+    for path in dict.fromkeys(f.path for f in current):
+        contents: set[str] = set()
+        for base in base_commits():
+            content = git("show", f"{base}:{path}", raw=True)
+            if content is None:
+                continue
+            digest = hashlib.sha256(content.encode()).hexdigest()
+            if digest in contents:
+                continue
+            contents.add(digest)
+            for finding in findings_of_content(path, content):
+                inherited[(path, finding.rule, line_text(content, finding.row))] += 1
+
+    introduced = []
+    for finding in current:
+        key = (finding.path, finding.rule, line_text(read(finding.path), finding.row))
+        if inherited[key] > 0:
+            inherited[key] -= 1
+            continue
+        introduced.append(finding)
+
+    for finding in introduced:
+        print(
+            f"{finding.path}:{finding.row}: {finding.rule} {finding.message}".rstrip()
+        )
+    if introduced:
+        print(
+            f"{tool}: {len(introduced)} finding(s) introduced by this change"
+            " (inherited ones are not counted)",
+            file=sys.stderr,
+        )
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))
