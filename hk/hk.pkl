@@ -14,7 +14,7 @@ amends "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pk
 // a command that itself carries one (none here today) runs wrapped in `sh -c '...'`.
 //
 // Project-wide steps judge the repository as a unit — a whole-module compile
-// (gosec, go-vet, golangci-lint, govulncheck), a whole-workspace advisory check
+// (go-vet, golangci-lint, govulncheck), a whole-workspace advisory check
 // (cargo-deny), a whole-app audit (brakeman, bundle-audit), a commit-range secret
 // scan (gitleaks), the working tree's shape (destroyed-symlinks, forbid-submodules),
 // the diff against origin/main (foxguard-typescript), or the branch/commit metadata
@@ -194,9 +194,13 @@ local gates = new Mapping<String, Step> {
         "**/action.yaml",
       )
   }
+  // gosec's verdict belongs to dev-profile-gosec-packages: it gosecs the
+  // packages holding the pushed files but fails only on findings located in
+  // those files, so a finding already sitting in an untouched file of the same
+  // package does not block a push that did not introduce it
+  // (tests/gosec-fixture.sh pins that policy).
   ["gosec"] {
-    check =
-      "for d in $(dirname {{files}} | sort -u); do (cd \"$d\" && gosec -quiet ./...) || exit 1; done"
+    check = "dev-profile-gosec-packages -- {{files}}"
     glob = List("**/*.go")
     dir = "{{workspace}}"
     workspace_indicator = "go.mod"
