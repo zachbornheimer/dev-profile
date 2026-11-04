@@ -145,7 +145,7 @@ local fixers = new Mapping<String, Step> {
       )
   }
   ["stylelint"] {
-    fix = "dev-profile-changed-files stylelint --fix -- {{files}}"
+    fix = "dev-profile-changed-files dev-profile-stylelint-fix -- {{files}}"
     glob = List("**/*.css", "**/*.scss", "**/*.sass")
   }
   ["go-imports"] {
