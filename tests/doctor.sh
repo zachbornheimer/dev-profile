@@ -29,6 +29,7 @@ bash "$root/tests/changed-files-fixture.sh" >/dev/null || fail "changed-files fi
 bash "$root/tests/pre-push-upstream-merge.sh" >/dev/null || fail "pre-push upstream merge fixture"
 bash "$root/tests/mise-dot-encryption-heal-fixture.sh" >/dev/null || fail "mise dot encryption heal fixture"
 bash "$root/tests/php-fmt-basepath-fixture.sh" >/dev/null || fail "php fmt basepath fixture"
+bash "$root/tests/mise-history-watchdog-repair-fixture.sh" >/dev/null || fail "mise history watchdog repair fixture"
 for f in "$root"/bin/*; do
 	if head -1 "$f" | grep -q python; then
 		python3 -m py_compile "$f" || fail "bin/${f##*/}"

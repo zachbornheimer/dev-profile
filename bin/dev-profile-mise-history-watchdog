@@ -12,8 +12,12 @@ set -euo pipefail
 #   4. Sync conflicts silently block ALL publishing while local checkpoints
 #      pile up unpublished.
 #
-# Runs every 5 minutes via the mise-history-watchdog LaunchAgent. Heals 1-3,
-# notifies on 4. Idempotent: a healthy service produces no log lines.
+# Runs every 5 minutes via the mise-history-watchdog LaunchAgent. Heals 1-3
+# itself, and hands 4-5 to a worker run: each failure it cannot clear files one
+# atask objective and spawns one `start_atask_task` run on it
+# (dev-profile-mise-history-repair). A person is notified only when no worker
+# could be started, or when the attempts ran out. Idempotent: a healthy service
+# produces no log lines.
 
 export PATH="$HOME/.local/share/mise/shims:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
 
@@ -21,8 +25,40 @@ LOG="$HOME/Library/Logs/mise-history-watchdog.log"
 HIST_DIR="$HOME/.local/state/mise/history"
 SERVICE="dev.mise.mise-history"
 MY_UID=$(id -u)
+# Overridable so the fixture can drive every branch with stubs; the machine uses
+# what the LaunchAgent's PATH and this directory resolve.
+MISE_BIN="${MISE_HISTORY_WATCHDOG_MISE:-mise}"
+HEAL="${MISE_HISTORY_WATCHDOG_HEAL:-$(dirname "$0")/dev-profile-mise-dot-encryption-heal}"
+REPAIR="${MISE_HISTORY_WATCHDOG_REPAIR:-$(dirname "$0")/dev-profile-mise-history-repair}"
+NOTIFY="${MISE_HISTORY_WATCHDOG_NOTIFY:-osascript}"
+# Set by escalate; a tick that escalated nothing clears the repair ledger.
+escalated=0
 
 log() { printf '%s %s\n' "$(date '+%F %T')" "$*" >>"$LOG"; }
+
+# An unfixable failure becomes one atask objective with one worker run on it.
+# The repair script keeps the attempt ledger and answers a verdict; this decides
+# what the user hears: nothing while an attempt is in flight, one line when a run
+# starts, and a notification only when no worker could be started or the attempts
+# are spent. `running` and `alerted` are steady states and stay silent.
+escalate() {
+	local class="$1" detail="$2" verdict status=0 body reason
+	verdict="$("$REPAIR" --class "$class" --detail "$detail" 2>&1)" || status=$?
+	escalated=1
+	if [ "$status" -eq 0 ]; then
+		case "$verdict" in
+		running* | alerted*) ;;
+		*) log "$class: ${verdict:-the repair script produced no verdict}" ;;
+		esac
+		return 0
+	fi
+	reason="${verdict:-no verdict}"
+	body="cannot fix $class automatically: ${detail:0:70} — ${reason:0:90}"
+	body="${body//\"/}"
+	log "$class: needs a person — ${reason:0:90}"
+	"$NOTIFY" -e "display notification \"${body:0:200}\" with title \"mise history watchdog\"" >/dev/null 2>&1 || true
+	return 0
+}
 
 # 1. Duplicate watchers: keep the launchd-owned pid, kill every other.
 main_pid=$(launchctl list 2>/dev/null | awk -v s="$SERVICE" '$3 == s {print $1}' | head -1)
@@ -38,7 +74,7 @@ fi
 # 2. Wedged watcher: the health line stops updating when the internal loop
 # is stuck; restart the service BEFORE clearing locks so a fresh watcher's
 # own locks are never removed. `mise dot status` is read-only.
-health=$(mise dot status 2>/dev/null | sed -n 's/.*watcher health (updated \([0-9]*\)s ago).*/\1/p' | head -1)
+health=$("$MISE_BIN" dot status 2>/dev/null | sed -n 's/.*watcher health (updated \([0-9]*\)s ago).*/\1/p' | head -1)
 if [ -n "${health:-}" ] && [ "$health" -ge 600 ] 2>/dev/null; then
 	launchctl kickstart -k "gui/$MY_UID/$SERVICE" 2>/dev/null || true
 	log "watcher health frozen ${health}s; restarted $SERVICE"
@@ -65,32 +101,40 @@ done
 # encrypted path … has an unencrypted or invalid version in commit …", 39
 # attempts, nothing notified). The repair is deterministic and no edit is
 # lost: write the default down and save. A deliberate `encrypt = false` is
-# left alone.
-heal="$(dirname "$0")/dev-profile-mise-dot-encryption-heal"
-if [ -x "$heal" ]; then
-	if healed=$("$heal" 2>&1); then
+# left alone. A heal that cannot run at all is no longer a log line: it is the
+# watchdog's own tooling failing, which a worker can fix.
+if [ -x "$HEAL" ]; then
+	if healed=$("$HEAL" 2>&1); then
 		if [ -n "$healed" ]; then
 			log "healed encryption declarations: $(tr '\n' ' ' <<<"$healed")"
 		fi
 	else
-		log "encryption heal failed: $(tr '\n' ' ' <<<"$healed")"
+		escalate heal-failed "$(tr '\n' ' ' <<<"$healed")"
 	fi
+else
+	escalate heal-failed "the heal tool is missing or not executable: $HEAL"
 fi
 
 # 5. Any failing publish blocks every path while local checkpoints wait, and
-# only `mise dot status` says so: the 2026-11-01 outage was silent for hours and
-# the 2026-11-02 one for 21. Report whatever error the status carries, not just
-# the literal "conflict(s)" (the status boilerplate mentions "sync conflicts"
-# unconditionally and must not trigger this). Notify, never auto-resolve:
-# resolving a conflict, or publishing over a secret-scan refusal, is a call
-# only the user makes.
-status="$(mise dot status 2>/dev/null || true)"
+# only `mise dot status` says so: the 2026-11-01 outage was silent for hours, the
+# 2026-11-02 one for 21, and the 2026-11-04 one notified every five minutes from
+# 10:42 to 17:52 without repairing anything. Report whatever error the status
+# carries, not just the literal "conflict(s)" (the status boilerplate mentions
+# "sync conflicts" unconditionally and must not trigger this). A worker run gets
+# the failure first; resolving a conflict, or publishing over a secret-scan
+# refusal, still reaches the user whenever the worker cannot.
+status="$("$MISE_BIN" dot status 2>/dev/null || true)"
 stall="$(sed -n 's/.*✗ last error: //p' <<<"$status" | head -1)"
 if [ -z "$stall" ] && grep -q 'conflict(s)' <<<"$status"; then
 	stall="sync conflicts are blocking publishing; run mise dot conflicts"
 fi
 if [ -n "$stall" ]; then
 	stall="${stall//\"/}"
-	osascript -e "display notification \"${stall:0:140}\" with title \"mise history watchdog: publishing blocked\"" >/dev/null 2>&1 || true
-	log "publishing blocked: $stall"
+	escalate publishing-blocked "$stall"
+fi
+
+# A tick that escalated nothing clears the attempt ledger, so a failure that
+# returns later starts a fresh budget instead of inheriting an exhausted one.
+if [ "$escalated" = 0 ]; then
+	"$REPAIR" --clear >/dev/null 2>&1 || true
 fi
