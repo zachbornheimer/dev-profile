@@ -386,3 +386,5 @@ hooks {
     steps = new Mapping<String, Step> { ...fixers; ...gates }
   }
 }
+
+// Scope measurement: a comment-only change to exercise the per-file steps.

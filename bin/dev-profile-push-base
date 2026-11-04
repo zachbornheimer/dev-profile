@@ -30,3 +30,5 @@ while read -r local_ref local_sha remote_ref remote_sha; do
 	remote_sha="$(advance_base "${local_sha}" "${remote_sha}")"
 	echo "${local_ref} ${local_sha} ${remote_ref} ${remote_sha}"
 done
+
+# Scope measurement: a comment-only change to exercise the per-file steps.

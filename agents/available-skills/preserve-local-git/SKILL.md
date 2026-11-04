@@ -103,3 +103,5 @@ List:
 - anything still only local
 
 End with the clone command for the other computer: `git clone`, then `wt switch <wip-or-backup-branch>` when `wt` is present.
+
+Scope measurement: a comment-only change to exercise the per-file steps.

@@ -39,3 +39,5 @@ done
 node --check "$root/dev-relay.mjs" || fail dev-relay.mjs
 [ -f "$root/config/personal-overlay.toml" ] || fail config/personal-overlay.toml
 echo "ok"
+
+# Scope measurement: a comment-only change to exercise the per-file steps.
