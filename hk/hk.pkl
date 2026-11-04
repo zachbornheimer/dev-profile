@@ -321,8 +321,11 @@ local gates = new Mapping<String, Step> {
           "**/zed/**/*.json",
         )
   }
+  // Brakeman takes one application path, never the changed files, and bundle-audit takes
+  // a project directory, never a lockfile: both wrappers scan each file from the root that
+  // holds it, so an app below the repo root is scanned as its own project.
   ["brakeman"] {
-    check = "brakeman --no-pager --quiet"
+    check = "dev-profile-brakeman {{files}}"
     glob =
       List(
         "**/*.rb",
@@ -334,7 +337,7 @@ local gates = new Mapping<String, Step> {
         "**/Rakefile",
       )
   }
-  ["bundle-audit"] { check = "bundle-audit check"; glob = List("**/Gemfile.lock") }
+  ["bundle-audit"] { check = "dev-profile-bundle-audit {{files}}"; glob = List("**/Gemfile.lock") }
   ["cargo-deny"] {
     check = "cargo-deny --locked --workspace check"
     glob = List("**/Cargo.toml", "**/Cargo.lock", "**/deny.toml", "**/.deny.toml")
