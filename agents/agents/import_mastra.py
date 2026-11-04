@@ -31,8 +31,6 @@ ALIASES: dict[str, str] = {
     "mastra_workspace_file_stat": "stat",
     "mastra_workspace_mkdir": "mkdir",
     "agentmux_capability_": "",
-    "hindsight_recall": "memory_search",
-    "hindsight_retain": "memory_ingest",
 }
 
 # A tool name this importer cannot place: it stays in the prompt, and the run
