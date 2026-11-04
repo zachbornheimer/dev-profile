@@ -10,7 +10,9 @@ if [[ -z "${GIT_DIR:-}" && -n "${DEV_PROFILE_HOOK_GIT_DIR:-}" ]] &&
 fi
 
 refs="$(mktemp)"
-trap 'rm -f "${refs}"' EXIT
+advanced="$(mktemp)"
+introduced="$(mktemp)"
+trap 'rm -f "${refs}" "${advanced}" "${introduced}"' EXIT
 cat >"${refs}"
 
 # A bare repository (such as ~/.local/state/mise/history/repo.git pushed by
@@ -59,5 +61,21 @@ if [[ -z "${DEV_PROFILE_ALLOW_DEFAULT_BRANCH_PUSH:-}" ]]; then
 	done <"${refs}"
 fi
 
+# hk's stdin is the pushed refs with each ref's old tip moved to its push
+# base. The introduced set that base implies is measured once here and
+# shared with every step through DEV_PROFILE_PUSH_INTRODUCED: measuring per
+# step (dev-profile-changed-files' fallback) costs tens of seconds of git
+# per step in a large repository, and a push with dozens of steps then
+# cannot finish at all.
+if ! dev-profile-push-base <"${refs}" >"${advanced}"; then
+	printf 'pre-push: dev-profile-push-base failed; steps measure for themselves\n' >&2
+fi
+if dev-profile-push-introduced "${advanced}" >"${introduced}"; then
+	export DEV_PROFILE_PUSH_INTRODUCED="${introduced}"
+else
+	# Never share a failed measurement: an empty union would skip every
+	# gate. Without the variable each step measures, as before.
+	printf 'pre-push: measuring the introduced files failed; steps measure for themselves\n' >&2
+fi
 export DEV_PROFILE_PUSH_REFS="${refs}"
-hk run pre-push "$@" < <(dev-profile-push-base <"${refs}")
+hk run pre-push "$@" <"${advanced}"

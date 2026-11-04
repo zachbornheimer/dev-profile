@@ -103,6 +103,58 @@ if [ -s "${work}/passed" ]; then
 	fail "a tip already on the remote must run no tool: $(cat "${work}/passed")"
 fi
 
+# The shared measurement a pre-push hands every step through
+# DEV_PROFILE_PUSH_INTRODUCED must agree with what the per-step fallback
+# judges for the same push.
+printf 'refs/heads/topic %s refs/heads/topic %s\n' \
+	"$(git rev-parse HEAD)" "$(git rev-parse HEAD^)" >"${work}/refs"
+"${src}/bin/dev-profile-push-base" <"${work}/refs" >"${work}/advanced"
+introduced="${work}/introduced"
+"${src}/bin/dev-profile-push-introduced" "${work}/advanced" >"${introduced}"
+printf 'authored.md\n' >"${work}/want"
+sort "${introduced}" >"${work}/got"
+if ! diff -q "${work}/want" "${work}/got" >/dev/null; then
+	fail "the shared measurement must list the authored file: $(cat "${introduced}")"
+fi
+
+# A union handed through DEV_PROFILE_PUSH_INTRODUCED filters the step's
+# candidates without touching git.
+DEV_PROFILE_PUSH_INTRODUCED="${introduced}" gate main.md authored.md
+printf 'authored.md\n' >"${work}/want"
+sort "${work}/passed" >"${work}/got"
+if ! diff -q "${work}/want" "${work}/got" >/dev/null; then
+	fail "a shared union must filter the candidates: $(cat "${work}/passed}")"
+fi
+grep -Eq '1 of 2 candidate file\(s\) introduced by this push.*running' "${work}/log" ||
+	fail "the shared-union run must be logged: $(cat "${work}/log}")"
+
+# A union that cannot bound the push runs the tool on every candidate.
+printf '*\n' >"${introduced}"
+DEV_PROFILE_PUSH_INTRODUCED="${introduced}" gate main.md authored.md
+printf 'authored.md\nmain.md\n' | sort >"${work}/want"
+sort "${work}/passed" >"${work}/got"
+if ! diff -q "${work}/want" "${work}/got" >/dev/null; then
+	fail "an unmeasurable push must run every candidate: $(cat "${work}/passed}")"
+fi
+
+# An empty shared union introduces nothing, so the tool must not run.
+: >"${introduced}"
+DEV_PROFILE_PUSH_INTRODUCED="${introduced}" gate main.md authored.md
+if [ -s "${work}/passed" ]; then
+	fail "an empty shared union must skip the tool: $(cat "${work}/passed}")"
+fi
+grep -Eq '0 of 2 candidate file\(s\) introduced by this push.*skipped' "${work}/log" ||
+	fail "the shared-union skip must be logged: $(cat "${work}/log}")"
+
+# An unreadable shared union falls back to measuring the push per step.
+DEV_PROFILE_PUSH_INTRODUCED="${work}/missing-union" \
+	DEV_PROFILE_PUSH_REFS="${work}/refs" gate main.md authored.md
+printf 'authored.md\n' >"${work}/want"
+sort "${work}/passed" >"${work}/got"
+if ! diff -q "${work}/want" "${work}/got" >/dev/null; then
+	fail "a missing shared union must fall back to the refs: $(cat "${work}/passed}")"
+fi
+
 # Without push refs (pre-commit, a direct run) every candidate passes through.
 unset DEV_PROFILE_PUSH_REFS
 gate main.md topic.txt upstream.md authored.md

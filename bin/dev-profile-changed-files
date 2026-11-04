@@ -6,10 +6,12 @@
 # hk expands {{files}} to every file between the push base and the pushed
 # tip, so a branch that merged its default branch hands a step — and its
 # fixer — thousands of inherited files. This filter hands the command only
-# the introduced candidates, measured per pushed ref from
-# DEV_PROFILE_PUSH_REFS (the original pre-push stdin, captured by
-# dev-profile-pre-push; the first standalone `--` separates the command —
-# a command that itself contains one runs wrapped in `sh -c '...'`).
+# the introduced candidates, measured once per push by dev-profile-pre-push
+# (dev-profile-push-introduced) and shared with every step through
+# DEV_PROFILE_PUSH_INTRODUCED; without that variable the same measurement
+# runs per step from DEV_PROFILE_PUSH_REFS (the original pre-push stdin,
+# captured by dev-profile-pre-push; the first standalone `--` separates the
+# command — a command that itself contains one runs wrapped in `sh -c '...'`).
 #
 # A file is introduced when its content at the pushed tip differs from its
 # content at every base the push inherited:
@@ -29,21 +31,6 @@
 # touch exits 0 without running its command, so an empty file list can
 # never reach a tool as a usage error.
 set -euo pipefail
-
-is_all_zeros() {
-	case "${1:-}" in
-	'' | *[!0]*) return 1 ;;
-	*) return 0 ;;
-	esac
-}
-
-is_commit() { git rev-parse -q --verify "$1^{commit}" >/dev/null 2>&1; }
-
-default_branch() { git symbolic-ref -q --short refs/remotes/origin/HEAD || echo origin/main; }
-
-published() {
-	[ -n "$(git for-each-ref "--contains=$1" --format='%(refname)' refs/remotes 2>/dev/null)" ]
-}
 
 cmd=()
 candidates=()
@@ -66,85 +53,38 @@ if [[ "${#candidates[@]}" -eq 0 ]]; then
 fi
 
 refs="${DEV_PROFILE_PUSH_REFS:-}"
-if [[ -z "${refs}" || ! -r "${refs}" ]]; then
-	printf 'dev-profile-changed-files: %d candidate file(s), no push refs: running %s on all\n' \
-		"${#candidates[@]}" "${cmd[0]}" >&2
-	exec "${cmd[@]}" "${candidates[@]}"
-fi
-
 push_base="$(cd "$(dirname "$0")" && pwd)/dev-profile-push-base"
+push_introduced="$(cd "$(dirname "$0")" && pwd)/dev-profile-push-introduced"
 tmp="$(mktemp -d)"
-union="${tmp}/introduced"
-: >"${union}"
-pushed_refs=0
 
-while read -r local_ref local_sha _remote_ref remote_sha; do
-	is_all_zeros "${local_sha:-}" && continue
-	is_commit "${local_sha}" || continue
-	pushed_refs=$((pushed_refs + 1))
-
-	bases="${tmp}/bases"
-	: >"${bases}"
-	if ! is_all_zeros "${remote_sha:-}" && is_commit "${remote_sha}"; then
-		base="$(${push_base} --pair "${local_sha}" "${remote_sha}" 2>/dev/null || true)"
-		if [[ -n "${base}" ]]; then
-			echo "${base}" >>"${bases}"
-		fi
-	else
-		# Unborn on its remote: the branch's own published tip is what the
-		# push is measured from, when it is already published somewhere.
-		branch="${local_ref#refs/heads/}"
-		for tracked in $(git for-each-ref --format='%(refname)' refs/remotes); do
-			[[ "${tracked}" == refs/remotes/*/"${branch}" ]] || continue
-			git merge-base --is-ancestor "${tracked}" "${local_sha}" 2>/dev/null || continue
-			echo "${tracked}" >>"${bases}"
-			break
-		done
-	fi
-	base="$(git merge-base "${local_sha}" "$(default_branch)" 2>/dev/null || true)"
-	if [[ -n "${base}" ]]; then
-		echo "${base}" >>"${bases}"
-	fi
-	for parent in $(git rev-list --parents -n 1 "${local_sha}" 2>/dev/null | cut -d' ' -f 2-); do
-		if published "${parent}"; then
-			echo "${parent}" >>"${bases}"
-		fi
-	done
-
-	if [[ ! -s "${bases}" ]]; then
-		# No base resolved: judge every candidate, as an unfiltered step would.
-		printf '%s\n' "${candidates[@]}" >>"${union}"
-		continue
-	fi
-	# A file the push introduces differs from every base; one matching any
-	# base is inherited. The per-ref introduced set is the intersection of
-	# the per-base diff sets.
-	inter="${tmp}/introduced-in-ref"
-	first=1
-	while read -r base; do
-		[[ -n "${base}" ]] || continue
-		diffset="${tmp}/diffset"
-		git diff --name-only --no-renames "${base}" "${local_sha}" >"${diffset}" 2>/dev/null || continue
-		sort -u "${diffset}" -o "${diffset}"
-		if [[ "${first}" -eq 1 ]]; then
-			mv "${diffset}" "${inter}"
-			first=0
-		else
-			comm -12 "${inter}" "${diffset}" >"${tmp}/narrowed"
-			mv "${tmp}/narrowed" "${inter}"
-		fi
-	done <"${bases}"
-	if [[ "${first}" -eq 0 ]]; then
-		cat "${inter}" >>"${union}"
-	fi
-done <"${refs}"
-
-if [[ "${pushed_refs}" -eq 0 ]]; then
-	# Refs that parse to nothing: judge every candidate, as an unfiltered step would.
-	printf 'dev-profile-changed-files: %d candidate file(s), no parsable push refs: running %s on all\n' \
-		"${#candidates[@]}" "${cmd[0]}" >&2
+run_all() { # <reason>
+	printf 'dev-profile-changed-files: %d candidate file(s), %s: running %s on all\n' \
+		"${#candidates[@]}" "$1" "${cmd[0]}" >&2
 	rm -rf "${tmp}"
 	exec "${cmd[@]}" "${candidates[@]}"
+}
+
+union=""
+if [[ -n "${DEV_PROFILE_PUSH_INTRODUCED:-}" && -r "${DEV_PROFILE_PUSH_INTRODUCED}" ]]; then
+	# dev-profile-pre-push measured this push once for every step to share.
+	union="${DEV_PROFILE_PUSH_INTRODUCED}"
+elif [[ -n "${refs}" && -r "${refs}" ]]; then
+	if ! "${push_base}" <"${refs}" >"${tmp}/advanced" 2>/dev/null; then
+		run_all "push refs could not be advanced"
+	fi
+	if "${push_introduced}" "${tmp}/advanced" >"${tmp}/union" 2>/dev/null; then
+		union="${tmp}/union"
+	else
+		run_all "push refs could not be measured"
+	fi
+else
+	run_all "no push refs"
+fi
+
+if [[ -n "${union}" ]] && grep -qx '\*' "${union}"; then
+	# The push could not be measured from any base: judge every candidate,
+	# as an unfiltered step would.
+	run_all "no parsable push refs"
 fi
 
 # Candidates may be spelled relative to a workspace hk switched the step
@@ -160,8 +100,8 @@ for candidate in "${candidates[@]}"; do
 	printf '%s\t%s\n' "${prefix}${candidate}" "${candidate}" >>"${map}"
 done
 sort -u "${keys}" -o "${keys}"
-sort -u "${union}" -o "${union}"
-comm -12 "${keys}" "${union}" >"${tmp}/matched"
+sort -u "${union}" -o "${tmp}/union-sorted"
+comm -12 "${keys}" "${tmp}/union-sorted" >"${tmp}/matched"
 awk -F'\t' 'NR == FNR { matched[$1] = 1; next } matched[$1] && !printed[$2]++ { print $2 }' \
 	"${tmp}/matched" "${map}" >"${tmp}/introduced-list"
 introduced=()
