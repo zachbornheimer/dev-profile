@@ -25,6 +25,32 @@ owned_repo="${scratch}/owned"
 "${git_bin}" -C "${owned_repo}" remote add origin "https://github.com/Software-Automation-Holdings-LLC/isa-platform.git"
 (cd "${owned_repo}" && dev-profile-repo-owned) || fail "SAH repo must be classified as owned"
 
+# gh answers over the network, which a checkout that was never authenticated cannot rely on: it
+# prints the HTTP error body on stdout and exits non-zero. That body is not an owner, so the
+# classification must not follow it — this is the CI case, where the actions token cannot read an
+# org repo. Stub gh into that state, with no cached answer, and require the remote to decide.
+gh_stub="${scratch}/gh-stub"
+mkdir -p "${gh_stub}"
+cat >"${gh_stub}/gh" <<'GHEOF'
+#!/usr/bin/env bash
+printf '%s\n' '{"message":"Not Found","documentation_url":"https://docs.github.com/rest/repos/repos#get-a-repository","status":"404"}'
+exit 1
+GHEOF
+chmod +x "${gh_stub}/gh"
+stub_path="${gh_stub}:${PATH}"
+rm -f "${owned_repo}/.git/dev-profile-effective-owner"
+if ! (cd "${owned_repo}" && PATH="${stub_path}" dev-profile-repo-owned); then
+	fail "an owned repo whose gh cannot read it must stay owned"
+fi
+
+# A clone whose cache file holds that same error body (written by a profile that trusted gh's
+# output) must not inherit the answer.
+printf '%s\n' '{"message":"Not Found","status":"404"}' >"${owned_repo}/.git/dev-profile-effective-owner"
+if ! (cd "${owned_repo}" && PATH="${stub_path}" dev-profile-repo-owned); then
+	fail "a poisoned owner cache must not classify an owned repo as unowned"
+fi
+rm -f "${owned_repo}/.git/dev-profile-effective-owner"
+
 unowned_repo="${scratch}/unowned"
 "${git_bin}" init -q -b main "${unowned_repo}"
 "${git_bin}" -C "${unowned_repo}" remote add origin "https://github.com/can1357/oh-my-pi.git"
