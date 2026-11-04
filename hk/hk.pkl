@@ -124,8 +124,11 @@ local fixers = new Mapping<String, Step> {
         "trailing-whitespace",
       )
   }
+  // stylelint exits 78 with a ConfigurationError when the repo supplies no config, and hk
+  // dumps that stderr whenever any unrelated step fails. dev-profile-stylelint-fix absorbs
+  // the no-config and unfixable-lint output and falls back to the profile's config.
   ["stylelint"] {
-    fix = "dev-profile-changed-files stylelint --fix -- {{files}}"
+    fix = "dev-profile-changed-files dev-profile-stylelint-fix -- {{files}}"
     glob = List("**/*.css", "**/*.scss", "**/*.sass")
   }
   ["go-imports"] {
@@ -208,9 +211,14 @@ local gates = new Mapping<String, Step> {
     dir = "{{workspace}}"
     workspace_indicator = "go.mod"
   }
+  // The push gate rides dev-profile-golangci-ratchet, which reports only the
+  // issues the branch adds on top of origin's default branch: debt already on
+  // the default branch is what the push inherited, not what it introduces. It
+  // carries no fixer: the step's whole-workspace `--fix` rewrote every module
+  // in the tree mid-push, and the whole-tree steps that ran after it (gosec,
+  // go-vet) then judged files the fixer had broken.
   ["golangci-lint"] {
-    check = "golangci-lint run --fix=false --allow-parallel-runners ./..."
-    fix = "golangci-lint run --fix ./..."
+    check = "dev-profile-golangci-ratchet"
     glob = List("**/*.go")
     dir = "{{workspace}}"
     workspace_indicator = "go.mod"
@@ -320,8 +328,11 @@ local gates = new Mapping<String, Step> {
           "**/zed/**/*.json",
         )
   }
+  // Brakeman takes one application path, never the changed files, and bundle-audit takes
+  // a project directory, never a lockfile: both wrappers scan each file from the root that
+  // holds it, so an app below the repo root is scanned as its own project.
   ["brakeman"] {
-    check = "brakeman --no-pager --quiet"
+    check = "dev-profile-brakeman {{files}}"
     glob =
       List(
         "**/*.rb",
@@ -333,16 +344,20 @@ local gates = new Mapping<String, Step> {
         "**/Rakefile",
       )
   }
-  ["bundle-audit"] { check = "bundle-audit check"; glob = List("**/Gemfile.lock") }
+  ["bundle-audit"] { check = "dev-profile-bundle-audit {{files}}"; glob = List("**/Gemfile.lock") }
   ["cargo-deny"] {
     check = "cargo-deny --locked --workspace check"
     glob = List("**/Cargo.toml", "**/Cargo.lock", "**/deny.toml", "**/.deny.toml")
     dir = "{{workspace}}"
     workspace_indicator = "Cargo.lock"
   }
+  // The filter prints only the given files shellcheck can read, and a push of
+  // none of them leaves it empty: xargs then runs shellcheck with no file, and
+  // its usage error fails the push. `-r` (a no-op on BSD xargs, which already
+  // skips the empty run) keeps that from happening.
   ["shellcheck"] {
     check =
-      "dev-profile-changed-files sh -c '\(shellcheckFilter)' sh -- {{files}} | xargs shellcheck --severity=warning"
+      "dev-profile-changed-files sh -c '\(shellcheckFilter)' sh -- {{files}} | xargs -r shellcheck --severity=warning"
   }
   ["tofu"] {
     check = "dev-profile-changed-files tofu fmt -check -- {{files}}"
