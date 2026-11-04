@@ -78,7 +78,9 @@ union="${tmp}/introduced"
 : >"${union}"
 pushed_refs=0
 
-while read -r local_ref local_sha remote_ref remote_sha; do
+# The remote ref name is not read: every base is resolved from the shas the
+# push sends (local_sha, remote_sha), so that field only has to advance `read`.
+while read -r local_ref local_sha _ remote_sha; do
 	is_all_zeros "${local_sha:-}" && continue
 	is_commit "${local_sha}" || continue
 	pushed_refs=$((pushed_refs + 1))
