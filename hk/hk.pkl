@@ -14,12 +14,15 @@ amends "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pk
 // a command that itself carries one (none here today) runs wrapped in `sh -c '...'`.
 //
 // Project-wide steps judge the repository as a unit — a whole-module compile
-// (gosec, go-vet, golangci-lint, govulncheck), a whole-workspace advisory check
-// (cargo-deny), a whole-app audit (brakeman, bundle-audit), a commit-range secret
-// scan (gitleaks), the working tree's shape (destroyed-symlinks, forbid-submodules),
-// the diff against origin/main (foxguard-typescript), or the branch/commit metadata
-// (no-commit-to-default-branch, conventional-commit). They stay whole-tree: files a
-// push did not introduce are still part of the repository the push asks to publish.
+// (gosec, go-vet, govulncheck), a whole-app audit (brakeman, bundle-audit), a
+// commit-range secret scan (gitleaks), the working tree's shape
+// (destroyed-symlinks, forbid-submodules), or the diff against origin/main
+// (foxguard-typescript). They stay whole-tree: files a push did not introduce
+// are still part of the repository the push asks to publish. The ratcheted
+// twins (golangci-lint, cargo-deny) ride the per-file class instead: they run
+// in the module or workspace that owns what the push introduces, and ratchet
+// against the mirrored default branch, so a merge of an upstream line never
+// answers for debt that line already carries.
 fail_fast = false
 stash_backup_count = 20
 exclude =
@@ -145,7 +148,7 @@ local fixers = new Mapping<String, Step> {
     glob = List("**/*.py", "**/*.pyi")
   }
   ["markdownlint-fix"] {
-    fix = "dev-profile-changed-files markdownlint --fix -- {{files}}"
+    fix = "dev-profile-changed-files dev-profile-markdownlint --fix -- {{files}}"
     glob = List("**/*.md", "**/*.markdown")
     exclude = List("agents/learnings/**")
   }
@@ -205,11 +208,9 @@ local gates = new Mapping<String, Step> {
     workspace_indicator = "go.mod"
   }
   ["golangci-lint"] {
-    check = "golangci-lint run --fix=false --allow-parallel-runners ./..."
-    fix = "golangci-lint run --fix ./..."
+    check = "dev-profile-changed-files dev-profile-golangci-ratchet -- {{files}}"
+    fix = "dev-profile-changed-files dev-profile-golangci-ratchet --fix -- {{files}}"
     glob = List("**/*.go")
-    dir = "{{workspace}}"
-    workspace_indicator = "go.mod"
   }
   ["govulncheck"] {
     check = "govulncheck ./..."
@@ -242,9 +243,12 @@ local gates = new Mapping<String, Step> {
     glob = k8sGlobs
     exclude = k8sExclude
   }
+  // dev-profile-markdownlint lints owned repositories with the profile config
+  // and unowned ones with the .markdownlint* configuration they declare at
+  // their root — the repository's own conventions, never the global defaults.
   ["markdownlint"] {
-    check = "dev-profile-changed-files markdownlint -- {{files}}"
-    fix = "dev-profile-changed-files markdownlint --fix -- {{files}}"
+    check = "dev-profile-changed-files dev-profile-markdownlint -- {{files}}"
+    fix = "dev-profile-changed-files dev-profile-markdownlint --fix -- {{files}}"
     glob = List("**/*.md", "**/*.markdown")
     exclude = List("agents/learnings/**")
   }
@@ -321,10 +325,8 @@ local gates = new Mapping<String, Step> {
   }
   ["bundle-audit"] { check = "bundle-audit check"; glob = List("**/Gemfile.lock") }
   ["cargo-deny"] {
-    check = "cargo-deny --locked --workspace check"
+    check = "dev-profile-changed-files dev-profile-cargo-deny-ratchet -- {{files}}"
     glob = List("**/Cargo.toml", "**/Cargo.lock", "**/deny.toml", "**/.deny.toml")
-    dir = "{{workspace}}"
-    workspace_indicator = "Cargo.lock"
   }
   ["shellcheck"] {
     check =

@@ -108,7 +108,18 @@ if command -v dprint >/dev/null 2>&1; then
 	fi
 fi
 
-# 1. The upstream-merge push passes.
+# 1. The upstream merge below the tip, on a branch published nowhere: the
+# published parent that must be attributed is the merge commit's, several
+# commits down the push range — not the pushed tip's. Upstream's findings
+# arrive with that merge and must not block the push.
+git -C "${scratch}/work" switch -q -c above
+printf 'above\n' >"${scratch}/work/above.txt"
+commit "feat: work above the merge"
+if ! push push -q origin above; then
+	fail "an above-the-merge push must pass the hook"
+fi
+
+# 2. The upstream-merge push passes.
 if ! push push -q origin topic; then
 	fail "an upstream-merge push must pass the hook"
 fi
@@ -120,7 +131,15 @@ if command -v dprint >/dev/null 2>&1 && ! grep -q 'dprint' "${scratch}/push.txt"
 	fail "the dprint step must have run"
 fi
 
-# 2. A finding the pusher's own commit introduces still blocks.
+# 3. A push spelled with a repository path instead of a remote name: git hands
+# the hook the path as the remote, from which no remote-tracking ref can be
+# derived. The push base the hook computes itself must carry the from-ref.
+git init -q --bare "${scratch}/probe.git"
+if ! push push -q "${scratch}/probe.git" above:refs/heads/probe; then
+	fail "a path-remote push must pass the hook"
+fi
+
+# 4. A finding the pusher's own commit introduces still blocks.
 git -C "${scratch}/work" switch -q -c authored
 printf '```\nno language\n```\n' >"${scratch}/work/authored.md"
 commit "docs: add authored prompt"
@@ -130,7 +149,7 @@ fi
 grep -q '✗ markdownlint' "${scratch}/push.txt" || fail "the markdownlint step must be the one that fails"
 grep -q 'MD040' "${scratch}/push.txt" || fail "the introduced finding must be reported"
 
-# 2b. An oxlint error the pusher's own commit introduces still blocks.
+# 4b. An oxlint error the pusher's own commit introduces still blocks.
 if command -v oxlint >/dev/null 2>&1; then
 	git -C "${scratch}/work" switch -q topic
 	git -C "${scratch}/work" switch -q -c authored-js
@@ -143,7 +162,7 @@ if command -v oxlint >/dev/null 2>&1; then
 	grep -q 'no-debugger' "${scratch}/push.txt" || fail "the introduced oxlint finding must be reported"
 fi
 
-# 2c. A file dprint cannot parse, introduced by the pusher's own commit, still
+# 4c. A file dprint cannot parse, introduced by the pusher's own commit, still
 # blocks: a formatter cannot heal it, so the finding is the pusher's answer.
 if command -v dprint >/dev/null 2>&1; then
 	git -C "${scratch}/work" switch -q topic
@@ -156,7 +175,7 @@ if command -v dprint >/dev/null 2>&1; then
 	grep -q '✗ dprint' "${scratch}/push.txt" || fail "the dprint step must be the one that fails"
 fi
 
-# 3. The security steps still cover the pushed range: an authored secret fails.
+# 5. The security steps still cover the pushed range: an authored secret fails.
 git -C "${scratch}/work" switch -q -c leaked
 printf "curl -H 'authorization: Bearer %s' https://api.example.invalid\n" \
 	"7f3c9a1e5b2d8f4a6c0e9b3d7a1f5c8e2b4d6a9f" >"${scratch}/work/notes.sh"

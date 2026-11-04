@@ -5,12 +5,33 @@ set -euo pipefail
 # otherwise answer for every file the default branch changed since; it is
 # measured from its new merge base with the default branch instead. Any other
 # push keeps its old tip.
+#
+# A ref unborn on its remote has no old tip, and for a push spelled with a
+# repository path or URL — a probe push to a bare repo, `git push /srv/x.git` —
+# the "remote" hk is handed is that path, from which no remote-tracking ref
+# can be derived. Resolve the unborn base here instead: the branch's published
+# tip on any remote-tracking ref, else the merge base with the default
+# branch. dev-profile-changed-files applies the same bases to its per-file
+# filter, so the candidates hk fetches from the substituted tip remain a
+# superset of the files the push introduces.
 all_zeros='^0+$'
 default="$(git symbolic-ref -q --short refs/remotes/origin/HEAD || echo origin/main)"
 merge_base() { git merge-base "$1" "${default}" 2>/dev/null || true; }
-advance_base() { # <local_sha> <remote_sha>
-	local local_sha="$1" remote_sha="$2" old_base new_base
-	if [[ ! "${local_sha}" =~ ${all_zeros} && ! "${remote_sha}" =~ ${all_zeros} ]] &&
+unborn_base() { # <local_sha> <branch> -> the sha the push builds on, or empty
+	local local_sha="$1" branch="$2" tracked
+	for tracked in $(git for-each-ref --format='%(refname)' refs/remotes); do
+		[[ "${tracked}" == refs/remotes/*/"${branch}" ]] || continue
+		git merge-base --is-ancestor "${tracked}" "${local_sha}" 2>/dev/null || continue
+		git rev-parse --verify -q "${tracked}^{commit}" 2>/dev/null && return 0
+	done
+	merge_base "${local_sha}"
+}
+advance_base() { # <local_sha> <remote_sha> [local_ref]
+	local local_sha="$1" remote_sha="$2" local_ref="${3:-}" old_base new_base
+	if [[ "${remote_sha}" =~ ${all_zeros} && ! "${local_sha}" =~ ${all_zeros} ]] &&
+		git rev-parse -q --verify "${local_sha}^{commit}" >/dev/null 2>&1; then
+		remote_sha="$(unborn_base "${local_sha}" "${local_ref#refs/heads/}")"
+	elif [[ ! "${local_sha}" =~ ${all_zeros} && ! "${remote_sha}" =~ ${all_zeros} ]] &&
 		git rev-parse -q --verify "${local_sha}^{commit}" >/dev/null 2>&1 &&
 		git rev-parse -q --verify "${remote_sha}^{commit}" >/dev/null 2>&1; then
 		old_base="$(merge_base "${remote_sha}")"
@@ -26,7 +47,11 @@ if [[ "${1:-}" == "--pair" ]]; then
 	advance_base "$2" "$3"
 	exit 0
 fi
+if [[ "${1:-}" == "--unborn" ]]; then
+	unborn_base "$2" "${3#refs/heads/}"
+	exit 0
+fi
 while read -r local_ref local_sha remote_ref remote_sha; do
-	remote_sha="$(advance_base "${local_sha}" "${remote_sha}")"
+	remote_sha="$(advance_base "${local_sha}" "${remote_sha}" "${local_ref}")"
 	echo "${local_ref} ${local_sha} ${remote_ref} ${remote_sha}"
 done

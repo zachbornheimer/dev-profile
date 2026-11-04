@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# Print the default branch ref of the remote a repository mirrors — upstream's
+# for a fork, else origin's — or nothing when neither resolves. The push
+# ratchets (golangci, cargo-deny) measure "new" from it: a fork's own default
+# branch can lag far behind the upstream line a branch merged, and debt already
+# on the mirrored default is not the push's to fix.
+for ref in "$(git symbolic-ref -q --short refs/remotes/upstream/HEAD || true)" upstream/main upstream/master \
+	"$(git symbolic-ref -q --short refs/remotes/origin/HEAD || true)" origin/main origin/master; do
+	[[ -n "${ref}" ]] || continue
+	if git rev-parse -q --verify "${ref}^{commit}" >/dev/null 2>&1; then
+		echo "${ref}"
+		exit 0
+	fi
+done

@@ -1,0 +1,149 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# Push gate for cargo-deny. dev-profile-changed-files hands this script only the
+# Cargo manifests, lockfiles and deny.toml policy files the push introduces, so
+# a push that introduces none never reaches it and inherited dependency debt
+# never blocks. When the push does change the graph or the policy, the same
+# `--locked --workspace check` the whole-tree gate runs decides — but only its
+# findings on crates the push itself introduces fail it: a finding whose crate
+# and version the base lock already carries is inherited, however the advisory
+# database moved since. A push that changes deny.toml owns the whole verdict,
+# because every remaining finding is its own policy at work. Without a base ref
+# (no remote, fresh clone) every finding is the push's to answer.
+#
+# A finding the script cannot attribute to a crate at all is reported as new: the
+# gate fails closed rather than guess.
+
+((${#} > 0)) || exit 0
+
+root="$(git rev-parse --show-toplevel 2>/dev/null || pwd -P)"
+root="$(cd "${root}" && pwd -P)"
+mirror_base="$(cd "$(dirname "$0")" && pwd -P)/dev-profile-mirror-base"
+
+workspace="$(cd "$(dirname "$1")" && pwd -P)"
+while :; do
+	[[ -f "${workspace}/Cargo.lock" ]] && break
+	[[ "${workspace}" == "${root}" || "${workspace}" == / ]] && {
+		workspace="${root}"
+		break
+	}
+	workspace="$(dirname "${workspace}")"
+done
+
+policy_changed=0
+for file in "$@"; do
+	case "${file}" in
+	*/deny.toml | */.deny.toml | deny.toml | .deny.toml) policy_changed=1 ;;
+	esac
+done
+
+base=""
+if ((policy_changed)); then
+	echo "cargo-deny-ratchet: deny policy introduced; every finding is this push's" >&2
+elif base="$(${mirror_base} 2>/dev/null)" && [[ -n "${base}" ]]; then
+	if ! base="$(git merge-base "${base}" HEAD 2>/dev/null)" || [[ -z "${base}" ]]; then
+		echo "cargo-deny-ratchet: mirrored default branch shares no history; every finding is this push's" >&2
+		base=""
+	fi
+else
+	base=""
+fi
+if [[ -z "${base}" ]]; then
+	echo "cargo-deny-ratchet: no base to ratchet from; every finding is this push's" >&2
+fi
+
+tmp="$(mktemp -d)"
+trap 'rm -rf "${tmp}"' EXIT
+if ! out="$(cd "${workspace}" && cargo-deny --locked --workspace check 2>&1)"; then
+	if [[ -z "${base}" ]]; then
+		printf '%s\n' "${out}" >&2
+		exit 1
+	fi
+else
+	exit 0
+fi
+
+base_pairs="${tmp}/base-pairs"
+mkdir -p "${base_pairs}"
+lock_pairs() { # <lockrel> -> the base lock's "crate version" lines
+	local rel="$1" cache
+	cache="${base_pairs}/$(printf '%s' "$1" | tr '/' '_')"
+	[[ -f "${cache}" ]] && {
+		cat "${cache}"
+		return 0
+	}
+	if git cat-file -e "${base}:${rel}" 2>/dev/null; then
+		git show "${base}:${rel}" | awk -F'"' '
+			function flush() {
+				if (name != "" && version != "") { print name " " version }
+				name = ""; version = ""
+			}
+			/^name = / { name = $2 }
+			/^version = / { version = $2 }
+			/^$/ { flush() }
+			END { flush() }
+		' >"${cache}"
+	else
+		: >"${cache}" # the push introduced this lock: every finding in it is new
+	fi
+	cat "${cache}"
+}
+
+new=0
+inherited=0
+blocks=()
+block=""
+while IFS= read -r line; do
+	if [[ "${line}" =~ ^error\[ ]]; then
+		if [[ -n "${block}" ]]; then blocks+=("${block}"); fi
+		block="${line}"
+	elif [[ -n "${block}" ]]; then
+		block+=$'\n'"${line}"
+	fi
+done <<<"${out}"
+if [[ -n "${block}" ]]; then blocks+=("${block}"); fi
+if (("${#blocks[@]}" == 0)); then
+	printf '%s\n' "${out}" >&2
+	echo "cargo-deny-ratchet: cargo-deny failed without parseable findings; failing closed" >&2
+	exit 1
+fi
+
+for block in "${blocks[@]}"; do
+	lockabs="" crate="" version="" lock_crate="" lock_version=""
+	while IFS= read -r line; do
+		if [[ "${line}" =~ ^[[:space:]]*┌─[[:space:]]*(.+):[0-9]+:[0-9]+$ ]]; then
+			lockabs="${BASH_REMATCH[1]}"
+		# license findings carry the crate as a "├ crate vX" line; a lock line
+		# shape there parses `license =` as a crate, so it is only the fallback
+		elif [[ "${line}" =~ ^[[:space:]]*├[[:space:]]+([^[:space:]]+)[[:space:]]+v([0-9][^[:space:]]*)$ ]]; then
+			crate="${BASH_REMATCH[1]}"
+			version="${BASH_REMATCH[2]}"
+		elif [[ "${line}" =~ ^[0-9]+[[:space:]]│[[:space:]]*([^[:space:]]+)[[:space:]]+([0-9][^[:space:]]*) ]]; then
+			lock_crate="${BASH_REMATCH[1]}"
+			lock_version="${BASH_REMATCH[2]}"
+		fi
+	done <<<"${block}"
+	if [[ -z "${crate}" && -n "${lock_crate}" ]]; then
+		crate="${lock_crate}"
+		version="${lock_version}"
+	fi
+	if [[ -z "${lockabs}" || -z "${crate}" ]]; then
+		((new += 1))
+		printf '%s\n' "${block}" >&2
+		continue
+	fi
+	lockrel="${lockabs#"${root}"/}"
+	if grep -qxF -- "${crate} ${version}" < <(lock_pairs "${lockrel}"); then
+		((inherited += 1))
+	else
+		((new += 1))
+		printf '%s\n' "${block}" >&2
+	fi
+done
+
+if ((new > 0)); then
+	echo "cargo-deny-ratchet: ${new} finding(s) on crates this push introduces; ${inherited} inherited from the base" >&2
+	exit 1
+fi
+echo "cargo-deny-ratchet: all ${inherited} finding(s) inherited from the base; none introduced by this push" >&2
+exit 0

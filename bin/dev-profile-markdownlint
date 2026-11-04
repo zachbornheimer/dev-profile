@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # Run markdownlint on owned repositories, or on unowned repositories that declare
-# their own .markdownlint* configuration at the repository root.
+# their own .markdownlint* configuration at the repository root. A --fix run
+# heals what it can and then re-judges what remains: hk runs a step's fixer
+# after its check failed and passes the step when the fixer exits 0, and
+# dev-profile-fix alone swallows markdownlint's exit 1, so an unhealable finding
+# must be re-reported here or it reads as fixed.
 fix=0
 if [[ "${1:-}" == "--fix" ]]; then
 	fix=1
@@ -12,7 +16,7 @@ fi
 bin_dir="$(dirname "${BASH_SOURCE[0]}")"
 if "${bin_dir}/dev-profile-repo-owned"; then
 	if ((fix)); then
-		exec "${bin_dir}/dev-profile-fix" markdownlint --fix "$@"
+		"${bin_dir}/dev-profile-fix" markdownlint --fix "$@" || exit $?
 	fi
 	exec markdownlint "$@"
 fi
@@ -33,6 +37,6 @@ done
 [[ -n "${cfg}" ]] || exit 0
 
 if ((fix)); then
-	exec "${bin_dir}/dev-profile-fix" markdownlint --config "${cfg}" --fix "$@"
+	"${bin_dir}/dev-profile-fix" markdownlint --config "${cfg}" --fix "$@" || exit $?
 fi
 exec markdownlint --config "${cfg}" "$@"

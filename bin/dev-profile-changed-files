@@ -21,8 +21,9 @@
 #                      branch introduces nothing it has not published),
 #                      then to the merge base with origin's default branch;
 #   the merge base     of the pushed tip with origin's default branch;
-#   published parents  of the pushed tip — the upstream line a fork branch
-#                      merged in, which the push did not write.
+#   published parents  of any commit in the pushed range — the upstream line a
+#                      fork branch merged in, even several commits below the
+#                      pushed tip, which the push did not write.
 #
 # Without push refs (pre-commit, `hk run check`, a direct run) the candidate
 # files pass through untouched. A step whose candidates the push does not
@@ -40,10 +41,6 @@ is_all_zeros() {
 is_commit() { git rev-parse -q --verify "$1^{commit}" >/dev/null 2>&1; }
 
 default_branch() { git symbolic-ref -q --short refs/remotes/origin/HEAD || echo origin/main; }
-
-published() {
-	[ -n "$(git for-each-ref "--contains=$1" --format='%(refname)' refs/remotes 2>/dev/null)" ]
-}
 
 cmd=()
 candidates=()
@@ -93,23 +90,38 @@ while read -r local_ref local_sha remote_ref remote_sha; do
 	else
 		# Unborn on its remote: the branch's own published tip is what the
 		# push is measured from, when it is already published somewhere.
-		branch="${local_ref#refs/heads/}"
-		for tracked in $(git for-each-ref --format='%(refname)' refs/remotes); do
-			[[ "${tracked}" == refs/remotes/*/"${branch}" ]] || continue
-			git merge-base --is-ancestor "${tracked}" "${local_sha}" 2>/dev/null || continue
-			echo "${tracked}" >>"${bases}"
-			break
-		done
+		base="$(${push_base} --unborn "${local_sha}" "${local_ref}" 2>/dev/null || true)"
+		if [[ -n "${base}" ]]; then
+			echo "${base}" >>"${bases}"
+		fi
 	fi
 	base="$(git merge-base "${local_sha}" "$(default_branch)" 2>/dev/null || true)"
 	if [[ -n "${base}" ]]; then
 		echo "${base}" >>"${bases}"
 	fi
-	for parent in $(git rev-list --parents -n 1 "${local_sha}" 2>/dev/null | cut -d' ' -f 2-); do
-		if published "${parent}"; then
-			echo "${parent}" >>"${bases}"
+	# Published parents anywhere in the pushed range, not only the tip's: a
+	# merge of an upstream line several commits below the tip still carries
+	# that line's content, and content identical to a published commit is
+	# inherited however deep the range buries it. The published set is one
+	# reachability walk over the remote-tracking refs; the range is bounded
+	# by the bases already found, and with no base at all every candidate is
+	# judged below, so the walk has nothing to add.
+	if [[ -s "${bases}" ]]; then
+		published_set="${tmp}/published"
+		if [[ ! -e "${published_set}" ]]; then
+			git for-each-ref --format='%(refname)' refs/remotes >"${tmp}/remote-refs"
+			git rev-list --stdin <"${tmp}/remote-refs" >"${published_set}" 2>/dev/null || : >"${published_set}"
 		fi
-	done
+		excludes=()
+		while IFS= read -r exclude_base; do
+			[[ -n "${exclude_base}" ]] && excludes+=("^${exclude_base}")
+		done <"${bases}"
+		git rev-list --parents "${local_sha}" "${excludes[@]}" 2>/dev/null |
+			awk -v published="${published_set}" '
+				BEGIN { while ((getline sha < published) > 0) published_sha[sha] = 1 }
+				{ for (i = 2; i <= NF; i++) if ($i in published_sha) print $i }
+			' >>"${bases}"
+	fi
 
 	if [[ ! -s "${bases}" ]]; then
 		# No base resolved: judge every candidate, as an unfiltered step would.
