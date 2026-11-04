@@ -120,6 +120,45 @@ if [ -s "${work}/passed" ] || [ -s "${work}/log" ]; then
 	fail "an empty candidate list must run no tool and log nothing"
 fi
 
+# The gate computes the introduced set once per push and hands its path down in
+# DEV_PROFILE_PUSH_FILES; a routed call reads that file instead of deriving the
+# set again from the same refs.
+printf 'topic.txt\nnot-a-candidate.md\n' >"${work}/introduced"
+DEV_PROFILE_PUSH_FILES="${work}/introduced" DEV_PROFILE_PUSH_REFS="${work}/refs" \
+	gate main.md topic.txt upstream.md authored.md
+printf 'topic.txt\n' | sort >"${work}/want"
+sort "${work}/passed" >"${work}/got"
+if ! diff -q "${work}/want" "${work}/got" >/dev/null; then
+	fail "a handed-down set decides the step: $(cat "${work}/passed")"
+fi
+if grep -q 'dev-profile-push-files:' "${work}/log"; then
+	fail "a handed-down set must not be derived again: $(cat "${work}/log")"
+fi
+
+# Without a handed-down set the call derives it once, and says so once.
+push "$(git rev-parse HEAD)" "${topic_tip}" main.md topic.txt upstream.md authored.md
+derivations="$(grep -c 'dev-profile-push-files: .* file(s) introduced by this push' "${work}/log" || true)"
+if [ "${derivations}" -ne 1 ]; then
+	fail "one derivation per call: got ${derivations}: $(cat "${work}/log")"
+fi
+
+# A push that inherited nothing published anywhere has no base to measure, so
+# every candidate is judged, and the fallback says so.
+for tracked in main topic upstream; do
+	git update-ref -d "refs/remotes/origin/${tracked}" 2>/dev/null ||
+		git update-ref -d "refs/remotes/upstream/${tracked}"
+done
+printf 'refs/heads/topic %s refs/heads/topic 0000000000000000000000000000000000000000\n' \
+	"$(git rev-parse HEAD)" >"${work}/refs"
+DEV_PROFILE_PUSH_REFS="${work}/refs" gate main.md topic.txt authored.md
+printf 'authored.md\nmain.md\ntopic.txt\n' | sort >"${work}/want"
+sort "${work}/passed" >"${work}/got"
+if ! diff -q "${work}/want" "${work}/got" >/dev/null; then
+	fail "an unresolvable base must judge every candidate: $(cat "${work}/passed")"
+fi
+grep -q 'base nowhere' "${work}/log" ||
+	fail "the unresolvable base must be logged: $(cat "${work}/log")"
+
 # The separator is required: without it nothing can run.
 if "${src}/bin/dev-profile-changed-files" "${work}/record.sh" main.md \
 	>"${work}/passed" 2>"${work}/log"; then

@@ -72,83 +72,31 @@ if [[ -z "${refs}" || ! -r "${refs}" ]]; then
 	exec "${cmd[@]}" "${candidates[@]}"
 fi
 
-push_base="$(cd "$(dirname "$0")" && pwd)/dev-profile-push-base"
+# The introduced set is computed once per push by dev-profile-pre-push, which
+# hands its path down in DEV_PROFILE_PUSH_FILES: every per-file step would
+# otherwise re-derive the same set from the same refs. Without it (a direct
+# `hk run pre-push`, an older wrapper) this call derives it once, and judges
+# every candidate when the push cannot be read from its refs.
 tmp="$(mktemp -d)"
 union="${tmp}/introduced"
-: >"${union}"
-pushed_refs=0
-
-# The remote ref name is not read: every base is resolved from the shas the
-# push sends (local_sha, remote_sha), so that field only has to advance `read`.
-while read -r local_ref local_sha _ remote_sha; do
-	is_all_zeros "${local_sha:-}" && continue
-	is_commit "${local_sha}" || continue
-	pushed_refs=$((pushed_refs + 1))
-
-	bases="${tmp}/bases"
-	: >"${bases}"
-	if ! is_all_zeros "${remote_sha:-}" && is_commit "${remote_sha}"; then
-		base="$(${push_base} --pair "${local_sha}" "${remote_sha}" 2>/dev/null || true)"
-		if [[ -n "${base}" ]]; then
-			echo "${base}" >>"${bases}"
-		fi
-	else
-		# Unborn on its remote: the branch's own published tip is what the
-		# push is measured from, when it is already published somewhere.
-		branch="${local_ref#refs/heads/}"
-		for tracked in $(git for-each-ref --format='%(refname)' refs/remotes); do
-			[[ "${tracked}" == refs/remotes/*/"${branch}" ]] || continue
-			git merge-base --is-ancestor "${tracked}" "${local_sha}" 2>/dev/null || continue
-			echo "${tracked}" >>"${bases}"
-			break
-		done
-	fi
-	base="$(git merge-base "${local_sha}" "$(default_branch)" 2>/dev/null || true)"
-	if [[ -n "${base}" ]]; then
-		echo "${base}" >>"${bases}"
-	fi
-	for parent in $(git rev-list --parents -n 1 "${local_sha}" 2>/dev/null | cut -d' ' -f 2-); do
-		if published "${parent}"; then
-			echo "${parent}" >>"${bases}"
-		fi
-	done
-
-	if [[ ! -s "${bases}" ]]; then
-		# No base resolved: judge every candidate, as an unfiltered step would.
-		printf '%s\n' "${candidates[@]}" >>"${union}"
-		continue
-	fi
-	# A file the push introduces differs from every base; one matching any
-	# base is inherited. The per-ref introduced set is the intersection of
-	# the per-base diff sets.
-	inter="${tmp}/introduced-in-ref"
-	first=1
-	while read -r base; do
-		[[ -n "${base}" ]] || continue
-		diffset="${tmp}/diffset"
-		git diff --name-only --no-renames "${base}" "${local_sha}" >"${diffset}" 2>/dev/null || continue
-		sort -u "${diffset}" -o "${diffset}"
-		if [[ "${first}" -eq 1 ]]; then
-			mv "${diffset}" "${inter}"
-			first=0
+if [[ -n "${DEV_PROFILE_PUSH_FILES:-}" && -r "${DEV_PROFILE_PUSH_FILES}" ]]; then
+	cp "${DEV_PROFILE_PUSH_FILES}" "${union}"
+else
+	push_files="$(cd "$(dirname "$0")" && pwd)/dev-profile-push-files"
+	rc=0
+	"${push_files}" >"${union}" || rc=$?
+	if [[ "${rc}" -ne 0 ]]; then
+		if [[ "${rc}" -eq 1 ]]; then
+			printf 'dev-profile-changed-files: %d candidate file(s), no parsable push refs: running %s on all\n' \
+				"${#candidates[@]}" "${cmd[0]}" >&2
 		else
-			comm -12 "${inter}" "${diffset}" >"${tmp}/narrowed"
-			mv "${tmp}/narrowed" "${inter}"
+			printf 'dev-profile-changed-files: %d candidate file(s), push refs base nowhere: running %s on all\n' \
+				"${#candidates[@]}" "${cmd[0]}" >&2
 		fi
-	done <"${bases}"
-	if [[ "${first}" -eq 0 ]]; then
-		cat "${inter}" >>"${union}"
+		rm -rf "${tmp}"
+		exec "${cmd[@]}" "${candidates[@]}"
 	fi
-done <"${refs}"
-
-if [[ "${pushed_refs}" -eq 0 ]]; then
-	# Refs that parse to nothing: judge every candidate, as an unfiltered step would.
-	printf 'dev-profile-changed-files: %d candidate file(s), no parsable push refs: running %s on all\n' \
-		"${#candidates[@]}" "${cmd[0]}" >&2
-	rm -rf "${tmp}"
-	exec "${cmd[@]}" "${candidates[@]}"
 fi
-
 # Candidates may be spelled relative to a workspace hk switched the step
 # into; the diff sets are root-relative. Match either spelling.
 prefix="$(git rev-parse --show-prefix 2>/dev/null || true)"

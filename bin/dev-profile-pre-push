@@ -61,6 +61,18 @@ fi
 
 export DEV_PROFILE_PUSH_REFS="${refs}"
 
+# The introduced set, computed once for the push: every per-file step routes
+# through dev-profile-changed-files, and each call would otherwise re-derive the
+# same set from the same refs. A push whose refs cannot be read exports nothing,
+# and each step derives the set itself.
+push_files="$(mktemp)"
+trap 'rm -f "${refs}" "${push_files}"' EXIT
+if dev-profile-push-files >"${push_files}"; then
+	export DEV_PROFILE_PUSH_FILES="${push_files}"
+else
+	rm -f "${push_files}"
+fi
+
 # A signal from outside -- a job supervisor's deadline, a closed terminal --
 # stops the gate mid-run. hk cancels the steps that were running and reports
 # whichever command it killed as "command was cancelled", naming a step that

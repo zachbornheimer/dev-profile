@@ -26,6 +26,7 @@ bash "$root/tests/skills-sync-fixture.sh" >/dev/null || fail "skills sync fixtur
 bash "$root/tests/unowned-repo-conventions-fixture.sh" >/dev/null || fail "unowned-repo-conventions fixture"
 bash "$root/tests/worktree-copy-excludes-fixture.sh" "$root" >/dev/null || fail "worktree copy excludes fixture"
 bash "$root/tests/changed-files-fixture.sh" >/dev/null || fail "changed-files fixture"
+bash "$root/tests/introduced-once-fixture.sh" >/dev/null || fail "introduced-once fixture"
 bash "$root/tests/pre-push-upstream-merge.sh" >/dev/null || fail "pre-push upstream merge fixture"
 bash "$root/tests/pre-push-signal-fixture.sh" "$root" >/dev/null || fail "pre-push signal fixture"
 bash "$root/tests/mise-dot-encryption-heal-fixture.sh" >/dev/null || fail "mise dot encryption heal fixture"

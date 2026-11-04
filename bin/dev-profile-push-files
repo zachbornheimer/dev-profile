@@ -1,0 +1,128 @@
+#!/usr/bin/env bash
+# Print the files this push introduces: those whose content at the pushed tip
+# differs from its content at every base the push inherited.
+#
+# dev-profile-pre-push runs this once per push and exports the result as
+# DEV_PROFILE_PUSH_FILES, so the per-file steps that dev-profile-changed-files
+# routes hand their tools the introduced files without each re-deriving the
+# same set from the same refs.
+#
+# A base is any of:
+#
+#   the remote tip     advanced by dev-profile-push-base when the branch
+#                      moved onto a newer default branch; an unborn remote
+#                      ref falls back to the branch's published tip on any
+#                      remote-tracking ref (a push of an already-published
+#                      branch introduces nothing it has not published);
+#   the merge base     of the pushed tip with origin's default branch;
+#   published parents  of the pushed tip — the upstream line a fork branch
+#                      merged in, which the push did not write.
+#
+# Exit 0 prints the whole answer; an empty list means the push introduces
+# nothing. Exit 1 means the refs cannot be read at all (none to read, or none
+# that parse to a commit), exit 2 means a ref's base would not resolve: either
+# way the caller must fall back to judging every file.
+set -euo pipefail
+
+refs="${DEV_PROFILE_PUSH_REFS:-}"
+if [[ -z "${refs}" || ! -r "${refs}" ]]; then
+	exit 1
+fi
+
+is_all_zeros() {
+	case "${1:-}" in
+	'' | *[!0]*) return 1 ;;
+	*) return 0 ;;
+	esac
+}
+
+is_commit() { git rev-parse -q --verify "$1^{commit}" >/dev/null 2>&1; }
+
+default_branch() { git symbolic-ref -q --short refs/remotes/origin/HEAD || echo origin/main; }
+
+published() {
+	[ -n "$(git for-each-ref "--contains=$1" --format='%(refname)' refs/remotes 2>/dev/null)" ]
+}
+
+push_base="$(cd "$(dirname "$0")" && pwd)/dev-profile-push-base"
+tmp="$(mktemp -d)"
+trap 'rm -rf "${tmp}"' EXIT
+union="${tmp}/introduced"
+: >"${union}"
+pushed_refs=0
+unresolved=0
+
+# The remote ref name is not read: every base is resolved from the shas the
+# push sends (local_sha, remote_sha), so that field only has to advance `read`.
+while read -r local_ref local_sha _ remote_sha; do
+	is_all_zeros "${local_sha:-}" && continue
+	is_commit "${local_sha}" || continue
+	pushed_refs=$((pushed_refs + 1))
+
+	bases="${tmp}/bases"
+	: >"${bases}"
+	if ! is_all_zeros "${remote_sha:-}" && is_commit "${remote_sha}"; then
+		base="$("${push_base}" --pair "${local_sha}" "${remote_sha}" 2>/dev/null || true)"
+		if [[ -n "${base}" ]]; then
+			echo "${base}" >>"${bases}"
+		fi
+	else
+		# Unborn on its remote: the branch's own published tip is what the
+		# push is measured from, when it is already published somewhere.
+		branch="${local_ref#refs/heads/}"
+		for tracked in $(git for-each-ref --format='%(refname)' refs/remotes); do
+			[[ "${tracked}" == refs/remotes/*/"${branch}" ]] || continue
+			git merge-base --is-ancestor "${tracked}" "${local_sha}" 2>/dev/null || continue
+			echo "${tracked}" >>"${bases}"
+			break
+		done
+	fi
+	base="$(git merge-base "${local_sha}" "$(default_branch)" 2>/dev/null || true)"
+	if [[ -n "${base}" ]]; then
+		echo "${base}" >>"${bases}"
+	fi
+	for parent in $(git rev-list --parents -n 1 "${local_sha}" 2>/dev/null | cut -d' ' -f 2-); do
+		if published "${parent}"; then
+			echo "${parent}" >>"${bases}"
+		fi
+	done
+
+	sort -u "${bases}" -o "${bases}"
+	if [[ ! -s "${bases}" ]]; then
+		unresolved=1
+		continue
+	fi
+
+	# A file the push introduces differs from every base; one matching any base
+	# is inherited. The per-ref introduced set is the intersection of the
+	# per-base diff sets.
+	inter="${tmp}/introduced-in-ref"
+	first=1
+	while read -r base; do
+		[[ -n "${base}" ]] || continue
+		diffset="${tmp}/diffset"
+		git diff --name-only --no-renames "${base}" "${local_sha}" >"${diffset}" 2>/dev/null || continue
+		sort -u "${diffset}" -o "${diffset}"
+		if [[ "${first}" -eq 1 ]]; then
+			mv "${diffset}" "${inter}"
+			first=0
+		else
+			comm -12 "${inter}" "${diffset}" >"${tmp}/narrowed"
+			mv "${tmp}/narrowed" "${inter}"
+		fi
+	done <"${bases}"
+	if [[ "${first}" -eq 0 ]]; then
+		cat "${inter}" >>"${union}"
+	fi
+done <"${refs}"
+
+if [[ "${pushed_refs}" -eq 0 ]]; then
+	exit 1
+fi
+if [[ "${unresolved}" -eq 1 ]]; then
+	exit 2
+fi
+
+sort -u "${union}" -o "${union}"
+printf 'dev-profile-push-files: %d file(s) introduced by this push\n' "$(wc -l <"${union}")" >&2
+cat "${union}"

@@ -9,9 +9,11 @@ amends "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pk
 // Per-file steps take {{files}} and route through dev-profile-changed-files, which
 // hands the tool only the files this push introduces: a branch that merged its
 // default branch would otherwise answer for — and its fixers rewrite — every file
-// the merge carried in. dev-profile-changed-files owns the changed set; no step
-// re-derives it. Its separator is the first standalone `--` after the command, so
-// a command that itself carries one (none here today) runs wrapped in `sh -c '...'`.
+// the merge carried in. dev-profile-pre-push computes that set once per push
+// (dev-profile-push-files) and exports its path in DEV_PROFILE_PUSH_FILES; each
+// routed call reads it rather than re-deriving it from the same refs. Its
+// separator is the first standalone `--` after the command, so a command that
+// itself carries one (none here today) runs wrapped in `sh -c '...'`.
 //
 // Project-wide steps judge the repository as a unit — a whole-module compile
 // (gosec, go-vet, golangci-lint, govulncheck), a whole-workspace advisory check
