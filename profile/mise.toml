@@ -26,6 +26,14 @@ tool_update.global_auto = "12h"
 not_found_auto_install = true
 not_found_auto_install_registry = true
 idiomatic_version_file_enable_tools = ["go", "node", "python", "ruby", "npm", "pnpm", "yarn"]
+# go.mod's `go` directive is a MINIMUM language version, not the toolchain a project
+# builds with: mise warns on each lookup ([idiomatic.go.mod.go-directive]) and stops
+# reading it in 2026.11.0. Ignore minima in idiomatic files, so Go comes from [tools]
+# here (go = "latest") or the repo's own mise.toml, like every other tool. A project
+# that wants its own toolchain pins `go` in mise.toml or adds `toolchain goX.Y.Z` to
+# go.mod (the go command reads that line itself). Exact-version files (.go-version,
+# .nvmrc, .python-version) keep applying.
+idiomatic_version_file_ignore_minimum_versions = true
 trusted_config_paths = ["~/Zysys", "~/Developer"]
 
 [settings.status]
