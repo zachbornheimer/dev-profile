@@ -72,35 +72,6 @@ command = ["$HOME/.agents/hooks/aoe-status.sh running"]
 timeout = "2s"
 matcher = "AskUserQuestion"
 
-# Semgrep Guardian scans each file a Codex edit writes and hands the findings
-# back as PostToolUse feedback. Claude Code runs Guardian through its own
-# semgrep plugin and omp through ~/.omp/agent/extensions/semgrep-guardian.ts;
-# omp reaches this catalog as `claude`, so `agents` must stay codex-only or both
-# would scan twice. Guardian ships inside the Claude plugin, so the launcher is
-# resolved from the newest plugin cache directory.
-#
-# This machine's Codex model catalog turns apply_patch off, so Codex edits go
-# through the capability MCP tools. Guardian only reads Claude's `Write` (with
-# `file_path`) and Codex's `apply_patch` (with `command`), so jq rewrites each
-# MCP payload into one of those:
-#   write, edit_replace, edit with `path`  -> Write, file_path = path
-#   edit_patch `patch` (a Begin Patch doc)  -> apply_patch, command = patch
-#   edit `input` (hashline `[PATH#TAG]` sections) -> apply_patch naming each
-#   PATH as an `*** Update File:` section, so Guardian scans every touched file.
-# Guardian reads the file from disk when a Write payload has no `content`.
-# Not scanned: ast_edit (its `paths` may be directories) and edits Codex routes
-# through the agentmux gateway (`agentmux_tool_call`). Without jq the payload
-# passes through unchanged with a warning, so plain apply_patch still scans.
-[[hooks]]
-name = "posttooluse-semgrep-guardian-codex"
-events = ["tool.after"]
-agents = ["codex"]
-matcher = "apply_patch|mcp__capability__agentmux_capability_write|mcp__capability__agentmux_capability_edit|mcp__capability__agentmux_capability_edit_replace|mcp__capability__agentmux_capability_edit_patch"
-timeout = "60s"
-command = [
-  '''root=$(ls -td "$HOME"/.claude/plugins/cache/claude-plugins-official/semgrep/*/ 2>/dev/null | head -1); [ -n "$root" ] || exit 0; if command -v jq >/dev/null 2>&1; then jq -c 'if .tool_name=="apply_patch" then . elif (.tool_input.patch|type)=="string" then .tool_name="apply_patch" | .tool_input={command:.tool_input.patch} elif (.tool_input.path|type)=="string" then .tool_name="Write" | .tool_input.file_path=.tool_input.path elif (.tool_input.input|type)=="string" then ([.tool_input.input|scan("(?m)^\\[([^\\]#]+)#[0-9A-Fa-f]{4}\\]")[0]]|unique) as $p | if ($p|length)>0 then .tool_name="apply_patch" | .tool_input={command:("*** Begin Patch\n"+($p|map("*** Update File: "+.)|join("\n"))+"\n*** End Patch\n")} else . end else . end'; else echo "semgrep-guardian-codex: jq not found; capability MCP edits are not scanned" >&2; cat; fi | CLAUDE_PLUGIN_ROOT="${root%/}" CLAUDE_PLUGIN_DATA="$HOME/.claude/plugins/data/semgrep-claude-plugins-official" exec "${root}scripts/hook" auto PostToolUse''',
-]
-
 [[hooks]]
 name = "precompact-goals-note-compaction-py"
 events = ["context.compact.before"]

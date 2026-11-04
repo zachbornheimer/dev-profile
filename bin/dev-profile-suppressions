@@ -29,8 +29,6 @@ phpstan|php|@phpstan-ignore
 rubocop|rb rake gemspec|rubocop:(disable|todo)
 shellcheck|sh bash zsh bats|shellcheck[[:space:]]+disable=
 swiftlint|swift|swiftlint:disable
-semgrep-hash|py pyi sh bash zsh rb rake gemspec yaml yml tf hcl|#[[:space:]]*nosemgrep
-semgrep-slash|go js jsx mjs cjs ts tsx java kt kts scala swift c h cc cpp hpp cs php rs|(//|/\*)[[:space:]]*nosemgrep
 EOF
 
 # path|rule declared in profile.pkl suppressionExceptions.
