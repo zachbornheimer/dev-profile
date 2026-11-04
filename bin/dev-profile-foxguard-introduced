@@ -1,0 +1,107 @@
+#!/usr/bin/env bash
+# Scan the given TypeScript files with foxguard's rule pack and report only the
+# findings the branch introduces relative to a target ref.
+#
+# Usage: dev-profile-foxguard-introduced --rules <pack> --target <ref> [--] <file>...
+#
+# foxguard's own `diff <ref>` walks the whole tree on both sides whatever path
+# it is given, which on a monorepo-sized checkout costs tens of minutes per
+# push, and every fix round pays it again. The engine's scoped mode
+# (`--changed-files-from`, which keeps the scan path as the analysis root so
+# cross-file taint context survives) scans only the named files, in seconds.
+# The one thing it loses is `diff`'s suppression of findings the target already
+# carried for those files, so this helper writes the target's own findings for
+# the same files as a baseline and applies that to the branch's scan: what
+# `diff` would call existing stays suppressed, what the branch introduces does
+# not.
+#
+# Run from the repo root, as hk does, with the files a push introduces.
+# Exits 1 when the branch introduces a finding, 0 when it introduces none, and
+# fails closed with 2 when a scan could not run.
+set -euo pipefail
+
+usage() {
+	echo "usage: dev-profile-foxguard-introduced --rules <pack> --target <ref> [--] <file>..." >&2
+	exit 2
+}
+
+rules=""
+target=""
+while (($#)); do
+	case "$1" in
+	--rules)
+		(($# >= 2)) || usage
+		rules="$2"
+		shift 2
+		;;
+	--target)
+		(($# >= 2)) || usage
+		target="$2"
+		shift 2
+		;;
+	--)
+		shift
+		break
+		;;
+	-*) usage ;;
+	*) break ;;
+	esac
+done
+[[ -n "${rules}" && -n "${target}" ]] || usage
+files=("$@")
+# A push that introduces no file runs no scan: the same verdict as a scan that
+# finds nothing, without paying for one.
+((${#files[@]})) || exit 0
+
+root="$(git rev-parse --show-toplevel 2>/dev/null)" || {
+	echo "dev-profile-foxguard-introduced: not inside a git worktree" >&2
+	exit 2
+}
+git rev-parse --verify --quiet "${target}^{commit}" >/dev/null || {
+	echo "dev-profile-foxguard-introduced: target ${target} is not a commit here" >&2
+	exit 2
+}
+
+work="$(mktemp -d)"
+base="${work}/base"
+# shellcheck disable=SC2064 # the paths are resolved now, on purpose
+trap "git -C '${root}' worktree remove --force '${base}' >/dev/null 2>&1 || true; rm -rf '${work}'" EXIT
+
+# foxguard reads repo-root-relative paths, the way the scan root spells them.
+list="${work}/files"
+: >"${list}"
+for file in "${files[@]}"; do
+	printf '%s\n' "${file#./}" >>"${list}"
+done
+
+# The target's own copy of these files, so the baseline is measured with the
+# same surrounding context the branch's scan sees.
+if ! git -C "${root}" worktree add --detach --quiet "${base}" "${target}" 2>"${work}/worktree.err"; then
+	cat "${work}/worktree.err" >&2
+	echo "dev-profile-foxguard-introduced: could not check out ${target}" >&2
+	exit 2
+fi
+
+baseline="${work}/baseline.json"
+# A baseline is the target's own findings, so exit 1 here is success; the `||`
+# keeps that status ($? inside `if ! cmd` is the negated one).
+(cd "${base}" && foxguard --rules "${rules}" --changed-files-from "${list}" --write-baseline "${baseline}" --quiet .) >"${work}/base.out" 2>"${work}/base.err" || {
+	status=$?
+	if [[ "${status}" -ne 1 ]]; then
+		cat "${work}/base.err" >&2
+		echo "dev-profile-foxguard-introduced: the scan of ${target} failed" >&2
+		exit 2
+	fi
+}
+
+set +e
+(cd "${root}" && foxguard --rules "${rules}" --changed-files-from "${list}" --baseline "${baseline}" .)
+status=$?
+set -e
+case "${status}" in
+0 | 1) exit "${status}" ;;
+*)
+	echo "dev-profile-foxguard-introduced: the scan of the branch failed (exit ${status})" >&2
+	exit 2
+	;;
+esac

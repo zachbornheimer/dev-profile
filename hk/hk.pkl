@@ -232,9 +232,14 @@ local gates = new Mapping<String, Step> {
   // It replaced the semgrep gate on 2026-11-03: semgrep's own transitive pins carried Dependabot moderates no
   // semgrep release fixes (mcp==1.29.0, opentelemetry-api~=1.37.0 are hard requirements of the scanner itself).
   // security/fixtures/manifest.json records the measured detections, including the pack rules Foxguard misses.
+  // The step judges the files this push introduces, not the tree: `foxguard diff` walks every file on both sides
+  // whatever path it is given (6754 TypeScript files in can1357/oh-my-pi cost 30-70 minutes a push, and every fix
+  // round paid it again). dev-profile-foxguard-introduced scans only those files through the engine's
+  // `--changed-files-from` mode and suppresses what the target's own copy of them reports, so the verdict is the
+  // diff's while the scan takes seconds (tests/foxguard-introduced-fixture.sh pins both halves).
   ["foxguard-typescript"] {
     check =
-      "RAYON_NUM_THREADS=2 mise x github:0sec-labs/foxguard@0.14.1 -- foxguard diff --rules ~/.config/foxguard/typescript.yml origin/main"
+      "RAYON_NUM_THREADS=2 dev-profile-changed-files dev-profile-foxguard-introduced --rules ~/.config/foxguard/typescript.yml --target origin/main -- {{files}}"
     glob = List("**/*.ts", "**/*.mts", "**/*.cts", "**/*.tsx")
   }
   ["kube-linter"] {
