@@ -32,6 +32,9 @@ history.fetch_interval = "60s"
 [settings.age]
 key_file = "/home/zbornheimer/.config/mise/age.txt"
 
+[settings.age]
+key_file = "/home/zbornheimer/.config/mise/age.txt"
+
 [tasks."learn:doctor"]
 # /learn is three files that `mise dot apply` installs together: the omp command, the launcher it
 # calls, and the capability CLI the launcher runs. A missing or stale one fails here, not at the prompt.
