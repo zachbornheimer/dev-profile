@@ -27,6 +27,7 @@ bash "$root/tests/unowned-repo-conventions-fixture.sh" >/dev/null || fail "unown
 bash "$root/tests/worktree-copy-excludes-fixture.sh" "$root" >/dev/null || fail "worktree copy excludes fixture"
 bash "$root/tests/changed-files-fixture.sh" >/dev/null || fail "changed-files fixture"
 bash "$root/tests/pre-push-upstream-merge.sh" >/dev/null || fail "pre-push upstream merge fixture"
+bash "$root/tests/pre-push-signal-fixture.sh" "$root" >/dev/null || fail "pre-push signal fixture"
 bash "$root/tests/mise-dot-encryption-heal-fixture.sh" >/dev/null || fail "mise dot encryption heal fixture"
 for f in "$root"/bin/*; do
 	if head -1 "$f" | grep -q python; then

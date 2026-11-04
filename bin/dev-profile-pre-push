@@ -60,4 +60,28 @@ if [[ -z "${DEV_PROFILE_ALLOW_DEFAULT_BRANCH_PUSH:-}" ]]; then
 fi
 
 export DEV_PROFILE_PUSH_REFS="${refs}"
-hk run pre-push "$@" < <(dev-profile-push-base <"${refs}")
+
+# A signal from outside -- a job supervisor's deadline, a closed terminal --
+# stops the gate mid-run. hk cancels the steps that were running and reports
+# whichever command it killed as "command was cancelled", naming a step that
+# never reached a verdict: nothing in the gate found anything. Ignore the
+# catchable ones here so hk's own status survives to be read, then say what
+# stopped the run rather than leave hk's line as the only account of it.
+trap '' HUP INT TERM
+
+status=0
+hk run pre-push "$@" < <(dev-profile-push-base <"${refs}") || status=$?
+
+if ((status > 128 && status < 193)); then
+	signal_number=$((status - 128))
+	signal_name="$(kill -l "${signal_number}" 2>/dev/null || printf 'signal %d' "${signal_number}")"
+	cat >&2 <<EOF
+dev-profile-pre-push: the gate was stopped by ${signal_name} (exit ${status}) before it finished.
+Nothing in the gate failed: hk names the step that was running when the signal arrived as
+"command was cancelled", which marks a step that was killed, not one that found something.
+The push is refused and nothing was pushed. Re-run it where no deadline can cut it short, e.g.
+  setsid git push <remote> <refspec> >/tmp/push.log 2>&1 &   # then read /tmp/push.log
+EOF
+fi
+
+exit "${status}"
