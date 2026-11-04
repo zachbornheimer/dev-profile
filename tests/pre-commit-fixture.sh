@@ -33,7 +33,7 @@ ln -s "${repo}/hk/hk.pkl" "${scratch}/hk-config/config.pkl"
 command="$("${git_bin}" config --file "${repo}/home/gitconfig" --get hook.hk-pre-commit.command)"
 [[ "${command}" == *'${HOME}/.local/share/dev-profile/bin'* ]] || fail "home/gitconfig's hk-pre-commit command no longer names the profile bin directory"
 profile_bin='${HOME}/.local/share/dev-profile/bin'
-command="${command//"${profile_bin}"/${repo}/bin} -S newlines -S trailing-whitespace -S dprint -S stylelint -S no-commit-to-branch"
+command="${command//"${profile_bin}"/${repo}/bin} -S newlines -S trailing-whitespace -S dprint -S stylelint -S no-commit-to-default-branch"
 cat >"${scratch}/gitconfig" <<EOF
 [user]
 	name = fixture
@@ -60,8 +60,8 @@ commit() { # <message> [git commit args]: the real git commit, hooks on
 	git commit -q -m "${message}" "$@" >"${scratch}/commit.txt" 2>&1
 }
 
-# 1. Initial commit on unborn main with an origin configured: no-commit-to-branch must allow it,
-# and a commit holding no files must pass.
+# 1. Initial commit on unborn main with an origin configured: no-commit-to-default-branch
+# must allow it, and a commit holding no files must pass.
 commit "chore: empty" --allow-empty || fail "initial commit on unborn main with origin must pass the hook"
 ! grep -q 'required arguments were not provided' "${scratch}/commit.txt" ||
 	fail "an empty file list reached an hk util step"
@@ -69,10 +69,10 @@ commit "chore: empty" --allow-empty || fail "initial commit on unborn main with 
 # 1b. Subsequent direct commit on main with an origin configured must be blocked with a helpful message,
 # then switch to a feature branch for the remaining cases.
 if commit "chore: second on main" --allow-empty; then
-	fail "a second direct commit on main with origin must be blocked by no-commit-to-branch"
+	fail "a second direct commit on main with origin must be blocked by no-commit-to-default-branch"
 fi
 grep -qF "wt commit-unstaged" "${scratch}/commit.txt" ||
-	fail "no-commit-to-branch error must mention 'wt commit-unstaged'"
+	fail "no-commit-to-default-branch error must mention 'wt commit-unstaged'"
 git switch -q -c feat/test
 # 2. A tab-indented TypeScript file commits unchanged; JSON is still formatted.
 printf 'export function f(x: number) {\n\tif (x) {\n\t\treturn x;\n\t}\n\treturn 0;\n}\n' >"${work}/src/a.ts"
