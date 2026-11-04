@@ -12,7 +12,8 @@ fi
 refs="$(mktemp)"
 advanced="$(mktemp)"
 introduced="$(mktemp)"
-trap 'rm -f "${refs}" "${advanced}" "${introduced}"' EXIT
+introduced0="$(mktemp)"
+trap 'rm -f "${refs}" "${advanced}" "${introduced}" "${introduced0}"' EXIT
 cat >"${refs}"
 
 # A bare repository (such as ~/.local/state/mise/history/repo.git pushed by
@@ -61,21 +62,17 @@ if [[ -z "${DEV_PROFILE_ALLOW_DEFAULT_BRANCH_PUSH:-}" ]]; then
 	done <"${refs}"
 fi
 
-# hk's stdin is the pushed refs with each ref's old tip moved to its push
-# base. The introduced set that base implies is measured once here and
-# shared with every step through DEV_PROFILE_PUSH_INTRODUCED: measuring per
-# step (dev-profile-changed-files' fallback) costs tens of seconds of git
-# per step in a large repository, and a push with dozens of steps then
-# cannot finish at all.
-if ! dev-profile-push-base <"${refs}" >"${advanced}"; then
-	printf 'pre-push: dev-profile-push-base failed; steps measure for themselves\n' >&2
-fi
-if dev-profile-push-introduced "${advanced}" >"${introduced}"; then
-	export DEV_PROFILE_PUSH_INTRODUCED="${introduced}"
+# hk's stdin is the pushed refs, with each ref's old tip moved to its push
+# base. The files the push introduces are measured once here and handed to hk
+# with --files0-from, so hk selects them for every step and no step re-derives
+# the set. A range that cannot be measured passes no list, and hk selects.
+if dev-profile-push-introduced "${advanced}" >"${introduced}" &&
+	[[ "$(cat "${introduced}")" != "*" ]]; then
+	tr '\n' '\0' <"${introduced}" >"${introduced0}"
+	files0_from=(--files0-from "${introduced0}")
 else
-	# Never share a failed measurement: an empty union would skip every
-	# gate. Without the variable each step measures, as before.
-	printf 'pre-push: measuring the introduced files failed; steps measure for themselves\n' >&2
+	printf 'pre-push: the pushed range could not be measured; hk selects the files\n' >&2
+	files0_from=()
 fi
 export DEV_PROFILE_PUSH_REFS="${refs}"
-hk run pre-push "$@" <"${advanced}"
+hk run pre-push ${files0_from[@]+"${files0_from[@]}"} "$@" <"${advanced}"
