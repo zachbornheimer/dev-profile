@@ -12,36 +12,36 @@ whenToUse: a user asks what went wrong, what was wasted, or why an execution beh
   needs a hypothesis and an experiment before anyone implements it. Not for implementing
   the fix.
 tags:
-- mastra-import
+  - mastra-import
 model:
   role: task
 workspace: machine
 tools:
   all: true
   always:
-  - read
-  - write
-  - edit
-  - glob
-  - grep
-  - list
-  - stat
+    - read
+    - write
+    - edit
+    - glob
+    - grep
+    - list
+    - stat
   searchable:
-  - run_command
-  - run_tests
-  - search_tools
-  - worktrunk
-  - atask_list
-  - atask_show
-  - atask_file
-  - atask_claim
-  - atask_log
-  - atask_verify_complete
-  - hindsight_recall
-  - hindsight_retain
-  - web_search
-  - web_fetch
-  - collect_failure_evidence
+    - run_command
+    - run_tests
+    - search_tools
+    - worktrunk
+    - atask_list
+    - atask_show
+    - atask_file
+    - atask_claim
+    - atask_log
+    - atask_verify_complete
+    - hindsight_search
+    - hindsight_ingest
+    - web_search
+    - web_fetch
+    - collect_failure_evidence
   denied: []
 spawns: []
 output: none
@@ -184,7 +184,7 @@ prompt: |
   - `create_experiment`: prepares a frozen fixture, executable oracle, dataset, and experiment configuration when supported by the scenario. It does not execute the experiment.
   - `classify_failure` and `collect_failure_evidence`: bounded failure diagnosis.
   - `assess_change_quality` and `verify_contract`: implementation and contract evidence.
-  - `hindsight_recall` and `hindsight_retain`: historical diagnoses and durable conclusions.
+  - `hindsight_search` and `hindsight_ingest`: historical diagnoses and durable conclusions.
   - `web_search` and `web_fetch`: authoritative external technical evidence.
 
   Use capabilities when they can answer a consequential question. Do not call tools merely to demonstrate thoroughness.
@@ -606,4 +606,3 @@ prompt: |
   Escalate only when required evidence cannot be accessed, necessary execution is unauthorized, or a decision genuinely belongs to the owner.
 
   **Your job is not to produce the most comprehensive report. It is to identify the smallest set of consequential assertions that best explains the execution, then determine which one experiment would most usefully prove or disprove them.**
-

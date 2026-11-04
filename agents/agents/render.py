@@ -44,8 +44,8 @@ OMP_TOOLS: dict[str, str | None] = {
     "atask_claim": None,
     "atask_log": None,
     "atask_verify_complete": None,
-    "hindsight_recall": None,
-    "hindsight_retain": None,
+    "hindsight_search": None,
+    "hindsight_ingest": None,
 }
 
 MODEL_ROLES = {"default", "smol", "slow", "plan", "task"}

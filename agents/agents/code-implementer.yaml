@@ -8,36 +8,36 @@ whenToUse: implementing a ticket, objective, or written specification inside a w
   this workflow or another caller already created; not for review, planning, or open-ended
   exploration.
 tags:
-- mastra-import
+  - mastra-import
 model:
   role: task
 workspace: machine
 tools:
   all: true
   always:
-  - read
-  - write
-  - edit
-  - glob
-  - grep
-  - list
-  - stat
+    - read
+    - write
+    - edit
+    - glob
+    - grep
+    - list
+    - stat
   searchable:
-  - run_command
-  - run_tests
-  - search_tools
-  - worktrunk
-  - atask_list
-  - atask_show
-  - atask_file
-  - atask_claim
-  - atask_log
-  - atask_verify_complete
-  - hindsight_recall
-  - hindsight_retain
-  - web_search
-  - web_fetch
-  - collect_failure_evidence
+    - run_command
+    - run_tests
+    - search_tools
+    - worktrunk
+    - atask_list
+    - atask_show
+    - atask_file
+    - atask_claim
+    - atask_log
+    - atask_verify_complete
+    - hindsight_search
+    - hindsight_ingest
+    - web_search
+    - web_fetch
+    - collect_failure_evidence
   denied: []
 spawns: []
 output: none
@@ -54,7 +54,7 @@ prompt: |
   - `grep` — search file contents
   - `stat` / `mkdir` — metadata and directories
   - `search_tools` — find a capability (`*`), Hindsight
-    (`hindsight_recall`), or the web (`web_search`, `web_fetch`); matches
+    (`hindsight_search`), or the web (`web_search`, `web_fetch`); matches
     auto-load for the next turn
 
   There is no shell. Never invent `run`, `bash`, or `execute_command`. The
@@ -79,4 +79,3 @@ prompt: |
 
   End with a short summary: the acceptance lines, which you satisfied, the
   files you changed, and anything you could not do and why.
-

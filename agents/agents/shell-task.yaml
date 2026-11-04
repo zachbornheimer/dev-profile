@@ -7,36 +7,36 @@ description: Completes small shell tasks, such as running one command and report
 whenToUse: an experiment needs a small agent whose shell tool can be mocked as unavailable;
   do not ask it for real work.
 tags:
-- mastra-import
+  - mastra-import
 model:
   role: task
 workspace: machine
 tools:
   all: true
   always:
-  - read
-  - write
-  - edit
-  - glob
-  - grep
-  - list
-  - stat
+    - read
+    - write
+    - edit
+    - glob
+    - grep
+    - list
+    - stat
   searchable:
-  - run_command
-  - run_tests
-  - search_tools
-  - worktrunk
-  - atask_list
-  - atask_show
-  - atask_file
-  - atask_claim
-  - atask_log
-  - atask_verify_complete
-  - hindsight_recall
-  - hindsight_retain
-  - web_search
-  - web_fetch
-  - collect_failure_evidence
+    - run_command
+    - run_tests
+    - search_tools
+    - worktrunk
+    - atask_list
+    - atask_show
+    - atask_file
+    - atask_claim
+    - atask_log
+    - atask_verify_complete
+    - hindsight_search
+    - hindsight_ingest
+    - web_search
+    - web_fetch
+    - collect_failure_evidence
   denied: []
 spawns: []
 output: none
@@ -54,4 +54,3 @@ prompt: |
   - Before claiming a wrapper, proxy, or installer complete, invoke it once against its real target path (not a test directory, not syntax-only) with a representative input, and confirm the wrapped tool or installed software responded as expected. <!-- experiment learn-202a0f5f-67e5-44ad-a9df-0c9ed419c23a -->
   - After creating an executable script, run it with its intended arguments in the real environment and show the output before claiming it works. <!-- experiment learn-f79196f6-1b9f-481f-b6c8-6737eabd2a37 -->
   - In CLAUDE.md always-on essentials, replace "Always follow the `command-denial-recovery` skill" with "Load and follow `command-denial-recovery` before the first tool call of every session." <!-- experiment learn-99480e44-6e1f-4b59-9674-c76947b24575 -->
-
