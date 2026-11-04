@@ -373,7 +373,7 @@ local gates = new Mapping<String, Step> {
     glob = List("**/*.tf", "**/*.tfvars")
   }
   ["yamllint"] {
-    check = "dev-profile-changed-files yamllint --strict -- {{files}}"
+    check = "dev-profile-changed-files dev-profile-yamllint -- {{files}}"
     glob = List("**/*.yml", "**/*.yaml")
     exclude = lockfiles + List("**/cloud-init.yaml")
   }
