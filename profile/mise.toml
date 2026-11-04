@@ -25,7 +25,6 @@ activate_aggressive = true
 tool_update.global_auto = "12h"
 not_found_auto_install = true
 not_found_auto_install_registry = true
-idiomatic_version_file_ignore_minimum_versions = true
 idiomatic_version_file_enable_tools = ["go", "node", "python", "ruby", "npm", "pnpm", "yarn"]
 trusted_config_paths = ["~/Zysys", "~/Developer"]
 
