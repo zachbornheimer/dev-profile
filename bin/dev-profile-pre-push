@@ -74,13 +74,14 @@ else
 fi
 
 # A signal from outside -- a job supervisor's deadline, a closed terminal --
+# A signal from outside -- a job supervisor's deadline, a closed terminal --
 # stops the gate mid-run. hk cancels the steps that were running and reports
 # whichever command it killed as "command was cancelled", naming a step that
-# never reached a verdict: nothing in the gate found anything. Ignore the
-# catchable ones here so hk's own status survives to be read, then say what
-# stopped the run rather than leave hk's line as the only account of it.
-trap '' HUP INT TERM
-
+# never reached a verdict: nothing in the gate found anything. The signal is
+# deliberately not caught here: catching it made the hook unstoppable, so a
+# hung gate could neither be interrupted nor finish, and it left the working
+# tree in hk's stash. hk's own `timeout` on the hook bounds a stalled tool;
+# this block only says what stopped a run that was cut short.
 status=0
 hk run pre-push "$@" < <(dev-profile-push-base <"${refs}") || status=$?
 

@@ -20,8 +20,26 @@ amends "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pk
 // (cargo-deny), a whole-app audit (brakeman, bundle-audit), a commit-range secret
 // scan (gitleaks), the working tree's shape (destroyed-symlinks, forbid-submodules),
 // the diff against origin/main (foxguard-typescript), or the branch/commit metadata
-// (no-commit-to-default-branch, conventional-commit). They stay whole-tree: files a
-// push did not introduce are still part of the repository the push asks to publish.
+// (no-commit-to-default-branch, conventional-commit).
+//
+// The whole-repository analyzers carry profiles = List("slow") and so do not run on
+// every push: a push pays for the diff it wrote, CI pays for the repository. gosec,
+// go-vet, golangci-lint, govulncheck, cargo-deny, brakeman, bundle-audit and
+// foxguard-typescript each compile or scan far more than the push introduces —
+// foxguard alone measured over six minutes on a TypeScript monorepo, and every
+// one-line push waited for it. The placement is the published one: presubmit takes
+// only fast, reliable checks (Software Engineering at Google, ch. 23), whole-tree
+// analysis runs post-submit, and Chromium makes the same split explicit by keeping
+// its whole-tree presubmit a manual `git cl presubmit --all`. Run them here on
+// demand with `hk check --slow`, or `hk fix --slow` to autofix.
+//
+// gitleaks stays on the default path: it is the one check whose local placement is
+// load-bearing — a secret is unpublished only until the push lands — and it scans
+// just the commits the push adds.
+//
+// Both git hooks carry a `timeout`, which hk enforces by killing the steps,
+// restoring the stash and failing the hook. A tool that stalls then costs one
+// refused push instead of an unbounded wait with the working tree stashed.
 fail_fast = false
 stash_backup_count = 20
 exclude =
@@ -193,7 +211,11 @@ local gates = new Mapping<String, Step> {
         "**/action.yaml",
       )
   }
+  // From gosec to cargo-deny: profiles = List("slow"). Each judges the whole module,
+  // workspace or app rather than the pushed diff, so it runs on demand
+  // (`hk check --slow`) and in CI instead of on every push. See the header.
   ["gosec"] {
+    profiles = List("slow")
     check =
       "for d in $(dirname {{files}} | sort -u); do (cd \"$d\" && gosec -quiet ./...) || exit 1; done"
     glob = List("**/*.go")
@@ -201,12 +223,14 @@ local gates = new Mapping<String, Step> {
     workspace_indicator = "go.mod"
   }
   ["go-vet"] {
+    profiles = List("slow")
     check = "go vet ./..."
     glob = List("**/*.go")
     dir = "{{workspace}}"
     workspace_indicator = "go.mod"
   }
   ["golangci-lint"] {
+    profiles = List("slow")
     check = "golangci-lint run --fix=false --allow-parallel-runners ./..."
     fix = "golangci-lint run --fix ./..."
     glob = List("**/*.go")
@@ -214,6 +238,7 @@ local gates = new Mapping<String, Step> {
     workspace_indicator = "go.mod"
   }
   ["govulncheck"] {
+    profiles = List("slow")
     check = "govulncheck ./..."
     glob = List("**/go.mod", "**/go.sum")
     dir = "{{workspace}}"
@@ -229,6 +254,7 @@ local gates = new Mapping<String, Step> {
   // semgrep release fixes (mcp==1.29.0, opentelemetry-api~=1.37.0 are hard requirements of the scanner itself).
   // security/fixtures/manifest.json records the measured detections, including the pack rules Foxguard misses.
   ["foxguard-typescript"] {
+    profiles = List("slow")
     check =
       "RAYON_NUM_THREADS=2 mise x github:0sec-labs/foxguard@0.14.1 -- foxguard diff --rules ~/.config/foxguard/typescript.yml origin/main"
     glob = List("**/*.ts", "**/*.mts", "**/*.cts", "**/*.tsx")
@@ -309,6 +335,7 @@ local gates = new Mapping<String, Step> {
         )
   }
   ["brakeman"] {
+    profiles = List("slow")
     check = "brakeman --no-pager --quiet"
     glob =
       List(
@@ -321,8 +348,13 @@ local gates = new Mapping<String, Step> {
         "**/Rakefile",
       )
   }
-  ["bundle-audit"] { check = "bundle-audit check"; glob = List("**/Gemfile.lock") }
+  ["bundle-audit"] {
+    profiles = List("slow")
+    check = "bundle-audit check"
+    glob = List("**/Gemfile.lock")
+  }
   ["cargo-deny"] {
+    profiles = List("slow")
     check = "cargo-deny --locked --workspace check"
     glob = List("**/Cargo.toml", "**/Cargo.lock", "**/deny.toml", "**/.deny.toml")
     dir = "{{workspace}}"
@@ -363,6 +395,8 @@ hooks {
   ["pre-commit"] {
     fix = true
     stash = "git"
+    // Bounded, so a stalled tool cannot hold a commit open; see the header.
+    timeout = "60s"
     // A direct commit on main/master is refused here, before anything else runs.
     // The step is glob-less on purpose: hk still runs it for an empty commit, so
     // the branch check cannot be skipped by having nothing staged.
@@ -378,6 +412,9 @@ hooks {
     // the push introduces.
     fix = true
     stash = "git"
+    // Bounded, so a stalled tool cannot hold a push — or the stashed working tree —
+    // open; see the header.
+    timeout = "120s"
     steps = new Mapping<String, Step> { ...fixers; ...gates }
   }
   ["fix"] {

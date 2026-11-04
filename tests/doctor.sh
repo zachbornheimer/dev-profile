@@ -18,6 +18,8 @@ bash "$root/tests/ban-trunk-prettier-fixture.sh" >/dev/null || fail "ban-trunk-p
 bash "$root/tests/pre-push-empty-file-list-fixture.sh" >/dev/null || fail "pre-push empty file list fixture"
 bash "$root/tests/changed-files-fixture.sh" >/dev/null || fail "changed-files fixture"
 bash "$root/tests/introduced-once-fixture.sh" >/dev/null || fail "introduced-once fixture"
+bash "$root/tests/hk-pre-push-cost-fixture.sh" >/dev/null || fail "hk pre-push cost fixture"
+bash "$root/tests/pre-push-interruptible-fixture.sh" >/dev/null || fail "pre-push interruptible fixture"
 bash "$root/tests/pre-push-upstream-merge.sh" >/dev/null || fail "pre-push upstream merge fixture"
 bash "$root/tests/pre-push-signal-fixture.sh" "$root" >/dev/null || fail "pre-push signal fixture"
 bash "$root/tests/ruby-security-steps-fixture.sh" >/dev/null || fail "ruby security steps fixture"
