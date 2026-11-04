@@ -353,6 +353,10 @@ git -C "$repo" switch -q main
 git -C "$repo" merge --ff-only -q feat/merged
 commit "$repo" .gitignore ".next/"
 git -C "$repo" push -q origin main
+# The worktree's checkout is gutted, so no tracked ignore file survives there.
+# Pin .next/ in the repository's own exclude so the leftover cache is ignored
+# without leaning on the runner's global excludes file.
+printf '.next/\n' >>"${repo}/.git/info/exclude"
 git -C "$repo" worktree add -q "${work}/gutted-wt" feat/merged
 rm -f "${work}/gutted-wt/base.txt" "${work}/gutted-wt/merged.txt"
 mkdir -p "${work}/gutted-wt/apps/web/.next/cache"
