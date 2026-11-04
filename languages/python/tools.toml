@@ -2,4 +2,3 @@
 uv = "latest"
 ruff = "0.16.10"
 "pypi:yamllint" = "1.38.0"
-"pypi:semgrep" = "1.182.1"
