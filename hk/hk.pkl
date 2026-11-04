@@ -229,13 +229,24 @@ local gates = new Mapping<String, Step> {
   // The pack is a Semgrep import, so the importer re-prints its readiness report on stderr at every load --
   // ~500 "Warning: taint rule ..." lines whether or not the scan finds anything. That report is already recorded
   // in the manifest and asserted by dev-env's `mise run test:foxguard`, so it is kept for a failing scan only.
+  // The scan is budgeted: foxguard 0.14.1 re-scans the whole tree per invocation (~10 min with this pack on
+  // oh-my-pi) and its new-findings phase degenerates to ~1% CPU on a monorepo-size diff -- reproduced with a
+  // one-rule pack, so the pack is not the trigger -- wedging the step far past every push runner's deadline.
+  // A wedged step meant a wedged gate: the runner SIGKILLed the push job, `hk run pre-push` died with
+  // "Killed: 9", and no verdict was ever reported. The budget fails the step closed instead: the gate always
+  // reaches a verdict, the scan still runs in full whenever it keeps up, and the push is blocked (never
+  // waved through) when the scanner cannot. DEV_PROFILE_FOXGUARD_BUDGET (seconds) overrides the budget.
   ["foxguard-typescript"] {
     check =
       """
       err=$(mktemp)
       rc=0
-      RAYON_NUM_THREADS=2 mise x github:0sec-labs/foxguard@0.14.1 -- foxguard diff --rules ~/.config/foxguard/typescript.yml origin/main 2>"$err" || rc=$?
+      budget="${DEV_PROFILE_FOXGUARD_BUDGET:-1200}"
+      timeout -k 30 "${budget}" env RAYON_NUM_THREADS=2 mise x github:0sec-labs/foxguard@0.14.1 -- foxguard diff --rules ~/.config/foxguard/typescript.yml origin/main 2>"$err" || rc=$?
       [ "$rc" -eq 0 ] || cat "$err" >&2
+      if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
+        echo "foxguard-typescript: scan exceeded its ${budget}s budget; failing closed -- foxguard wedges on monorepo-size diffs, and unbudgeted it stopped any verdict from being reported" >&2
+      fi
       rm -f "$err"
       exit "$rc"
       """
