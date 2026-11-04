@@ -204,9 +204,14 @@ local gates = new Mapping<String, Step> {
     dir = "{{workspace}}"
     workspace_indicator = "go.mod"
   }
+  // The push gate rides dev-profile-golangci-ratchet, which reports only the
+  // issues the branch adds on top of origin's default branch: debt already on
+  // the default branch is what the push inherited, not what it introduces. It
+  // carries no fixer: the step's whole-workspace `--fix` rewrote every module
+  // in the tree mid-push, and the whole-tree steps that ran after it (gosec,
+  // go-vet) then judged files the fixer had broken.
   ["golangci-lint"] {
-    check = "golangci-lint run --fix=false --allow-parallel-runners ./..."
-    fix = "golangci-lint run --fix ./..."
+    check = "dev-profile-golangci-ratchet"
     glob = List("**/*.go")
     dir = "{{workspace}}"
     workspace_indicator = "go.mod"
@@ -336,9 +341,13 @@ local gates = new Mapping<String, Step> {
     dir = "{{workspace}}"
     workspace_indicator = "Cargo.lock"
   }
+  // The filter prints only the given files shellcheck can read, and a push of
+  // none of them leaves it empty: xargs then runs shellcheck with no file, and
+  // its usage error fails the push. `-r` (a no-op on BSD xargs, which already
+  // skips the empty run) keeps that from happening.
   ["shellcheck"] {
     check =
-      "dev-profile-changed-files sh -c '\(shellcheckFilter)' sh -- {{files}} | xargs shellcheck --severity=warning"
+      "dev-profile-changed-files sh -c '\(shellcheckFilter)' sh -- {{files}} | xargs -r shellcheck --severity=warning"
   }
   ["tofu"] {
     check = "dev-profile-changed-files tofu fmt -check -- {{files}}"
