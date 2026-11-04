@@ -379,6 +379,10 @@ edit `~/.agents/...` on the live path and commit/push in `~/Developer/Personal/d
 Durable machine facts (which tool runs commands, where a roster lives, what a
 wrapper does) go to Hindsight or this file — never `~/.claude/projects/*/memory/`,
 which only the one project that wrote it ever reads.
+**Hindsight stays self-hosted.** `~/.hindsight/coding-agent.json` keeps
+`serverMode: "self-hosted"` (local daemon `http://127.0.0.1:9077`). A move to
+Hindsight cloud is refused (2026-11-04): never propose it, and never argue for it
+from the daemon's slowness.
 
 ## Always-on essentials
 
