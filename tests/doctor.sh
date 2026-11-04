@@ -27,6 +27,7 @@ bash "$root/tests/worktree-copy-excludes-fixture.sh" "$root" >/dev/null || fail 
 bash "$root/tests/changed-files-fixture.sh" >/dev/null || fail "changed-files fixture"
 bash "$root/tests/pre-push-upstream-merge.sh" >/dev/null || fail "pre-push upstream merge fixture"
 bash "$root/tests/mise-dot-encryption-heal-fixture.sh" >/dev/null || fail "mise dot encryption heal fixture"
+bash "$root/tests/php-fmt-basepath-fixture.sh" >/dev/null || fail "php fmt basepath fixture"
 for f in "$root"/bin/*; do
 	if head -1 "$f" | grep -q python; then
 		python3 -m py_compile "$f" || fail "bin/${f##*/}"
