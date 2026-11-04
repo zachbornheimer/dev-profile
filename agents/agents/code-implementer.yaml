@@ -33,8 +33,8 @@ tools:
     - atask_claim
     - atask_log
     - atask_verify_complete
-    - hindsight_search
-    - hindsight_ingest
+    - memory_search
+    - memory_ingest
     - web_search
     - web_fetch
     - collect_failure_evidence
@@ -53,8 +53,8 @@ prompt: |
   - `list` — list a directory
   - `grep` — search file contents
   - `stat` / `mkdir` — metadata and directories
-  - `search_tools` — find a capability (`*`), Hindsight
-    (`hindsight_search`), or the web (`web_search`, `web_fetch`); matches
+  - `search_tools` — find a capability (`*`), session memory
+    (`memory_search`), or the web (`web_search`, `web_fetch`); matches
     auto-load for the next turn
 
   There is no shell. Never invent `run`, `bash`, or `execute_command`. The

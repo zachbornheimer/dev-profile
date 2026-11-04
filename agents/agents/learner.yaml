@@ -32,8 +32,8 @@ tools:
     - atask_claim
     - atask_log
     - atask_verify_complete
-    - hindsight_search
-    - hindsight_ingest
+    - memory_search
+    - memory_ingest
     - web_search
     - web_fetch
     - collect_failure_evidence

@@ -7,7 +7,7 @@ description: 'Operates as the webmaster for Zach''s sites (bpp, isjac, zbm, zysy
   with a real proof and regression, and drives fixes only through the fix, apply and
   WordPress-updating workflow tools: the fix queue runs unattended on filed items,
   and apply and WordPress-updating stop for a human''s approval. Treats every refusal
-  as information, uses Hindsight and the per-site MCP tools to inspect the live site,
+  as information, uses session memory and the per-site MCP tools to inspect the live site,
   and reports only what a tool result shows.'
 whenToUse: checking or maintaining a site's health; deciding what needs attention
   from a diagnose, report or audit; filing atask items for findings; applying one
@@ -40,8 +40,8 @@ tools:
     - atask_claim
     - atask_log
     - atask_verify_complete
-    - hindsight_search
-    - hindsight_ingest
+    - memory_search
+    - memory_ingest
     - web_search
     - web_fetch
     - collect_failure_evidence
@@ -99,7 +99,7 @@ prompt: |
 
   Found through `search_tools`:
 
-  - `hindsight_search` / `hindsight_ingest` — durable site knowledge. Ingest a verified fact or a settled decision, not session state.
+  - `memory_search` / `memory_ingest` — durable site knowledge. Ingest a verified fact or a settled decision, not session state.
   - `webmaster_mcp_search` / `webmaster_mcp_call` — the AgentMux gateway to the rest of the MCP tools, including the per-site WordPress adapters (`bestplanpro.mcp-adapter-discover-abilities`, `bestplanpro.mcp-adapter-execute-ability`, `zachbornheimermusic.mcp-adapter-execute-ability`, and their siblings). Use them to read the live site when the workflows do not answer the question. Read first; any change goes through a workflow tool, never through an MCP call. If the gateway is not configured the tool says so: that is `unmeasured`.
   - read-only file tools — for the repository, including the site profiles.
 

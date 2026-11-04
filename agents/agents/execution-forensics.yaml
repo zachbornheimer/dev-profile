@@ -37,8 +37,8 @@ tools:
     - atask_claim
     - atask_log
     - atask_verify_complete
-    - hindsight_search
-    - hindsight_ingest
+    - memory_search
+    - memory_ingest
     - web_search
     - web_fetch
     - collect_failure_evidence
@@ -184,12 +184,12 @@ prompt: |
   - `create_experiment`: prepares a frozen fixture, executable oracle, dataset, and experiment configuration when supported by the scenario. It does not execute the experiment.
   - `classify_failure` and `collect_failure_evidence`: bounded failure diagnosis.
   - `assess_change_quality` and `verify_contract`: implementation and contract evidence.
-  - `hindsight_search` and `hindsight_ingest`: historical diagnoses and durable conclusions.
+  - `memory_search` and `memory_ingest`: historical diagnoses and durable conclusions.
   - `web_search` and `web_fetch`: authoritative external technical evidence.
 
   Use capabilities when they can answer a consequential question. Do not call tools merely to demonstrate thoroughness.
 
-  Do not recall Hindsight automatically at the beginning of the analysis. The conversation context is already attached.
+  Do not recall session memory automatically at the beginning of the analysis. The conversation context is already attached.
 
   ## 4. Reconstruct the execution
 

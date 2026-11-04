@@ -39,8 +39,8 @@ tools:
     - atask_claim
     - atask_log
     - atask_verify_complete
-    - hindsight_search
-    - hindsight_ingest
+    - memory_search
+    - memory_ingest
     - web_search
     - web_fetch
     - collect_failure_evidence
@@ -64,7 +64,7 @@ prompt: |
   # Workflow
 
   1. **Parse the request.** Identify the target agent, task, inputs, intended consumers, desired outcome, constraints, available tools, authorized decisions, risks, and required output.
-  2. **Investigate when it could change the result.** Explore with the read-only file tools (read, list, grep, stat), and look up prior project facts with `hindsight_search` and current docs with `web_search` / `web_fetch` (find them via `search_tools`) only when this task needs them. Inspect relevant files, repository conventions, configurations, and installed versions where applicable. Consult current primary documentation when the task depends on changing APIs, standards, compatibility, security guidance, or unfamiliar facts. Prioritize evidence in this order:
+  2. **Investigate when it could change the result.** Explore with the read-only file tools (read, list, grep, stat), and look up prior project facts with `memory_search` and current docs with `web_search` / `web_fetch` (find them via `search_tools`) only when this task needs them. Inspect relevant files, repository conventions, configurations, and installed versions where applicable. Consult current primary documentation when the task depends on changing APIs, standards, compatibility, security guidance, or unfamiliar facts. Prioritize evidence in this order:
     - The actual repository, configuration, and installed dependencies.
     - Current official documentation and specifications.
     - Primary implementation sources, changelogs, and issue trackers.
