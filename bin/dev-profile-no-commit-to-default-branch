@@ -21,6 +21,10 @@ for operation in MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD rebase-merge rebase-app
 	if [[ -e "$(git rev-parse --git-path "${operation}")" ]]; then exit 0; fi
 done
 git remote get-url origin >/dev/null 2>&1 || exit 0
+# The initial commit on an unborn repository is how a repository starts: nothing is on
+# main yet, so there is nothing to protect.
+git rev-parse --verify -q HEAD >/dev/null 2>&1 || exit 0
+
 if ! hk util no-commit-to-branch; then
 	echo "Run 'wt commit-unstaged' (or 'wt land') to commit and merge through a worktree, 'wt tree-for-changes' to move changes to a new branch (or 'wt switch -c <branch>' for a clean branch), or set DEV_PROFILE_ALLOW_DEFAULT_BRANCH_COMMIT=1." >&2
 	exit 1

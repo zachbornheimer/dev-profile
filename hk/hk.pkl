@@ -336,7 +336,7 @@ local gates = new Mapping<String, Step> {
   }
   ["brakeman"] {
     profiles = List("slow")
-    check = "brakeman --no-pager --quiet"
+    check = "dev-profile-brakeman {{files}}"
     glob =
       List(
         "**/*.rb",
@@ -350,7 +350,7 @@ local gates = new Mapping<String, Step> {
   }
   ["bundle-audit"] {
     profiles = List("slow")
-    check = "bundle-audit check"
+    check = "dev-profile-bundle-audit {{files}}"
     glob = List("**/Gemfile.lock")
   }
   ["cargo-deny"] {

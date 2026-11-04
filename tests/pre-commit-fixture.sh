@@ -33,7 +33,7 @@ ln -s "${repo}/hk/hk.pkl" "${scratch}/hk-config/config.pkl"
 command="$("${git_bin}" config --file "${repo}/home/gitconfig" --get hook.hk-pre-commit.command)"
 [[ "${command}" == *'${HOME}/.local/share/dev-profile/bin'* ]] || fail "home/gitconfig's hk-pre-commit command no longer names the profile bin directory"
 profile_bin='${HOME}/.local/share/dev-profile/bin'
-command="${command//"${profile_bin}"/${repo}/bin} -S newlines -S trailing-whitespace -S dprint -S stylelint -S no-commit-to-branch"
+command="${command//"${profile_bin}"/${repo}/bin} -S newlines -S trailing-whitespace -S dprint -S stylelint -S no-commit-to-default-branch"
 cat >"${scratch}/gitconfig" <<EOF
 [user]
 	name = fixture
