@@ -7,7 +7,9 @@
 #
 # That PATH is a deployed machine's: mise at ~/.local/bin, the helpers at
 # ~/.local/share/dev-profile/bin. Build both in a scratch HOME so a checkout that was
-# never deployed (CI) runs this fixture too, and the live HOME is never touched.
+# never deployed (CI) runs this fixture too. The one thing the scratch HOME does not
+# own is hk's package cache, which stays with the machine: sharing it is what keeps
+# this fixture from re-fetching hk's release zip on every run.
 set -euo pipefail
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 gitconfig="${repo}/home/gitconfig"
@@ -39,8 +41,13 @@ hk_config="${scratch}/hk-config"
 mkdir -p "${hk_config}"
 # Only the dev-profile-* steps: this fixture judges how the hook finds its helpers, not
 # which steps the full profile runs.
-cat >"${hk_config}/config.pkl" <<'PKL'
-amends "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pkl"
+# The package is the one the profile pins, so it is the one already in the shared cache
+# below: doctor validates hk/hk.pkl (same URI) before this fixture, and hk caches the zip
+# by URL. Pinning a version the profile does not use made every run fetch a second copy.
+hk_version="$(sed -n 's|.*github.com/jdx/hk/releases/download/v\([0-9][.0-9]*\)/hk@.*|\1|p' "${repo}/hk/hk.pkl" | head -1)"
+[[ -n "${hk_version}" ]] || fail "no hk package URI in ${repo}/hk/hk.pkl"
+cat >"${hk_config}/config.pkl" <<PKL
+amends "package://github.com/jdx/hk/releases/download/v${hk_version}/hk@${hk_version}#/Config.pkl"
 hooks {
   ["pre-push"] {
     steps {
@@ -63,10 +70,14 @@ git -C "${scratch}/work" add a.txt
 env "${author[@]}" HK=0 "${git_bin}" -C "${scratch}/work" -c commit.gpgsign=false commit -qm "feat: fixture"
 git -C "${scratch}/work" remote add origin "${scratch}/remote.git"
 
-# env -i: nothing of this shell's PATH, mise shims or profile reaches the hook. Only the
-# data directory crosses, so the hook's `mise x hk` finds the installed hk.
+# env -i: nothing of this shell's PATH, mise shims or profile reaches the hook. The data
+# directory crosses so `mise x hk` finds the installed hk; the package cache crosses so the
+# hook reuses the hk release package the machine already fetched instead of downloading it
+# into the scratch HOME (a 504 on that fetch failed the whole test job).
+mkdir -p "${live_home}/.pkl/cache"
 status=0
 env -i HOME="${HOME}" PATH="${bare_path}" MISE_DATA_DIR="${mise_data_dir}" \
+	HK_PKL_CACHE_DIR="${live_home}/.pkl/cache" \
 	GIT_CONFIG_GLOBAL="${gitconfig}" HK_CONFIG_DIR="${hk_config}" \
 	git -C "${scratch}/work" push -q origin feature >"${scratch}/push.txt" 2>&1 || status=$?
 
