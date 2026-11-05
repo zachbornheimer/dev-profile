@@ -45,7 +45,15 @@ ATASK="${MISE_HISTORY_REPAIR_ATASK:-atask}"
 SPAWN="${MISE_HISTORY_REPAIR_SPAWN:-$HOME/.local/share/aube/bin/capability}"
 PROJECT="${MISE_HISTORY_REPAIR_PROJECT:-dev-profile}"
 STATE_DIR="${MISE_HISTORY_REPAIR_STATE:-$HOME/.local/state/mise-history-watchdog}"
-SPAWN_LOG="$HOME/Library/Logs/mise-history-repair.log"
+# The watchdog exports its log directory; run alone, the same per-OS default applies.
+OS="${MISE_HISTORY_WATCHDOG_OS:-$(uname -s)}"
+case "$OS" in
+Darwin) LOG_DIR_DEFAULT="$HOME/Library/Logs" ;;
+*) LOG_DIR_DEFAULT="${XDG_STATE_HOME:-$HOME/.local/state}/mise-history-watchdog" ;;
+esac
+LOG_DIR="${MISE_HISTORY_LOG_DIR:-$LOG_DIR_DEFAULT}"
+mkdir -p "$LOG_DIR"
+SPAWN_LOG="$LOG_DIR/mise-history-repair.log"
 HIST_DIR="$HOME/.local/state/mise/history"
 # How many worker runs one failure class gets before a person is asked, and how
 # long after a spawn the next attempt may start. The cooldown is shorter than one
@@ -55,7 +63,7 @@ MAX_ATTEMPTS="${MISE_HISTORY_REPAIR_MAX_ATTEMPTS:-3}"
 COOLDOWN_S="${MISE_HISTORY_REPAIR_COOLDOWN_S:-2700}"
 # How long a spawned run must still be alive before it counts as started: a run
 # that dies inside this window never reached a worker.
-STARTUP_GRACE_S=5
+STARTUP_GRACE_S="${MISE_HISTORY_REPAIR_STARTUP_GRACE_S:-5}"
 # How long the detached caller waits on the worker before it answers `running`
 # and leaves the run in place. A worker may run for its own budget (3600s by
 # default) and the caller has to stay for the landing.
@@ -141,14 +149,17 @@ publishing-blocked)
 		"The cause is identified from mise dot status, mise dot conflicts, $HIST_DIR and its repository, and recorded with atask log --learned."
 		"Every mechanically fixable cause is fixed: a path that should never have been tracked is untracked, a stale lock is removed, a declaration that disagrees with the store is corrected, or a path whose type conflicts with the manifest is reconciled."
 		"No local checkpoint was lost: the history repository refs before and after are compared and reported."
-		"If the cause is a genuine local/remote conflict, or a secret-scan refusal, the objective stays incomplete and atask log --next names the decision, the affected paths, and the options."
+		"A genuine local/remote conflict is resolved here, not reported: for each conflicted path, read mise dot conflicts <path>, first copy both versions to ~/.local/state/mise-history-watchdog/rescued/<timestamp>/<path>.local and .remote, then write the merge that keeps both sides' intent (the union of additive edits; for the same key or line, the side with the newer checkpoint), apply it with mise dot pull --keep-local <path> or --take-remote <path>, and run mise dot sync."
+		"Each resolved conflict is recorded with atask log --learned: the path, the rescued copies, which side won each hunk, and the mise dot undo or rollback that reverses it."
+		"Only a secret-scan refusal stays incomplete: atask log --next names the paths and the options, because publishing past it needs a person."
 	)
 	CONSTRAINTS=(
 		"Do not destroy, rewrite, or discard unpublished local checkpoints."
 		"Do not disable encryption, set a path to plaintext, or add an encryption opt-out."
 		"Do not force-push or discard remote history."
-		"Do not kill or unload the launchd-owned watcher dev.mise.mise-history; the watchdog owns restarts."
-		"Do not resolve a genuine conflict, or publish over a secret-scan refusal, on your own."
+		"Do not kill, unload, or stop the service-owned watcher dev.mise.mise-history (a LaunchAgent on macOS, a systemd user unit on Linux); the watchdog owns restarts."
+		"Do not publish over a secret-scan refusal (--allow-plaintext-history) on your own."
+		"Never resolve a conflict without the rescued copies of both versions in place first."
 		"Run every command through run_command; commit with wt step commit as signed conventional commits, with no attribution trailers."
 	)
 	PROOF="run: test \"\$(mise dot status 2>/dev/null | grep -c 'last error')\" = 0 size=medium"
@@ -303,8 +314,9 @@ fi
 } >>"$SPAWN_LOG"
 
 payload="$(printf '{"id":"%s","onComplete":"merge","timeout_s":%s}' "$task" "$CALLER_BUDGET_S")"
-run_pid="$(
-	python3 - "$SPAWN" "$payload" "$SPAWN_LOG" <<'PY' 2>>"$SPAWN_LOG"
+if [ "$OS" = Darwin ]; then
+	run_pid="$(
+		python3 - "$SPAWN" "$payload" "$SPAWN_LOG" <<'PY' 2>>"$SPAWN_LOG"
 import subprocess
 import sys
 
@@ -321,11 +333,21 @@ process = subprocess.Popen(
 )
 print(process.pid)
 PY
-)" || run_pid=""
-[ -n "$run_pid" ] || blocked "could not start $SPAWN (see $SPAWN_LOG)"
-
-sleep "$STARTUP_GRACE_S"
-kill -0 "$run_pid" 2>/dev/null || blocked "the run exited within ${STARTUP_GRACE_S}s: $(tail -2 "$SPAWN_LOG" | tr '\n' ' ')"
+	)" || run_pid=""
+	[ -n "$run_pid" ] || blocked "could not start $SPAWN (see $SPAWN_LOG)"
+	sleep "$STARTUP_GRACE_S"
+	kill -0 "$run_pid" 2>/dev/null || blocked "the run exited within ${STARTUP_GRACE_S}s: $(tail -2 "$SPAWN_LOG" | tr '\n' ' ')"
+else
+	# systemd kills every process left in a oneshot unit's cgroup when the tick ends, and a new
+	# session does not leave the cgroup. A transient unit does, so the run outlives the tick.
+	unit="mise-history-repair-$task"
+	systemd-run --user --collect --quiet "--unit=$unit" "--setenv=PATH=$PATH" \
+		-p "StandardOutput=append:$SPAWN_LOG" -p "StandardError=append:$SPAWN_LOG" \
+		-- "$SPAWN" run start_atask_task --input "$payload" 2>>"$SPAWN_LOG" ||
+		blocked "could not start $SPAWN as a transient systemd unit (see $SPAWN_LOG)"
+	sleep "$STARTUP_GRACE_S"
+	systemctl --user is-active --quiet "$unit" || blocked "the run exited within ${STARTUP_GRACE_S}s: $(tail -2 "$SPAWN_LOG" | tr '\n' ' ')"
+fi
 
 write_state "$task" "$((attempts + 1))" "$now" 0
 printf 'spawned %s (attempt %s of %s)\n' "$task" "$((attempts + 1))" "$MAX_ATTEMPTS"

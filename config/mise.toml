@@ -225,3 +225,23 @@ start_interval = 300
 stdout_path = "~/Library/Logs/mise-history-watchdog.log"
 stderr_path = "~/Library/Logs/mise-history-watchdog.err.log"
 process_type = "Background"
+
+# The same self-heal and conflict repair on a Linux fleet box: one script, run by a
+# systemd user timer (5 minutes after the last run, first run 2 minutes after boot).
+# The oneshot unit is started only by its timer. Its output is the journal:
+# `journalctl --user -u dev.mise.mise-history-watchdog`.
+[bootstrap.linux.systemd.units.mise-history-watchdog]
+description = "mise dot history watcher self-heal and conflict repair"
+type = "oneshot"
+exec_start = "%h/.local/share/dev-profile/bin/dev-profile-mise-history-watchdog"
+environment = { PATH = "%h/.local/share/mise/shims:%h/.local/bin:/usr/local/bin:/usr/bin:/bin" }
+standard_output = "journal"
+standard_error = "journal"
+start = false
+wanted_by = []
+
+[bootstrap.linux.systemd.units.mise-history-watchdog-timer]
+description = "run the mise dot history watchdog every 5 minutes"
+on_boot_sec = "2min"
+on_unit_active_sec = "5min"
+unit = "mise-history-watchdog"

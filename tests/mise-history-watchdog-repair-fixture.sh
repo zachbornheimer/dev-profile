@@ -43,6 +43,20 @@ printf '%s\n' '#!/usr/bin/env bash' 'exit 0' >"$work/bin/heal-ok"
 printf '%s\n' '#!/usr/bin/env bash' 'echo "heal: multi-line entry needs a hand edit: ~/.config/x.toml" >&2' 'exit 1' >"$work/bin/heal-fail"
 printf '%s\n' '#!/usr/bin/env bash' 'printf "%s\\n" "$*" >>"$SPAWN_CALLS"' 'exec sleep 30' >"$work/bin/capability-ok"
 printf '%s\n' '#!/usr/bin/env bash' 'printf "%s\\n" "$*" >>"$SPAWN_CALLS"' 'echo "capability: no such tool start_atask_task"' 'exit 3' >"$work/bin/capability-fail"
+cat >"$work/bin/systemctl" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$SYSTEMCTL_CALLS"
+case "$*" in
+*"show -p MainPID"*) echo "${FAKE_MAINPID:-0}" ;;
+esac
+exit 0
+EOF
+cat >"$work/bin/systemd-run" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$SYSTEMD_RUN_CALLS"
+[ -z "${FAKE_SYSTEMD_RUN_FAIL:-}" ] || exit 1
+exit 0
+EOF
 chmod +x "$work/bin/"*
 
 cd "$work"
@@ -60,6 +74,13 @@ export MISE_HISTORY_REPAIR_STATE="$work/state"
 export SPAWN_CALLS="$work/spawn-calls"
 export NOTIFY_CALLS="$work/notify-calls"
 export MISE_STATUS="$work/status"
+export SYSTEMCTL_CALLS="$work/systemctl-calls"
+export SYSTEMD_RUN_CALLS="$work/systemd-run-calls"
+# The sections below run as a Mac; the Linux section switches the OS itself.
+export MISE_HISTORY_WATCHDOG_OS=Darwin
+# The watchdog resets PATH to the machine's own; this keeps the stubs in front of it.
+export MISE_HISTORY_WATCHDOG_PATH_PREFIX="$work/bin"
+export MISE_HISTORY_REPAIR_STARTUP_GRACE_S=1
 log="$HOME/Library/Logs/mise-history-watchdog.log"
 spawn_log="$HOME/Library/Logs/mise-history-repair.log"
 
@@ -190,5 +211,56 @@ fi
 mkdir -p "$work/state" && : >"$work/state/repair-publishing-blocked"
 MISE_HISTORY_REPAIR_STATE="$work/state" bash "$repair" --clear || fail 'the clear failed'
 [ ! -e "$work/state" ] || fail 'the clear left the ledger behind'
+
+# --- a stale history lock goes, a fresh one stays (on either OS's date) ------
+reset
+healthy
+mkdir -p "$HOME/.local/state/mise/history"
+touch -t 202001010000 "$HOME/.local/state/mise/history/sync.lock"
+touch "$HOME/.local/state/mise/history/operation"
+tick 'stale lock'
+[ ! -e "$HOME/.local/state/mise/history/sync.lock" ] || fail 'a lock from 2020 was left in place'
+[ -e "$HOME/.local/state/mise/history/operation" ] || fail 'a fresh lock was removed'
+grep -q 'removed stale sync.lock' "$log" || fail "the lock removal was not logged: $(cat "$log")"
+rm -f "$HOME/.local/state/mise/history/operation"
+
+# --- a Linux fleet box: the same script, systemd for the service and the run --
+reset
+: >"$SYSTEMCTL_CALLS"
+: >"$SYSTEMD_RUN_CALLS"
+export MISE_HISTORY_WATCHDOG_OS=Linux
+export XDG_STATE_HOME="$work/xdg"
+unset MISE_HISTORY_LOG_DIR
+linux_log="$XDG_STATE_HOME/mise-history-watchdog/mise-history-watchdog.log"
+linux_spawn_log="$XDG_STATE_HOME/mise-history-watchdog/mise-history-repair.log"
+stalled
+tick 'linux first escalation'
+[ "$(wc -l <"$SYSTEMD_RUN_CALLS" | tr -d ' ')" = 1 ] || fail "a blocked publish did not start exactly one transient unit: $(cat "$SYSTEMD_RUN_CALLS")"
+[ "$(spawns)" = 0 ] || fail 'the run was started in the tick cgroup, where systemd would kill it when the tick ends'
+grep -q -- '--unit=mise-history-repair-at-' "$SYSTEMD_RUN_CALLS" || fail "the run is not a named transient unit: $(cat "$SYSTEMD_RUN_CALLS")"
+grep -q "StandardOutput=append:$linux_spawn_log" "$SYSTEMD_RUN_CALLS" || fail "the run does not log to the Linux state dir: $(cat "$SYSTEMD_RUN_CALLS")"
+grep -q 'run start_atask_task --input {"id":"at-[a-z0-9]*","onComplete":"merge"' "$SYSTEMD_RUN_CALLS" || fail "the run is not start_atask_task: $(cat "$SYSTEMD_RUN_CALLS")"
+grep -q 'publishing-blocked: spawned at-' "$linux_log" || fail "the Linux spawn was not logged under the state dir: $(cat "$linux_log" 2>&1)"
+[ "$(notifications)" = 0 ] || fail 'the user was notified before any worker could try on Linux'
+
+# A frozen watcher is restarted through systemctl, not launchctl.
+printf '%s\n' '✓ 100 entries up to date (`--verbose` lists them all)' '  watcher health (updated 900s ago): last capture 2026-11-04 18:00' >"$MISE_STATUS"
+: >"$SYSTEMCTL_CALLS"
+tick 'linux frozen watcher'
+grep -q -- '--user restart dev.mise.mise-history.service' "$SYSTEMCTL_CALLS" || fail "a frozen watcher was not restarted through systemd: $(cat "$SYSTEMCTL_CALLS")"
+grep -q 'watcher health frozen 900s' "$linux_log" || fail 'the restart was not logged'
+
+# A transient unit that cannot be created reaches the user as a plain notification.
+reset
+rm -rf "$XDG_STATE_HOME"
+stalled
+FAKE_SYSTEMD_RUN_FAIL=1 tick 'linux unstartable run'
+[ "$(notifications)" = 1 ] || fail 'a run that could not be started on Linux did not notify'
+if grep -q -- '^-e ' "$NOTIFY_CALLS"; then
+	fail "the Linux notification used the AppleScript form: $(cat "$NOTIFY_CALLS")"
+fi
+grep -q 'mise history watchdog' "$NOTIFY_CALLS" || fail "the Linux notification has no title: $(cat "$NOTIFY_CALLS")"
+export MISE_HISTORY_WATCHDOG_OS=Darwin
+unset XDG_STATE_HOME
 
 echo 'mise history watchdog repair: ok'
