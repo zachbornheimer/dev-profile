@@ -10,7 +10,7 @@ The `omp` you run is **the pinned upstream base + an ordered list of topic branc
 
 - Checkout: `~/Developer/Personal/oh-my-pi`. Remotes: **`origin`** = upstream `can1357/oh-my-pi`, **`fork`** = `zachbornheimer/oh-my-pi`.
 - **`main` is a read-only upstream mirror.** Never commit, merge or push to it. A GitHub ruleset, the local reference-transaction hook (installed by `bin/dev-profile-omp-machine-setup`) and `pretooluse-omp-main-branch-guard` all refuse it. Do not bypass them.
-- **The branch list** is `.github/omp-rebuild.toml` (`branches = [ ... ]`, merged in order) on the fork's default branch **`ci`**, which holds only that file, `.github/omp-upstream.txt` (the pinned base), `.github/workflows/omp-build.yml` and `scripts/omp-build/resolve-branches.ts`.
+- **The branch list** is the `BRANCH_MANIFEST` block in `.github/workflows/omp-build.yml` (a JSON array of `{ "branch": ..., "reason": ... }` entries, merged in order) on the fork's default branch **`ci`**, which holds only that workflow, `.github/omp-upstream.txt` (the pinned base) and `scripts/omp-build/resolve-branches.ts` (the single parser of the manifest).
 - **CI** (`omp-build`, daily 04:00 UTC + manual dispatch) merges each listed branch with `git merge --no-ff` onto **the pinned base**, builds darwin-arm64 + linux-x64, and publishes release `build-<YYYYMMDD>-<upstream7>-<build7>` as Latest, `<upstream7>` being the pin. A scheduled run fails only on a conflict with the pinned base — never merely because upstream moved. A `workflow_dispatch` input `upstream_base` assembles a candidate base without committing it.
 
 Design and history: [references/build-distribution.md](references/build-distribution.md).
@@ -63,7 +63,7 @@ Detail, seams and the two working extensions to copy: [references/extensions.md]
    git -C ~/Developer/Personal/oh-my-pi fetch fork ci
    wt -C ~/Developer/Personal/oh-my-pi switch ci   # first time: switch --create ci --base fork/ci
    git pull --ff-only fork ci
-   # edit .github/omp-rebuild.toml: append "feat/<slug>" after any branch it depends on
+   # edit the BRANCH_MANIFEST block in .github/workflows/omp-build.yml: append { "branch": "feat/<slug>", "reason": "..." } after any branch it depends on
    wt step commit && git push fork ci
    ```
 
@@ -93,7 +93,7 @@ Never use `branches_override` to land anything. A dispatch with a non-empty over
 
 **Bumping is deliberate: every few days, after a clean local check. Never a per-run chase.** Upstream main moves roughly hourly; assembling onto its HEAD means an upstream merge before every run. The pin decouples what we assemble from where upstream is.
 
-1. **Pick the candidate: the newest upstream commit every listed branch already contains.** For each branch in `.github/omp-rebuild.toml`, take its most recent merge commit's second parent and verify it:
+1. **Pick the candidate: the newest upstream commit every listed branch already contains.** For each branch in the `BRANCH_MANIFEST` block, take its most recent merge commit's second parent and verify it:
 
    ```bash
    m=$(git rev-list --merges -1 fork/<branch>)          # its most recent merge
@@ -127,7 +127,7 @@ A failed run publishes nothing, so the previous release stays Latest and every m
 
 ## 5. Remove a branch
 
-When upstream has merged a branch, `git cherry origin/main fork/feat/<slug>` prints only `-` lines. Delete it from `.github/omp-rebuild.toml` on `ci` (step 5), run the probe, push, dispatch (step 6).
+When upstream has merged a branch, `git cherry origin/main fork/feat/<slug>` prints only `-` lines. Delete it from the `BRANCH_MANIFEST` block in `.github/workflows/omp-build.yml` on `ci` (step 5), run the probe, push, dispatch (step 6).
 
 ## 6. Install facts
 

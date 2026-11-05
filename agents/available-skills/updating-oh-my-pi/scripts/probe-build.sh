@@ -2,9 +2,11 @@
 # probe-build.sh: run the omp-build assembly locally, the way CI merges it.
 #
 # Merges the pinned upstream base plus the fork's configured branch list
-# (fork/ci:.github/omp-rebuild.toml) in order, using git merge-tree (the same
-# ort merge `git merge --no-ff` runs in CI). It changes no branch: it only
-# updates remote-tracking refs and writes unreferenced objects.
+# (the BRANCH_MANIFEST block in fork/ci:.github/workflows/omp-build.yml,
+# resolved by the omp repo's own scripts/omp-build/resolve-branches.ts)
+# in order, using git merge-tree (the same ort merge `git merge --no-ff`
+# runs in CI). It changes no branch: it only updates remote-tracking refs
+# and writes unreferenced objects.
 #
 # The base is the pin in fork/ci:.github/omp-upstream.txt — the same commit CI
 # assembles onto — not upstream main HEAD; a probe never fails merely because
@@ -40,7 +42,7 @@ while [ $# -gt 0 ]; do
 		shift 2
 		;;
 	-h | --help)
-		sed -n '2,15p' "$0"
+		sed -n '2,22p' "$0"
 		exit 0
 		;;
 	*)
@@ -54,7 +56,26 @@ cd "$repo"
 git fetch -q origin main || exit 2
 git fetch -q fork ci || exit 2
 
-configured="$(git show fork/ci:.github/omp-rebuild.toml | sed 's/#.*//' | sed -n '/^branches *= *\[/,/\]/p' | grep -oE '"[^"]+"' | tr -d '"')"
+manifest="$(git show fork/ci:.github/workflows/omp-build.yml 2>/dev/null | awk '/^      BRANCH_MANIFEST: \|/{on=1; next} on && /^        /{sub(/^        /, ""); print; next} on{exit}')"
+if [ -z "$manifest" ]; then
+	echo "no BRANCH_MANIFEST block in fork/ci:.github/workflows/omp-build.yml" >&2
+	exit 2
+fi
+command -v bun >/dev/null 2>&1 || {
+	echo "bun is required to run scripts/omp-build/resolve-branches.ts" >&2
+	exit 2
+}
+resolver="$(mktemp "${TMPDIR:-/tmp}/probe-resolve.XXXXXX.ts")"
+trap 'rm -f "$resolver"' EXIT
+git show fork/ci:scripts/omp-build/resolve-branches.ts >"$resolver" 2>/dev/null || {
+	echo "cannot read fork/ci:scripts/omp-build/resolve-branches.ts" >&2
+	exit 2
+}
+configured="$(BRANCH_MANIFEST="$manifest" bun "$resolver" "" workflow_dispatch)" || {
+	echo "fork/ci BRANCH_MANIFEST failed to resolve via scripts/omp-build/resolve-branches.ts:" >&2
+	BRANCH_MANIFEST="$manifest" bun "$resolver" "" workflow_dispatch >&2 || true
+	exit 2
+}
 
 branches=()
 while IFS= read -r b; do

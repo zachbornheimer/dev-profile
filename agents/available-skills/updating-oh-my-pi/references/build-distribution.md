@@ -4,8 +4,8 @@ Accepted 2026-11-02 (user: "perfect. please proceed with this approach").
 
 ## Goal
 
-One custom `omp` = upstream `can1357/oh-my-pi` main + the topic branches listed in the fork's
-`.github/omp-rebuild.toml` (branch `ci`), built once in GitHub Actions on `zachbornheimer/oh-my-pi`,
+One custom `omp` = upstream `can1357/oh-my-pi` main + the topic branches listed in the `BRANCH_MANIFEST`
+block of `.github/workflows/omp-build.yml` (branch `ci`), built once in GitHub Actions on `zachbornheimer/oh-my-pi`,
 installed on the MBP and every fleet machine by mise. `main` stays a pure upstream mirror.
 
 ## Contract
