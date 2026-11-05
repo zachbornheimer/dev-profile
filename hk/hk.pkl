@@ -1,25 +1,31 @@
-amends "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pkl"
+amends "package://github.com/jdx/hk/releases/download/v2.11.0/hk@2.11.0#/Config.pkl"
 
-// Native replacement for the frozen dev-profile hook set: every step calls a mise-pinned tool directly.
-// Steps that existed only as dev-profile bin wrappers (hardcoded-dev-port, identity-guard, no-trunk-prettier,
-// suppressions, go-mod-tidy, perlcritic, php-lint, ty, clang-tidy, pushed-diagnostics) are deliberately absent.
+import "package://github.com/jdx/hk/releases/download/v2.11.0/hk@2.11.0#/Builtins.pkl"
+
+// House style for every repository on this machine.
 //
-// Steps come in two classes.
+// The runner owns file selection, so a step declares the files it touches and the
+// command it runs on them, and hk derives its read/write locks from that. Two
+// consequences shape this file:
 //
-// Per-file steps take {{files}} and route through dev-profile-changed-files, which
-// hands the tool only the files this push introduces: a branch that merged its
-// default branch would otherwise answer for — and its fixers rewrite — every file
-// the merge carried in. dev-profile-changed-files owns the changed set; no step
-// re-derives it. Its separator is the first standalone `--` after the command, so
-// a command that itself carries one (none here today) runs wrapped in `sh -c '...'`.
+//   - A step that is one tool over the files hk hands it is hk's own builtin. The
+//     builtin supplies the command and the optimizations hk can only apply to a
+//     builtin -- check_diff (a patch computed under read locks), check_list_files,
+//     check_first, batch, declared effects -- so what stays here is policy: globs,
+//     exclusions, ordering.
+//   - A step whose tool needs more than a file list (a ratchet, a package scope, a
+//     budget, a whole-app path) keeps its command and says so with
+//     `exclusive = true`, because hk would otherwise schedule it as if it only
+//     touched its own selection. Those steps read or scan more than they declare.
 //
-// Project-wide steps judge the repository as a unit — a whole-module compile
-// (go-vet, golangci-lint, govulncheck), a whole-workspace advisory check
-// (cargo-deny), a whole-app audit (brakeman, bundle-audit), a commit-range secret
-// scan (gitleaks), the working tree's shape (destroyed-symlinks, forbid-submodules),
-// the diff against origin/main (foxguard-typescript), or the branch/commit metadata
-// (no-commit-to-default-branch, conventional-commit). They stay whole-tree: files a
-// push did not introduce are still part of the repository the push asks to publish.
+// Which files a push judges is the hook's job, not each step's. dev-profile-pre-push
+// measures the files the push introduces once and hands hk that list
+// (`hk run pre-push --files0-from <file>`); a branch that merged its default branch
+// therefore answers only for what it wrote. pre-commit hands hk the staged files.
+//
+// Steps that existed only as dev-profile bin wrappers (hardcoded-dev-port,
+// identity-guard, no-trunk-prettier, suppressions, go-mod-tidy, perlcritic,
+// php-lint, ty, clang-tidy, pushed-diagnostics) are deliberately absent.
 fail_fast = false
 stash_backup_count = 20
 exclude =
@@ -63,6 +69,11 @@ local jsGlobs =
     "**/*.svelte",
     "**/*.astro",
   )
+
+local pyGlobs = List("**/*.py", "**/*.pyi")
+local mdGlobs = List("**/*.md", "**/*.markdown")
+local tfGlobs = List("**/*.tf", "**/*.tfvars")
+local yamlGlobs = List("**/*.yml", "**/*.yaml")
 
 local k8sGlobs =
   List(
@@ -109,9 +120,9 @@ local shellcheckFilter =
   """
 
 local fixers = new Mapping<String, Step> {
-  ["dprint"] {
-    check = "dev-profile-changed-files dprint check --allow-no-files -- {{files}}"
-    fix = "dev-profile-changed-files dprint fmt --allow-no-files -- {{files}}"
+  // dprint holds the write lock on its files and waits for the other fixers, so a
+  // formatter never rewrites a file another fixer is still editing.
+  ["dprint"] = (Builtins.dprint) {
     exclude = lockfiles
     depends =
       List(
@@ -128,63 +139,38 @@ local fixers = new Mapping<String, Step> {
   // dumps that stderr whenever any unrelated step fails. dev-profile-stylelint-fix absorbs
   // the no-config and unfixable-lint output and falls back to the profile's config.
   ["stylelint"] {
-    fix = "dev-profile-changed-files dev-profile-stylelint-fix -- {{files}}"
+    fix = "dev-profile-stylelint-fix -- {{files}}"
     glob = List("**/*.css", "**/*.scss", "**/*.sass")
   }
-  ["go-imports"] {
-    fix = "dev-profile-changed-files goimports -w -- {{files}}"
-    check_list_files = "dev-profile-changed-files goimports -l -- {{files}}"
-    glob = List("**/*.go")
-  }
-  ["oxlint-fix"] {
-    fix = "dev-profile-changed-files oxlint --fix -- {{files}}"
-    glob = jsGlobs
-  }
+  ["go-imports"] = (Builtins.go_imports) { glob = List("**/*.go") }
+  // hk's oxlint builtin denies warnings; ours used to warn and pass. The builtin's
+  // command is the profile's policy now: a warning is a finding.
+  ["oxlint-fix"] = (Builtins.ox_lint) { glob = jsGlobs }
   // --fix-only never reports or exits non-zero on leftover violations, so this
   // fixer cannot block a push on inherited findings and stays bare.
   ["ruff-fix"] {
     fix =
-      "dev-profile-changed-files ruff check --force-exclude --fix-only --unsafe-fixes --extend-select UP,FURB,SIM,PERF,C4,PIE -- {{files}}"
-    glob = List("**/*.py", "**/*.pyi")
+      "ruff check --force-exclude --fix-only --unsafe-fixes --extend-select UP,FURB,SIM,PERF,C4,PIE -- {{files}}"
+    glob = pyGlobs
   }
-  ["markdownlint-fix"] {
-    fix = "dev-profile-changed-files markdownlint --fix -- {{files}}"
-    glob = List("**/*.md", "**/*.markdown")
+  ["markdownlint-fix"] = (Builtins.markdown_lint) {
+    glob = mdGlobs
     exclude = List("agents/learnings/**")
   }
   // hk runs a glob-less step even for an empty commit; a glob lets hk skip it.
-  ["newlines"] {
-    fix = "dev-profile-changed-files hk util end-of-file-fixer --fix -- {{files}}"
-    check_diff = "dev-profile-changed-files hk util end-of-file-fixer --diff -- {{files}}"
-    glob = List("**/*")
-  }
-  ["trailing-whitespace"] {
-    fix = "dev-profile-changed-files hk util trailing-whitespace --fix -- {{files}}"
-    check_diff = "dev-profile-changed-files hk util trailing-whitespace --diff -- {{files}}"
-    glob = List("**/*")
-  }
-  ["tofu-fix"] {
-    fix = "dev-profile-changed-files tofu fmt -- {{files}}"
-    glob = List("**/*.tf", "**/*.tfvars")
-  }
+  ["newlines"] = (Builtins.newlines) { glob = List("**/*") }
+  ["trailing-whitespace"] = (Builtins.trailing_whitespace) { glob = List("**/*") }
+  ["tofu-fix"] = (Builtins.tofu) { glob = tfGlobs }
 }
 
 local gates = new Mapping<String, Step> {
-  ["hadolint"] {
-    check = "dev-profile-changed-files hadolint -- {{files}}"
-    glob = List("**/Dockerfile*")
-  }
-  ["actionlint"] {
-    check = "dev-profile-changed-files actionlint -- {{files}}"
+  ["hadolint"] = (Builtins.hadolint) { glob = List("**/Dockerfile*") }
+  ["actionlint"] = (Builtins.actionlint) {
     glob = List(".github/workflows/*.yml", ".github/workflows/*.yaml")
     diagnostic_format = "gcc"
   }
-  ["pinact"] {
-    check = "dev-profile-changed-files pinact run --verify-comment --check -- {{files}}"
-    glob = List(".github/workflows/*", "**/action.*")
-  }
-  ["zizmor"] {
-    check = "dev-profile-changed-files zizmor --no-progress -- {{files}}"
+  ["pinact"] = (Builtins.pinact) { glob = List(".github/workflows/*", "**/action.*") }
+  ["zizmor"] = (Builtins.zizmor) {
     glob =
       List(
         ".github/workflows/*.yml",
@@ -198,18 +184,20 @@ local gates = new Mapping<String, Step> {
   // packages holding the pushed files but fails only on findings located in
   // those files, so a finding already sitting in an untouched file of the same
   // package does not block a push that did not introduce it
-  // (tests/gosec-fixture.sh pins that policy).
+  // (tests/gosec-fixture.sh pins that policy). It compiles whole packages, so it
+  // reads beyond the files it is handed: exclusive.
   ["gosec"] {
     check = "dev-profile-gosec-packages -- {{files}}"
     glob = List("**/*.go")
     dir = "{{workspace}}"
     workspace_indicator = "go.mod"
+    exclusive = true
   }
-  ["go-vet"] {
-    check = "go vet ./..."
+  ["go-vet"] = (Builtins.go_vet) {
     glob = List("**/*.go")
     dir = "{{workspace}}"
     workspace_indicator = "go.mod"
+    exclusive = true
   }
   // The push gate rides dev-profile-golangci-ratchet, which reports only the
   // issues the branch adds on top of origin's default branch: debt already on
@@ -222,18 +210,15 @@ local gates = new Mapping<String, Step> {
     glob = List("**/*.go")
     dir = "{{workspace}}"
     workspace_indicator = "go.mod"
+    exclusive = true
   }
-  ["govulncheck"] {
-    check = "govulncheck ./..."
+  ["govulncheck"] = (Builtins.go_vuln_check) {
     glob = List("**/go.mod", "**/go.sum")
     dir = "{{workspace}}"
     workspace_indicator = "go.mod"
+    exclusive = true
   }
-  ["oxlint"] {
-    check = "dev-profile-changed-files oxlint -- {{files}}"
-    fix = "dev-profile-changed-files oxlint --fix -- {{files}}"
-    glob = jsGlobs
-  }
+  ["oxlint"] = (Builtins.ox_lint) { glob = jsGlobs }
   // Foxguard judges every TypeScript file with the retained pack plus its own built-ins. Findings are fixed by hand.
   // It replaced the semgrep gate on 2026-11-03: semgrep's own transitive pins carried Dependabot moderates no
   // semgrep release fixes (mcp==1.29.0, opentelemetry-api~=1.37.0 are hard requirements of the scanner itself).
@@ -253,13 +238,15 @@ local gates = new Mapping<String, Step> {
   // "Killed: 9", and no verdict was ever reported. The budget fails the step closed instead: the gate always
   // reaches a verdict, the scan still runs in full whenever it keeps up, and the push is blocked (never
   // waved through) when the scanner cannot. DEV_PROFILE_FOXGUARD_BUDGET (seconds) overrides the budget.
+  // hk has no per-step timeout, so the budget lives in the command; exclusive keeps it from
+  // racing the fixers that rewrite the tree it scans.
   ["foxguard-typescript"] {
     check =
       """
       err=$(mktemp)
       rc=0
       budget="${DEV_PROFILE_FOXGUARD_BUDGET:-1200}"
-      timeout -k 30 "${budget}" env RAYON_NUM_THREADS=2 dev-profile-changed-files dev-profile-foxguard-introduced --rules ~/.config/foxguard/typescript.yml --target origin/main -- {{files}} 2>"$err" || rc=$?
+      timeout -k 30 "${budget}" env RAYON_NUM_THREADS=2 dev-profile-foxguard-introduced --rules ~/.config/foxguard/typescript.yml --target origin/main -- {{files}} 2>"$err" || rc=$?
       [ "$rc" -eq 0 ] || cat "$err" >&2
       if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
         echo "foxguard-typescript: scan exceeded its ${budget}s budget; failing closed -- foxguard wedges on monorepo-size diffs, and unbudgeted it stopped any verdict from being reported" >&2
@@ -268,71 +255,57 @@ local gates = new Mapping<String, Step> {
       exit "$rc"
       """
     glob = List("**/*.ts", "**/*.mts", "**/*.cts", "**/*.tsx")
+    exclusive = true
   }
-  ["kube-linter"] {
-    check = "dev-profile-changed-files kube-linter lint --fail-if-no-objects-found -- {{files}}"
-    glob = k8sGlobs
-    exclude = k8sExclude
-  }
-  ["kubeconform"] {
-    check =
-      "dev-profile-changed-files kubeconform -summary -strict -ignore-missing-schemas -- {{files}}"
-    glob = k8sGlobs
-    exclude = k8sExclude
-  }
-  ["markdownlint"] {
-    check = "dev-profile-changed-files markdownlint -- {{files}}"
-    fix = "dev-profile-changed-files markdownlint --fix -- {{files}}"
-    glob = List("**/*.md", "**/*.markdown")
+  ["kube-linter"] = (Builtins.kube_linter) { glob = k8sGlobs; exclude = k8sExclude }
+  ["kubeconform"] = (Builtins.kubeconform) { glob = k8sGlobs; exclude = k8sExclude }
+  ["markdownlint"] = (Builtins.markdown_lint) {
+    glob = mdGlobs
     exclude = List("agents/learnings/**")
   }
-  ["ruff"] {
-    check = "dev-profile-changed-files ruff check --force-exclude -- {{files}}"
-    fix = "dev-profile-changed-files ruff check --force-exclude --fix -- {{files}}"
-    glob = List("**/*.py", "**/*.pyi")
-  }
-  // betterleaks reports per path, so it rides the per-file class; the files a
-  // push does not introduce are debt the push did not write.
+  ["ruff"] = (Builtins.ruff) { glob = pyGlobs }
+  // betterleaks' builtin filters its candidates to `types = ["text"]`, and hk types a
+  // file holding a key body as non-text: the builtin skipped the very files a secret
+  // scan exists for (measured on a probe tree of nine files -- eight matched, the
+  // ninth being the committed key). The builtin's command runs verbatim without that
+  // filter, and keeps this profile's --confidence medium.
   ["betterleaks"] {
-    check =
-      "dev-profile-changed-files betterleaks dir --redact --verbose --no-banner --confidence medium -- {{files}}"
+    check = "betterleaks dir --redact --verbose --no-banner --confidence medium -- {{files}}"
     glob = List("**/*")
   }
-  ["case-conflicts"] {
-    check = "dev-profile-changed-files hk util check-case-conflict -- {{files}}"
-    glob = List("**/*")
-  }
+  ["case-conflicts"] = (Builtins.check_case_conflict) { glob = List("**/*") }
+  // The util has no added-only flag, so the wrapper narrows the candidates to the
+  // files this push adds; without it a merge-carried large file would block a push
+  // that did not add it.
   ["check-added-large-files"] {
     check = "dev-profile-changed-files --added hk util check-added-large-files -- {{files}}"
     glob = List("**/*")
     exclude = lockfiles
   }
-  ["check-executables-have-shebangs"] {
-    check = "dev-profile-changed-files hk util check-executables-have-shebangs -- {{files}}"
+  ["check-executables-have-shebangs"] = (Builtins.check_executables_have_shebangs) {
     glob = List("**/*")
   }
-  ["check-symlinks"] {
-    check = "dev-profile-changed-files hk util check-symlinks -- {{files}}"
-    glob = List("**/*")
-  }
-  ["destroyed-symlinks"] { check = "hk util destroyed-symlinks" }
-  ["forbid-submodules"] { check = "hk util forbid-submodules"; glob = List("**/.gitmodules") }
+  ["check-symlinks"] = (Builtins.check_symlinks) { glob = List("**/*") }
+  ["destroyed-symlinks"] = (Builtins.destroyed_symlinks) { glob = List("**/*") }
+  ["forbid-submodules"] = (Builtins.forbid_submodules) { glob = List("**/.gitmodules") }
   // gitleaks FTLs on a missing --config path, so pass one only when the repository ships it.
+  // It scans a commit range, not the files it is handed, so it stays exclusive.
   ["gitleaks"] {
     check =
       "config=\"\"\nif [ -f .gitleaks.toml ]; then\n  config=\"--config .gitleaks.toml\"\nfi\ngitleaks git $config --redact --no-banner --log-opts=\"HEAD --not --remotes\""
+    exclusive = true
   }
-  ["merge-conflicts"] {
-    check = "dev-profile-changed-files hk util check-merge-conflict --assume-in-merge -- {{files}}"
-    glob = List("**/*")
-  }
+  ["merge-conflicts"] = (Builtins.check_merge_conflict) { glob = List("**/*") }
+  // hk's detect_private_key builtin carries the same `types = ["text"]` filter and drops
+  // the same extension-less key file (tests/pre-push-empty-file-list-fixture.sh pins it:
+  // a pushed .deploy-key must fail the push). Its command runs verbatim without the filter.
   ["private-keys"] {
-    check = "dev-profile-changed-files hk util detect-private-key -- {{files}}"
+    check = "hk util detect-private-key -- {{files}}"
     glob = List("**/*")
   }
   ["strict-json"] {
     check =
-      "dev-profile-changed-files sh -c 'status=0\nfor file in \"$@\"; do\n  jq empty \"$file\" || { echo \"not strict JSON: $file\" >&2; status=1; }\ndone\nexit $status' sh -- {{files}}"
+      "sh -c 'status=0\nfor file in \"$@\"; do\n  jq empty \"$file\" || { echo \"not strict JSON: $file\" >&2; status=1; }\ndone\nexit $status' sh -- {{files}}"
     glob = List("**/*.json")
     exclude =
       lockfiles
@@ -346,7 +319,8 @@ local gates = new Mapping<String, Step> {
   }
   // Brakeman takes one application path, never the changed files, and bundle-audit takes
   // a project directory, never a lockfile: both wrappers scan each file from the root that
-  // holds it, so an app below the repo root is scanned as its own project.
+  // holds it, so an app below the repo root is scanned as its own project. Both read a
+  // whole application, so both are exclusive.
   ["brakeman"] {
     check = "dev-profile-brakeman {{files}}"
     glob =
@@ -359,29 +333,30 @@ local gates = new Mapping<String, Step> {
         "**/Gemfile.lock",
         "**/Rakefile",
       )
+    exclusive = true
   }
-  ["bundle-audit"] { check = "dev-profile-bundle-audit {{files}}"; glob = List("**/Gemfile.lock") }
-  ["cargo-deny"] {
-    check = "cargo-deny --locked --workspace check"
+  ["bundle-audit"] {
+    check = "dev-profile-bundle-audit {{files}}"
+    glob = List("**/Gemfile.lock")
+    exclusive = true
+  }
+  ["cargo-deny"] = (Builtins.cargo_deny) {
     glob = List("**/Cargo.toml", "**/Cargo.lock", "**/deny.toml", "**/.deny.toml")
     dir = "{{workspace}}"
     workspace_indicator = "Cargo.lock"
+    exclusive = true
   }
   // The filter prints only the given files shellcheck can read, and a push of
   // none of them leaves it empty: xargs then runs shellcheck with no file, and
   // its usage error fails the push. `-r` (a no-op on BSD xargs, which already
   // skips the empty run) keeps that from happening.
   ["shellcheck"] {
-    check =
-      "dev-profile-changed-files sh -c '\(shellcheckFilter)' sh -- {{files}} | xargs -r shellcheck --severity=warning"
+    check = "sh -c '\(shellcheckFilter)' sh -- {{files}} | xargs -r shellcheck --severity=warning"
   }
-  ["tofu"] {
-    check = "dev-profile-changed-files tofu fmt -check -- {{files}}"
-    glob = List("**/*.tf", "**/*.tfvars")
-  }
-  ["yamllint"] {
-    check = "dev-profile-changed-files yamllint --strict -- {{files}}"
-    glob = List("**/*.yml", "**/*.yaml")
+  ["tofu"] = (Builtins.tofu) { glob = tfGlobs }
+  ["yamllint"] = (Builtins.yamllint) {
+    check = "yamllint --strict -- {{files}}"
+    glob = yamlGlobs
     exclude = lockfiles + List("**/cloud-init.yaml")
   }
 }
@@ -412,11 +387,15 @@ hooks {
   }
   ["pre-push"] {
     // Magic by default: fix everything fixable before gating, so a push heals
-    // its own lint debt instead of bouncing. dev-profile-pre-push exports
-    // DEV_PROFILE_PUSH_REFS, so every per-file step here judges only what
-    // the push introduces.
+    // its own lint debt instead of bouncing. dev-profile-pre-push measures the
+    // files the push introduces and hands hk that list with --files0-from, so
+    // every step judges only what the push introduces.
     fix = true
     stash = "git"
+    // hk has no per-step timeout. The whole gate gets one so a wedged tool fails
+    // the hook (with a message naming the timeout) instead of outliving the push
+    // runner's deadline, which used to kill the job with no verdict at all.
+    timeout = "30m"
     steps = new Mapping<String, Step> { ...fixers; ...gates }
   }
   ["fix"] {

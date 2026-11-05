@@ -54,6 +54,7 @@ git init -q --bare "${scratch}/remote.git"
 git init -q -b main "${scratch}/work"
 git -C "${scratch}/work" remote add origin "${scratch}/remote.git"
 printf 'hello\n' >"${scratch}/work/a.txt"
+printf 'world\n' >"${scratch}/work/b.txt"
 git -C "${scratch}/work" add -A
 git -C "${scratch}/work" -c commit.gpgsign=false commit -qm "feat: first file"
 
@@ -76,26 +77,33 @@ fi
 grep -q 'refusing the push' "${scratch}/push.txt" || fail "the refusal must name the unparsable refs"
 
 # 3. The first push of a branch to an empty remote. Its remote ref is unborn, so
-# there is no base to measure an introduced set against: hk's candidates stand
-# in, nothing is refused, and only the pushed file is judged.
+# there is no base to measure an introduced set against: hk's own candidates stand
+# in, nothing is refused, and the selected steps still run.
 (cd "${scratch}/work" && git push -q origin main) >"${scratch}/push.txt" 2>&1 ||
 	fail "a first push to an empty remote must pass"
-grep -q 'candidate file(s)' "${scratch}/push.txt" ||
-	fail "per-file steps must receive the candidates the push carries"
+grep -q '✔ newlines' "${scratch}/push.txt" ||
+	fail "the selected steps must judge the files the push carries"
 if grep -q 'refusing the push' "${scratch}/push.txt"; then
 	fail "a real push must not be refused"
 fi
 
-# 4. Against a fetched upstream the hook measures exactly what the push
-# introduces.
+# 4. Against a fetched upstream the hook judges exactly what the push introduces: a
+# key already on the branch, pushed with the hook disabled so it landed on the
+# remote, is not this push's business. A push that touches only a.txt must pass, and
+# private-keys must still run on what the push does introduce.
 git -C "${scratch}/work" fetch -q origin
+printf -- '-----BEGIN RSA PRIVATE KEY-----\nMIIfixture\n-----END RSA PRIVATE KEY-----\n' >"${scratch}/work/.deploy-key"
+git -C "${scratch}/work" add -A
+git -C "${scratch}/work" -c commit.gpgsign=false commit -qm "feat: key on the branch"
+(cd "${scratch}/work" && GIT_CONFIG_GLOBAL=/dev/null git push -q origin main) ||
+	fail "the fixture's setup push must land the key on the remote"
 printf 'world\n' >>"${scratch}/work/a.txt"
 git -C "${scratch}/work" add -A
 git -C "${scratch}/work" -c commit.gpgsign=false commit -qm "feat: second file"
 (cd "${scratch}/work" && git push -q origin main) >"${scratch}/push.txt" 2>&1 ||
-	fail "a second push must pass"
-grep -q '1 of 1 candidate file(s) introduced by this push' "${scratch}/push.txt" ||
-	fail "the second push must judge exactly the file it introduces"
+	fail "a push that leaves the key where it was must pass"
+grep -q '✔ private-keys' "${scratch}/push.txt" ||
+	fail "the private-keys step must run on what the push introduces"
 
 # 5. A branch whose remote ref is unborn still pushes: its refs are readable, so
 # the refusal above must not reach it.

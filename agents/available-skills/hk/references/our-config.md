@@ -37,8 +37,8 @@ lock, and the wrapper is the only place "judge what this push introduces" can li
 | `destroyed-symlinks`               | `Builtins.destroyed_symlinks`              | `hk util destroyed-symlinks`                                                                                                                                                                                                                    |
 | `forbid-submodules`                | `Builtins.forbid_submodules`               | `hk util forbid-submodules`                                                                                                                                                                                                                     |
 | `merge-conflicts`                  | `Builtins.check_merge_conflict`            | `hk util check-merge-conflict --assume-in-merge {{files}}`                                                                                                                                                                                      |
-| `private-keys`                     | `Builtins.detect_private_key`              | `hk util detect-private-key {{files}}`                                                                                                                                                                                                          |
-| `betterleaks`                      | `Builtins.betterleaks`                     | `betterleaks dir --redact --verbose --no-banner {{files}}` (same command ours wraps)                                                                                                                                                            |
+| `private-keys`                     | `Builtins.detect_private_key`              | `hk util detect-private-key {{files}}` — the builtin's command **without** its `types = ["text"]` filter, which drops an extension-less file holding a key: hk reads that file as non-text.                                                     |
+| `betterleaks`                      | `Builtins.betterleaks`                     | `betterleaks dir --redact --verbose --no-banner --confidence medium {{files}}` — same caveat: the builtin filters candidates to `types = ["text"]`, so the step keeps the command and not the filter.                                           |
 | commit-message check               | `Builtins.check_conventional_commit`       | same util our grep emulates: types default `build,chore,ci,docs,feat,fix,perf,refactor,revert,style,test`, plus `allowed_scopes` (unset = any scope, empty list = unscoped only); `fixup!`/`squash!`/`amend!`/`Merge …`/`Revert "` titles pass. |
 
 ## Steps where the builtin changes behavior (decide, do not drift)
@@ -85,9 +85,27 @@ Fixtures that fail if the mechanism changes:
   pre-push-refs fixtures, plus the large-file/added-only gate.
 
 Measured 2026-11-05, one change at a time: main's config passes all three pre-push fixtures; main's
-config plus the `--files0-from` handoff fails upstream-merge; the builtins conversion with main's
-wrapper fails all three. So a mechanism change must port these assertions to what hk prints
-(`<step> – N file(s) – <glob> – <cmd>`) or to the files the step judged — not delete them.
+config plus the `--files0-from` handoff failed the upstream-merge fixture and the refs fixture's
+wrapper-line greps; the builtins conversion with main's wrapper failed all three. Landed in `e0da44c`:
+the handoff plus the builtins, with those assertions ported to what the push did rather than to what a
+wrapper printed:
+
+- `tests/pre-push-refs-fixture.sh` — case 3 asserts the push passes and a selected step ran; case 4
+  pushes a key with the hook disabled, then asserts a push touching only `a.txt` passes while
+  `private-keys` still runs. (The old `candidate file(s)` greps pinned the wrapper's own lines, which
+  file selection no longer goes through.)
+- `tests/pre-push-upstream-merge.sh` — the merge push passes, glob-less `gitleaks` proves the gate ran,
+  and no step attributes upstream's findings to the push; the authored cases still require
+  `✗ markdownlint` and `MD040`, so the steps are proven to run when the push does introduce files.
+- `tests/pre-push-empty-file-list-fixture.sh` — unchanged, and it is what forced `private-keys` off the
+  builtin's type filter.
+
+Two hk facts those ports depend on:
+
+- A measurement of `*` is the convention for "no base to measure an introduced set against" (a first
+  push to an empty remote): the hook passes no `--files0-from`, and hk's own candidates stand in.
+- An empty measurement is passed as an empty file list, so the push judges nothing. That is what makes
+  an upstream-merge push — whose branch work is already published — cost no per-file step at all.
 
 ## Useful knobs for our shape
 

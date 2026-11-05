@@ -108,17 +108,19 @@ if command -v dprint >/dev/null 2>&1; then
 	fi
 fi
 
-# 1. The upstream-merge push passes.
+# 1. The upstream-merge push passes, and it passes because the push introduces no
+# files of its own: the findings that arrive with the merge are upstream's, not the
+# pusher's. The gate still ran -- gitleaks holds no glob, so it judges the pushed
+# range whatever the file list is -- and no step attributed a failure to the push.
 if ! push push -q origin topic; then
 	fail "an upstream-merge push must pass the hook"
 fi
-grep -q 'markdownlint' "${scratch}/push.txt" || fail "the markdownlint step must have run"
-if command -v oxlint >/dev/null 2>&1 && ! grep -q 'oxlint' "${scratch}/push.txt"; then
-	fail "the oxlint step must have run"
-fi
-if command -v dprint >/dev/null 2>&1 && ! grep -q 'dprint' "${scratch}/push.txt"; then
-	fail "the dprint step must have run"
-fi
+grep -q 'gitleaks' "${scratch}/push.txt" || fail "the gate must have run on the push"
+for step in markdownlint oxlint dprint; do
+	if grep -q "✗ ${step}" "${scratch}/push.txt"; then
+		fail "upstream's own ${step} findings must not be attributed to the push"
+	fi
+done
 
 # 2. A finding the pusher's own commit introduces still blocks.
 git -C "${scratch}/work" switch -q -c authored

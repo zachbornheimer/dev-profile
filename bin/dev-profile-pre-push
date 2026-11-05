@@ -12,7 +12,8 @@ fi
 refs="$(mktemp)"
 advanced="$(mktemp)"
 introduced="$(mktemp)"
-trap 'rm -f "${refs}" "${advanced}" "${introduced}"' EXIT
+files0="$(mktemp)"
+trap 'rm -f "${refs}" "${advanced}" "${introduced}" "${files0}"' EXIT
 cat >"${refs}"
 
 # A bare repository (such as ~/.local/state/mise/history/repo.git pushed by
@@ -62,11 +63,15 @@ if [[ -z "${DEV_PROFILE_ALLOW_DEFAULT_BRANCH_PUSH:-}" ]]; then
 fi
 
 # hk's stdin is the pushed refs with each ref's old tip moved to its push
-# base. The introduced set that base implies is measured once here and
-# shared with every step through DEV_PROFILE_PUSH_INTRODUCED: measuring per
-# step (dev-profile-changed-files' fallback) costs tens of seconds of git
-# per step in a large repository, and a push with dozens of steps then
-# cannot finish at all.
+# base. The introduced set that base implies is measured once here, shared
+# with every step through DEV_PROFILE_PUSH_INTRODUCED for the wrappers that
+# narrow a step's candidates, and handed to hk itself with --files0-from:
+# hk then selects each step's files from that exact list, so no step
+# re-measures it (dev-profile-changed-files' fallback costs tens of seconds
+# of git per step in a large repository, and a push with dozens of steps
+# then cannot finish at all) and no step judges a file the push did not
+# introduce. The list is handed over even when it is empty: the push then
+# judges nothing, rather than falling back to every file the refs touch.
 
 # hk also bounds each step's candidate files from those refs. Handed none it
 # selects every tracked file, and the steps then run their tools across the whole
@@ -83,9 +88,20 @@ if ! grep -Eq '^[^[:space:]]+ [0-9a-f]{40,64} [^[:space:]]+ [0-9a-f]{40,64}$' "$
 fi
 if dev-profile-push-introduced "${advanced}" >"${introduced}"; then
 	export DEV_PROFILE_PUSH_INTRODUCED="${introduced}"
+	# A measurement of `*` is the convention for "there is no base to measure an
+	# introduced set against" (a first push to an empty remote): hk's own candidates
+	# from the pushed refs stand in, and no step is handed a path list.
+	if grep -qx '\*' "${introduced}"; then
+		:
+	else
+		# --files0-from reads NUL-delimited paths; the measurement is newline-delimited.
+		tr '\n' '\0' <"${introduced}" >"${files0}"
+		set -- --files0-from "${files0}" "$@"
+	fi
 else
 	# Never share a failed measurement: an empty union would skip every
-	# gate. Without the variable each step measures, as before.
+	# gate. Without the list hk falls back to the refs, and each step that
+	# needs more measures for itself.
 	printf 'pre-push: measuring the introduced files failed; steps measure for themselves\n' >&2
 fi
 export DEV_PROFILE_PUSH_REFS="${refs}"
