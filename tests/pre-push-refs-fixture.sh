@@ -1,15 +1,20 @@
 #!/usr/bin/env bash
-# A pre-push that cannot see the pushed refs must refuse, not judge the whole
-# repository. hk bounds a step's candidate files from the refs on its stdin;
-# handed none it selects every tracked file, and the steps then run their tools
-# across the tree. A push that reached the hook without refs scanned this
-# repository's Ruby fixtures with a tool that has nothing to do with the push.
+# hk bounds a step's candidate files from the refs git hands the hook on its
+# stdin; handed none it selects every tracked file, and the steps then run
+# their tools across the whole tree. Git hands none for a push that publishes
+# nothing — a ref already at its remote tip, or one git will reject (a
+# non-fast-forward, a lease it cannot satisfy), is dropped before the hook runs
+# — so the hook gates nothing, says so, and passes the push on; a push that
+# reached the hook without refs scanned this repository's Ruby fixtures with a
+# tool that has nothing to do with the push.
 #
-# Five cases: refs the hook cannot read at all (none, or malformed), which it
-# refuses; a first push to an empty remote, where no base exists to measure an
-# introduced set against and hk's candidates stand in; a push against a fetched
-# upstream, which must judge exactly what it introduces; and a push to an unborn
-# remote branch, which the refusal must not reach.
+# Six cases: an empty ref list, which passes with the notice that git sent none
+# and runs no step; a ref line git cannot produce, which it refuses; a first
+# push to an empty remote, where no base exists to measure an introduced set
+# against and hk's candidates stand in; a push against a fetched upstream,
+# which must judge exactly what it introduces; a push to an unborn remote
+# branch, which the refusal must not reach; and a push git itself rejects as a
+# non-fast-forward, which the hook must pass on rather than refuse.
 set -euo pipefail
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 scratch="$(cd "$(mktemp -d)" && pwd -P)"
@@ -58,15 +63,17 @@ printf 'world\n' >"${scratch}/work/b.txt"
 git -C "${scratch}/work" add -A
 git -C "${scratch}/work" -c commit.gpgsign=false commit -qm "feat: first file"
 
-# 1. No refs on stdin: the pushed set is unknowable, so refuse rather than let
-# hk fall back to every tracked file.
+# 1. An empty stdin: git sends no refs for a push that publishes nothing, so
+# there is nothing to gate. The hook says so and passes, rather than scanning
+# the whole tree, and no step runs.
 : >"${scratch}/empty"
-if hook "${scratch}/empty" ${steps}; then
-	fail "a hook handed no push refs must refuse the push"
+if ! hook "${scratch}/empty" ${steps}; then
+	fail "a hook git sent no refs must pass, not refuse"
 fi
-grep -q 'refusing the push' "${scratch}/push.txt" || fail "the refusal must say what it refused on"
+grep -q 'no push refs' "${scratch}/push.txt" ||
+	fail "the pass must say git sent no refs, so it cannot read as a silent skip"
 if grep -q 'Fetching files' "${scratch}/push.txt"; then
-	fail "no step may run when the pushed refs are unknown"
+	fail "no step may run when git sent no refs"
 fi
 
 # 2. A ref line git cannot produce.
@@ -112,5 +119,21 @@ grep -q '✔ private-keys' "${scratch}/push.txt" ||
 if grep -q 'refusing the push' "${scratch}/push.txt"; then
 	fail "an unborn remote ref must not be refused"
 fi
+
+# 6. Git withholds the refs of a push it will reject: the branch tip is behind
+# the remote, so the update is a non-fast-forward and git drops the ref before
+# the hook runs. Nothing is published, so the hook gates nothing and passes the
+# push on with its notice; the push still fails, on git's own rejection.
+git -C "${scratch}/work" reset -q --hard origin/main~1
+if (cd "${scratch}/work" && git push origin main) >"${scratch}/push.txt" 2>&1; then
+	fail "a push git rejects must not report success"
+fi
+if grep -q 'refusing the push' "${scratch}/push.txt"; then
+	fail "a push that publishes nothing must not be refused by the hook"
+fi
+grep -q 'no push refs' "${scratch}/push.txt" ||
+	fail "the hook must say git sent no refs, not fail silently"
+grep -q 'non-fast-forward' "${scratch}/push.txt" ||
+	fail "the push must still fail on git's own rejection"
 
 echo "ok pre-push-refs"

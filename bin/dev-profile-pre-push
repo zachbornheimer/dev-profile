@@ -16,6 +16,18 @@ files0="$(mktemp)"
 trap 'rm -f "${refs}" "${advanced}" "${introduced}" "${files0}"' EXIT
 cat >"${refs}"
 
+# git hands the hook the refs it is about to send, and hands it none when it
+# will send none: a ref already at its remote tip, or one git will reject (a
+# non-fast-forward, a lease it cannot satisfy), is dropped before the hook runs.
+# An empty list is git saying this push publishes nothing, not a list the hook
+# failed to read: nothing is published, so there is nothing to gate, and the
+# hook passes the push on with a notice instead of falling through to a
+# whole-repository scan.
+if [[ ! -s "${refs}" ]]; then
+	printf 'pre-push: git sent no push refs, so this push publishes nothing and no step ran\n' >&2
+	exit 0
+fi
+
 # A bare repository (such as ~/.local/state/mise/history/repo.git pushed by
 # `mise dot origin set`, `mise dot sync`, or `history-watch`) has no working
 # tree: `hk run pre-push` runs `git status --porcelain=v2`, which exits 128 in
@@ -76,8 +88,8 @@ fi
 # hk also bounds each step's candidate files from those refs. Handed none it
 # selects every tracked file, and the steps then run their tools across the whole
 # tree: a push that reached this hook without refs scanned the repository and
-# failed on a tool with nothing to do with what it wrote. Refs this hook cannot
-# read are refs it cannot gate on, so it refuses the push instead.
+# failed on a tool with nothing to do with what it wrote. Refs git did send but
+# this hook cannot read are refs it cannot gate on, so it refuses the push.
 if ! dev-profile-push-base <"${refs}" >"${advanced}"; then
 	printf 'pre-push: refusing the push: advancing the pushed refs failed, so the files it introduces cannot be known (proceeding would scan the whole repository)\n' >&2
 	exit 1
