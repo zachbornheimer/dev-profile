@@ -1,7 +1,7 @@
 ---
 name: updating-oh-my-pi
-description: Use for anything about omp itself — landing a branch into the custom omp build (fork zachbornheimer/oh-my-pi), adding or removing a branch from that build, fixing a failed omp-build run or conflict issue, installing, updating, verifying or rolling back omp via mise on the Mac and the fleet, making an upstream PR to can1357/oh-my-pi, or when the user wants personal omp behavior (a slash command, a transcript hide, a presentation toggle, a session hook, "an omp command" such as /thinking or /calm) or is about to edit oh-my-pi, packages/coding-agent or packages/tui for something they want for themselves. Personal omp behavior is an extension in ~/.config/omp/, listed in ~/.omp/agent/config.yml; do not modify the omp repo for that. Not for a Pi extension.
-user-invokable: true
+description: Use for anything about omp itself — landing a branch into the custom omp build (fork zachbornheimer/oh-my-pi), adding or removing a branch from that build, fixing a failed omp-build run or conflict issue, installing, updating, verifying or rolling back omp via mise on the Mac and the fleet, making an upstream PR to can1357/oh-my-pi, or when the user wants personal omp behavior (a slash command, a transcript hide, a presentation toggle, a session hook, "an omp command" such as /thinking or /calm) or is about to edit oh-my-pi, packages/coding-agent or packages/tui for something they want for themselves. Personal omp behavior is an extension in ~/.config/omp/, listed in ~/.omp/agent/config.yml; do not modify the omp repo for that. Not for a Pi extension. Not for a tool that agents call (a new tool for omp, a tool in the zab-ai package, a native omp tool, an MCP gateway tool): that is the creating-new-tools skill.
+  user-invokable: true
 ---
 
 # oh-my-pi: extensions, landing branches, install
@@ -15,7 +15,9 @@ The `omp` you run is **the pinned upstream base + an ordered list of topic branc
 
 Design and history: [references/build-distribution.md](references/build-distribution.md).
 
-## First: is this personal behavior or a change to omp itself?
+## First: is this a tool agents call, personal behavior, or a change to omp itself?
+
+**A tool that agents call is not an extension here.** "A new tool for omp", "add it to the zab-ai package", "expose it over MCP", and "make this a native omp tool" belong to the `creating-new-tools` skill (§0 and §4.1): the logic goes in `@zab-ai/ai`, with a Mastra mount and, if it must be native, an adapter in `mastra/adapters/omp/zab-ai-tools`. Use this skill for what the user triggers or sees (a command, a hide, a toggle, a hook), or for the omp build itself. A request can need both: build the tool there and its command here, and keep one copy of the logic.
 
 **Personal behavior is an extension in `~/.config/omp/`.** The omp repo is not the place for a command or a hide the user wants for themselves. If the user explicitly says to change omp itself, or names an omp bug in the product, edit the repo and land it like any other branch (§2). Otherwise stop and write an extension (§1).
 
