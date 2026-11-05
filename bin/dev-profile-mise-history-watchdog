@@ -19,7 +19,12 @@ set -euo pipefail
 # could be started, or when the attempts ran out. Idempotent: a healthy service
 # produces no log lines.
 
-export PATH="$HOME/.local/share/mise/shims:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+# The service's own tools first, then whatever the caller had: a LaunchAgent starts
+# with launchd's minimal PATH, and a caller that already resolved its own (a fixture's
+# stubs, Homebrew on another prefix) keeps them. Replacing PATH broke the fixture's
+# stubs, and on a runner without launchctl the `launchctl list` pipeline failed the
+# whole tick under set -e + pipefail.
+export PATH="$HOME/.local/share/mise/shims:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:${PATH:-/usr/bin:/bin}"
 
 LOG="$HOME/Library/Logs/mise-history-watchdog.log"
 HIST_DIR="$HOME/.local/state/mise/history"

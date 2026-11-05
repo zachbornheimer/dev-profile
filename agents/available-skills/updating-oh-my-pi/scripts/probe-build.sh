@@ -124,7 +124,13 @@ for b in "${branches[@]}"; do
 	rc=0
 	out="$(git merge-tree --write-tree --name-only --no-messages "$cur" "$ref")" || rc=$?
 	if [ "$rc" = 0 ]; then
-		cur="$(git commit-tree --no-gpg-sign "$(printf '%s\n' "$out" | head -1)" -p "$cur" -p "$ref" -m "probe: merge $b")"
+		# The merge commit is synthetic and unreferenced, so it carries the probe's own
+		# identity: git otherwise needs the caller's config, and a hermetic checkout
+		# (GIT_CONFIG_GLOBAL=/dev/null, a runner whose GECOS field is empty) has no name
+		# to fall back to and dies with "empty ident name".
+		cur="$(GIT_AUTHOR_NAME=probe GIT_AUTHOR_EMAIL=probe@example.invalid \
+			GIT_COMMITTER_NAME=probe GIT_COMMITTER_EMAIL=probe@example.invalid \
+			git commit-tree --no-gpg-sign "$(printf '%s\n' "$out" | head -1)" -p "$cur" -p "$ref" -m "probe: merge $b")"
 		echo "  clean    $b"
 		continue
 	fi

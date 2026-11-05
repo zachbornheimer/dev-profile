@@ -44,7 +44,9 @@
     "**/*.generated.*",
     "**/*.min.*",
     "**/*.map",
-    "**/*.snap"
+    "**/*.snap",
+    // The sh plugin's parser rejects bats `@test` blocks
+    "**/*.bats"
   ],
   "exec": {
     "cwd": "${configDir}",

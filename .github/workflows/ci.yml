@@ -36,7 +36,7 @@ jobs:
         run: |
           export MISE_GLOBAL_CONFIG_FILE="${GITHUB_WORKSPACE}/profile/mise.toml"
           echo "MISE_GLOBAL_CONFIG_FILE=${MISE_GLOBAL_CONFIG_FILE}" >>"$GITHUB_ENV"
-          mise install --yes
+          "${GITHUB_WORKSPACE}/bin/dev-profile-tools-install"
       - name: Test
         # Pins live in the repo. There is no generate step.
         env:
