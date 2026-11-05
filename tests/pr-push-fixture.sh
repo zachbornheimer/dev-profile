@@ -73,6 +73,13 @@ unset KITTY_LISTEN_ON KITTY_WINDOW_ID
 mkdir -p "${work}/bin" "${work}/hk-config"
 cp "${repo}"/bin/dev-profile-* "${work}/bin/"
 chmod +x "${work}/bin/"*
+# The pre-push gate shellchecks the files a push introduces, so a finding in
+# the scripts this fixture drives, or in the fixture itself, must fail here
+# first: SC2120 in publish() reached the push because nothing linted this path.
+command -v shellcheck >/dev/null || fail "shellcheck is required to lint the publish path"
+shellcheck --severity=warning "${work}/bin/dev-profile-pr" "${work}/bin/dev-profile-pre-push" \
+	"${repo}/tests/doctor.sh" "${BASH_SOURCE[0]}" ||
+	fail "the publish path must carry no shellcheck findings"
 ln -s "${repo}/hk/hk.pkl" "${work}/hk-config/config.pkl"
 steps="-S newlines -S private-keys -S trailing-whitespace"
 printf '[hook "hk-pre-push"]\n\tevent = pre-push\n\tcommand = DEV_PROFILE_ALLOW_DEFAULT_BRANCH_PUSH=1 PATH="%s:${PATH}" dev-profile-pre-push %s\n' \
@@ -83,10 +90,10 @@ printf '[hook "hk-pre-push"]\n\tevent = pre-push\n\tcommand = PATH="%s:${PATH}" 
 export HK_CONFIG_DIR="${work}/hk-config" GIT_CONFIG_GLOBAL="${work}/gitconfig" GIT_CONFIG_SYSTEM=/dev/null
 unset HK HK_FILE DEV_PROFILE_PUSH_REFS DEV_PROFILE_PUSH_INTRODUCED
 
-publish() { # [args...] — the publish rides the same path `wt pr` uses
+publish() { # the publish rides the same path `wt pr` uses
 	# The copy this fixture chmods: a fresh worktree checks the recorded
 	# executable bit out without it, and this script must not depend on it.
-	"${work}/bin/dev-profile-pr" "$@" >"${work}/run.txt" 2>&1
+	"${work}/bin/dev-profile-pr" >"${work}/run.txt" 2>&1
 }
 
 git init -q --bare "${work}/origin.git"
