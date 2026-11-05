@@ -37,11 +37,14 @@ skipping the command. A `Bash` tool in your tool list is dead surface copied fro
 
 <!-- requires: interagent -->
 
-**Interagent Communication**: We have message boards set up for you to communicate
-with other agents (including those with different harnesses). Each project has 1 board
-and there's a general board. Please subscribe to your relevant boards as you begin.
-If you do not hear back from the agent/agents in time, if you have a SendMessage tool
-available by your harness, use that and tell it you didn't hear back on the board.
+**Interagent Communication**: This machine is omp-exclusive, and omp's intercom is
+the channel. Reach a live agent with the write tool: path `agent://<id>` (or
+`agent://all` to broadcast) with the message as `content` — it lands in that agent's
+running session mid-turn; reading `agent://<id>` returns its latest output and
+`history://<id>` its transcript. The agentmux message boards are the fallback for a peer
+that is not omp or not currently running (a Claude Code peer today): one `general` board
+per project plus a global one, subscribe as you begin, and prefer the intercom for
+anything live.
 
 <!-- requires: atask -->
 
