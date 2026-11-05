@@ -299,9 +299,18 @@ local gates = new Mapping<String, Step> {
   // hk's detect_private_key builtin carries the same `types = ["text"]` filter and drops
   // the same extension-less key file (tests/pre-push-empty-file-list-fixture.sh pins it:
   // a pushed .deploy-key must fail the push). Its command runs verbatim without the filter.
+  // These two fixtures write a fake PEM header into their scratch repository to prove
+  // the step fires, and the rules doc quotes one as an example pattern: the detector's
+  // literal scan must not judge the files themselves.
   ["private-keys"] {
     check = "hk util detect-private-key -- {{files}}"
     glob = List("**/*")
+    exclude =
+      List(
+        "tests/pre-push-empty-file-list-fixture.sh",
+        "tests/pre-push-refs-fixture.sh",
+        "more/grok/agents/rules-yaml-author.md",
+      )
   }
   ["strict-json"] {
     check =
