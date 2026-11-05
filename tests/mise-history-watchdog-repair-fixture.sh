@@ -89,7 +89,10 @@ healthy() {
 }
 
 tick() {
-	if ! bash "$watchdog"; then
+	# Keep the watchdog's own words: a silent non-zero exit is what made the
+	# CI runner's failure take a day to place.
+	if ! out="$(bash "$watchdog" 2>&1)"; then
+		printf '%s\n' "--- watchdog output ($1) ---" "$out" >&2
 		fail "the watchdog exited non-zero on a $1 tick"
 	fi
 }
