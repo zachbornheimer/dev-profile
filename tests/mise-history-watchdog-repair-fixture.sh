@@ -10,11 +10,20 @@ set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
 watchdog="$root/bin/dev-profile-mise-history-watchdog"
 repair="$root/bin/dev-profile-mise-history-repair"
+
+fail() {
+	echo "FAIL: $*" >&2
+	exit 1
+}
+
 # atask is a mise shim here, and mise finds its tools under the real HOME, so
 # the fixture calls it through a wrapper that restores HOME for that one call.
+# Both lookups are checked: a tool missing from PATH used to end the fixture
+# silently, and doctor could only report that the fixture failed.
 real_home="$HOME"
-atask_bin="$(command -v atask)"
-python_dir="$(dirname "$(command -v python3)")"
+atask_bin="$(command -v atask)" || fail 'atask is not on PATH; the profile pins it, so run mise install'
+python3_bin="$(command -v python3)" || fail 'python3 is not on PATH'
+python_dir="$(dirname "$python3_bin")"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
@@ -28,11 +37,6 @@ atask="$work/bin/atask"
 export PATH="$work/bin:$python_dir:/usr/bin:/bin"
 export ATASK_DB="$work/atask.db"
 export ATASK_OUTPUT=json
-
-fail() {
-	echo "FAIL: $*" >&2
-	exit 1
-}
 
 # --- stubs ------------------------------------------------------------------
 printf '%s\n' '#!/usr/bin/env bash' 'case "$*" in' '"dot status") cat "$MISE_STATUS" ;;' 'esac' 'exit 0' >"$work/bin/mise"
