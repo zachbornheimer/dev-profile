@@ -19,3 +19,7 @@ pinact = "5.0.0"
 zizmor = "1.30.1"
 shellcheck = "0.11.0"
 "github:0sec-labs/foxguard" = "latest"
+# The task tracker. bin/dev-profile-mise-history-watchdog hands a failure it cannot
+# heal to one atask objective, and the doctor fixture drives that path; the asset
+# is named atask-<ver>, not ai-task-<ver>, so the pin carries the matching pattern.
+"github:zachbornheimer/ai-task" = { version = "latest", matching = "atask-", minimum_release_age = "0" }

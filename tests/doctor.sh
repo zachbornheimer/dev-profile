@@ -2,9 +2,12 @@
 # Check the files this branch installs. There is no Pkl render.
 set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
+# Every check runs even after one fails: a fixture that dies silently cost three
+# CI round trips, and an abort-on-first-failure suite reports one per run.
+failed=()
 fail() {
 	echo "FAIL: $*" >&2
-	exit 1
+	failed+=("$*")
 }
 HK_FILE="$root/hk/hk.pkl" hk validate >/dev/null || fail hk/hk.pkl
 dprint output-resolved-config --config "$root/config/dprint.jsonc" >/dev/null || fail config/dprint.jsonc
@@ -34,11 +37,16 @@ bash "$root/tests/probe-build-fixture.sh" >/dev/null || fail "probe-build fixtur
 bash "$root/tests/tools-install-fixture.sh" "$root" >/dev/null || fail "tools install fixture"
 for f in "$root"/bin/*; do
 	if head -1 "$f" | grep -q python; then
-		python3 -m py_compile "$f" || fail "bin/${f##*/}"
+		python3 -c 'import ast, sys; ast.parse(open(sys.argv[1]).read(), sys.argv[1])' "$f" ||
+			fail "bin/${f##*/}"
 	else
 		bash -n "$f" || fail "bin/${f##*/}"
 	fi
 done
 node --check "$root/dev-relay.mjs" || fail dev-relay.mjs
 [ -f "$root/config/personal-overlay.toml" ] || fail config/personal-overlay.toml
+if [ "${#failed[@]}" -gt 0 ]; then
+	echo "FAIL: ${#failed[@]} check(s) failed" >&2
+	exit 1
+fi
 echo "ok"

@@ -28,7 +28,7 @@ work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
 export HOME="$work/home"
-mkdir -p "$HOME/Library/Logs" "$work/bin"
+mkdir -p "$HOME/Library/Logs" "$work/bin" "$HOME/.local/bin"
 printf '%s\n' '#!/usr/bin/env bash' "export HOME=\"$real_home\"" "exec \"$atask_bin\" \"\$@\"" >"$work/bin/atask"
 chmod +x "$work/bin/atask"
 atask="$work/bin/atask"
@@ -48,6 +48,10 @@ printf '%s\n' '#!/usr/bin/env bash' 'echo "heal: multi-line entry needs a hand e
 printf '%s\n' '#!/usr/bin/env bash' 'printf "%s\\n" "$*" >>"$SPAWN_CALLS"' 'exec sleep 30' >"$work/bin/capability-ok"
 printf '%s\n' '#!/usr/bin/env bash' 'printf "%s\\n" "$*" >>"$SPAWN_CALLS"' 'echo "capability: no such tool start_atask_task"' 'exit 3' >"$work/bin/capability-fail"
 chmod +x "$work/bin/"*
+# The watchdog rebuilds PATH from $HOME, so a stub only counts if it sits where
+# that PATH looks; the fixture's own PATH is not enough. Without this a Linux
+# runner finds no launchctl at all and the tick exits non-zero under pipefail.
+ln -sf "$work/bin/launchctl" "$work/bin/pgrep" "$HOME/.local/bin/"
 
 cd "$work"
 "$atask" project add probe >/dev/null
@@ -85,7 +89,10 @@ healthy() {
 }
 
 tick() {
-	if ! bash "$watchdog"; then
+	# Keep the watchdog's own words: a silent non-zero exit is what made the
+	# CI runner's failure take a day to place.
+	if ! out="$(bash "$watchdog" 2>&1)"; then
+		printf '%s\n' "--- watchdog output ($1) ---" "$out" >&2
 		fail "the watchdog exited non-zero on a $1 tick"
 	fi
 }
