@@ -1,7 +1,13 @@
 #!/usr/bin/env bash
 # The files a push introduces, measured once for the whole hook run.
 #
-# Usage: dev-profile-push-introduced <advanced-refs-file>
+# Usage: dev-profile-push-introduced [--added] <advanced-refs-file>
+#
+# --added measures the files the push adds instead: present at the pushed
+# tip, absent at every base. A modified file a base already tracks is
+# introduced but never added, so a step that judges only additions
+# (check-added-large-files, driven through dev-profile-changed-files --added)
+# never sees it.
 #
 # Input: pre-push ref lines whose remote tips dev-profile-push-base already
 # advanced to their push bases (its line mode is the producer). Output on
@@ -35,8 +41,14 @@
 # candidate count as introduced rather than silently judging none.
 set -euo pipefail
 
+added_only=0
+if [[ "${1:-}" == "--added" ]]; then
+	added_only=1
+	shift
+fi
+
 if [[ $# -ne 1 || ! -r "$1" ]]; then
-	echo "usage: dev-profile-push-introduced <advanced-refs-file>" >&2
+	echo "usage: dev-profile-push-introduced [--added] <advanced-refs-file>" >&2
 	exit 2
 fi
 refs="$1"
@@ -103,13 +115,19 @@ while read -r local_ref local_sha _remote_ref remote_sha; do
 	sort -u "${bases}" -o "${bases}"
 	# A file the push introduces differs from every base; one matching any
 	# base is inherited. The per-ref introduced set is the intersection of
-	# the per-base diff sets.
+	# the per-base diff sets; in --added mode each diff set holds only the
+	# files absent at that base, so the intersection is the files the push
+	# adds.
 	inter="${tmp}/introduced-in-ref"
 	first=1
 	while read -r base; do
 		[[ -n "${base}" ]] || continue
 		diffset="${tmp}/diffset"
-		git diff --name-only --no-renames "${base}" "${local_sha}" >"${diffset}" 2>/dev/null || continue
+		if [[ "${added_only}" -eq 1 ]]; then
+			git diff --name-only --no-renames --diff-filter=A "${base}" "${local_sha}" >"${diffset}" 2>/dev/null || continue
+		else
+			git diff --name-only --no-renames "${base}" "${local_sha}" >"${diffset}" 2>/dev/null || continue
+		fi
 		sort -u "${diffset}" -o "${diffset}"
 		if [[ "${first}" -eq 1 ]]; then
 			mv "${diffset}" "${inter}"

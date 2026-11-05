@@ -2,8 +2,13 @@
 name: agent-hooks
 description: >-
   Operate the agent-hooks system (~/Developer/Personal/agent-hooks): a Rhai handler pipeline whose live
-  deployment (~/.config/agent-hooks/pipeline) runs guards and gates for every harness (omp, Claude Code,
-  Codex, Gemini, Grok, Hermes, Copilot, OpenCode, Mastra). Use whenever the user adds, edits, tests,
+  deployment (~/.config/agent-hooks/pipeline) runs guards and gates for the harnesses installed on this
+  machine — omp (through the generated extension) and Claude Code — and can install into Codex, Gemini,
+  Grok, Hermes, Copilot, OpenCode or Mastra if one returns. Use it to pick the event an intent belongs on
+  (behavior from user input -> prompt.submit; may the turn stop -> turn.stop; allow/deny/rewrite a tool
+  call -> tool.before; react to a tool result -> tool.after; session setup -> session.start; survive
+  compaction -> context.compact.before; verify a subagent -> subagent.stop; worktree lifecycle ->
+  worktree.create/remove), and whenever the user adds, edits, tests,
   deploys, or debugs a hook, guard, or gate: a PreToolUse deny/ask, scope guard, edit/tool steer,
   PostToolUse record, Stop completion gate, UserPromptSubmit or SessionStart context, PreCompact;
   Rhai handlers under pipeline/handlers; fixtures under pipeline/tests; question YAML under
@@ -39,6 +44,35 @@ Two layers, one repo (`~/Developer/Personal/agent-hooks`):
 | Rhai code that won't compile or behaves oddly         | Engine notes (Rhai is not Python)                        |
 | a hook did not fire / wrong reason / failed open      | Debugging                                                |
 | non-pipeline `command` rows, matchers, output shapes  | Legacy script rows, `references/events-and-harnesses.md` |
+
+## Pick the event from the intent
+
+Read the left column first: the intent picks the event, and the event decides what the hook is allowed to
+do. Full per-harness names and quirks: `references/events-and-harnesses.md`.
+
+| When you want to …                                                                  | Event (canonical / native)               | The hook may                                                                                       |
+| ----------------------------------------------------------------------------------- | ---------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| change behavior from what the user typed (classify, add context, reject the prompt) | `prompt.submit` / UserPromptSubmit       | inject context, **block** the prompt                                                               |
+| decide whether a finished turn may stop (completion gate, keep-working nudge)       | `turn.stop` / Stop                       | **block** (the agent keeps working), context                                                       |
+| allow, ask about, or reject a tool call, or rewrite its arguments                   | `tool.before` / PreToolUse               | deny, ask, allow, rewrite tool input                                                               |
+| react to a tool's result (record it, steer the next call, budget the output)        | `tool.after` / PostToolUse               | context only                                                                                       |
+| catch a denied or failed tool call                                                  | `PermissionDenied`, `PostToolUseFailure` | context only (Claude-only event names)                                                             |
+| set a session up (identity, recall, contracts)                                      | `session.start` / SessionStart           | context only                                                                                       |
+| preserve state across compaction (handoff, save transcript)                         | `context.compact.before` / PreCompact    | context only                                                                                       |
+| verify or score what a subagent returned                                            | `subagent.stop` / SubagentStop           | context only                                                                                       |
+| prepare a worktree before an agent starts in it                                     | `worktree.create` / WorktreeCreate       | stdout is the bare path; **exactly one** hook may `provides = ["worktree_path"]`; cannot fail open |
+| clean up after a worktree is removed                                                | `worktree.remove` / WorktreeRemove       | **blockable**; a hook whose result nobody consumes belongs in the background                       |
+
+Two rules that keep this maintainable:
+
+1. **A judgment goes in Rhai; a boundary stays a command.** If the hook decides something, it is a handler
+   on one of these events. If it only spawns a process, waits on a CLI, or carries a model call, it is a
+   `command` row or an effect — never a judgment buried in a script (the retention ledger in `SPEC.md` says
+   which commands stay and why).
+2. **One owner hook per (event, state).** The dispatcher cannot sequence hooks: every matching hook starts
+   at once and they share nothing, so "ask, then act on the answer" has to live inside a single owner hook
+   as waves — adding a second hook for the same event does not compose, it races. Read
+   `references/typesafe-batching.md` before adding questions; ask the owner's question file instead.
 
 ## Add or change a hook (in order)
 
@@ -208,12 +242,29 @@ handler for the pattern.
 
 ## Legacy script rows
 
-`hooks.toml` still carries non-pipeline rows (built-in `policy = "..."` guards like
-process-kill-guard, and some `command = [...]` python rows for other harnesses). Those keep the OLD
-rules: `matcher` is an exact case-sensitive name list split on `|` (never a regex); hooks are
-independent parallel processes; default is fail-open; `agent-hooks validate` misses unknown keys,
-duplicate names (a same-name row silently REPLACES), event typos, and command-less rows — run the
+After the Rhai cutover the live `hooks.toml` is 20 rows: 8 `policy = "*-question-pipeline"` rows (the
+handler pipeline), 9 Rust-native `policy` rows (`layout-guard`, `layout-guard-write`,
+`record-bash-signature`, `record-edit`, `output-budget`, `output-limit`, `repeat-command`,
+`two-strikes-gate`, `worktree-lifecycle-guard`), and 3 `command` rows that stay external on purpose:
+`stop-find`, `worktreeremove-wt-step-prune`, and `worktreecreate-worktree-provision-py` (the only row
+with `provides = ["worktree_path"]`, and the only one that cannot be backgrounded). Every other hook
+that used to be a Python row is now a handler; do not add a command row for a judgment.
+
+The `SPEC.md` retention ledger is the authority on which commands stay and the condition for porting
+each. A ported policy's Python original is NOT dead code: it is the reference the native policy is
+judged against (`POLICY_SCRIPTS`, re-executed by the `--ignored` `live_reference_decisions_still_match`,
+which skips silently if the reference directory is missing — deleting an original drops the check).
+
+Retiring a live row has a recorded standard: parity green across its full fixture set including live
+re-validation with `AGENT_HOOKS_REFERENCE_DIR` set to the Python hook directory, no `failed`/`timed_out`
+journal outcome for that hook over a defined window, and an explicit retirement decision recorded in
+`atask`. Retired names are pinned in `tests/pipeline_coverage.rs` (`RETIRED_ROWS`), so a retired row
+cannot come back unnoticed.
+
+Rows keep the OLD rules: `matcher` is an exact case-sensitive name list split on `|` (never a regex);
+hooks are independent parallel processes; default is fail-open; `agent-hooks validate` misses unknown
+keys, duplicate names (a same-name row silently REPLACES), event typos, and command-less rows — run the
 audit: `~/.agents/available-skills/agent-hooks/scripts/audit-catalog.py [file]`. Output shapes per
 harness and event vocabularies: `references/events-and-harnesses.md`. Dated defects:
 `references/known-issues.md`. Python-row authoring (uv script header, `hook_common.run_hook`,
-`Decision.deny`) is retained for the remaining script rows only — new hooks go in the Rhai pipeline.
+`Decision.deny`) survives only in the remaining command rows — new hooks go in the Rhai pipeline.

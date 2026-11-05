@@ -16,13 +16,13 @@
     {
       "id": 3,
       "prompt": "The /usage command in omp prints the wrong token count. Fix it in oh-my-pi.",
-      "expected_output": "Not an extension: a repo change. Branch off origin/main in a worktree, fix, bun check + bun test, push to the fork, add to .github/omp-rebuild.toml on ci, dispatch omp-build, then prove the installed binary changed.",
+      "expected_output": "Not an extension: a repo change. Branch off origin/main in a worktree, fix, bun check + bun test, push to the fork, add to the BRANCH_MANIFEST block in .github/workflows/omp-build.yml on ci, dispatch omp-build, then prove the installed binary changed.",
       "files": []
     },
     {
       "id": 4,
       "prompt": "I made a branch with a session-listing tweak. Get it into my omp.",
-      "expected_output": "Push the branch to fork, probe the assembly with scripts/probe-build.sh --add <branch>, append it to .github/omp-rebuild.toml on the ci branch, dispatch omp-build, then mise up and prove the branch's string is in $(mise which omp). omp --version is not proof.",
+      "expected_output": "Push the branch to fork, probe the assembly with scripts/probe-build.sh --add <branch>, append it to the BRANCH_MANIFEST block in .github/workflows/omp-build.yml on the ci branch, dispatch omp-build, then mise up and prove the branch's string is in $(mise which omp). omp --version is not proof.",
       "files": []
     },
     {

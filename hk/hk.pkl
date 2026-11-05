@@ -303,7 +303,7 @@ local gates = new Mapping<String, Step> {
     glob = List("**/*")
   }
   ["check-added-large-files"] {
-    check = "dev-profile-changed-files hk util check-added-large-files -- {{files}}"
+    check = "dev-profile-changed-files --added hk util check-added-large-files -- {{files}}"
     glob = List("**/*")
     exclude = lockfiles
   }

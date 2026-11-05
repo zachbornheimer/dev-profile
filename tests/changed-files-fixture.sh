@@ -64,6 +64,19 @@ push() { # <local_sha> <remote_sha> <candidate>...
 	printf 'refs/heads/topic %s refs/heads/topic %s\n' "$1" "$2" >"${work}/refs"
 	DEV_PROFILE_PUSH_REFS="${work}/refs" gate "${@:3}"
 }
+gate_added() {
+	"${src}/bin/dev-profile-changed-files" --added "${work}/record.sh" -- "$@" \
+		>"${work}/passed" 2>"${work}/log"
+}
+push_added() { # <local_sha> <remote_sha> <candidate>...
+	printf 'refs/heads/topic %s refs/heads/topic %s\n' "$1" "$2" >"${work}/refs"
+	DEV_PROFILE_PUSH_REFS="${work}/refs" gate_added "${@:3}"
+}
+step_added() { # <local_sha> <remote_sha> <candidate>...
+	printf 'refs/heads/topic %s refs/heads/topic %s\n' "$1" "$2" >"${work}/refs"
+	DEV_PROFILE_PUSH_REFS="${work}/refs" \
+		"${src}/bin/dev-profile-changed-files" --added hk util check-added-large-files -- "${@:3}"
+}
 
 # A push of the merged branch hands the step its remote tip, the default
 # branch's merge base, and the published parents of the merge: nothing is
@@ -155,6 +168,90 @@ if ! diff -q "${work}/want" "${work}/got" >/dev/null; then
 	fail "a missing shared union must fall back to the refs: $(cat "${work}/passed}")"
 fi
 
+# --added hands a step only the files the push adds: present at the pushed
+# tip, absent at every base. A file the bases already track is never the
+# push's to add, so a modified tracked file must not reach the step, and the
+# shared changed-union must not be consulted for it.
+printf 'main edited\n' >main.md
+git commit -q -a -m edited-main
+push_added "$(git rev-parse HEAD)" "${topic_tip}" main.md topic.txt upstream.md authored.md
+printf 'authored.md\nupstream.md\n' | sort >"${work}/want"
+sort "${work}/passed" >"${work}/got"
+if ! diff -q "${work}/want" "${work}/got" >/dev/null; then
+	fail "--added must keep the modified tracked file out: $(cat "${work}/passed}")"
+fi
+grep -Eq '2 of 4 candidate file\(s\) added by this push.*running' "${work}/log" ||
+	fail "the --added run must be logged: $(cat "${work}/log}")"
+
+# The shared measurement must agree: --added lists only the files the push
+# adds, never the files it only modifies.
+printf 'refs/heads/topic %s refs/heads/topic %s\n' \
+	"$(git rev-parse HEAD)" "${topic_tip}" >"${work}/refs"
+"${src}/bin/dev-profile-push-base" <"${work}/refs" >"${work}/advanced"
+"${src}/bin/dev-profile-push-introduced" --added "${work}/advanced" >"${introduced}"
+printf 'authored.md\nupstream.md\n' | sort >"${work}/want"
+sort "${introduced}" >"${work}/got"
+if ! diff -q "${work}/want" "${work}/got" >/dev/null; then
+	fail "the --added measurement must drop the modified file: $(cat "${introduced}")"
+	fail "the --added measurement must drop the modified file: $(cat "${introduced}")"
+fi
+
+# DEV_PROFILE_PUSH_INTRODUCED measures changed files, not added ones, so
+# --added must measure from the refs itself even when it is set.
+printf 'main.md\n' >"${introduced}"
+DEV_PROFILE_PUSH_INTRODUCED="${introduced}" DEV_PROFILE_PUSH_REFS="${work}/refs" \
+	gate_added main.md authored.md
+printf 'authored.md\n' >"${work}/want"
+sort "${work}/passed" >"${work}/got"
+if ! diff -q "${work}/want" "${work}/got" >/dev/null; then
+	fail "--added must not trust the shared changed-union: $(cat "${work}/passed}")"
+	fail "--added must not trust the shared changed-union: $(cat "${work}/passed}")"
+fi
+grep -Eq '1 of 2 candidate file\(s\) added by this push.*running' "${work}/log" ||
+	fail "the --added own-measurement run must be logged: $(cat "${work}/log}")"
+
+# A push that only modifies tracked files adds nothing, so the step skips.
+printf 'refs/heads/topic %s refs/heads/topic %s\n' \
+	"$(git rev-parse HEAD)" "$(git rev-parse HEAD^)" >"${work}/refs"
+DEV_PROFILE_PUSH_REFS="${work}/refs" gate_added main.md authored.md
+if [ -s "${work}/passed" ]; then
+	fail "a push that adds nothing must run no tool: $(cat "${work}/passed}")"
+fi
+grep -Eq '0 of 2 candidate file\(s\) added by this push.*skipped' "${work}/log" ||
+	fail "the --added skip must be logged: $(cat "${work}/log}")"
+
+# A push that cannot be measured judges every candidate, in --added mode too.
+printf 'refs/heads/topic %s refs/heads/topic %s\n' \
+	0000000000000000000000000000000000000000 0000000000000000000000000000000000000000 >"${work}/refs"
+DEV_PROFILE_PUSH_REFS="${work}/refs" gate_added main.md
+printf 'main.md\n' >"${work}/want"
+sort "${work}/passed" >"${work}/got"
+if ! diff -q "${work}/want" "${work}/got" >/dev/null; then
+	fail "an unmeasurable push must run every candidate: $(cat "${work}/passed}")"
+	fail "an unmeasurable push must run every candidate: $(cat "${work}/passed}")"
+fi
+grep -q 'no parsable push refs' "${work}/log" ||
+	fail "the unmeasured --added run must be logged: $(cat "${work}/log}")"
+
+# Without push refs --added falls back to the mainline: a candidate origin's
+# default branch already tracks is not added, whatever the step would say
+# about its size; the rest reach the step as they would anywhere.
+unset DEV_PROFILE_PUSH_REFS DEV_PROFILE_PUSH_INTRODUCED
+gate_added main.md topic.txt upstream.md authored.md
+printf 'authored.md\ntopic.txt\nupstream.md\n' | sort >"${work}/want"
+sort "${work}/passed" >"${work}/got"
+if ! diff -q "${work}/want" "${work}/got" >/dev/null; then
+	fail "--added without push refs must keep mainline-tracked files out: $(cat "${work}/passed}")"
+fi
+grep -Eq '3 of 4 candidate file\(s\) added.*running' "${work}/log" ||
+	fail "the mainline --added run must be logged: $(cat "${work}/log}")"
+
+gate_added main.md
+if [ -s "${work}/passed" ]; then
+	fail "a mainline-tracked candidate must not reach the tool: $(cat "${work}/passed}")"
+fi
+grep -Eq '0 of 1 candidate file\(s\) added.*skipped' "${work}/log" ||
+	fail "the mainline --added skip must be logged: $(cat "${work}/log}")"
 # Without push refs (pre-commit, a direct run) every candidate passes through.
 unset DEV_PROFILE_PUSH_REFS
 gate main.md topic.txt upstream.md authored.md
@@ -178,5 +275,32 @@ if "${src}/bin/dev-profile-changed-files" "${work}/record.sh" main.md \
 	fail "a command without the -- separator must be refused"
 fi
 grep -q 'usage:' "${work}/log" || fail "the refusal must explain the usage: $(cat "${work}/log")"
+
+# End to end through the real util: a tracked 665 KB file the push only
+# modifies passes the step; the same push adding a fresh large file fails it.
+big=big.bin
+head -c 665000 /dev/zero | tr '\0' 'b' >"${big}"
+git add "${big}"
+git commit -q -m big-tracked
+git update-ref refs/remotes/origin/main HEAD
+printf 'b' >>"${big}"
+git commit -q -a -m big-modified
+step_added "$(git rev-parse HEAD)" "$(git rev-parse HEAD^)" "${big}" ||
+	fail "a push that only modifies a tracked large file must pass the step"
+
+head -c 665000 /dev/zero | tr '\0' 'c' >fresh.bin
+git add fresh.bin
+git commit -q -m fresh-large
+if step_added "$(git rev-parse HEAD)" "$(git rev-parse HEAD^)" fresh.bin; then
+	fail "a push that adds a fresh large file must fail the step"
+fi
+
+# --added still requires the separator.
+if "${src}/bin/dev-profile-changed-files" --added "${work}/record.sh" main.md \
+	>"${work}/passed" 2>"${work}/log"; then
+	fail "an --added command without the -- separator must be refused"
+fi
+grep -q 'usage:' "${work}/log" ||
+	fail "the --added refusal must explain the usage: $(cat "${work}/log}")"
 
 echo "ok changed-files fixture"

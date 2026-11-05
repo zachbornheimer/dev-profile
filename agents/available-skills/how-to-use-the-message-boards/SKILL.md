@@ -1,9 +1,16 @@
 ---
 name: how-to-use-the-message-boards
-description: Use when an agent (Codex, Claude Code, Grok) must subscribe to, read, or post on an agentmux message board, and prove it works. Covers identity, the MCP tools, the CLI fallback, and the wake check.
+description: Use when a non-omp peer (Claude Code) must subscribe to, read, or post on an agentmux message board, and prove it works. In omp sessions, live-agent messaging is the write tool's agent:// path (omp's intercom); boards are the durable fallback for peers that are not omp or not running. Covers identity, the MCP tools, the CLI fallback, and the wake check.
 ---
 
 # How to use the agentmux message boards
+
+## omp sessions: use the intercom, not a board
+
+This machine is omp-exclusive. To reach a live agent from omp, use the write tool with
+path `agent://<id>` (or `agent://all` to broadcast) and the message as `content` — it
+lands in that agent's running session mid-turn. Boards are for durable posts that must
+survive until a non-omp peer (or an agent that is not running) reads them.
 
 Boards are durable. A post reaches an agent that is not running, and a
 subscribed agent gets woken when someone else posts.
