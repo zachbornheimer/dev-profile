@@ -33,11 +33,14 @@
 #   published parents  of the pushed tip — the upstream line a fork branch
 #                      merged in, which the push did not write.
 #
-# Without push refs (pre-commit, `hk run check`, a direct run) the candidate
-# files pass through untouched, except in --added mode, which falls back to
-# the mainline rule above. A step whose candidates the push does not
-# touch exits 0 without running its command, so an empty file list can
-# never reach a tool as a usage error.
+# Without push refs (pre-commit, `hk run check`, a direct run) what this
+# checkout introduces against the mainline stands in for the push: a
+# candidate is introduced when its content at the working tree differs from
+# the merge base with origin's default branch, or the mainline does not
+# track it. DEV_PROFILE_CHANGED_FILES_ALL=1 restores the pass-through that
+# judged every candidate. --added mode keeps the mainline rule of its own
+# above. A step whose candidates introduce nothing exits 0 without running
+# its command, so an empty file list can never reach a tool as a usage error.
 set -euo pipefail
 
 added_only=0
@@ -77,6 +80,7 @@ run_all() { # <reason>
 	exec "${cmd[@]}" "${candidates[@]}"
 }
 
+introduced_for="this push"
 # dev-profile-pre-push measures the files a push changes, not the ones it
 # adds, so --added never reads DEV_PROFILE_PUSH_INTRODUCED: it measures the
 # added set itself from the refs (check-added-large-files is the only --added
@@ -133,7 +137,31 @@ elif [[ "${added_only}" -eq 1 ]]; then
 	rm -rf "${tmp}"
 	exec "${cmd[@]}" "${added[@]}"
 else
-	run_all "no push refs"
+	# No push to measure: what this checkout introduces against the
+	# mainline stands in for the push. DEV_PROFILE_CHANGED_FILES_ALL=1
+	# restores the pass-through that judged every candidate.
+	if [[ "${DEV_PROFILE_CHANGED_FILES_ALL:-}" == "1" ]]; then
+		run_all "no push refs, DEV_PROFILE_CHANGED_FILES_ALL=1"
+	fi
+	mainline=""
+	for ref in refs/remotes/origin/HEAD refs/remotes/origin/main refs/remotes/origin/master; do
+		if git rev-parse -q --verify "${ref}" >/dev/null 2>&1; then
+			mainline="${ref}"
+			break
+		fi
+	done
+	if [[ -z "${mainline}" ]]; then
+		run_all "no push refs and no mainline to measure introduced files from"
+	fi
+	root="$(git rev-parse --show-toplevel 2>/dev/null)" || run_all "not inside a git worktree"
+	if ! base="$(git merge-base HEAD "${mainline}")" || [[ -z "${base}" ]]; then
+		run_all "the mainline could not be merged with HEAD"
+	fi
+	: >"${tmp}/union"
+	git -C "${root}" diff --name-only --diff-filter=ACMRT "${base}" >>"${tmp}/union"
+	git -C "${root}" ls-files --others --exclude-standard >>"${tmp}/union"
+	union="${tmp}/union"
+	introduced_for="this checkout"
 fi
 
 if [[ -n "${union}" ]] && grep -qx '\*' "${union}"; then
@@ -165,12 +193,12 @@ while IFS= read -r file; do
 done <"${tmp}/introduced-list"
 
 if [[ "${#introduced[@]}" -eq 0 ]]; then
-	printf 'dev-profile-changed-files: 0 of %d candidate file(s) %s by this push: %s skipped\n' \
-		"${#candidates[@]}" "$(if [[ "${added_only}" -eq 1 ]]; then echo added; else echo introduced; fi)" "${cmd[0]}" >&2
+	printf 'dev-profile-changed-files: 0 of %d candidate file(s) %s by %s: %s skipped\n' \
+		"${#candidates[@]}" "$(if [[ "${added_only}" -eq 1 ]]; then echo added; else echo introduced; fi)" "${introduced_for}" "${cmd[0]}" >&2
 	rm -rf "${tmp}"
 	exit 0
 fi
-printf 'dev-profile-changed-files: %d of %d candidate file(s) %s by this push: running %s\n' \
-	"${#introduced[@]}" "${#candidates[@]}" "$(if [[ "${added_only}" -eq 1 ]]; then echo added; else echo introduced; fi)" "${cmd[0]}" >&2
+printf 'dev-profile-changed-files: %d of %d candidate file(s) %s by %s: running %s\n' \
+	"${#introduced[@]}" "${#candidates[@]}" "$(if [[ "${added_only}" -eq 1 ]]; then echo added; else echo introduced; fi)" "${introduced_for}" "${cmd[0]}" >&2
 rm -rf "${tmp}"
 exec "${cmd[@]}" "${introduced[@]}"

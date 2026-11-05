@@ -6,8 +6,9 @@
 # branch's published tip when the remote is unborn), the merge base with
 # origin's default branch, and the published parents of the pushed tip — the
 # upstream line a fork branch merged in, which the push did not write. Without
-# push refs the candidates pass through untouched; a push that introduces
-# nothing must not run the step's tool at all.
+# push refs (pre-commit, `hk run check`, a direct run) a candidate is judged
+# when this checkout introduces it against the mainline; a checkout that
+# introduces nothing must not run the step's tool at all.
 set -euo pipefail
 
 src="$(cd "$(dirname "$0")/.." && pwd)"
@@ -252,16 +253,56 @@ if [ -s "${work}/passed" ]; then
 fi
 grep -Eq '0 of 1 candidate file\(s\) added.*skipped' "${work}/log" ||
 	fail "the mainline --added skip must be logged: $(cat "${work}/log}")"
-# Without push refs (pre-commit, a direct run) every candidate passes through.
-unset DEV_PROFILE_PUSH_REFS
+# Without push refs (pre-commit, `hk run check`, a direct run) a candidate is
+# judged when this checkout introduces it against the mainline: its content
+# at the working tree differs from the merge base with origin's default
+# branch, or the mainline does not track it. Here the branch has moved past
+# origin/main, so every candidate is this checkout's own work.
+unset DEV_PROFILE_PUSH_REFS DEV_PROFILE_PUSH_INTRODUCED
 gate main.md topic.txt upstream.md authored.md
 printf 'authored.md\nmain.md\ntopic.txt\nupstream.md\n' | sort >"${work}/want"
 sort "${work}/passed" >"${work}/got"
 if ! diff -q "${work}/want" "${work}/got" >/dev/null; then
-	fail "without push refs every candidate must pass through: $(cat "${work}/passed")"
+	fail "a checkout past the mainline must introduce every candidate: $(cat "${work}/passed}")"
 fi
-grep -q 'no push refs' "${work}/log" ||
-	fail "the pass-through must be logged: $(cat "${work}/log")"
+grep -Eq '4 of 4 candidate file\(s\) introduced by this checkout: running' "${work}/log" ||
+	fail "the no-refs introduced run must be logged: $(cat "${work}/log}")"
+
+# A clean checkout at the mainline introduces nothing, so the tool must not
+# run at all — the case a repo-wide `hk run check` lands in on a synced tree.
+git update-ref refs/remotes/origin/main HEAD
+gate main.md topic.txt upstream.md authored.md
+if [ -s "${work}/passed" ]; then
+	fail "a clean checkout at the mainline must run no tool: $(cat "${work}/passed}")"
+fi
+grep -Eq '0 of 4 candidate file\(s\) introduced by this checkout.*skipped' "${work}/log" ||
+	fail "the clean-checkout skip must be logged: $(cat "${work}/log}")"
+
+# Working-tree and untracked edits are this checkout's own work too: a dirty
+# tracked file reaches the step alone, an untracked one beside it.
+printf 'main dirtied\n' >main.md
+printf 'fresh\n' >fresh.txt
+gate main.md topic.txt fresh.txt
+printf 'fresh.txt\nmain.md\n' | sort >"${work}/want"
+sort "${work}/passed" >"${work}/got"
+if ! diff -q "${work}/want" "${work}/got" >/dev/null; then
+	fail "dirty and untracked files must reach the step alone: $(cat "${work}/passed}")"
+fi
+grep -Eq '2 of 3 candidate file\(s\) introduced by this checkout: running' "${work}/log" ||
+	fail "the dirty-tree run must be logged: $(cat "${work}/log}")"
+git checkout -q -- main.md
+rm fresh.txt
+
+# DEV_PROFILE_CHANGED_FILES_ALL=1 restores the judgment of every candidate.
+DEV_PROFILE_CHANGED_FILES_ALL=1 gate main.md topic.txt
+printf 'main.md\ntopic.txt\n' | sort >"${work}/want"
+sort "${work}/passed" >"${work}/got"
+if ! diff -q "${work}/want" "${work}/got" >/dev/null; then
+	fail "the escape hatch must run every candidate: $(cat "${work}/passed}")"
+fi
+grep -q 'DEV_PROFILE_CHANGED_FILES_ALL=1' "${work}/log" ||
+	fail "the escape-hatch run must be logged: $(cat "${work}/log}")"
+unset DEV_PROFILE_CHANGED_FILES_ALL
 
 # A step with no candidates exits 0 without running its tool.
 DEV_PROFILE_PUSH_REFS="${work}/refs" gate
