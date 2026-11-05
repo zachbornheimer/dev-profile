@@ -18,9 +18,10 @@
 # Each class files one atask objective (idempotent on its title) and spawns one
 # `start_atask_task` worker run on it. The worker diagnoses the failure, repairs
 # what is deterministic, and leaves the objective incomplete with a named
-# decision when the call is a person's. A person is notified only when no worker
-# can be started at all, or after MAX_ATTEMPTS attempts have failed to clear the
-# failure.
+# decision when the call is a person's. That decision reaches the user on the
+# next tick: a run that ends without repairing the failure and names the step it
+# could not take needs no retry. Otherwise a person is notified only when no
+# worker can be started at all, or after MAX_ATTEMPTS attempts failed to clear it.
 #
 # The run is started in its own session: the watchdog's LaunchAgent kills the
 # rest of its process group when the tick exits, and this run has to outlive the
@@ -32,7 +33,8 @@
 # Prints one verdict line and decides the watchdog's next move by its exit code:
 #   spawned <task-id>     a worker run was started for the objective
 #   running <task-id>     an attempt is in flight, or inside its cooldown
-#   exhausted <task-id>   every attempt was spent; the failure is a person's call
+#   exhausted <task-id>   every attempt spent, or the run named a decision; this is
+#                         a person's call
 #   alerted <task-id>     a person was already told about this incident
 #   blocked <reason>      no worker could be started
 # Exit 0: the watchdog stays quiet. Exit 1: notify a person.
@@ -181,9 +183,11 @@ state="$STATE_DIR/repair-$CLASS"
 attempts=0
 last_spawn=0
 alerted=0
+task=""
 if [ -f "$state" ]; then
 	while IFS='=' read -r key value; do
 		case "$key" in
+		task) task="$value" ;;
 		attempts) attempts="$value" ;;
 		last_spawn) last_spawn="$value" ;;
 		alerted) alerted="$value" ;;
@@ -191,7 +195,6 @@ if [ -f "$state" ]; then
 	done <"$state"
 fi
 now=$(date +%s)
-task=""
 
 write_state() {
 	mkdir -p "$STATE_DIR"
@@ -225,6 +228,19 @@ if [ "$alerted" = 1 ]; then
 	printf 'alerted %s\n' "${task:-unknown}"
 	exit 0
 fi
+# What the objective says about the last attempt: `atask show --json` is one
+# envelope, and a run that cannot repair the failure releases the claim and
+# records the step it could not take.
+objective_state() {
+	python3 - "$1" <<'PY' 2>/dev/null || true
+import json
+import sys
+
+data = json.loads(sys.argv[1])["result"]
+print(data.get("status", "unknown"))
+print(((data.get("handoff") or {}).get("latest_next") or "").replace("\n", " "))
+PY
+}
 
 # Attempt budget spent: this is a person's call now, and they are told once.
 if [ "$attempts" -ge "$MAX_ATTEMPTS" ]; then
@@ -233,9 +249,35 @@ if [ "$attempts" -ge "$MAX_ATTEMPTS" ]; then
 	exit 1
 fi
 
+# A worker that gave up needs neither a retry nor the cooldown: it named the
+# decision, so the user hears about it on this tick instead of after two more
+# runs of the same diagnosis. A worker still holding the claim is running; a
+# claim older than any worker budget is treated as lost.
+if [ "$attempts" -gt 0 ] && [ -n "$task" ]; then
+	shown="$("$ATASK" show "$task" --json 2>/dev/null || true)"
+	if [ -n "$shown" ]; then
+		state_out="$(objective_state "$shown")"
+		objective="$(head -1 <<<"$state_out")"
+		next="$(sed -n '2p' <<<"$state_out")"
+		if [ -n "$next" ]; then
+			write_state "$task" "$attempts" "$last_spawn" 1
+			printf 'exhausted %s: the run ended and named a decision: %s\n' "$task" "${next:0:140}"
+			exit 1
+		fi
+		case "$objective" in
+		claimed | working | running)
+			if [ $((now - last_spawn)) -lt 7200 ]; then
+				printf 'running %s (%s for %ss)\n' "$task" "$objective" "$((now - last_spawn))"
+				exit 0
+			fi
+			;;
+		esac
+	fi
+fi
+
 # An attempt is in flight, or its cooldown has not run out.
 if [ "$attempts" -gt 0 ] && [ $((now - last_spawn)) -lt "$COOLDOWN_S" ]; then
-	printf 'running %s (%ss into a %ss cooldown)\n' "${task:-unknown}" "$((now - last_spawn))" "$COOLDOWN_S"
+	printf 'running %s (%ss into a %ss cooldown)\n' "$task" "$((now - last_spawn))" "$COOLDOWN_S"
 	exit 0
 fi
 

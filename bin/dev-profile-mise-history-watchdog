@@ -53,10 +53,10 @@ escalate() {
 		return 0
 	fi
 	reason="${verdict:-no verdict}"
-	body="cannot fix $class automatically: ${detail:0:70} — ${reason:0:90}"
+	body="cannot fix $class automatically: ${detail:0:60} — ${reason:0:150}"
 	body="${body//\"/}"
-	log "$class: needs a person — ${reason:0:90}"
-	"$NOTIFY" -e "display notification \"${body:0:200}\" with title \"mise history watchdog\"" >/dev/null 2>&1 || true
+	log "$class: needs a person — ${reason:0:150}"
+	"$NOTIFY" -e "display notification \"${body:0:240}\" with title \"mise history watchdog\"" >/dev/null 2>&1 || true
 	return 0
 }
 

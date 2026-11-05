@@ -10,13 +10,19 @@ set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
 watchdog="$root/bin/dev-profile-mise-history-watchdog"
 repair="$root/bin/dev-profile-mise-history-repair"
-atask="$(command -v atask)"
+# atask is a mise shim here, and mise finds its tools under the real HOME, so
+# the fixture calls it through a wrapper that restores HOME for that one call.
+real_home="$HOME"
+atask_bin="$(command -v atask)"
 python_dir="$(dirname "$(command -v python3)")"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
 export HOME="$work/home"
 mkdir -p "$HOME/Library/Logs" "$work/bin"
+printf '%s\n' '#!/usr/bin/env bash' "export HOME=\"$real_home\"" "exec \"$atask_bin\" \"\$@\"" >"$work/bin/atask"
+chmod +x "$work/bin/atask"
+atask="$work/bin/atask"
 # The stub directory first, then the real python3 and the system tools; launchctl
 # and pgrep are stubbed so no tick can touch a real process on this machine.
 export PATH="$work/bin:$python_dir:/usr/bin:/bin"
@@ -122,7 +128,24 @@ grep -q 'is not a directory' "$NOTIFY_CALLS" || fail "the notification does not 
 grep -q 'publishing-blocked: needs a person' "$log" || fail "the escalation was not logged: $(cat "$log")"
 tick 'after the notification'
 [ "$(notifications)" = 1 ] || fail 'the user was notified again for the same incident'
-
+# --- a run that ends without repairing it and names the decision reaches the
+# --- user on the next tick, without spending another attempt -----------------
+reset
+export MISE_HISTORY_REPAIR_MAX_ATTEMPTS=3
+stalled
+tick 'first attempt'
+[ "$(spawns)" = 1 ] || fail 'the first attempt did not spawn'
+gave_up="$(filed_id)"
+"$atask" claim "$gave_up" >/dev/null || fail 'the fixture could not claim the objective'
+"$atask" log --next 'Person decision required: untrack the path here, or stop the box vendoring it.' >/dev/null || fail 'the fixture could not record the decision'
+"$atask" claim release >/dev/null || fail 'the fixture could not release the objective'
+tick 'the run gave up'
+[ "$(spawns)" = 1 ] || fail 'a run that named a decision was retried instead of reported'
+[ "$(notifications)" = 1 ] || fail 'a run that named a decision never reached the user'
+grep -q 'Person decision required' "$NOTIFY_CALLS" || fail "the notification does not carry the decision: $(cat "$NOTIFY_CALLS")"
+grep -q 'needs a person' "$log" || fail "the escalation was not logged: $(cat "$log")"
+tick 'the run gave up, second tick'
+[ "$(notifications)" = 1 ] || fail 'the user was notified again for the same incident'
 # --- no worker can be started at all: the user hears about it ----------------
 reset
 stalled
