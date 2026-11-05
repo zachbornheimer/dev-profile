@@ -36,6 +36,10 @@ bash "$root/tests/mise-history-watchdog-repair-fixture.sh" >/dev/null || fail "m
 bash "$root/tests/probe-build-fixture.sh" >/dev/null || fail "probe-build fixture"
 bash "$root/tests/tools-install-fixture.sh" "$root" >/dev/null || fail "tools install fixture"
 for f in "$root"/bin/*; do
+	# A directory that a previous run left behind (a stray __pycache__, say) is not
+	# an installed entrypoint, and `head -1` on it fails the check for a file that
+	# is not there: the worktree copy carries one into every fresh worktree.
+	[ -f "$f" ] || continue
 	if head -1 "$f" | grep -q python; then
 		python3 -c 'import ast, sys; ast.parse(open(sys.argv[1]).read(), sys.argv[1])' "$f" ||
 			fail "bin/${f##*/}"
