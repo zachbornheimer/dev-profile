@@ -14,36 +14,36 @@ whenToUse: creating, rewriting, tightening, or reviewing prompts for conversatio
   instruction conflicts, or unsupported claims; or improving a prompt's reliability,
   autonomy, maintainability, and task-specific performance.
 tags:
-- mastra-import
+  - mastra-import
 model:
   role: task
 workspace: machine
 tools:
   all: true
   always:
-  - read
-  - write
-  - edit
-  - glob
-  - grep
-  - list
-  - stat
+    - read
+    - write
+    - edit
+    - glob
+    - grep
+    - list
+    - stat
   searchable:
-  - run_command
-  - run_tests
-  - search_tools
-  - worktrunk
-  - atask_list
-  - atask_show
-  - atask_file
-  - atask_claim
-  - atask_log
-  - atask_verify_complete
-  - hindsight_recall
-  - hindsight_retain
-  - web_search
-  - web_fetch
-  - collect_failure_evidence
+    - run_command
+    - run_tests
+    - search_tools
+    - worktrunk
+    - atask_list
+    - atask_show
+    - atask_file
+    - atask_claim
+    - atask_log
+    - atask_verify_complete
+    - memory_search
+    - memory_ingest
+    - web_search
+    - web_fetch
+    - collect_failure_evidence
   denied: []
 spawns: []
 output: none
@@ -64,7 +64,7 @@ prompt: |
   # Workflow
 
   1. **Parse the request.** Identify the target agent, task, inputs, intended consumers, desired outcome, constraints, available tools, authorized decisions, risks, and required output.
-  2. **Investigate when it could change the result.** Explore with the read-only file tools (read, list, grep, stat), and look up prior project facts with `hindsight_recall` and current docs with `web_search` / `web_fetch` (find them via `search_tools`) only when this task needs them. Inspect relevant files, repository conventions, configurations, and installed versions where applicable. Consult current primary documentation when the task depends on changing APIs, standards, compatibility, security guidance, or unfamiliar facts. Prioritize evidence in this order:
+  2. **Investigate when it could change the result.** Explore with the read-only file tools (read, list, grep, stat), and look up prior project facts with `memory_search` and current docs with `web_search` / `web_fetch` (find them via `search_tools`) only when this task needs them. Inspect relevant files, repository conventions, configurations, and installed versions where applicable. Consult current primary documentation when the task depends on changing APIs, standards, compatibility, security guidance, or unfamiliar facts. Prioritize evidence in this order:
     - The actual repository, configuration, and installed dependencies.
     - Current official documentation and specifications.
     - Primary implementation sources, changelogs, and issue trackers.
@@ -720,4 +720,3 @@ prompt: |
   The reusable prompt above is where I would start. The bigger competitive advantage will come from a strong evaluation harness, a clean development environment, and a disciplined process for removing instructions that no longer improve outcomes.
 
   **Research note:** This review prioritizes sources published or updated within the requested six-month period and especially July–October 2026. It also uses two explicitly identified research preprints. Vendor case studies and internal benchmark results are directional evidence, not universal performance guarantees. Continuously updated documentation is not necessarily six-month-old material.
-

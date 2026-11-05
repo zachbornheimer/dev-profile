@@ -58,7 +58,7 @@ push_introduced="$(cd "$(dirname "$0")" && pwd)/dev-profile-push-introduced"
 tmp="$(mktemp -d)"
 
 run_all() { # <reason>
-	printf 'dev-profile-changed-files: %d candidate file(s), %s: running %s on all\n' \
+	printf 'dev-profile-changed-files: %d candidate file(s), %s: running %s on every candidate\n' \
 		"${#candidates[@]}" "$1" "${cmd[0]}" >&2
 	rm -rf "${tmp}"
 	exec "${cmd[@]}" "${candidates[@]}"

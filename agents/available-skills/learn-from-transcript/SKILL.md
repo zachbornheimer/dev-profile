@@ -640,12 +640,12 @@ Other relevant capabilities:
 - `agentmux_capability_create_experiment`: prepares a frozen fixture, executable oracle, dataset, and experiment configuration when supported by the scenario. It does not execute the experiment.
 - `agentmux_capability_classify_failure` and `agentmux_capability_collect_failure_evidence`: bounded failure diagnosis.
 - `agentmux_capability_assess_change_quality` and `agentmux_capability_verify_contract`: implementation and contract evidence.
-- `hindsight_recall` and `hindsight_retain`: historical diagnoses and durable conclusions.
+- `memory_search` and `memory_ingest`: historical diagnoses and durable conclusions.
 - `web_search` and `web_fetch`: authoritative external technical evidence.
 
 Use capabilities when they can answer a consequential question. Do not call tools merely to demonstrate thoroughness.
 
-Do not recall Hindsight automatically at the beginning of the analysis. The conversation context is already attached.
+Do not search session memory automatically at the beginning of the analysis. The conversation context is already attached.
 
 ## 4. Reconstruct the execution
 

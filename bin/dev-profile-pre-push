@@ -67,8 +67,19 @@ fi
 # step (dev-profile-changed-files' fallback) costs tens of seconds of git
 # per step in a large repository, and a push with dozens of steps then
 # cannot finish at all.
+
+# hk also bounds each step's candidate files from those refs. Handed none it
+# selects every tracked file, and the steps then run their tools across the whole
+# tree: a push that reached this hook without refs scanned the repository and
+# failed on a tool with nothing to do with what it wrote. Refs this hook cannot
+# read are refs it cannot gate on, so it refuses the push instead.
 if ! dev-profile-push-base <"${refs}" >"${advanced}"; then
-	printf 'pre-push: dev-profile-push-base failed; steps measure for themselves\n' >&2
+	printf 'pre-push: refusing the push: advancing the pushed refs failed, so the files it introduces cannot be known (proceeding would scan the whole repository)\n' >&2
+	exit 1
+fi
+if ! grep -Eq '^[^[:space:]]+ [0-9a-f]{40,64} [^[:space:]]+ [0-9a-f]{40,64}$' "${advanced}"; then
+	printf 'pre-push: refusing the push: git passed no readable push refs, so the files it introduces cannot be known (proceeding would scan the whole repository)\n' >&2
+	exit 1
 fi
 if dev-profile-push-introduced "${advanced}" >"${introduced}"; then
 	export DEV_PROFILE_PUSH_INTRODUCED="${introduced}"

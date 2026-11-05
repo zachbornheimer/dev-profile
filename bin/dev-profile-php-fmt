@@ -15,6 +15,19 @@ phpcbf_ok() {
 	return "${code}"
 }
 
+# phpcbf must rewrite the file it was given. A standard's <arg name="basepath">
+# moves that write whenever the file sits outside the basepath — and the temp
+# copy of stdin dprint hands us always does: Common::stripBasepath drops the
+# path's leading separator and Reports/Cbf re-prepends the basepath, so the
+# write lands inside the basepath tree and dies with
+# "file_put_contents(<basepath>/private/var/...): Failed to open stream".
+# An explicit empty --basepath= overrides the standard's setting, so phpcbf
+# rewrites the file it read. phpcs keeps the standard's basepath: it only
+# shortens reported paths.
+phpcbf_fmt() {
+	phpcbf_ok phpcbf --basepath= "$@"
+}
+
 # $1 = file to rewrite; $2 = path whose repo decides the context (defaults to $1).
 format_file() {
 	local file="$1"
@@ -24,15 +37,15 @@ format_file() {
 	case "${ctx%% *}" in
 	wordpress)
 		if [[ -f "${root}/phpcs.xml" ]]; then
-			phpcbf_ok phpcbf --standard="${root}/phpcs.xml" "${file}"
+			phpcbf_fmt --standard="${root}/phpcs.xml" "${file}"
 		elif [[ -f "${root}/phpcs.xml.dist" ]]; then
-			phpcbf_ok phpcbf --standard="${root}/phpcs.xml.dist" "${file}"
+			phpcbf_fmt --standard="${root}/phpcs.xml.dist" "${file}"
 		elif [[ -f "${root}/.phpcs.xml" ]]; then
-			phpcbf_ok phpcbf --standard="${root}/.phpcs.xml" "${file}"
+			phpcbf_fmt --standard="${root}/.phpcs.xml" "${file}"
 		elif [[ -f "${root}/.phpcs.xml.dist" ]]; then
-			phpcbf_ok phpcbf --standard="${root}/.phpcs.xml.dist" "${file}"
+			phpcbf_fmt --standard="${root}/.phpcs.xml.dist" "${file}"
 		else
-			phpcbf_ok phpcbf --standard=WordPress "${file}"
+			phpcbf_fmt --standard=WordPress "${file}"
 		fi
 		;;
 	php-cs-fixer)
@@ -40,18 +53,18 @@ format_file() {
 		;;
 	phpcs)
 		if [[ -f "${root}/phpcs.xml" ]]; then
-			phpcbf_ok phpcbf --standard="${root}/phpcs.xml" "${file}"
+			phpcbf_fmt --standard="${root}/phpcs.xml" "${file}"
 		elif [[ -f "${root}/phpcs.xml.dist" ]]; then
-			phpcbf_ok phpcbf --standard="${root}/phpcs.xml.dist" "${file}"
+			phpcbf_fmt --standard="${root}/phpcs.xml.dist" "${file}"
 		else
-			phpcbf_ok phpcbf "${file}"
+			phpcbf_fmt "${file}"
 		fi
 		;;
 	*)
 		if command -v php-cs-fixer >/dev/null 2>&1 && [[ -f "${HOME}/.config/php-cs-fixer/.php-cs-fixer.dist.php" ]]; then
 			php-cs-fixer fix --using-cache=no --config="${HOME}/.config/php-cs-fixer/.php-cs-fixer.dist.php" "${file}"
 		elif command -v phpcbf >/dev/null 2>&1; then
-			phpcbf_ok phpcbf "${file}"
+			phpcbf_fmt "${file}"
 		else
 			cat "${file}" >/dev/null
 		fi

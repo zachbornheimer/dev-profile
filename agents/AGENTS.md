@@ -377,7 +377,7 @@ is retired — never call `chezmoi`. `~/.agents` is symlinked to
 `~/Developer/Personal/dev-profile/agents` (`~/.claude/CLAUDE.md` symlinks here);
 edit `~/.agents/...` on the live path and commit/push in `~/Developer/Personal/dev-profile`.
 Durable machine facts (which tool runs commands, where a roster lives, what a
-wrapper does) go to Hindsight or this file — never `~/.claude/projects/*/memory/`,
+wrapper does) go to session memory or this file — never `~/.claude/projects/*/memory/`,
 which only the one project that wrote it ever reads.
 
 ## Always-on essentials

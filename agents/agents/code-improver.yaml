@@ -34,8 +34,8 @@ tools:
     - atask_claim
     - atask_log
     - atask_verify_complete
-    - hindsight_recall
-    - hindsight_retain
+    - memory_search
+    - memory_ingest
     - web_search
     - web_fetch
     - collect_failure_evidence
@@ -66,13 +66,13 @@ prompt: |
   - `search_tools` — find the rest of the capability catalog
   - `worktrunk` — worktree lifecycle: start, commit, merge, prune
   - `atask_*` — the task board: file, show, claim, log, verify complete
-  - `hindsight_recall` / `hindsight_retain` — durable project memory
+  - `memory_search` / `memory_ingest` — durable project memory
   - `web_search` / `web_fetch` — current external facts
   - `collect_failure_evidence` — bounded source evidence for a capability failure
 
   The file tools reach any absolute path on this machine. This repository: relative paths, and every edit inside a worktree per the Version Control section. A file outside every git repository (a hook config, `~/.agents/AGENTS.md`, a skill): read it, edit it in place, and report the path with a before/after excerpt. Another git repository: work in a worktree of that repository through `worktrunk`; never edit its main checkout. Scratch files go under `/tmp` (such as `/tmp/<id>-example.txt`).
 
-  Search before assuming a capability is absent. When the task starts from a capability error message, search for `collect_failure_evidence` first: it returns bounded source evidence (schema fields, model calls, return values) and is cheaper than broad file reads. Do not recall the memory bank on turn 1. When the work settles a durable decision, convention, or lesson that a later conversation needs, store it with `hindsight_retain` before the final response; skip session noise and task state. File tools are not searchable. Thread memory is already attached — do not re-fetch the conversation.
+  Search before assuming a capability is absent. When the task starts from a capability error message, search for `collect_failure_evidence` first: it returns bounded source evidence (schema fields, model calls, return values) and is cheaper than broad file reads. Do not recall the memory bank on turn 1. When the work settles a durable decision, convention, or lesson that a later conversation needs, store it with `memory_ingest` before the final response; skip session noise and task state. File tools are not searchable. Thread memory is already attached — do not re-fetch the conversation.
 
   Never invent `run`, `bash`, or `execute_command`. A command runs through `run_command` — find it with `search_tools("command execution")`. `atask` is real and its tools are `atask_*`: file a task only when the work has an outcome a check can prove. There is no delete tool. If a name is not always-on and `search_tools` finds nothing, it does not exist. If a tool returns the command text instead of executing it, stop and report `NOT PROVEN`.
 

@@ -8,8 +8,6 @@
 Reads the newest omp session JSONL and reports, as findings:
 
   duplicate-alias   a mounted tool whose name repeats another mount's tool
-  startup-double    the first agent-hooks block ships both the Hindsight guide
-                    and the per-turn refresh, paying for the guide twice
   unreachable       no enabled MCP server supplies the command runner
 
 Modes:
@@ -31,9 +29,6 @@ SESSIONS = Path.home() / ".omp/agent/sessions"
 MCP_CONFIG = Path.home() / ".omp/agent/mcp.json"
 ALWAYS_ON = "mcp__capability_always_on_"
 CANONICAL = "mcp__capability_"
-REFRESH_RE = re.compile(
-    r"<hindsight_knowledge_refresh>(.*?)</hindsight_knowledge_refresh>", re.DOTALL
-)
 TOOL_LINE_RE = re.compile(r"^- xd://([A-Za-z0-9_:.-]+)")
 
 
@@ -79,24 +74,6 @@ def duplicate_aliases(notice: str) -> list[Finding]:
     return findings
 
 
-def repeat_refresh(blocks: list[str]) -> list[Finding]:
-    """The same memory guidance re-sent within one session, paying for it twice."""
-    bodies = [m.group(1) for m in map(REFRESH_RE.search, blocks) if m]
-    findings: list[Finding] = []
-    seen: dict[str, int] = {}
-    for index, body in enumerate(bodies):
-        first = seen.setdefault(body, index)
-        if first != index:
-            findings.append(
-                Finding(
-                    "repeat-refresh",
-                    f"block {index} repeats block {first}'s memory guidance verbatim "
-                    f"({len(body)} bytes each)",
-                )
-            )
-    return findings
-
-
 def command_runner_reachable(config: Path) -> list[Finding]:
     """The command runner must come from an enabled server after any mount is removed."""
     try:
@@ -117,11 +94,9 @@ def command_runner_reachable(config: Path) -> list[Finding]:
 def inspect(session: Path, config: Path = MCP_CONFIG) -> list[Finding]:
     messages = custom_messages(session)
     notices = [c for kind, c in messages if kind == "xdev-mount-notice"]
-    blocks = [c for kind, c in messages if kind == "agent-hooks-context"]
     findings: list[Finding] = []
     for notice in notices:
         findings.extend(duplicate_aliases(notice))
-    findings.extend(repeat_refresh(blocks))
     findings.extend(command_runner_reachable(config))
     return findings
 
@@ -129,22 +104,18 @@ def inspect(session: Path, config: Path = MCP_CONFIG) -> list[Finding]:
 SELF_TEST_LINES = [
     # must fail: an always-on alias beside its canonical twin
     '{"type":"custom_message","customType":"xdev-mount-notice","content":"<system-notice>\\n- xd://mcp__capability_run_command — runner\\n- xd://mcp__capability_always_on_run_command — runner\\n</system-notice>"}',
-    # must fail: the same guidance re-sent on a later turn
-    '{"type":"custom_message","customType":"agent-hooks-context","content":"<hindsight_knowledge_refresh>same guidance</hindsight_knowledge_refresh>"}',
-    '{"type":"custom_message","customType":"agent-hooks-context","content":"<hindsight_knowledge_refresh>same guidance</hindsight_knowledge_refresh>"}',
-    # must pass: a unique always-on tool, and guidance sent once
+    # must pass: a unique always-on tool
     '{"type":"custom_message","customType":"xdev-mount-notice","content":"- xd://mcp__capability_run_command — runner\\n- xd://mcp__capability_always_on_extra — unique"}',
-    '{"type":"custom_message","customType":"agent-hooks-context","content":"<hindsight_knowledge_refresh>same guidance</hindsight_knowledge_refresh>"}',
 ]
 
 
 def self_test(workdir: Path, config: Path = MCP_CONFIG) -> int:
     bad = workdir / "bad.jsonl"
     good = workdir / "good.jsonl"
-    bad.write_text("\n".join(SELF_TEST_LINES[:3]) + "\n")
-    good.write_text("\n".join(SELF_TEST_LINES[3:]) + "\n")
+    bad.write_text("\n".join(SELF_TEST_LINES[:1]) + "\n")
+    good.write_text("\n".join(SELF_TEST_LINES[1:]) + "\n")
     failures = [finding.kind for finding in inspect(bad, config)]
-    if "duplicate-alias" not in failures or "repeat-refresh" not in failures:
+    if "duplicate-alias" not in failures:
         print(
             f"self-test failed: duplicated fixture reported {failures}", file=sys.stderr
         )
@@ -173,7 +144,7 @@ def main() -> int:
     parser.add_argument(
         "--only",
         action="append",
-        choices=["duplicate-alias", "repeat-refresh", "unreachable"],
+        choices=["duplicate-alias", "unreachable"],
         help="assert on one finding kind alone (repeatable)",
     )
     args = parser.parse_args()

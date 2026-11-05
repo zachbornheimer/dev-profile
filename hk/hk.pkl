@@ -14,7 +14,7 @@ amends "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pk
 // a command that itself carries one (none here today) runs wrapped in `sh -c '...'`.
 //
 // Project-wide steps judge the repository as a unit — a whole-module compile
-// (gosec, go-vet, golangci-lint, govulncheck), a whole-workspace advisory check
+// (go-vet, golangci-lint, govulncheck), a whole-workspace advisory check
 // (cargo-deny), a whole-app audit (brakeman, bundle-audit), a commit-range secret
 // scan (gitleaks), the working tree's shape (destroyed-symlinks, forbid-submodules),
 // the diff against origin/main (foxguard-typescript), or the branch/commit metadata
@@ -124,8 +124,11 @@ local fixers = new Mapping<String, Step> {
         "trailing-whitespace",
       )
   }
+  // stylelint exits 78 with a ConfigurationError when the repo supplies no config, and hk
+  // dumps that stderr whenever any unrelated step fails. dev-profile-stylelint-fix absorbs
+  // the no-config and unfixable-lint output and falls back to the profile's config.
   ["stylelint"] {
-    fix = "dev-profile-changed-files stylelint --fix -- {{files}}"
+    fix = "dev-profile-changed-files dev-profile-stylelint-fix -- {{files}}"
     glob = List("**/*.css", "**/*.scss", "**/*.sass")
   }
   ["go-imports"] {
@@ -210,7 +213,10 @@ local gates = new Mapping<String, Step> {
   }
   // The push gate rides dev-profile-golangci-ratchet, which reports only the
   // issues the branch adds on top of origin's default branch: debt already on
-  // the default branch is what the push inherited, not what it introduces.
+  // the default branch is what the push inherited, not what it introduces. It
+  // carries no fixer: the step's whole-workspace `--fix` rewrote every module
+  // in the tree mid-push, and the whole-tree steps that ran after it (gosec,
+  // go-vet) then judged files the fixer had broken.
   ["golangci-lint"] {
     check = "dev-profile-golangci-ratchet"
     glob = List("**/*.go")
@@ -237,9 +243,30 @@ local gates = new Mapping<String, Step> {
   // round paid it again). dev-profile-foxguard-introduced scans only those files through the engine's
   // `--changed-files-from` mode and suppresses what the target's own copy of them reports, so the verdict is the
   // diff's while the scan takes seconds (tests/foxguard-introduced-fixture.sh pins both halves).
+  // The pack is a Semgrep import, so the importer re-prints its readiness report on stderr at every load --
+  // ~500 "Warning: taint rule ..." lines whether or not the scan finds anything. That report is already recorded
+  // in the manifest and asserted by dev-env's `mise run test:foxguard`, so it is kept for a failing scan only.
+  // The scan is budgeted: foxguard 0.14.1 re-scans the whole tree per invocation (~10 min with this pack on
+  // oh-my-pi) and its new-findings phase degenerates to ~1% CPU on a monorepo-size diff -- reproduced with a
+  // one-rule pack, so the pack is not the trigger -- wedging the step far past every push runner's deadline.
+  // A wedged step meant a wedged gate: the runner SIGKILLed the push job, `hk run pre-push` died with
+  // "Killed: 9", and no verdict was ever reported. The budget fails the step closed instead: the gate always
+  // reaches a verdict, the scan still runs in full whenever it keeps up, and the push is blocked (never
+  // waved through) when the scanner cannot. DEV_PROFILE_FOXGUARD_BUDGET (seconds) overrides the budget.
   ["foxguard-typescript"] {
     check =
-      "RAYON_NUM_THREADS=2 dev-profile-changed-files dev-profile-foxguard-introduced --rules ~/.config/foxguard/typescript.yml --target origin/main -- {{files}}"
+      """
+      err=$(mktemp)
+      rc=0
+      budget="${DEV_PROFILE_FOXGUARD_BUDGET:-1200}"
+      timeout -k 30 "${budget}" env RAYON_NUM_THREADS=2 dev-profile-changed-files dev-profile-foxguard-introduced --rules ~/.config/foxguard/typescript.yml --target origin/main -- {{files}} 2>"$err" || rc=$?
+      [ "$rc" -eq 0 ] || cat "$err" >&2
+      if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
+        echo "foxguard-typescript: scan exceeded its ${budget}s budget; failing closed -- foxguard wedges on monorepo-size diffs, and unbudgeted it stopped any verdict from being reported" >&2
+      fi
+      rm -f "$err"
+      exit "$rc"
+      """
     glob = List("**/*.ts", "**/*.mts", "**/*.cts", "**/*.tsx")
   }
   ["kube-linter"] {
@@ -317,8 +344,11 @@ local gates = new Mapping<String, Step> {
           "**/zed/**/*.json",
         )
   }
+  // Brakeman takes one application path, never the changed files, and bundle-audit takes
+  // a project directory, never a lockfile: both wrappers scan each file from the root that
+  // holds it, so an app below the repo root is scanned as its own project.
   ["brakeman"] {
-    check = "brakeman --no-pager --quiet"
+    check = "dev-profile-brakeman {{files}}"
     glob =
       List(
         "**/*.rb",
@@ -330,7 +360,7 @@ local gates = new Mapping<String, Step> {
         "**/Rakefile",
       )
   }
-  ["bundle-audit"] { check = "bundle-audit check"; glob = List("**/Gemfile.lock") }
+  ["bundle-audit"] { check = "dev-profile-bundle-audit {{files}}"; glob = List("**/Gemfile.lock") }
   ["cargo-deny"] {
     check = "cargo-deny --locked --workspace check"
     glob = List("**/Cargo.toml", "**/Cargo.lock", "**/deny.toml", "**/.deny.toml")

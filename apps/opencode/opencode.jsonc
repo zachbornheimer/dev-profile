@@ -1,6 +1,4 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": [
-    "/Users/zbornheimer/.hindsight/coding-agents"
-  ]
+  "plugin": []
 }

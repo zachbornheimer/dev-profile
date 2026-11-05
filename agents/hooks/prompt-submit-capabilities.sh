@@ -168,7 +168,7 @@ PY
 
 # skills.xml as the injection block (mode `block`) or its names-only pointer (mode `pointer`). The suggester bounds
 # the block (at most 5 skills and 3 tool cards, 3,000 characters), so neither mode shortens anything. Skills stay as
-# the capability wrote them. A tool arrives as a gateway address (`hindsight/search_knowledge_pages`) with its complete
+# the capability wrote them. A tool arrives as a gateway address (`capability/memory_search`) with its complete
 # card in <how-to-call> (name, description, input, example call, returns, flags); it renders as that card, at most
 # MAX_TOOL_CARDS of them, best confidence first, and the pointer names the same kept tools. A tool with no card
 # cannot be called from the suggestion, so it is dropped. The block's description and the unavailable notice are this
@@ -421,14 +421,14 @@ file paths from a suggestion.
     </skills>
     <tools>
       <tool>
-        <name>hindsight/search_knowledge_pages</name>
-        <description>Search this repository's knowledge pages for the decisions, conventions and in-flight work that bear on a query.</description>
+        <name>capability/memory_search</name>
+        <description>Search this machine's past agent sessions: what was tried, what broke, what was decided, and in which repository.</description>
         <how-to-call><![CDATA[
-name:        hindsight/search_knowledge_pages
-description: Search this repository's knowledge pages for the decisions, conventions and in-flight work that bear on a query.
-input:       { query: string (required), limit?: integer 1-20 }
-example:     tool_call("hindsight/search_knowledge_pages", {"query":"string"})
-returns:     { results: [{ id: string, title: string, snippet: string }] }
+name:        capability/memory_search
+description: Search this machine's past agent sessions: what was tried, what broke, what was decided, and in which repository.
+input:       { query: string (required), limit?: integer 1-50, repository?: string, as_of?: string }
+example:     tool_call("capability/memory_search", {"query":"what did we decide about the memory backend"})
+returns:     { evidence: [{ id: string, score: number, source: string, session: string, at: string, repository?: string, text: string }], arms: object, degraded?: boolean, reason?: string }
 flags:       read-only
 ]]></how-to-call>
         <confidence>0.86</confidence>
