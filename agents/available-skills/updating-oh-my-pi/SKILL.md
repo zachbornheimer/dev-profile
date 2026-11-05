@@ -11,7 +11,7 @@ The `omp` you run is **the pinned upstream base + an ordered list of topic branc
 - Checkout: `~/Developer/Personal/oh-my-pi`. Remotes: **`origin`** = upstream `can1357/oh-my-pi`, **`fork`** = `zachbornheimer/oh-my-pi`.
 - **`main` is a read-only upstream mirror.** Never commit, merge or push to it. A GitHub ruleset, the local reference-transaction hook (installed by `bin/dev-profile-omp-machine-setup`) and `pretooluse-omp-main-branch-guard` all refuse it. Do not bypass them.
 - **The branch list** is the `BRANCH_MANIFEST` block in `.github/workflows/omp-build.yml` (a JSON array of `{ "branch": ..., "reason": ... }` entries, merged in order) on the fork's default branch **`ci`**, which holds only that workflow, `.github/omp-upstream.txt` (the pinned base) and `scripts/omp-build/resolve-branches.ts` (the single parser of the manifest).
-- **CI** (`omp-build`, daily 04:00 UTC + manual dispatch) merges each listed branch with `git merge --no-ff` onto **the pinned base**, builds darwin-arm64 + linux-x64, and publishes release `build-<YYYYMMDD>-<upstream7>-<build7>` as Latest, `<upstream7>` being the pin. A scheduled run fails only on a conflict with the pinned base — never merely because upstream moved. A `workflow_dispatch` input `upstream_base` assembles a candidate base without committing it.
+- **CI** (`omp-build`, daily 04:00 UTC + manual dispatch) merges each listed branch with `git merge --no-ff` onto **the pinned base**, builds darwin-arm64 + linux-x64, and publishes release `build-<YYYYMMDDHHMMSS>-<upstream7>-<build7>` as Latest, `<upstream7>` being the pin. Assembly computes the tag and bakes it into both binaries, so `omp --version` prints it on a second line as `github.com/zachbornheimer/oh-my-pi@<tag>`. A scheduled run fails only on a conflict with the pinned base — never merely because upstream moved. A `workflow_dispatch` input `upstream_base` assembles a candidate base without committing it.
 
 Design and history: [references/build-distribution.md](references/build-distribution.md).
 
@@ -85,7 +85,7 @@ Detail, seams and the two working extensions to copy: [references/extensions.md]
    rg -a -c -F '<string only your branch adds>' "$(mise which omp)"   # > 0
    ```
 
-   `omp --version` is NOT proof: an upstream-only build prints the same version. Fleet: the same three lines over `ssh backend.ai`.
+   `omp --version` names the installed release (`github.com/zachbornheimer/oh-my-pi@build-…` on its second line), which proves which build is on the machine but not that a specific branch is in it — grep a branch-only string for that. Fleet: the same three lines over `ssh backend.ai`.
 
 Never use `branches_override` to land anything. A dispatch with a non-empty override publishes a **prerelease**, which mise never installs; it is for experiments only.
 
@@ -146,7 +146,7 @@ Pin a known-good tag in the machine-local `~/.config/mise/config.local.toml` (no
 ```toml
 # ROLLBACK <date>: <why>. Remove once a fixed release is Latest.
 [tools]
-"github:zachbornheimer/oh-my-pi" = "build-<YYYYMMDD>-<upstream7>-<build7>"
+"github:zachbornheimer/oh-my-pi" = "build-<YYYYMMDDHHMMSS>-<upstream7>-<build7>"
 ```
 
 Delete the block and run `mise up github:zachbornheimer/oh-my-pi` to return to Latest. Check `gh release list --repo zachbornheimer/oh-my-pi` for tags; never pin a prerelease.

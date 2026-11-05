@@ -16,7 +16,9 @@ installed on the MBP and every fleet machine by mise. `main` stays a pure upstre
 - Assembles `omp-build` from upstream main + listed branches. Any conflict: fail, publish nothing,
   open/update one GitHub issue naming the branch and files. Previous release stays `latest`.
   An assembled tree identical to the latest release's build commit skips build and release.
-- Release: tag `build-<YYYYMMDD>-<upstream-short-sha>-<build-short-sha>`, marked latest.
+- Release: tag `build-<YYYYMMDDHHMMSS>-<upstream-short-sha>-<build-short-sha>`, marked latest. Assembly computes the
+  tag and bakes it into both binaries (`PI_BUILD_IDENTITY`), so `omp --version` prints `omp/<semver>` then
+  `github.com/zachbornheimer/oh-my-pi@<tag>`, and the welcome banner shows that identity as its version label.
   Assets: `omp-darwin-arm64.tar.gz`, `omp-linux-x64.tar.gz` (each containing a single `omp`), plus `SHA256SUMS`.
 - Install: global mise config `"github:zachbornheimer/oh-my-pi" = { version = "latest", matching = "omp-", minimum_release_age = "0" }`
   (`matching` keeps the `omp-` tarballs and drops `SHA256SUMS`; `bin` would imply a single-file download — wrong for tarballs;
@@ -24,7 +26,8 @@ installed on the MBP and every fleet machine by mise. `main` stays a pure upstre
 - Stable entrypoint `~/.local/bin/omp` → the mise shim, created idempotently on every machine by
   `bin/dev-profile-omp-machine-setup` (`mise run setup`): consumers whose PATH has `~/.local/bin` without the shims dir
   (the capability gateway shells out to plain `omp`) depend on it. Never delete it.
-  Verify: `env -i HOME=$HOME PATH=$HOME/.local/bin:/usr/bin:/bin ~/.local/bin/omp --version`.
+  Verify: `env -i HOME=$HOME PATH=$HOME/.local/bin:/usr/bin:/bin ~/.local/bin/omp --version` — two lines: `omp/<semver>`
+  then the release identity `github.com/zachbornheimer/oh-my-pi@<tag>`.
 - Daily `mise up github:zachbornheimer/oh-my-pi`: macOS LaunchAgent `dev.mise.omp-daily-sync`, Linux systemd `omp-daily-sync.timer`.
 
 ## Removed after cutover (done 2026-11-02)
