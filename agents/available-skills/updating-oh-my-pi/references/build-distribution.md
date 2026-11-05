@@ -28,7 +28,7 @@ installed on the MBP and every fleet machine by mise. `main` stays a pure upstre
   (the capability gateway shells out to plain `omp`) depend on it. Never delete it.
   Verify: `env -i HOME=$HOME PATH=$HOME/.local/bin:/usr/bin:/bin ~/.local/bin/omp --version` — two lines: `omp/<semver>`
   then the release identity `github.com/zachbornheimer/oh-my-pi@<tag>`.
-- Daily `mise up github:zachbornheimer/oh-my-pi`: macOS LaunchAgent `dev.mise.omp-daily-sync`, Linux systemd `omp-daily-sync.timer`.
+- Daily `mise up github:zachbornheimer/oh-my-pi` through `bin/dev-profile-omp-sync`: macOS LaunchAgent `dev.mise.omp-daily-sync`, Linux systemd `omp-daily-sync.timer`. The script drops mise's cached "latest release" response first (a release published minutes ago is otherwise invisible for the cache's lifetime), then fails unless `omp --version` names the release `mise latest` resolved.
 
 ## Removed after cutover (done 2026-11-02)
 

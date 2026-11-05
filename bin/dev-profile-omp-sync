@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Sync the custom omp release, then prove the installed binary is that release.
+#
+# mise caches the GitHub "latest release" response under ~/.cache/mise/github.
+# A release published minutes ago is invisible to `mise up` until that entry
+# expires, so `mise up` can report "up to date" while a newer build exists.
+# Drop the cached response first, upgrade, then require the binary's own
+# identity (`omp --version` second line) to name the release mise resolved.
+set -euo pipefail
+
+repo="github:zachbornheimer/oh-my-pi"
+cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/mise/github"
+entrypoint="${OMP_ENTRYPOINT:-$HOME/.local/bin/omp}"
+
+rm -f "$cache_dir"/*oh-my-pi-latest-*.msgpack.z
+
+latest="$(mise latest "$repo")"
+mise up "$repo"
+
+installed="$("$entrypoint" --version | sed -n '2p')"
+expected="github.com/zachbornheimer/oh-my-pi@$latest"
+if [ "$installed" != "$expected" ]; then
+	echo "omp sync: installed '${installed:-<no identity line>}' but latest is '$expected'" >&2
+	exit 1
+fi
+echo "omp sync: $installed"
