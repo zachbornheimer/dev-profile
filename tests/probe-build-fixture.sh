@@ -15,6 +15,13 @@ set -euo pipefail
 # config (commit hooks, default branch, template hooks).
 export GIT_CONFIG_GLOBAL=/dev/null
 export GIT_CONFIG_SYSTEM=/dev/null
+# Hermetic, part two: no global identity either, so every commit here and the
+# probe's own `git commit-tree` carries this fixed one instead of dying on
+# "unable to auto-detect email address".
+export GIT_AUTHOR_NAME="probe-build fixture"
+export GIT_AUTHOR_EMAIL="fixture@example.invalid"
+export GIT_COMMITTER_NAME="probe-build fixture"
+export GIT_COMMITTER_EMAIL="fixture@example.invalid"
 
 probe="${1:-$(cd "$(dirname "$0")/.." && pwd)/agents/available-skills/updating-oh-my-pi/scripts/probe-build.sh}"
 work="$(cd "$(mktemp -d)" && pwd -P)"
@@ -75,7 +82,7 @@ git init -q --bare "$fork"
 
 seed="$work/seed"
 git init -q -b main "$seed"
-git -C "$seed" -c user.email=t@t -c user.name=t commit -q --allow-empty -m base
+git -C "$seed" commit -q --allow-empty -m base
 git -C "$seed" remote add origin "$origin"
 git -C "$seed" push -q origin main
 base="$(git -C "$seed" rev-parse HEAD)"
@@ -103,16 +110,16 @@ jobs:
         ]
 WORKFLOW
 git -C "$seed" add -A
-git -C "$seed" -c user.email=t@t -c user.name=t commit -q -m ci
+git -C "$seed" commit -q -m ci
 git -C "$seed" push -q fork ci
 git -C "$seed" checkout -q -b feat/one
 printf 'one\n' >"$seed/one.txt"
-git -C "$seed" add -A && git -C "$seed" -c user.email=t@t -c user.name=t commit -q -m one
+git -C "$seed" add -A && git -C "$seed" commit -q -m one
 git -C "$seed" push -q fork feat/one
 git -C "$seed" checkout -q ci
 git -C "$seed" checkout -q -b feat/two
 printf 'two\n' >"$seed/two.txt"
-git -C "$seed" add -A && git -C "$seed" -c user.email=t@t -c user.name=t commit -q -m two
+git -C "$seed" add -A && git -C "$seed" commit -q -m two
 git -C "$seed" push -q fork feat/two
 
 # The checkout the probe runs in, with both remotes configured.
