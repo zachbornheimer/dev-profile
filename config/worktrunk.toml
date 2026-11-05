@@ -116,26 +116,37 @@ if ! git rev-parse --verify -q HEAD >/dev/null 2>&1; then
   exit 1
 fi
 {% endif %}
+stash_before=$(git rev-parse -q --verify refs/stash) || stash_before=
 git stash push -u || exit 1
-id=$(uuidgen) || { git stash pop; exit 1; }
+stash_after=$(git rev-parse -q --verify refs/stash) || stash_after=
+if [ \"$stash_after\" = \"$stash_before\" ]; then
+  echo \"wt tree-for-changes: git stash saved nothing, so there is nothing to move; no worktree created.\" >&2
+  exit 0
+fi
+stash_ref=$(git stash list --format='%gd %H' | awk -v want=\"$stash_after\" '$2 == want { print $1; exit }')
+if [ -z \"$stash_ref\" ]; then
+  echo \"wt tree-for-changes: the stash just created ($stash_after) is not in refs/stash; run 'git stash apply $stash_after' to recover it.\" >&2
+  exit 1
+fi
+id=$(uuidgen) || { git stash pop \"$stash_ref\"; exit 1; }
 id=$(printf '%s' \"$id\" | tr '[:upper:]' '[:lower:]')
-[ -n \"$id\" ] || { git stash pop; exit 1; }
+[ -n \"$id\" ] || { git stash pop \"$stash_ref\"; exit 1; }
 {% if args %}
-if wt switch --create \"$id\" --no-cd -x sh -- -c 'git stash pop && exec \"$@\"' tree-for-changes {{ args }}; then
+if wt switch --create \"$id\" --no-cd -x sh -- -c 'git stash pop \"$1\" && shift && exec \"$@\"' tree-for-changes \"$stash_ref\" {{ args }}; then
   wt switch ^
 else
   status=$?
   if git show-ref --verify --quiet \"refs/heads/$id\"; then
     wt switch \"$id\"
   else
-    git stash pop || true
+    git stash pop \"$stash_ref\" || true
   fi
   exit \"$status\"
 fi
 {% else %}
-if ! wt switch --create \"$id\" -x git -- stash pop; then
+if ! wt switch --create \"$id\" -x git -- stash pop \"$stash_ref\"; then
   status=$?
-  git show-ref --verify --quiet \"refs/heads/$id\" || git stash pop || true
+  git show-ref --verify --quiet \"refs/heads/$id\" || git stash pop \"$stash_ref\" || true
   exit \"$status\"
 fi
 {% endif %}"""
