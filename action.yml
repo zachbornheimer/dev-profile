@@ -41,6 +41,7 @@ runs:
     - name: Install the profile's tools
       shell: bash
       env:
+        ACTION_PATH: ${{ github.action_path }}
         GITHUB_TOKEN: ${{ inputs.github-token }}
         GITHUB_WORKSPACE_PATH: ${{ github.workspace }}
       run: |
@@ -49,7 +50,7 @@ runs:
         for cfg in mise.toml .mise.toml; do
           if [[ -f "${GITHUB_WORKSPACE_PATH}/${cfg}" ]]; then mise trust "${GITHUB_WORKSPACE_PATH}/${cfg}"; fi
         done
-        mise install --yes
+        "${ACTION_PATH}/bin/dev-profile-tools-install"
         # Plain `run:` steps find the tools too, not only `mise run` / `mise x`.
         while IFS= read -r tool_bin; do
           if [[ -d "${tool_bin}" ]]; then echo "${tool_bin}"; fi
