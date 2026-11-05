@@ -133,7 +133,7 @@ When upstream has merged a branch, `git cherry origin/main fork/feat/<slug>` pri
 
 - mise tool (global `~/.config/mise/config.toml`, seeded from dev-profile `config/mise.toml`): `"github:zachbornheimer/oh-my-pi" = { version = "latest", matching = "omp-", minimum_release_age = "0" }`. `minimum_release_age = "0"` because the fork's own CI builds each release; the 24h default would hide every daily build.
 - Stable entrypoint `~/.local/bin/omp` is a symlink to the mise shim, created by `bin/dev-profile-omp-machine-setup` (`mise run setup`). The capability gateway runs plain `omp` with only `~/.local/bin` on PATH: never delete it. Check with `env -i HOME="$HOME" PATH="$HOME/.local/bin:/usr/bin:/bin" ~/.local/bin/omp --version`.
-- Daily update: macOS launchd agent `dev.mise.omp-daily-sync`, Linux systemd user timer `omp-daily-sync.timer`; both run `~/.local/share/dev-profile/bin/dev-profile-omp-sync`, which drops mise's cached "latest release" response (a build published minutes ago is otherwise invisible), runs `mise up github:zachbornheimer/oh-my-pi`, and exits 1 unless `omp --version` names the release mise resolved.
+- Daily update: macOS launchd agent `dev.mise.omp-daily-sync`, Linux systemd user timer `omp-daily-sync.timer`; both run `~/.local/share/dev-profile/bin/dev-profile-omp-sync`, which drops mise's cached "latest release" response (a build published minutes ago is otherwise invisible), runs `mise up github:zachbornheimer/oh-my-pi`, and exits 1 unless `omp --version` names the version mise has active.
 
 ## 7. Upstream pull requests
 
