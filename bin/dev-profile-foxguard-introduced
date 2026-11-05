@@ -10,14 +10,16 @@
 # (`--changed-files-from`, which keeps the scan path as the analysis root so
 # cross-file taint context survives) scans only the named files, in seconds.
 # The one thing it loses is `diff`'s suppression of findings the target already
-# carried for those files, so this helper writes the target's own findings for
-# the same files as a baseline and applies that to the branch's scan: what
-# `diff` would call existing stays suppressed, what the branch introduces does
-# not.
+# carried for those files, so this helper scans the target's own copy of the
+# same files and applies `diff`'s own identity: a finding is its rule, its
+# path, and its snippet, never its line numbers, because edits that only shift
+# lines do not introduce anything. What `diff` would call existing stays
+# suppressed; what the branch introduces does not.
 #
 # Run from the repo root, as hk does, with the files a push introduces.
 # Exits 1 when the branch introduces a finding, 0 when it introduces none, and
-# fails closed with 2 when a scan could not run.
+# fails closed with 2 when a scan could not run or a listed file could not be
+# scanned.
 set -euo pipefail
 
 usage() {
@@ -74,7 +76,7 @@ for file in "${files[@]}"; do
 	printf '%s\n' "${file#./}" >>"${list}"
 done
 
-# The target's own copy of these files, so the baseline is measured with the
+# The target's own copy of these files, so its findings are measured with the
 # same surrounding context the branch's scan sees.
 if ! git -C "${root}" worktree add --detach --quiet "${base}" "${target}" 2>"${work}/worktree.err"; then
 	cat "${work}/worktree.err" >&2
@@ -82,26 +84,89 @@ if ! git -C "${root}" worktree add --detach --quiet "${base}" "${target}" 2>"${w
 	exit 2
 fi
 
-baseline="${work}/baseline.json"
-# A baseline is the target's own findings, so exit 1 here is success; the `||`
-# keeps that status ($? inside `if ! cmd` is the negated one).
-(cd "${base}" && foxguard --rules "${rules}" --changed-files-from "${list}" --write-baseline "${baseline}" --quiet .) >"${work}/base.out" 2>"${work}/base.err" || {
-	status=$?
-	if [[ "${status}" -ne 1 ]]; then
-		cat "${work}/base.err" >&2
-		echo "dev-profile-foxguard-introduced: the scan of ${target} failed" >&2
+# A listed file foxguard skipped — a parse error, unreadable or non-UTF-8
+# content — was never scanned, and a pass would be silence about it: the
+# pack's readiness warnings on stderr start with "Warning", the per-file skip
+# notices with "warning", so the lowercase anchor never matches the report.
+require_fully_scanned() { # require_fully_scanned <err-file> <scan-name>
+	if grep -q '^warning: skipping' "$1"; then
+		cat "$1" >&2
+		echo "dev-profile-foxguard-introduced: a listed file could not be scanned ($2)" >&2
 		exit 2
 	fi
 }
 
-set +e
-(cd "${root}" && foxguard --rules "${rules}" --changed-files-from "${list}" --baseline "${baseline}" .)
-status=$?
-set -e
-case "${status}" in
-0 | 1) exit "${status}" ;;
+base_json="${work}/base.json"
+current_json="${work}/current.json"
+
+# A scan's own findings are its verdict's input, so exit 1 here is success;
+# anything beyond it means the scan itself failed.
+base_status=0
+(cd "${base}" && foxguard --rules "${rules}" --changed-files-from "${list}" --format json --quiet .) >"${base_json}" 2>"${work}/base.err" || base_status=$?
+require_fully_scanned "${work}/base.err" "the scan of ${target}"
+case "${base_status}" in
+0 | 1) ;;
 *)
-	echo "dev-profile-foxguard-introduced: the scan of the branch failed (exit ${status})" >&2
+	cat "${work}/base.err" >&2
+	echo "dev-profile-foxguard-introduced: the scan of ${target} failed" >&2
+	exit 2
+	;;
+esac
+
+current_status=0
+(cd "${root}" && foxguard --rules "${rules}" --changed-files-from "${list}" --format json --quiet .) >"${current_json}" 2>"${work}/current.err" || current_status=$?
+require_fully_scanned "${work}/current.err" "the scan of the branch"
+case "${current_status}" in
+0 | 1) ;;
+*)
+	echo "dev-profile-foxguard-introduced: the scan of the branch failed (exit ${current_status})" >&2
+	exit 2
+	;;
+esac
+
+# What the branch introduces is what `diff` would introduce: a finding of the
+# same rule on the same path with the same snippet is existing, whatever the
+# scan's line and column numbers say, because edits that only shift lines do
+# not introduce anything.
+set +e
+python3 - "${base_json}" "${current_json}" >"${work}/introduced.txt" <<'PY'
+import json
+import sys
+
+base_findings = json.load(open(sys.argv[1]))["findings"]
+current_findings = json.load(open(sys.argv[2]))["findings"]
+
+
+def identity(finding):
+    return (
+        finding["rule_id"],
+        finding["file"].removeprefix("./"),
+        finding["snippet"].strip(),
+    )
+
+
+existing = {identity(f) for f in base_findings}
+introduced = [f for f in current_findings if identity(f) not in existing]
+for f in introduced:
+    path = identity(f)[1]
+    print(f"./{path}:{f['line']}:{f['column']}  [{f['severity'].lower()}]  {f['rule_id']}")
+    print(f"\t{f['snippet'].strip()}")
+print(f"introduced {len(introduced)} finding{'s' if introduced else ''}")
+sys.exit(1 if introduced else 0)
+PY
+compare=$?
+set -e
+case "${compare}" in
+0)
+	cat "${work}/introduced.txt"
+	exit 0
+	;;
+1)
+	cat "${work}/introduced.txt"
+	exit 1
+	;;
+*)
+	echo "dev-profile-foxguard-introduced: could not compare the scans" >&2
 	exit 2
 	;;
 esac

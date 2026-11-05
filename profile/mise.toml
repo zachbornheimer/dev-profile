@@ -34,3 +34,7 @@ trusted_config_paths = ["~/Zysys", "~/Developer"]
 
 [settings.status]
 show_deps_stale = false
+
+[tools]
+aube = { version = "latest", workflow = ["release-plz.yml@refs/heads/main", "release.yml@refs/heads/main"] }
+bun = "latest"
