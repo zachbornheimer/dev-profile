@@ -1173,6 +1173,8 @@ drop_planned_one() {
 drop_worktree_one() {
 	local path="$1" branch="$2" locked="$3"
 	[[ "${path}" == "${primary}" ]] && return 0
+	# Registration whose directory is gone (made on another machine): no work lives here; the branch is still checked by drop_branch_one.
+	[[ -d "${path}" ]] || return 0
 	if [[ "${do_prune}" != true ]]; then
 		printf '%s\n' "linked worktree ${path}; pass --prune" >>"${state}/blockers"
 		return 0
@@ -1291,6 +1293,8 @@ fi
 report clone "${clone}"
 
 restore_submodules
+# Worktree registrations whose directory is missing hold no local work; clear them so later steps never cd into them.
+if [[ "${dry_run}" == false ]]; then with_lock config git worktree prune; fi
 write_worktrees
 restore_worktrees
 commit_worktrees
