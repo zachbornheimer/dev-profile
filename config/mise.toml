@@ -189,7 +189,6 @@ recipients = ["age1qpl3tghy0660prmvz3x2dqjsn69m588e0j0v56ec0rswkujgyshs64dhtc"]
 "~/.omp/agent/extensions/machine-host-context.ts" = { mode = "track", encrypt = true }
 "~/.omp/agent/extensions/pending-decisions.ts" = { mode = "track", encrypt = true }
 "~/.omp/agent/extensions/run-agent-hooks.ts" = { mode = "track", encrypt = true }
-"~/.omp/agent/extensions/semgrep-guardian.ts" = { mode = "track", encrypt = true }
 "~/.omp/agent/extensions/superset-hooks.ts" = { mode = "track", encrypt = true }
 "~/.omp/agent/extensions/undo-clear.ts" = { mode = "track", encrypt = true }
 "~/.profile" = { mode = "track", encrypt = true }
