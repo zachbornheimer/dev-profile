@@ -1,7 +1,7 @@
 ---
 name: updating-oh-my-pi
-description: Use for anything about omp itself — landing a branch into the custom omp build (fork zachbornheimer/oh-my-pi), adding or removing a branch from that build, fixing a failed omp-build run or conflict issue, installing, updating, verifying or rolling back omp via mise on the Mac and the fleet, making an upstream PR to can1357/oh-my-pi, or when the user wants personal omp behavior (a slash command, a transcript hide, a presentation toggle, a session hook, "an omp command" such as /thinking or /calm) or is about to edit oh-my-pi, packages/coding-agent or packages/tui for something they want for themselves. Personal omp behavior is an extension in ~/.config/omp/, listed in ~/.omp/agent/config.yml; do not modify the omp repo for that. Not for a Pi extension.
-user-invokable: true
+description: Use for anything about omp itself — landing a branch into the custom omp build (fork zachbornheimer/oh-my-pi), adding or removing a branch from that build, fixing a failed omp-build run or conflict issue, installing, updating, verifying or rolling back omp via mise on the Mac and the fleet, making an upstream PR to can1357/oh-my-pi, or when the user wants personal omp behavior (a slash command, a transcript hide, a presentation toggle, a session hook, "an omp command" such as /thinking or /calm) or is about to edit oh-my-pi, packages/coding-agent or packages/tui for something they want for themselves. Personal omp behavior is an extension in ~/.config/omp/, listed in ~/.omp/agent/config.yml; do not modify the omp repo for that. Not for a Pi extension. Not for a tool that agents call (a new tool for omp, a tool in the zab-ai package, a native omp tool, an MCP gateway tool): that is the creating-new-tools skill.
+  user-invokable: true
 ---
 
 # oh-my-pi: extensions, landing branches, install
@@ -11,11 +11,13 @@ The `omp` you run is **the pinned upstream base + an ordered list of topic branc
 - Checkout: `~/Developer/Personal/oh-my-pi`. Remotes: **`origin`** = upstream `can1357/oh-my-pi`, **`fork`** = `zachbornheimer/oh-my-pi`.
 - **`main` is a read-only upstream mirror.** Never commit, merge or push to it. A GitHub ruleset, the local reference-transaction hook (installed by `bin/dev-profile-omp-machine-setup`) and `pretooluse-omp-main-branch-guard` all refuse it. Do not bypass them.
 - **The branch list** is the `BRANCH_MANIFEST` block in `.github/workflows/omp-build.yml` (a JSON array of `{ "branch": ..., "reason": ... }` entries, merged in order) on the fork's default branch **`ci`**, which holds only that workflow, `.github/omp-upstream.txt` (the pinned base) and `scripts/omp-build/resolve-branches.ts` (the single parser of the manifest).
-- **CI** (`omp-build`, daily 04:00 UTC + manual dispatch) merges each listed branch with `git merge --no-ff` onto **the pinned base**, builds darwin-arm64 + linux-x64, and publishes release `build-<YYYYMMDD>-<upstream7>-<build7>` as Latest, `<upstream7>` being the pin. A scheduled run fails only on a conflict with the pinned base — never merely because upstream moved. A `workflow_dispatch` input `upstream_base` assembles a candidate base without committing it.
+- **CI** (`omp-build`, daily 04:00 UTC + manual dispatch) merges each listed branch with `git merge --no-ff` onto **the pinned base**, builds darwin-arm64 + linux-x64, and publishes release `build-<YYYYMMDDHHMMSS>-<upstream7>-<build7>` as Latest, `<upstream7>` being the pin. Assembly computes the tag and bakes it into both binaries, so `omp --version` prints it on a second line as `github.com/zachbornheimer/oh-my-pi@<tag>`. A scheduled run fails only on a conflict with the pinned base — never merely because upstream moved. A `workflow_dispatch` input `upstream_base` assembles a candidate base without committing it.
 
 Design and history: [references/build-distribution.md](references/build-distribution.md).
 
-## First: is this personal behavior or a change to omp itself?
+## First: is this a tool agents call, personal behavior, or a change to omp itself?
+
+**A tool that agents call is not an extension here.** "A new tool for omp", "add it to the zab-ai package", "expose it over MCP", and "make this a native omp tool" belong to the `creating-new-tools` skill (§0 and §4.1): the logic goes in `@zab-ai/ai`, with a Mastra mount and, if it must be native, an adapter in `mastra/adapters/omp/zab-ai-tools`. Use this skill for what the user triggers or sees (a command, a hide, a toggle, a hook), or for the omp build itself. A request can need both: build the tool there and its command here, and keep one copy of the logic.
 
 **Personal behavior is an extension in `~/.config/omp/`.** The omp repo is not the place for a command or a hide the user wants for themselves. If the user explicitly says to change omp itself, or names an omp bug in the product, edit the repo and land it like any other branch (§2). Otherwise stop and write an extension (§1).
 
@@ -85,7 +87,7 @@ Detail, seams and the two working extensions to copy: [references/extensions.md]
    rg -a -c -F '<string only your branch adds>' "$(mise which omp)"   # > 0
    ```
 
-   `omp --version` is NOT proof: an upstream-only build prints the same version. Fleet: the same three lines over `ssh backend.ai`.
+   `omp --version` names the installed release (`github.com/zachbornheimer/oh-my-pi@build-…` on its second line), which proves which build is on the machine but not that a specific branch is in it — grep a branch-only string for that. Fleet: the same three lines over `ssh backend.ai`.
 
 Never use `branches_override` to land anything. A dispatch with a non-empty override publishes a **prerelease**, which mise never installs; it is for experiments only.
 
@@ -133,7 +135,7 @@ When upstream has merged a branch, `git cherry origin/main fork/feat/<slug>` pri
 
 - mise tool (global `~/.config/mise/config.toml`, seeded from dev-profile `config/mise.toml`): `"github:zachbornheimer/oh-my-pi" = { version = "latest", matching = "omp-", minimum_release_age = "0" }`. `minimum_release_age = "0"` because the fork's own CI builds each release; the 24h default would hide every daily build.
 - Stable entrypoint `~/.local/bin/omp` is a symlink to the mise shim, created by `bin/dev-profile-omp-machine-setup` (`mise run setup`). The capability gateway runs plain `omp` with only `~/.local/bin` on PATH: never delete it. Check with `env -i HOME="$HOME" PATH="$HOME/.local/bin:/usr/bin:/bin" ~/.local/bin/omp --version`.
-- Daily update: macOS launchd agent `dev.mise.omp-daily-sync`, Linux systemd user timer `omp-daily-sync.timer`; both run `mise up github:zachbornheimer/oh-my-pi`.
+- Daily update: macOS launchd agent `dev.mise.omp-daily-sync`, Linux systemd user timer `omp-daily-sync.timer`; both run `~/.local/share/dev-profile/bin/dev-profile-omp-sync`, which drops mise's cached "latest release" response (a build published minutes ago is otherwise invisible), runs `mise up github:zachbornheimer/oh-my-pi`, and exits 1 unless `omp --version` names the version mise has active.
 
 ## 7. Upstream pull requests
 
@@ -146,7 +148,7 @@ Pin a known-good tag in the machine-local `~/.config/mise/config.local.toml` (no
 ```toml
 # ROLLBACK <date>: <why>. Remove once a fixed release is Latest.
 [tools]
-"github:zachbornheimer/oh-my-pi" = "build-<YYYYMMDD>-<upstream7>-<build7>"
+"github:zachbornheimer/oh-my-pi" = "build-<YYYYMMDDHHMMSS>-<upstream7>-<build7>"
 ```
 
 Delete the block and run `mise up github:zachbornheimer/oh-my-pi` to return to Latest. Check `gh release list --repo zachbornheimer/oh-my-pi` for tags; never pin a prerelease.
