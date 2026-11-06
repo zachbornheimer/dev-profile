@@ -4,9 +4,3 @@
 "github:rohansx/workz" = "0.11.0"
 "npm:@agentclientprotocol/codex-acp" = "2.1.1"
 "npm:@agentclientprotocol/claude-agent-acp" = "0.88.0"
-# bin/dev-profile-mise-history-repair files and drives atask objectives, and
-# tests/mise-history-watchdog-repair-fixture.sh drives that script, so the task
-# engine is a dependency of this profile, not only of the machine. atask
-# publishes a build per commit, so the release-age gate has to be open here or
-# `latest` never resolves to an eligible version.
-"github:zachbornheimer/ai-task" = { version = "latest", minimum_release_age = "0" }

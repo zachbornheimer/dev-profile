@@ -22,4 +22,9 @@ shellcheck = "0.11.0"
 # The task tracker. bin/dev-profile-mise-history-watchdog hands a failure it cannot
 # heal to one atask objective, and the doctor fixture drives that path; the asset
 # is named atask-<ver>, not ai-task-<ver>, so the pin carries the matching pattern.
+# bin/dev-profile-mise-history-repair files and drives atask objectives too, and
+# tests/mise-history-watchdog-repair-fixture.sh drives that script. atask publishes
+# a build per commit, so the release-age gate is open here or `latest` never
+# resolves to an eligible version. This is the only ai-task pin in the profile;
+# languages/agents/tools.toml carried a second, unmatched one.
 "github:zachbornheimer/ai-task" = { version = "latest", matching = "atask-", minimum_release_age = "0" }
