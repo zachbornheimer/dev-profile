@@ -321,6 +321,8 @@ local gates = new Mapping<String, Step> {
   // a project directory, never a lockfile: both wrappers scan each file from the root that
   // holds it, so an app below the repo root is scanned as its own project. Both read a
   // whole application, so both are exclusive.
+  // brakeman blocks only on warnings the push introduces over the merge base: whole-app warnings (EOLRails)
+  // are printed as pre-existing and never fail a push (tests/brakeman-fixture.sh).
   ["brakeman"] {
     check = "dev-profile-brakeman {{files}}"
     glob =
