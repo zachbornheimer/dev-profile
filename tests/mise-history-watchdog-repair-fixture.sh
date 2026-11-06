@@ -39,7 +39,10 @@ export ATASK_DB="$work/atask.db"
 export ATASK_OUTPUT=json
 
 # --- stubs ------------------------------------------------------------------
-printf '%s\n' '#!/usr/bin/env bash' 'case "$*" in' '"dot status") cat "$MISE_STATUS" ;;' 'esac' 'exit 0' >"$work/bin/mise"
+printf '%s\n' '#!/usr/bin/env bash' 'case "$*" in' '"dot status") cat "$MISE_STATUS" ;;' \
+	'"dot paths") printf "%s\n" "~/.zshrc    track  default      1  ~/.config/mise/config.toml" "~/.gitconfig  track  manual-save  1  ~/.config/mise/config.toml" ;;' \
+	'"dot save "*) printf "%s\n" "$*" >>"$MISE_SAVE_CALLS"; [ -z "${FAKE_SAVE_FAIL:-}" ] || exit 1 ;;' \
+	'esac' 'exit 0' >"$work/bin/mise"
 printf '%s\n' '#!/usr/bin/env bash' 'printf "%s\\n" "$*" >>"$NOTIFY_CALLS"' >"$work/bin/notify"
 printf '%s\n' '#!/usr/bin/env bash' 'exit 0' >"$work/bin/launchctl"
 printf '%s\n' '#!/usr/bin/env bash' 'exit 1' >"$work/bin/pgrep"
@@ -82,6 +85,7 @@ export MISE_HISTORY_REPAIR_STATE="$work/state"
 export SPAWN_CALLS="$work/spawn-calls"
 export NOTIFY_CALLS="$work/notify-calls"
 export MISE_STATUS="$work/status"
+export MISE_SAVE_CALLS="$work/mise-save-calls"
 export SYSTEMCTL_CALLS="$work/systemctl-calls"
 export SYSTEMD_RUN_CALLS="$work/systemd-run-calls"
 # The sections below run as a Mac; the Linux section switches the OS itself.
@@ -279,5 +283,27 @@ fi
 grep -q 'mise history watchdog' "$NOTIFY_CALLS" || fail "the Linux notification has no title: $(cat "$NOTIFY_CALLS")"
 export MISE_HISTORY_WATCHDOG_OS=Darwin
 unset XDG_STATE_HOME
+
+# --- manual-save files are saved once a day, and only those ------------------
+reset
+healthy
+stamp="$HOME/Library/Logs/manual-save.stamp"
+rm -f "$stamp"
+: >"$MISE_SAVE_CALLS"
+tick 'first daily save'
+[ "$(cat "$MISE_SAVE_CALLS")" = 'dot save ~/.gitconfig' ] || fail "only the manual-save file should be saved, got: $(cat "$MISE_SAVE_CALLS")"
+[ -e "$stamp" ] || fail 'a successful daily save left no stamp'
+: >"$MISE_SAVE_CALLS"
+tick 'second tick within a day'
+[ ! -s "$MISE_SAVE_CALLS" ] || fail "a save ran again inside 24h: $(cat "$MISE_SAVE_CALLS")"
+touch -t 202001010000 "$stamp"
+tick 'a day later'
+[ "$(cat "$MISE_SAVE_CALLS")" = 'dot save ~/.gitconfig' ] || fail "a stale stamp did not trigger the save: $(cat "$MISE_SAVE_CALLS")"
+# A failed save keeps the stamp stale so the next tick retries it.
+touch -t 202001010000 "$stamp"
+: >"$MISE_SAVE_CALLS"
+FAKE_SAVE_FAIL=1 tick 'failing daily save'
+grep -q 'daily save of ~/.gitconfig failed' "$log" || fail "the failed save was not logged: $(cat "$log")"
+[ "$(date -r "$stamp" +%Y)" = 2020 ] || fail 'a failed save renewed the stamp, so it would not be retried'
 
 echo 'mise history watchdog repair: ok'
