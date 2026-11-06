@@ -44,7 +44,9 @@
     "**/*.generated.*",
     "**/*.min.*",
     "**/*.map",
-    "**/*.snap"
+    "**/*.snap",
+    // bats `@test` blocks are not shell syntax, so the sh plugin fails to parse them
+    "**/*.bats"
   ],
   "exec": {
     "cwd": "${configDir}",
