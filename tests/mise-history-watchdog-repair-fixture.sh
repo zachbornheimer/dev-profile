@@ -261,6 +261,12 @@ tick 'linux frozen watcher'
 grep -q -- '--user restart dev.mise.mise-history.service' "$SYSTEMCTL_CALLS" || fail "a frozen watcher was not restarted through systemd: $(cat "$SYSTEMCTL_CALLS")"
 grep -q 'watcher health frozen 900s' "$linux_log" || fail 'the restart was not logged'
 
+# mise reports a long freeze in minutes ("54m ago"); that must read as 3240s, not as no reading.
+printf '%s\n' '✓ 100 entries up to date (`--verbose` lists them all)' '  watcher health (updated 54m ago): last capture 2026-11-04 18:00' >"$MISE_STATUS"
+: >"$SYSTEMCTL_CALLS"
+tick 'linux watcher frozen for minutes'
+grep -q 'watcher health frozen 3240s' "$linux_log" || fail "a watcher frozen for 54m was not restarted: $(cat "$linux_log")"
+
 # A transient unit that cannot be created reaches the user as a plain notification.
 reset
 rm -rf "$XDG_STATE_HOME"
