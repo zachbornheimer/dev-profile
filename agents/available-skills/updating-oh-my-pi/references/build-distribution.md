@@ -4,16 +4,23 @@ Accepted 2026-11-02 (user: "perfect. please proceed with this approach").
 
 ## Goal
 
-One custom `omp` = upstream `can1357/oh-my-pi` main + the topic branches listed in the `BRANCH_MANIFEST`
-block of `.github/workflows/omp-build.yml` (branch `ci`), built once in GitHub Actions on `zachbornheimer/oh-my-pi`,
-installed on the MBP and every fleet machine by mise. `main` stays a pure upstream mirror.
+One custom `omp` = fork `main` (an exact fast-forward mirror of upstream `can1357/oh-my-pi` main) + the topic branches
+listed in the `BRANCH_MANIFEST` block of `.github/workflows/omp-build.yml` (branch `ci`), built once in GitHub Actions
+on `zachbornheimer/oh-my-pi`, installed on the MBP and every fleet machine by mise. `main` holds nothing upstream
+lacks; `ci` holds only the workflow, the resolver, and a README.
+
+Revised 2026-11-06 (user: "we should not pin upstream, it should use our main"): the earlier design pinned a
+40-hex upstream SHA in `.github/omp-upstream.txt` on `ci` and assembled onto that. The pin let topic branches rot
+against upstream for weeks without any signal and left a full upstream source tree on `ci`. Replaced by: base =
+fork `main`, advanced only by `scripts/sync-fork-main.sh`; `ci` stripped to build machinery; the assembly fails
+loudly when `main` holds a commit upstream lacks.
 
 ## Contract
 
 - Workflow: `.github/workflows/omp-build.yml` on the fork's default branch `ci` (scheduled workflows only run
   from the default branch; `main` stays the mirror), `schedule` daily 04:00 UTC + `workflow_dispatch`
   (input `branches_override`: comma list, empty string = no branches).
-- Assembles `omp-build` from upstream main + listed branches. Any conflict: fail, publish nothing,
+- Assembles `omp-build` from fork `main` + listed branches. Any conflict: fail, publish nothing,
   open/update one GitHub issue naming the branch and files. Previous release stays `latest`.
   An assembled tree identical to the latest release's build commit skips build and release.
 - Release: tag `build-<YYYYMMDDHHMMSS>-<upstream-short-sha>-<build-short-sha>`, marked latest. Assembly computes the
@@ -43,5 +50,6 @@ installed on the MBP and every fleet machine by mise. `main` stays a pure upstre
 
 ## Open
 
-Five listed branches conflict with current upstream (a stack topped by `feat/browser-aria-ref-delegation`, plus
-`omp-neon-sessions`); tracked in ZYS-2206 and fork issue #1. Until it lands, releases contain no custom branches.
+Nine listed branches were one stack on a base ~700 upstream commits old and conflict with current upstream
+on the same ~18 files (tracked in ZYS-2206 and fork issue #1). The pin hid this; basing the build on a
+current fork `main` surfaces it. Until the stack is merged forward, releases contain no custom branches.
