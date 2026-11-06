@@ -578,17 +578,25 @@ rebase, and rerun verification. Never overwrite another tool's registration.
 
 ### 8.1 Landing a native tool branch in the oh-my-pi fork
 
-One branch per tool, named `tools/<name>`. Register it for auto-build with the
-fork's command instead of editing workflow files by hand:
+One branch per tool, named `tools/<name>`. The fork's default branch is `ci`;
+`main` is a read-only mirror of upstream and is never pushed. The branches CI
+assembles into the custom omp build are listed, with a reason each, in the
+`BRANCH_MANIFEST` JSON array in `.github/workflows/omp-build.yml` on `ci`.
+
+1. Push the tool branch to the `fork` remote first, never `origin`. A listed
+   branch that is missing from `fork` fails the whole assembly, and the command
+   refuses to add one.
+2. From a checkout of `ci`, register it with the command, not by hand:
 
 ```sh
-bun run ci:branch -- add tools/<name> --reason "<why this branch is built>"
-bun run ci:branch -- check
+bun scripts/omp-build/branches.ts add tools/<name> --reason "<why this branch is built>"
+bun scripts/omp-build/branches.ts check
+bun scripts/omp-build/branches.ts list
 ```
 
-The command writes `.github/ci-branches.yaml` (branch, reason, trigger) and
-rewrites only the `branches:` lines in `.github/workflows/ci.yml`. Commit signed
-with a conventional subject, then push to the `fork` remote, never `origin`.
+`add` appends one `{branch, reason}` entry at the end (entries merge in listed
+order), editing only the lines it needs. Commit it signed with a conventional
+subject and push `ci` to `fork`.
 
 ## Definition of done
 
@@ -604,7 +612,7 @@ Before reporting completion, verify all of the following:
   verified. Discovery tests cover both selection and non-selection.
 - A native custom tool loads under omp's own `pi.zod`, was called from a fresh
   pane agent that could not fall back to a Mastra twin, and its branch is
-  registered with `ci:branch` and pushed to `fork` (§4.2, §7.8, §8.1).
+  registered with `branches.ts add` on `ci` and pushed to `fork` (§4.2, §7.8, §8.1).
 - PR merged, required CI green, and the implementation is confirmed on `main`.
 
 Report the merged PR/commit, capability name, meaningful tests performed,
