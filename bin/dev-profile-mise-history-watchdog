@@ -123,7 +123,9 @@ fi
 # 2. Wedged watcher: the health line stops updating when the internal loop
 # is stuck; restart the service BEFORE clearing locks so a fresh watcher's
 # own locks are never removed. `mise dot status` is read-only.
-health=$("$MISE_BIN" dot status 2>/dev/null | sed -n 's/.*watcher health (updated \([0-9]*\)s ago).*/\1/p' | head -1)
+# mise prints the age as 13s, 54m or 2h; a frozen watcher reads in minutes, so every unit becomes seconds.
+health=$("$MISE_BIN" dot status 2>/dev/null | sed -n 's/.*watcher health (updated \([0-9]*[smhd]\) ago).*/\1/p' | head -1 |
+	awk '{ n = $0 + 0; u = substr($0, length($0)); print n * (u == "m" ? 60 : u == "h" ? 3600 : u == "d" ? 86400 : 1) }')
 if [ -n "${health:-}" ] && [ "$health" -ge 600 ] 2>/dev/null; then
 	restart_service
 	log "watcher health frozen ${health}s; restarted $SERVICE"
