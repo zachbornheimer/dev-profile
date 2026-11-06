@@ -12,7 +12,10 @@ set -euo pipefail
 #   4. Sync conflicts silently block ALL publishing while local checkpoints
 #      pile up unpublished.
 #
-# Runs every 5 minutes via the mise-history-watchdog LaunchAgent. Heals 1-3
+# Runs every 5 minutes on every machine that runs the watcher: the
+# mise-history-watchdog LaunchAgent on macOS, the dev.mise.mise-history-watchdog
+# systemd user timer on Linux (both declared in the global mise config, which the
+# history sync carries to each machine). Heals 1-3
 # itself, and hands 4-5 to a worker run: each failure it cannot clear files one
 # atask objective and spawns one `start_atask_task` run on it
 # (dev-profile-mise-history-repair). A person is notified only when no worker
@@ -23,23 +26,64 @@ set -euo pipefail
 # with launchd's minimal PATH, and a caller that already resolved its own (a fixture's
 # stubs, Homebrew on another prefix) keeps them. Replacing PATH broke the fixture's
 # stubs, and on a runner without launchctl the `launchctl list` pipeline failed the
-# whole tick under set -e + pipefail.
-export PATH="$HOME/.local/share/mise/shims:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:${PATH:-/usr/bin:/bin}"
+# whole tick under set -e + pipefail. The fixture may also put its stubs (launchctl,
+# systemctl, pgrep) in front through MISE_HISTORY_WATCHDOG_PATH_PREFIX.
+export PATH="${MISE_HISTORY_WATCHDOG_PATH_PREFIX:+$MISE_HISTORY_WATCHDOG_PATH_PREFIX:}$HOME/.local/share/mise/shims:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:${PATH:-/usr/bin:/bin}"
 
-LOG="$HOME/Library/Logs/mise-history-watchdog.log"
+# One script for every machine that runs `mise dot watch`: a LaunchAgent on macOS, a
+# systemd user timer on the Linux fleet boxes. The OS override lets the fixture drive
+# both branches from one machine.
+OS="${MISE_HISTORY_WATCHDOG_OS:-$(uname -s)}"
+case "$OS" in
+Darwin) LOG_DIR_DEFAULT="$HOME/Library/Logs" ;;
+*) LOG_DIR_DEFAULT="${XDG_STATE_HOME:-$HOME/.local/state}/mise-history-watchdog" ;;
+esac
+# The repair script writes its spawn log beside this one.
+export MISE_HISTORY_LOG_DIR="${MISE_HISTORY_LOG_DIR:-$LOG_DIR_DEFAULT}"
+mkdir -p "$MISE_HISTORY_LOG_DIR"
+LOG="$MISE_HISTORY_LOG_DIR/mise-history-watchdog.log"
 HIST_DIR="$HOME/.local/state/mise/history"
 SERVICE="dev.mise.mise-history"
+SERVICE_UNIT="$SERVICE.service"
 MY_UID=$(id -u)
 # Overridable so the fixture can drive every branch with stubs; the machine uses
 # what the LaunchAgent's PATH and this directory resolve.
 MISE_BIN="${MISE_HISTORY_WATCHDOG_MISE:-mise}"
 HEAL="${MISE_HISTORY_WATCHDOG_HEAL:-$(dirname "$0")/dev-profile-mise-dot-encryption-heal}"
 REPAIR="${MISE_HISTORY_WATCHDOG_REPAIR:-$(dirname "$0")/dev-profile-mise-history-repair}"
-NOTIFY="${MISE_HISTORY_WATCHDOG_NOTIFY:-osascript}"
+NOTIFY="${MISE_HISTORY_WATCHDOG_NOTIFY:-}"
 # Set by escalate; a tick that escalated nothing clears the repair ledger.
 escalated=0
 
 log() { printf '%s %s\n' "$(date '+%F %T')" "$*" >>"$LOG"; }
+
+# A desktop notification on a Mac. A fleet box has no desktop, so the stderr line
+# (the systemd journal) is the record there and notify-send is only a bonus.
+notify_user() {
+	local title="$1" body="$2"
+	case "$OS" in
+	Darwin) "${NOTIFY:-osascript}" -e "display notification \"$body\" with title \"$title\"" >/dev/null 2>&1 || true ;;
+	*)
+		printf '%s: %s\n' "$title" "$body" >&2
+		"${NOTIFY:-notify-send}" "$title" "$body" >/dev/null 2>&1 || true
+		;;
+	esac
+}
+
+# The pid the service manager owns for the watcher; empty when it owns none.
+service_pid() {
+	case "$OS" in
+	Darwin) launchctl list 2>/dev/null | awk -v s="$SERVICE" '$3 == s && $1 != "-" {print $1}' | head -1 || true ;;
+	*) systemctl --user show -p MainPID --value "$SERVICE_UNIT" 2>/dev/null | awk '$1 > 0 {print $1}' | head -1 || true ;;
+	esac
+}
+
+restart_service() {
+	case "$OS" in
+	Darwin) launchctl kickstart -k "gui/$MY_UID/$SERVICE" 2>/dev/null || true ;;
+	*) systemctl --user restart "$SERVICE_UNIT" 2>/dev/null || true ;;
+	esac
+}
 
 # An unfixable failure becomes one atask objective with one worker run on it.
 # The repair script keeps the attempt ledger and answers a verdict; this decides
@@ -61,17 +105,17 @@ escalate() {
 	body="cannot fix $class automatically: ${detail:0:60} — ${reason:0:150}"
 	body="${body//\"/}"
 	log "$class: needs a person — ${reason:0:150}"
-	"$NOTIFY" -e "display notification \"${body:0:240}\" with title \"mise history watchdog\"" >/dev/null 2>&1 || true
+	notify_user "mise history watchdog" "${body:0:240}"
 	return 0
 }
 
-# 1. Duplicate watchers: keep the launchd-owned pid, kill every other.
-main_pid=$(launchctl list 2>/dev/null | awk -v s="$SERVICE" '$3 == s {print $1}' | head -1)
-if [ -n "${main_pid:-}" ] && [ "$main_pid" != "-" ]; then
+# 1. Duplicate watchers: keep the service-manager-owned pid, kill every other.
+main_pid=$(service_pid)
+if [ -n "${main_pid:-}" ]; then
 	for pid in $(pgrep -f 'mise dot watch' || true); do
 		if [ "$pid" != "$main_pid" ]; then
 			kill "$pid" 2>/dev/null || true
-			log "killed duplicate watcher pid $pid (launchd owns $main_pid)"
+			log "killed duplicate watcher pid $pid (the service manager owns $main_pid)"
 		fi
 	done
 fi
@@ -81,7 +125,7 @@ fi
 # own locks are never removed. `mise dot status` is read-only.
 health=$("$MISE_BIN" dot status 2>/dev/null | sed -n 's/.*watcher health (updated \([0-9]*\)s ago).*/\1/p' | head -1)
 if [ -n "${health:-}" ] && [ "$health" -ge 600 ] 2>/dev/null; then
-	launchctl kickstart -k "gui/$MY_UID/$SERVICE" 2>/dev/null || true
+	restart_service
 	log "watcher health frozen ${health}s; restarted $SERVICE"
 fi
 
@@ -92,7 +136,8 @@ fi
 for lock in operation sync.lock; do
 	f="$HIST_DIR/$lock"
 	[ -e "$f" ] || continue
-	lock_age=$(($(date +%s) - $(stat -f %m "$f")))
+	# `date -r FILE` prints the file's mtime on both BSD and GNU date; `stat` does not agree across them.
+	lock_age=$(($(date +%s) - $(date -r "$f" +%s)))
 	if [ "$lock_age" -ge 600 ]; then
 		rm -f "$f"
 		log "removed stale $lock (${lock_age}s old)"
@@ -126,8 +171,9 @@ fi
 # 10:42 to 17:52 without repairing anything. Report whatever error the status
 # carries, not just the literal "conflict(s)" (the status boilerplate mentions
 # "sync conflicts" unconditionally and must not trigger this). A worker run gets
-# the failure first; resolving a conflict, or publishing over a secret-scan
-# refusal, still reaches the user whenever the worker cannot.
+# the failure first and resolves a conflict itself (both versions rescued first);
+# the user hears of it only when the worker cannot start, runs out of attempts,
+# or meets a secret-scan refusal that needs a person.
 status="$("$MISE_BIN" dot status 2>/dev/null || true)"
 stall="$(sed -n 's/.*✗ last error: //p' <<<"$status" | head -1)"
 if [ -z "$stall" ] && grep -q 'conflict(s)' <<<"$status"; then
