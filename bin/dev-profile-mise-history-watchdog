@@ -186,6 +186,27 @@ if [ -n "$stall" ]; then
 	escalate publishing-blocked "$stall"
 fi
 
+# 6. Manual-save files (autosave = false, like ~/.gitconfig, which tools rewrite
+# constantly) never reach history on their own. Save each one once every 24
+# hours so history is never more than a day behind. The stamp is only renewed
+# when every save succeeded, so a failed save is retried on the next tick.
+MANUAL_SAVE_STAMP="$MISE_HISTORY_LOG_DIR/manual-save.stamp"
+MANUAL_SAVE_EVERY_S="${MISE_HISTORY_MANUAL_SAVE_EVERY_S:-86400}"
+stamp_age=$MANUAL_SAVE_EVERY_S
+[ ! -e "$MANUAL_SAVE_STAMP" ] || stamp_age=$(($(date +%s) - $(date -r "$MANUAL_SAVE_STAMP" +%s)))
+if [ "$stamp_age" -ge "$MANUAL_SAVE_EVERY_S" ]; then
+	manual_ok=1
+	while read -r manual_path; do
+		[ -n "$manual_path" ] || continue
+		# Only a failure is logged: a day's success is the new checkpoint in `mise dot history`.
+		if ! "$MISE_BIN" dot save "$manual_path" >/dev/null 2>&1; then
+			log "daily save of $manual_path failed"
+			manual_ok=0
+		fi
+	done < <("$MISE_BIN" dot paths 2>/dev/null | awk '$2 == "track" && $3 == "manual-save" {print $1}')
+	[ "$manual_ok" = 1 ] && touch "$MANUAL_SAVE_STAMP"
+fi
+
 # A tick that escalated nothing clears the attempt ledger, so a failure that
 # returns later starts a fresh budget instead of inheriting an exhausted one.
 if [ "$escalated" = 0 ]; then
