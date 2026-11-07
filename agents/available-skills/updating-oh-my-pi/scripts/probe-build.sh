@@ -1,25 +1,25 @@
 #!/usr/bin/env bash
 # probe-build.sh: run the omp-build assembly locally, the way CI merges it.
 #
-# Merges the pinned upstream base plus the fork's configured branch list
+# Merges the fork's main plus the fork's configured branch list
 # (the BRANCH_MANIFEST block in fork/ci:.github/workflows/omp-build.yml,
 # resolved by the omp repo's own scripts/omp-build/resolve-branches.ts)
 # in order, using git merge-tree (the same ort merge `git merge --no-ff`
 # runs in CI). It changes no branch: it only updates remote-tracking refs
 # and writes unreferenced objects.
 #
-# The base is the pin in fork/ci:.github/omp-upstream.txt — the same commit CI
-# assembles onto — not upstream main HEAD; a probe never fails merely because
-# upstream moved. Without the pin it falls back to origin/main.
+# The base is fork/main, the same commit CI assembles onto. fork/main is an
+# exact mirror of upstream main that is advanced only by sync-fork-main.sh, so
+# a probe never fails merely because upstream moved after the last sync.
 #
 # Usage: probe-build.sh [--base REF]... [--add BRANCH]... [--drop BRANCH]... [--repo PATH]
-#   --base REF     assemble onto REF instead of the pin (a 40-hex SHA or any
+#   --base REF     assemble onto REF instead of fork/main (a 40-hex SHA or any
 #                  rev the repo resolves; repeat to keep the last)
 #   --add BRANCH   append BRANCH (must already be pushed to the fork)
 #   --drop BRANCH  leave BRANCH out of this probe
 #   --repo PATH    oh-my-pi checkout (default $OMP_REPO or ~/Developer/Personal/oh-my-pi)
-# Exit: 0 every step merges cleanly; 1 a step conflicts or a branch is
-# missing on the fork; 2 usage or fetch error.
+# Exit: 0 every step merges cleanly; 1 a step conflicts, a branch is missing on
+# the fork, or fork/main is not a pure upstream mirror; 2 usage or fetch error.
 set -euo pipefail
 
 repo="${OMP_REPO:-$HOME/Developer/Personal/oh-my-pi}"
@@ -54,7 +54,7 @@ done
 
 cd "$repo"
 git fetch -q origin main || exit 2
-git fetch -q fork ci || exit 2
+git fetch -q fork main ci || exit 2
 
 manifest="$(git show fork/ci:.github/workflows/omp-build.yml 2>/dev/null | awk '/^      BRANCH_MANIFEST: \|/{on=1; next} on && /^        /{sub(/^        /, ""); print; next} on{exit}')"
 if [ -z "$manifest" ]; then
@@ -106,12 +106,14 @@ if [ "${#bases[@]}" -gt 0 ]; then
 		exit 2
 	}
 else
-	# The pin CI assembles onto; without it, upstream main HEAD.
-	upstream="$(git show fork/ci:.github/omp-upstream.txt 2>/dev/null | grep -m1 -oE '^[0-9a-f]{40}$' || true)"
-	if [ -z "$upstream" ]; then
-		upstream="$(git rev-parse refs/remotes/origin/main)"
-		echo "no pin in fork/ci:.github/omp-upstream.txt: falling back to upstream main ${upstream:0:10}" >&2
+	# The base CI assembles onto: the fork's main, an exact upstream mirror.
+	upstream="$(git rev-parse refs/remotes/fork/main)"
+	if ! git merge-base --is-ancestor "$upstream" refs/remotes/origin/main; then
+		echo "fork/main holds commits upstream main lacks: CI refuses this (main is not a mirror)" >&2
+		exit 1
 	fi
+	behind="$(git rev-list --count "$upstream..refs/remotes/origin/main")"
+	[ "$behind" = 0 ] || echo "note: fork/main is $behind commits behind upstream main (scripts/sync-fork-main.sh advances it)" >&2
 fi
 cur="$upstream"
 echo "upstream base ${upstream:0:10}"

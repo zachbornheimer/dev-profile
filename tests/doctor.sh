@@ -21,6 +21,7 @@ bash "$root/tests/ban-trunk-prettier-fixture.sh" >/dev/null || fail "ban-trunk-p
 bash "$root/tests/pre-push-empty-file-list-fixture.sh" >/dev/null || fail "pre-push empty file list fixture"
 bash "$root/tests/pre-push-refs-fixture.sh" >/dev/null || fail "pre-push refs fixture"
 bash "$root/tests/ruby-security-steps-fixture.sh" >/dev/null || fail "ruby security steps fixture"
+bash "$root/tests/oxlint-all-ignored-fixture.sh" >/dev/null || fail "oxlint all ignored fixture"
 bash "$root/tests/pre-commit-fixture.sh" >/dev/null || fail "pre-commit fixture"
 bash "$root/tests/dev-family-fixture.sh" "$root" >/dev/null || fail "dev-family fixture"
 bash "$root/tests/commit-fix-fixture.sh" "$root" >/dev/null || fail "commit-fix fixture"
