@@ -16,7 +16,7 @@
     {
       "id": 3,
       "prompt": "The /usage command in omp prints the wrong token count. Fix it in oh-my-pi.",
-      "expected_output": "Not an extension: a repo change. Branch off origin/main in a worktree, fix, bun check + bun test, push to the fork, add to the BRANCH_MANIFEST block in .github/workflows/omp-build.yml on ci, dispatch omp-build, then prove the installed binary changed.",
+      "expected_output": "Not an extension: a repo change. Branch off origin/main in a worktree, fix, bun check + bun test, push to the fork, add .omp-build/branches/<branch>.toml on a worktree off fork main and land it, dispatch omp-build, then prove the installed binary changed.",
       "files": []
     },
     {
