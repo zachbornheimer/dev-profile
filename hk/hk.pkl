@@ -380,6 +380,71 @@ local gates = new Mapping<String, Step> {
   }
 }
 
+// Keep builtin effects and every command phase, including diff/list optimizations.
+local function pushStep(step: Step): Step =
+  let (quote = (value: String) -> "'" + value.replaceAll("'", "'\"'\"'") + "'")
+  let (
+    scriptCommand = (script: String) ->
+      "dev-profile-changed-files sh -o errexit -c "
+        + quote(script.replaceAll("{{files}}", "\"$@\""))
+        + " sh -- {{files}}"
+  )
+  let (
+    rawCommand = (source: String | Script | Command) ->
+      if (source is String)
+        scriptCommand(source)
+      else if (source is Script)
+        let (linuxScript = if (source.linux == null) null else scriptCommand(source.linux!!))
+        let (macosScript = if (source.macos == null) null else scriptCommand(source.macos!!))
+        let (windowsScript = if (source.windows == null) null else scriptCommand(source.windows!!))
+        let (otherScript = if (source.other == null) null else scriptCommand(source.other!!))
+          (source) {
+            linux = linuxScript
+            macos = macosScript
+            windows = windowsScript
+            other = otherScript
+          }
+      else
+        let (
+          script =
+            source.argv.map((arg) -> if (arg == "{{files}}") "\"$@\"" else quote(arg)).join(" ")
+        )
+          new Command {
+            argv =
+              List(
+                "dev-profile-changed-files",
+                "sh",
+                "-o",
+                "errexit",
+                "-c",
+                script,
+                "sh",
+                "--",
+                "{{files}}",
+              )
+          }
+  )
+  let (
+    wrap = (source: (String | Script | Command | CommandSpec)?) ->
+      if (source == null)
+        null
+      else if (source is CommandSpec)
+        let (wrapped = rawCommand(source.command)) (source) { command = wrapped }
+      else
+        rawCommand(source)
+  )
+  let (wrappedCheck = wrap(step.check))
+  let (wrappedFix = wrap(step.fix))
+  let (wrappedDiff = wrap(step.check_diff))
+  let (wrappedList = wrap(step.check_list_files))
+    (step) {
+      env { ["DEV_PROFILE_PUSH_DIRECT"] = "1" }
+      check = wrappedCheck
+      fix = wrappedFix
+      check_diff = wrappedDiff
+      check_list_files = wrappedList
+    }
+
 hooks {
   ["commit-msg"] {
     steps {
@@ -405,17 +470,18 @@ hooks {
     }
   }
   ["pre-push"] {
-    // Magic by default: fix everything fixable before gating, so a push heals
-    // its own lint debt instead of bouncing. dev-profile-pre-push measures the
-    // files the push introduces and hands hk that list with --files0-from, so
-    // every step judges only what the push introduces.
+    // Apply existing introduced-file attribution to direct current-checkout pushes.
     fix = true
     stash = "git"
     // hk has no per-step timeout. The whole gate gets one so a wedged tool fails
     // the hook (with a message naming the timeout) instead of outliving the push
     // runner's deadline, which used to kill the job with no verdict at all.
     timeout = "30m"
-    steps = new Mapping<String, Step> { ...fixers; ...gates }
+    env { ["DEV_PROFILE_PUSH_DIRECT"] = "1" }
+    steps = new Mapping<String, Step> {
+      for (name, step in fixers) { [name] = pushStep(step) }
+      for (name, step in gates) { [name] = if (name == "gitleaks") step else pushStep(step) }
+    }
   }
   ["fix"] {
     fix = true

@@ -103,6 +103,21 @@ elif [[ -n "${refs}" && -r "${refs}" ]]; then
 		fi
 	fi
 	union="${tmp}/union"
+elif [[ "${DEV_PROFILE_PUSH_DIRECT:-}" == "1" ]]; then
+	mainline=""
+	for ref in refs/remotes/origin/HEAD refs/remotes/origin/main refs/remotes/origin/master; do
+		if git rev-parse -q --verify "${ref}" >/dev/null 2>&1; then
+			mainline="${ref}"
+			break
+		fi
+	done
+	[[ -n "${mainline}" ]] || run_all "direct pre-push has no published mainline"
+	base="$(git merge-base HEAD "${mainline}")" || run_all "direct pre-push has no merge base"
+	printf '%s %s %s %s\n' "$(git symbolic-ref -q HEAD || echo HEAD)" "$(git rev-parse HEAD)" "${mainline}" "${base}" >"${tmp}/advanced"
+	options=()
+	[[ "${added_only}" -eq 0 ]] || options+=(--added)
+	"${push_introduced}" "${options[@]}" "${tmp}/advanced" >"${tmp}/union" || run_all "direct pre-push refs could not be measured"
+	union="${tmp}/union"
 elif [[ "${added_only}" -eq 1 ]]; then
 	# No push to measure: origin's default branch is the stand-in base. A
 	# candidate it already tracks is not added; one it does not is judged as
