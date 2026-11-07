@@ -19,22 +19,30 @@ scratch="$(mktemp -d)"
 keep_scratch=0
 trap '((keep_scratch)) || rm -rf "${scratch}"' EXIT
 
-# The tracked files as they are now, as a tree: a copy of the index with every tracked path
-# re-hashed from the work tree. The index itself is saved byte for byte.
+# Rebuild alternate indexes from entries alone so Git must hash worktree
+# content instead of trusting copied stat caches. Keep normal add semantics
+# for tracked deletions and repository clean filters.
+fresh_index() { # <source-index> <new-index>
+	GIT_INDEX_FILE="$1" git ls-files --stage -z |
+		GIT_INDEX_FILE="$2" git update-index -z --index-info
+}
 cp "${index_file}" "${scratch}/index.orig"
-cp "${index_file}" "${scratch}/index.snap"
+fresh_index "${scratch}/index.orig" "${scratch}/index.snap"
 GIT_INDEX_FILE="${scratch}/index.snap" git add -u
 snap_tree="$(GIT_INDEX_FILE="${scratch}/index.snap" git write-tree)"
 
 # Work tree first, then the index: the work tree is judged against the snapshot.
 restore() {
 	local now_tree
-	cp "${scratch}/index.snap" "${scratch}/index.now" || return 1
+	fresh_index "${scratch}/index.snap" "${scratch}/index.now" || return 1
 	GIT_INDEX_FILE="${scratch}/index.now" git add -u || return 1
 	now_tree="$(GIT_INDEX_FILE="${scratch}/index.now" git write-tree)" || return 1
+	# A fresh index has no stat cache: checkout-index must write the saved
+	# content even when a command preserved a file's size and timestamps.
+	GIT_INDEX_FILE="${scratch}/index.restore" git read-tree "${snap_tree}" || return 1
 	# Deleted, modified or retyped (mode included) since the snapshot: write the snapshot back.
 	git diff-tree -r -z --no-renames --name-only --diff-filter=DMT "${snap_tree}" "${now_tree}" |
-		GIT_INDEX_FILE="${scratch}/index.snap" git checkout-index -f -z --stdin || return 1
+		GIT_INDEX_FILE="${scratch}/index.restore" git checkout-index -f -z --stdin || return 1
 	cp "${scratch}/index.orig" "${index_file}.restore" || return 1
 	mv -f "${index_file}.restore" "${index_file}" || return 1
 }
