@@ -1,0 +1,3 @@
+`apps/zab_ai` is state for the ZAB Ai tooling, tracked as `~/.config/zab_ai` (excluding `sign_state.json` and `*.log`). `config.json` stores three last-used paths: a signature image, a download directory and a music directory. `sign_state.json` has the keys `signature_path` and `last_save_path`, and `sign.log` is empty. All paths are absolute and under the `zbornheimer` macOS home or `/private/tmp`.
+
+There are no tests, and nothing in the repo reads these files. `config/mise.toml` is the only reference. `sign_state.json` and `sign.log` match the mise `exclude` list but are tracked in git (`git ls-files` lists them), so the exclusion only keeps them out of the dotfile sync, not out of the repo.
