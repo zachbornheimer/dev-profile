@@ -6,12 +6,12 @@ description: Use for anything about omp itself — landing a branch into the cus
 
 # oh-my-pi: extensions, landing branches, install
 
-The `omp` you run is **fork `main` (an exact upstream mirror) + an ordered list of topic branches**, assembled and built once in GitHub Actions on the fork `zachbornheimer/oh-my-pi`, published as a release, and installed on every machine by mise. The base is `main` itself, advanced only by `scripts/sync-fork-main.sh` (§3); there is no pin file.
+The `omp` you run is **fork `main` (upstream `main` plus one carry commit) + an ordered list of topic branches**, assembled and built once in GitHub Actions on the fork `zachbornheimer/oh-my-pi`, published as a release, and installed on every machine by mise. The base is `main` itself (§3); there is no pin file.
 
 - Checkout: `~/Developer/Personal/oh-my-pi`. Remotes: **`origin`** = upstream `can1357/oh-my-pi`, **`fork`** = `zachbornheimer/oh-my-pi`.
-- **`main` is a read-only upstream mirror, and the assembly base.** Never commit, merge or push to it. A GitHub ruleset (`main-mirrors-upstream`: no update, no delete, no force-push, no bypass), the local reference-transaction hook (installed by `bin/dev-profile-omp-machine-setup`) and `pretooluse-omp-main-branch-guard` all refuse it. The only way it moves is `scripts/sync-fork-main.sh` (§3). Do not bypass the guards by hand.
-- **The branch list** is the `BRANCH_MANIFEST` block in `.github/workflows/omp-build.yml` (a JSON array of `{ "branch": ..., "reason": ... }` entries, merged in order) on the fork's default branch **`ci`**, which holds only that workflow, `scripts/omp-build/resolve-branches.ts` (the single parser of the manifest) and a README. It carries no upstream source tree.
-- **CI** (`omp-build`, hourly poll at minute 17 + manual dispatch; an unchanged tree skips in about a minute) merges each listed branch with `git merge --no-ff` onto **fork `main`**, builds darwin-arm64 + linux-x64, and publishes release `build-<YYYYMMDDHHMMSS>-<main7>-<build7>` as Latest, `<main7>` being the `main` commit it assembled onto. Assembly refuses a `main` that holds commits upstream lacks. Assembly computes the tag and bakes it into both binaries, so `omp --version` prints it on a second line as `github.com/zachbornheimer/oh-my-pi@<tag>`. A branch conflict leaves the previous release Latest. A dispatch with `branches_override` publishes a prerelease only.
+- **`main` is the assembly base, not a place to commit.** It is upstream `main` plus one carry commit. Commits it holds that upstream lacks may touch only `.omp-build/` and `.github/workflows/omp-build.yml`. Never commit a topic change on it, and never push it by hand. Land a carry change (a branch file, the resolver, the workflow) through a small worktree or a PR (§2 step 5). A GitHub ruleset, the local reference-transaction hook (installed by `bin/dev-profile-omp-machine-setup`) and `pretooluse-omp-main-branch-guard` refuse a direct push. Do not bypass the guards by hand.
+- **The branch list** is one file per carried branch under `.omp-build/branches/` on fork `main`. The path minus `.toml` is the branch name (`branches/fix/native-build-cargo.toml` is branch `fix/native-build-cargo`); there is no `branch` field. Fields: `reason` (required), `upstream` (`no` | `candidate` | `submitted` | `merged`, default `no`), `pr` (required when `upstream` is `submitted`), `layer` (integer merge order, lower first, default 50). `.omp-build/resolve-branches.ts` is the single parser. The same carry commit holds `.github/workflows/omp-build.yml` and `.omp-build/README.md`.
+- **CI** (`omp-build` runs on the hourly poll at minute 17 and on `workflow_dispatch`; an unchanged tree skips in about a minute) merges each listed branch with `git merge --no-ff` onto the triggering commit (fork `main` for the schedule), builds darwin-arm64 + linux-x64, and publishes release `build-<YYYYMMDDHHMMSS>-<upstream7>-<build7>` as Latest. `<upstream7>` is the newest `can1357/oh-my-pi` commit the base contains; `<build7>` is the assembled commit. Assembly refuses a `main` whose extra commits touch anything outside the carry paths. Assembly computes the tag and bakes it into both binaries, so `omp --version` prints it on a second line as `github.com/zachbornheimer/oh-my-pi@<tag>`. A branch conflict leaves the previous release Latest. A dispatch with a non-empty `branches_override` publishes a prerelease only.
 
 Design and history: [references/build-distribution.md](references/build-distribution.md). Why the fork is shaped this way, and the chosen direction (carry on `main`, one manifest file per branch, fewer branches): the `forking-projects` skill. This skill stays the source for every live command.
 
@@ -51,22 +51,24 @@ Agent-callable tools can also live in `~/.omp/agent/tools/`, but in this setup t
    ~/.agents/skills/updating-oh-my-pi/scripts/probe-build.sh --add feat/<slug>
    ```
 
-   It fetches `origin/main`, `fork/main`, `fork/ci` and every listed branch, then merges them in order with `git merge-tree` onto **fork `main`** (no branch is changed). `--base <ref>` probes a different base. `CONFLICT ... with the upstream base`: merge `main` into your branch, resolve, push. `CONFLICT ... with an earlier branch in the list`: merge that branch into yours (or yours into it) and resolve once, so the later entry in the list already contains the resolution. **Merge, never rebase or force-push** a branch that is pushed or listed.
-5. **Add the branch to the list on `ci`:**
+   It fetches `origin/main` and `fork/main`, materializes `.omp-build/` from fork `main`, and merges every listed branch in order with `git merge-tree` onto **fork `main`** (no branch is changed). `--base <ref>` probes a different base. `CONFLICT ... with the upstream base`: merge `main` into your branch, resolve, push. `CONFLICT ... with an earlier branch in the list`: merge that branch into yours (or yours into it) and resolve once, so the later file's branch already contains the resolution. **Merge, never rebase or force-push** a branch that is pushed or listed.
+5. **Add the branch file on fork `main`** (a small worktree or a PR; never push `main` by hand):
 
    ```bash
-   git -C ~/Developer/Personal/oh-my-pi fetch fork ci
-   wt -C ~/Developer/Personal/oh-my-pi switch ci   # first time: switch --create ci --base fork/ci
-   git pull --ff-only fork ci
-   # edit the BRANCH_MANIFEST block in .github/workflows/omp-build.yml: append { "branch": "feat/<slug>", "reason": "..." } after any branch it depends on
-   wt step commit && git push fork ci
+   git -C ~/Developer/Personal/oh-my-pi fetch fork main
+   wt -C ~/Developer/Personal/oh-my-pi switch --create chore/omp-list-<slug> --base fork/main
+   # create .omp-build/branches/feat/<slug>.toml
+   # reason = "what this branch does for the person running the build"
+   # layer = 50   # lower merges first; default 50
+   wt step commit
+   gh pr create --repo zachbornheimer/oh-my-pi --base main --fill
    ```
 
-   If your branch contains another listed branch (`git merge-base --is-ancestor fork/<old> fork/feat/<slug>`), replace that entry instead of appending. Re-run the probe with no flags: it reads the pushed list.
+   Land that PR. If your branch contains another listed branch (`git merge-base --is-ancestor fork/<old> fork/feat/<slug>`), delete that file instead of adding a second one. Re-run the probe with no flags: it reads the list on fork `main`.
 6. **Build now** instead of waiting for the next hourly poll, and watch the exact run id:
 
    ```bash
-   gh workflow run omp-build.yml --repo zachbornheimer/oh-my-pi --ref ci
+   gh workflow run omp-build.yml --repo zachbornheimer/oh-my-pi --ref main
    gh run list --repo zachbornheimer/oh-my-pi --workflow omp-build.yml --limit 1 --json databaseId --jq '.[0].databaseId'
    gh run watch <that-id> --repo zachbornheimer/oh-my-pi --exit-status
    ```
@@ -86,15 +88,11 @@ Never use `branches_override` to land anything. A dispatch with a non-empty over
 
 ## 3. Sync fork main (take new upstream)
 
-**The base is fork `main`. There is no pin file.** `main` is an exact fast-forward mirror of `can1357/oh-my-pi:main`, so advancing the base means syncing `main`, and nothing else moves it. A scheduled build uses whatever `main` is when it runs: a build never fails merely because upstream moved after the last sync, and it fails on a conflict only when `main` has been synced past what a topic branch contains.
+**The base is fork `main`. There is no pin file.** `main` is upstream `main` plus the one carry commit, so advancing the base means merging upstream `main` into fork `main`. A scheduled build uses whatever `main` is when it runs: a build never fails merely because upstream moved after the last sync, and it fails on a conflict only when `main` has been synced past what a topic branch contains.
 
-1. **Sync `main`** (fast-forward only; backs up first; opens the ruleset's admin bypass for one API call and always closes it again):
+1. **Merge upstream `main` into fork `main`** through a small worktree or a PR. Never push `main` by hand, never force-push it, and never widen a ruleset bypass.
 
-   ```bash
-   bash ~/.agents/skills/updating-oh-my-pi/scripts/sync-fork-main.sh
-   ```
-
-   It refuses when `main` is not a pure ancestor of upstream `main`. Never push to `main` by hand, never widen the ruleset's bypass list, and never leave a bypass open.
+   `scripts/sync-fork-main.sh` still fast-forwards and refuses a `main` that holds commits upstream lacks, so it will not take the carry forward. Do not use it while the carry is on `main`.
 2. **Prove the branches still assemble** — must print `assembly clean`:
 
    ```bash
@@ -111,9 +109,9 @@ Never use `branches_override` to land anything. A dispatch with a non-empty over
 Match the run's error to its cause:
 
 - `Conflict: omp-build: <branch> conflicts with upstream` (one issue per branch, updated on repeats): that branch conflicts with fork `main` or with a branch merged before it. Run the probe to see which; fix as in §2 step 4; push; re-dispatch; close the issue.
-- `Missing branch`: a listed branch is not on the fork. Push it, or remove it from the list.
-- `Branchless assembly`: the assembled SHA equals fork `main` (empty list). Restore the list; CI refuses to publish the bare mirror.
-- `main is not a mirror`: fork `main` holds commits that upstream `main` lacks. Cherry-pick them onto a topic branch based on `main`, then restore `main` to a pure upstream ancestor (ruleset bypass by a repo admin, as `sync-fork-main.sh` does, then close it). `sync-fork-main.sh` refuses a diverged `main` and does not repair it.
+- `Missing branch`: a listed branch is not on the fork. Push it, or delete its file under `.omp-build/branches/`.
+- `Branchless assembly`: the assembled SHA equals fork `main` (empty list). Restore the branch files; CI refuses to publish the bare base.
+- `fork/main holds a commit upstream main lacks outside the carry`: a commit on `main` touches something other than `.omp-build/` or `.github/workflows/omp-build.yml`. Move that change onto a topic branch based on `origin/main`, then drop it from `main` through a PR. Do not force-push `main`.
 - `Bad base`: the fork's `main` ref did not resolve to a commit SHA. Check `gh api repos/zachbornheimer/oh-my-pi/git/ref/heads/main`.
 - Build or publish job failed: compile or test error on the assembled tree. Merge the listed branches into a scratch worktree off fork `main`, run `bun check`, fix on the branch, push.
 
@@ -121,7 +119,7 @@ A failed run publishes nothing, so the previous release stays Latest and every m
 
 ## 5. Remove a branch
 
-When upstream has merged a branch, `git cherry origin/main fork/feat/<slug>` prints only `-` lines. Delete it from the `BRANCH_MANIFEST` block in `.github/workflows/omp-build.yml` on `ci` (step 5), run the probe, push, dispatch (step 6).
+When upstream has merged a branch, `git cherry origin/main fork/feat/<slug>` prints only `-` lines (the workflow also warns `merged upstream, delete this file`). Delete `.omp-build/branches/feat/<slug>.toml` on fork `main` the same way as §2 step 5, run the probe, land, dispatch (§2 step 6).
 
 ## 6. Install facts
 

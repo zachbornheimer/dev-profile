@@ -2,15 +2,15 @@
 # probe-build.sh: run the omp-build assembly locally, the way CI merges it.
 #
 # Merges the fork's main plus the fork's configured branch list
-# (the BRANCH_MANIFEST block in fork/ci:.github/workflows/omp-build.yml,
-# resolved by the omp repo's own scripts/omp-build/resolve-branches.ts)
-# in order, using git merge-tree (the same ort merge `git merge --no-ff`
-# runs in CI). It changes no branch: it only updates remote-tracking refs
-# and writes unreferenced objects.
+# (one .toml per branch under fork/main:.omp-build/branches/, resolved by
+# that commit's .omp-build/resolve-branches.ts) in order, using git
+# merge-tree (the same ort merge `git merge --no-ff` runs in CI). It
+# changes no branch: it only updates remote-tracking refs and writes
+# unreferenced objects.
 #
-# The base is fork/main, the same commit CI assembles onto. fork/main is an
-# exact mirror of upstream main that is advanced only by sync-fork-main.sh, so
-# a probe never fails merely because upstream moved after the last sync.
+# The base is fork/main, the same commit CI assembles onto. fork/main is
+# upstream main plus one carry commit. Commits it holds that upstream lacks
+# may touch only .omp-build/ and .github/workflows/omp-build.yml.
 #
 # Usage: probe-build.sh [--base REF]... [--add BRANCH]... [--drop BRANCH]... [--repo PATH]
 #   --base REF     assemble onto REF instead of fork/main (a 40-hex SHA or any
@@ -19,7 +19,7 @@
 #   --drop BRANCH  leave BRANCH out of this probe
 #   --repo PATH    oh-my-pi checkout (default $OMP_REPO or ~/Developer/Personal/oh-my-pi)
 # Exit: 0 every step merges cleanly; 1 a step conflicts, a branch is missing on
-# the fork, or fork/main is not a pure upstream mirror; 2 usage or fetch error.
+# the fork, or fork/main holds a non-carry commit; 2 usage or fetch error.
 set -euo pipefail
 
 repo="${OMP_REPO:-$HOME/Developer/Personal/oh-my-pi}"
@@ -54,26 +54,26 @@ done
 
 cd "$repo"
 git fetch -q origin main || exit 2
-git fetch -q fork main ci || exit 2
+git fetch -q fork main || exit 2
 
-manifest="$(git show fork/ci:.github/workflows/omp-build.yml 2>/dev/null | awk '/^      BRANCH_MANIFEST: \|/{on=1; next} on && /^        /{sub(/^        /, ""); print; next} on{exit}')"
-if [ -z "$manifest" ]; then
-	echo "no BRANCH_MANIFEST block in fork/ci:.github/workflows/omp-build.yml" >&2
-	exit 2
-fi
 command -v bun >/dev/null 2>&1 || {
-	echo "bun is required to run scripts/omp-build/resolve-branches.ts" >&2
+	echo "bun is required to run .omp-build/resolve-branches.ts" >&2
 	exit 2
 }
-resolver="$(mktemp "${TMPDIR:-/tmp}/probe-resolve.XXXXXX.ts")"
-trap 'rm -f "$resolver"' EXIT
-git show fork/ci:scripts/omp-build/resolve-branches.ts >"$resolver" 2>/dev/null || {
-	echo "cannot read fork/ci:scripts/omp-build/resolve-branches.ts" >&2
+staged="$(mktemp -d "${TMPDIR:-/tmp}/probe-omp-build.XXXXXX")"
+trap 'rm -rf "$staged"' EXIT
+git archive fork/main .omp-build | tar -x -C "$staged" || {
+	echo "cannot materialize fork/main:.omp-build" >&2
 	exit 2
 }
-configured="$(BRANCH_MANIFEST="$manifest" bun "$resolver" "" workflow_dispatch)" || {
-	echo "fork/ci BRANCH_MANIFEST failed to resolve via scripts/omp-build/resolve-branches.ts:" >&2
-	BRANCH_MANIFEST="$manifest" bun "$resolver" "" workflow_dispatch >&2 || true
+resolver="$staged/.omp-build/resolve-branches.ts"
+[ -f "$resolver" ] || {
+	echo "cannot read fork/main:.omp-build/resolve-branches.ts" >&2
+	exit 2
+}
+configured="$(bun "$resolver" "" schedule)" || {
+	echo "fork/main .omp-build/branches failed to resolve via .omp-build/resolve-branches.ts:" >&2
+	bun "$resolver" "" schedule >&2 || true
 	exit 2
 }
 
@@ -106,14 +106,29 @@ if [ "${#bases[@]}" -gt 0 ]; then
 		exit 2
 	}
 else
-	# The base CI assembles onto: the fork's main, an exact upstream mirror.
+	# The base CI assembles onto: fork main, upstream plus the carry commit.
 	upstream="$(git rev-parse refs/remotes/fork/main)"
-	if ! git merge-base --is-ancestor "$upstream" refs/remotes/origin/main; then
-		echo "fork/main holds commits upstream main lacks: CI refuses this (main is not a mirror)" >&2
+	mb="$(git merge-base "$upstream" refs/remotes/origin/main)" || {
+		echo "fork/main and origin/main have no merge-base" >&2
 		exit 1
-	fi
+	}
+	bad=0
+	while IFS= read -r c; do
+		[ -n "$c" ] || continue
+		while IFS= read -r f; do
+			[ -n "$f" ] || continue
+			case "$f" in
+			.omp-build/* | .github/workflows/omp-build.yml) ;;
+			*)
+				echo "fork/main holds a commit upstream main lacks outside the carry: ${c:0:10} $f" >&2
+				bad=1
+				;;
+			esac
+		done < <(git diff-tree --no-commit-id --name-only -r "$c")
+	done < <(git rev-list "$mb..$upstream")
+	[ "$bad" = 0 ] || exit 1
 	behind="$(git rev-list --count "$upstream..refs/remotes/origin/main")"
-	[ "$behind" = 0 ] || echo "note: fork/main is $behind commits behind upstream main (scripts/sync-fork-main.sh advances it)" >&2
+	[ "$behind" = 0 ] || echo "note: fork/main is $behind commits behind upstream main (merge origin/main into it; do not push main by hand)" >&2
 fi
 cur="$upstream"
 echo "upstream base ${upstream:0:10}"

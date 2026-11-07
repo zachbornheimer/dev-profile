@@ -4,22 +4,22 @@ Accepted 2026-11-02 (user: "perfect. please proceed with this approach").
 
 ## Goal
 
-One custom `omp` = fork `main` (an exact fast-forward mirror of upstream `can1357/oh-my-pi` main) + the topic branches
-listed in the `BRANCH_MANIFEST` block of `.github/workflows/omp-build.yml` (branch `ci`), built once in GitHub Actions
-on `zachbornheimer/oh-my-pi`, installed on the MBP and every fleet machine by mise. `main` holds nothing upstream
-lacks; `ci` holds only the workflow, the resolver, and a README.
+One custom `omp` = fork `main` (upstream `can1357/oh-my-pi` main plus one carry commit) + the topic branches
+listed as `.omp-build/branches/<branch>.toml` on fork `main`, built once in GitHub Actions
+on `zachbornheimer/oh-my-pi`, installed on the MBP and every fleet machine by mise. The carry may touch only
+`.omp-build/` and `.github/workflows/omp-build.yml`.
 
 Revised 2026-11-06 (user: "we should not pin upstream, it should use our main"): the earlier design pinned a
-40-hex upstream SHA in `.github/omp-upstream.txt` on `ci` and assembled onto that. The pin let topic branches rot
-against upstream for weeks without any signal and left a full upstream source tree on `ci`. Replaced by: base =
-fork `main`, advanced only by `scripts/sync-fork-main.sh`; `ci` stripped to build machinery; the assembly fails
-loudly when `main` holds a commit upstream lacks.
+40-hex upstream SHA in `.github/omp-upstream.txt` and assembled onto that. The pin let topic branches rot
+against upstream for weeks without any signal. Replaced by: base = fork `main`. Revised again so the build
+machinery lives on `main` as that one carry commit (one TOML file per branch; the resolver prints the ordered
+list). The assembly fails when `main` holds a commit upstream lacks that touches anything outside the carry.
 
 ## Contract
 
-- Workflow: `.github/workflows/omp-build.yml` on the fork's default branch `ci` (scheduled workflows only run
-  from the default branch; `main` stays the mirror), `schedule` daily 04:00 UTC + `workflow_dispatch`
-  (input `branches_override`: comma list, empty string = no branches).
+- Workflow: `.github/workflows/omp-build.yml` on fork `main` (scheduled workflows only run from the default
+  branch), hourly cron at minute 17 + `workflow_dispatch` (input `branches_override`: a non-empty comma list
+  publishes a prerelease; empty uses `.omp-build/branches/`).
 - Assembles `omp-build` from fork `main` + listed branches. Any conflict: fail, publish nothing,
   open/update one GitHub issue naming the branch and files. Previous release stays `latest`.
   An assembled tree identical to the latest release's build commit skips build and release.
