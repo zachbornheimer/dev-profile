@@ -152,6 +152,15 @@ local fixers = new Mapping<String, Step> {
       "ruff check --force-exclude --fix-only --unsafe-fixes --extend-select UP,FURB,SIM,PERF,C4,PIE -- {{files}}"
     glob = pyGlobs
   }
+  // The global uv cooldown (`exclude-newer`) reads a lock that does not record it as
+  // stale, so `uv lock --check` and `uv run --locked` fail on a lock nothing in which
+  // is out of date. The step records the cooldown in the lock without moving a pin and
+  // leaves any other staleness alone (tests/uv-lock-cooldown-fixture.sh).
+  ["uv-lock-cooldown"] {
+    fix = "dev-profile-uv-lock-cooldown {{files}}"
+    glob = List("**/uv.lock", "**/pyproject.toml")
+    stage = List("**/uv.lock")
+  }
   ["markdownlint-fix"] = (Builtins.markdown_lint) {
     glob = mdGlobs
     exclude = List("agents/learnings/**")

@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Record the uv cooldown in every uv.lock that predates it.
+#
+# The global uv config sets `exclude-newer = "3 days"`, a resolve-time policy.
+# uv keeps it in the lockfile (`[options] exclude-newer-span`), and a lock with
+# no such record reads as stale under the policy: `uv lock --check`, `uv sync
+# --locked` and `uv run --locked` all refuse it ("Resolving despite existing
+# lockfile due to addition of global exclude newer") though nothing in it is
+# out of date. The only way to satisfy them is a relock, so this runs one.
+#
+# It rewrites the lock only when uv names the cooldown as the reason, and it
+# keeps the rewrite only when every [[package]] stanza is unchanged: a relock
+# that moves a pin (one newer than the cooldown allows, a dependency edited by
+# hand) is put back and fails loudly, because that is a decision, not a header.
+# A lock that is stale for any other reason is not this script's to judge and is
+# left alone. The cooldown itself stays on: nothing here unsets or overrides it.
+#
+# usage: dev-profile-uv-lock-cooldown [file...]   (no files: every uv.lock in the repo)
+command -v uv >/dev/null 2>&1 || exit 0
+root="$(cd "$(git rev-parse --show-toplevel)" && pwd -P)"
+cd "${root}"
+
+# Lock directories to judge: those owning the given files, else every lock.
+lock_dirs() {
+	local file dir
+	if (($#)); then
+		for file in "$@"; do
+			dir="$(dirname "${file}")"
+			while :; do
+				if [[ -f "${dir}/uv.lock" ]]; then
+					echo "${dir}"
+					break
+				fi
+				if [[ "${dir}" == "." || "${dir}" == / ]]; then break; fi
+				dir="$(dirname "${dir}")"
+			done
+		done
+	else
+		git ls-files --cached --others --exclude-standard -- ':(glob)**/uv.lock' |
+			while IFS= read -r file; do dirname "${file}"; done
+	fi | sort -u
+}
+
+# The resolved packages, without the header uv rewrites.
+packages() {
+	sed -n '/^\[\[package\]\]/,$p' "$1"
+}
+
+failed=0
+while IFS= read -r dir; do
+	[[ -n "${dir}" ]] || continue
+	case "/${dir}/" in */node_modules/* | */.venv/* | */testdata/* | */fixtures/*) continue ;; esac
+	output="$(cd "${dir}" && uv lock --check 2>&1)" && continue
+	grep -qE 'Resolving despite existing lockfile due to .*exclude newer' <<<"${output}" || continue
+
+	lock="${dir}/uv.lock"
+	backup="$(mktemp)"
+	cat "${lock}" >"${backup}"
+	if (cd "${dir}" && uv lock >&2) && (cd "${dir}" && uv lock --check >/dev/null 2>&1) &&
+		[[ "$(packages "${backup}")" == "$(packages "${lock}")" ]]; then
+		echo "uv-lock-cooldown: ${lock} now records the cooldown (no package changed); commit it" >&2
+	else
+		cat "${backup}" >"${lock}"
+		echo "uv-lock-cooldown: ${lock} predates the cooldown and cannot record it without moving a pin; run \`uv lock\` in ${dir} and review the diff" >&2
+		failed=1
+	fi
+	rm -f "${backup}"
+done < <(lock_dirs "$@")
+exit "${failed}"
