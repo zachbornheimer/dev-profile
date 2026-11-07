@@ -18,6 +18,8 @@ done
 bash "$root/tests/output-fixture.sh" >/dev/null || fail "output fixture"
 bash "$root/tests/hook-path-free.sh" >/dev/null || fail "hook path fixture"
 bash "$root/tests/ban-trunk-prettier-fixture.sh" >/dev/null || fail "ban-trunk-prettier fixture"
+bash "$root/tests/dprint-ts-js-fixture.sh" >/dev/null || fail "dprint-ts-js fixture"
+bash "$root/tests/retire-legacy-hooks-fixture.sh" "$root" >/dev/null || fail "retire-legacy-hooks fixture"
 bash "$root/tests/pre-push-empty-file-list-fixture.sh" >/dev/null || fail "pre-push empty file list fixture"
 bash "$root/tests/pre-push-refs-fixture.sh" >/dev/null || fail "pre-push refs fixture"
 bash "$root/tests/ruby-security-steps-fixture.sh" >/dev/null || fail "ruby security steps fixture"

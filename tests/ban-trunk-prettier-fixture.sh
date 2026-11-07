@@ -23,7 +23,7 @@ run_helper() { "${helper}" >"${work}/output.txt" 2>&1; }
 expect_pass() { run_helper || fail "$1"; }
 expect_fail() {
 	if run_helper; then fail "$1"; fi
-	grep -Fq "banned: package.json adds trunk or prettier" "${work}/output.txt" || fail "$1: the failure must name package.json"
+	grep -Fq "banned: package.json adds a retired formatter or hook runner" "${work}/output.txt" || fail "$1: the failure must name package.json"
 }
 
 package_json() { # <version> [extra dependency line]
@@ -107,5 +107,44 @@ git config commit.gpgsign false
 package_json 1.0.0 >package.json
 git add -A && git commit -qm "first"
 expect_fail "with no remote history every prettier dependency counts as added"
+
+# 8. The other retired formatters (biome, oxfmt) and hook runners (lefthook, husky,
+#    lint-staged, simple-git-hooks, the pre-commit framework) fail like trunk and
+#    prettier, by config file, package.json line and mise tool line. oxlint is a linter and stays.
+new_clone retired-tools
+for path in biome.json biome.jsonc .biome.json .oxfmtrc.json .oxfmtrc.jsonc oxfmt.json oxfmt.config.ts \
+	lefthook.yml .lefthook.yaml lefthook-local.yml lefthook.json .husky/pre-commit .lintstagedrc.json \
+	lint-staged.config.mjs .simple-git-hooks.json simple-git-hooks.config.js .pre-commit-config.yaml sub/dir/biome.json; do
+	mkdir -p "$(dirname "${path}")"
+	echo '{}' >"${path}"
+	git add -A && git commit -qm "add ${path}"
+	if run_helper; then fail "a pushed ${path} must fail"; fi
+	grep -Fq "banned: ${path}" "${work}/output.txt" || fail "the failure must name ${path}"
+	git reset -q --hard HEAD~1
+done
+echo '{}' >.oxlintrc.json
+git add -A && git commit -qm "oxlint config"
+expect_pass "an oxlint config is a linter and must pass"
+git reset -q --hard HEAD~1
+
+for line in '"husky": "^9.0.0"' '"lint-staged": {}' '"@biomejs/biome": "^1.0.0"' '"oxfmt": "^0.1.0"' \
+	'"simple-git-hooks": {}' '"lefthook": "^1.0.0"' '"prepare": "husky"' '"precommit": "lint-staged"'; do
+	package_json 1.0.1 ",
+    ${line}" >package.json
+	git commit -qam "add ${line}"
+	expect_fail "adding ${line} to package.json must fail"
+	git reset -q --hard HEAD~1
+done
+
+for line in 'lefthook = "latest"' '"npm:husky" = "latest"' 'biome = "latest"' '"pipx:pre-commit" = "latest"' 'oxfmt = "latest"'; do
+	printf '[tools]\n%s\n' "${line}" >mise.toml
+	git add mise.toml && git commit -qm "add ${line}"
+	if run_helper; then fail "adding ${line} to mise.toml must fail"; fi
+	grep -Fq "banned: mise.toml adds a retired formatter or hook runner" "${work}/output.txt" || fail "the failure must name mise.toml for ${line}"
+	git reset -q --hard HEAD~1
+done
+printf '[tools]\nhk = "latest"\ndprint = "latest"\noxlint = "latest"\n\n[tasks.pre-commit]\nrun = "hk run pre-commit"\n' >mise.toml
+git add mise.toml && git commit -qm "hk and dprint"
+expect_pass "hk, dprint, oxlint and a pre-commit task name must pass"
 
 echo "ban-trunk-prettier fixture ok"

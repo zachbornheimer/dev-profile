@@ -3,8 +3,8 @@
 # home/gitconfig, with the profile's hk and dprint config. Three promises:
 #  1. A commit holding no files passes: hk hands a glob-less step an empty {{files}} and
 #     `hk util` exits with a usage error.
-#  2. A tab-indented TypeScript file commits byte for byte: a global dprint config must not
-#     rewrite the formatting a repository owns. JSON, which the config does own, still formats.
+#  2. dprint owns TypeScript as well as JSON: a tab-indented TypeScript file commits
+#     formatted, with no second formatter fighting it.
 #  3. A commit whose hook chain fails changes nothing: the fix steps ran and edited the
 #     staged files, and the work tree and index come back exactly as they were. Without the
 #     restore, the author's edits were replaced by the fixers' output.
@@ -76,18 +76,19 @@ fi
 grep -qF "wt commit-unstaged" "${scratch}/commit.txt" ||
 	fail "no-commit-to-default-branch error must mention 'wt commit-unstaged'"
 git switch -q -c feat/test
-# 2. A tab-indented TypeScript file commits unchanged; JSON is still formatted.
+# 2. dprint owns TypeScript: a tab-indented file commits formatted with 2 spaces; JSON too.
 printf 'export function f(x: number) {\n\tif (x) {\n\t\treturn x;\n\t}\n\treturn 0;\n}\n' >"${work}/src/a.ts"
 printf '{"a":   1}\n' >"${work}/data.json"
-want_ts="$("${git_bin}" hash-object "${work}/src/a.ts")"
+want_ts=$'export function f(x: number) {\n  if (x) {\n    return x;\n  }\n  return 0;\n}\n'
 git add src/a.ts data.json
-commit "feat: add files" || fail "a clean tab-indented TypeScript file must commit"
-[[ "$(git rev-parse HEAD:src/a.ts)" == "${want_ts}" ]] || fail "the hook rewrote the TypeScript file the repository committed"
+commit "feat: add files" || fail "a tab-indented TypeScript file must commit"
+[[ "$(git show HEAD:src/a.ts)" == "${want_ts%$'\n'}" ]] || fail "dprint must format the TypeScript file, got: $(git show HEAD:src/a.ts)"
 [[ "$(git show HEAD:data.json)" == '{ "a": 1 }' ]] || fail "dprint must still format JSON, got: $(git show HEAD:data.json)"
 
 # 3. A failing chain: a.ts holds a staged trailing-space edit plus a further unstaged edit, and
 # bad.json is not JSON, so the dprint step fails after the whitespace fixer has rewritten a.ts.
-printf 'export function f(x: number) {   \n\tif (x) {\n\t\treturn x;\n\t}\n\treturn 0;\n}\n' >"${work}/src/a.ts"
+# The file is already dprint-clean apart from the trailing space, so dprint's only verdict is bad.json.
+printf 'export function f(x: number) {   \n  if (x) {\n    return x;\n  }\n  return 0;\n}\n' >"${work}/src/a.ts"
 printf ':root {\n  --x: 1;\n}\n' >"${work}/src/a.css"
 printf '{"a": ' >"${work}/bad.json"
 git add src/a.ts src/a.css bad.json
