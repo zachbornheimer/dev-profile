@@ -1,0 +1,3 @@
+`apps/ast-grep` holds `sgconfig.yml`, the root ast-grep config, tracked as `~/.config/ast-grep`. It has an empty `ruleDirs` and registers one custom tree-sitter language, `perl` (extensions `pl`, `pm`, `t`, expando char `_`), loaded from a `perl.dylib` under `~/.local/share/quality-guard/grammars/`. The header says quality-guard setup manages it. The `libraryPath` is an absolute macOS path under `/Users/zbornheimer`, so the Perl grammar cannot load on another user or on Linux.
+
+Nothing in the repo tests it. `config/mise.toml` is the only referrer, with `track` and `encrypt = true`, and the repo-wide yamllint step is the only check that touches it. A wrong `libraryPath` only surfaces when ast-grep tries to parse a Perl file.
