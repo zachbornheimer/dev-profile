@@ -53,8 +53,28 @@ while [ $# -gt 0 ]; do
 done
 
 cd "$repo"
-git fetch -q origin main || exit 2
-git fetch -q fork main || exit 2
+
+# Remote names are not fixed across checkouts: this skill's layout calls the
+# fork `fork` and upstream `origin`, while a plain clone of the fork calls them
+# `origin` and `upstream`. Resolve both by URL so the probe works in either.
+remote_for() {
+	local name url
+	for name in $(git remote); do
+		url="$(git remote get-url "$name" 2>/dev/null || true)"
+		case "$url" in
+		*"$1"*)
+			printf '%s' "$name"
+			return 0
+			;;
+		esac
+	done
+	return 1
+}
+fork_remote="$(remote_for zachbornheimer/oh-my-pi || echo fork)"
+base_remote="$(remote_for can1357/oh-my-pi || echo origin)"
+
+git fetch -q "$base_remote" main || exit 2
+git fetch -q "$fork_remote" main || exit 2
 
 command -v bun >/dev/null 2>&1 || {
 	echo "bun is required to run .omp-build/resolve-branches.ts" >&2
@@ -62,8 +82,8 @@ command -v bun >/dev/null 2>&1 || {
 }
 staged="$(mktemp -d "${TMPDIR:-/tmp}/probe-omp-build.XXXXXX")"
 trap 'rm -rf "$staged"' EXIT
-git archive fork/main .omp-build | tar -x -C "$staged" || {
-	echo "cannot materialize fork/main:.omp-build" >&2
+git archive "$fork_remote/main" .omp-build | tar -x -C "$staged" || {
+	echo "cannot materialize $fork_remote/main:.omp-build" >&2
 	exit 2
 }
 resolver="$staged/.omp-build/resolve-branches.ts"
@@ -107,9 +127,11 @@ if [ "${#bases[@]}" -gt 0 ]; then
 	}
 else
 	# The base CI assembles onto: fork main, upstream plus the carry commit.
-	upstream="$(git rev-parse refs/remotes/fork/main)"
-	mb="$(git merge-base "$upstream" refs/remotes/origin/main)" || {
-		echo "fork/main and origin/main have no merge-base" >&2
+	base_main="refs/remotes/$base_remote/main"
+	fork_main="refs/remotes/$fork_remote/main"
+	upstream="$(git rev-parse "$fork_main")"
+	mb="$(git merge-base "$upstream" "$base_main")" || {
+		echo "$fork_remote/main and $base_remote/main have no merge-base" >&2
 		exit 1
 	}
 	bad=0
@@ -127,15 +149,15 @@ else
 		done < <(git diff-tree --no-commit-id --name-only -r "$c")
 	done < <(git rev-list "$mb..$upstream")
 	[ "$bad" = 0 ] || exit 1
-	behind="$(git rev-list --count "$upstream..refs/remotes/origin/main")"
-	[ "$behind" = 0 ] || echo "note: fork/main is $behind commits behind upstream main (merge origin/main into it; do not push main by hand)" >&2
+	behind="$(git rev-list --count "$upstream..$base_main")"
+	[ "$behind" = 0 ] || echo "note: $fork_remote/main is $behind commits behind upstream main (merge $base_remote/main into it; do not push main by hand)" >&2
 fi
 cur="$upstream"
 echo "upstream base ${upstream:0:10}"
 for b in "${branches[@]}"; do
-	ref="refs/remotes/fork/$b"
-	if ! git fetch -q fork "+refs/heads/$b:$ref" 2>/dev/null; then
-		echo "  MISSING  $b is not on the fork (push it first)"
+	ref="refs/remotes/$fork_remote/$b"
+	if ! git fetch -q "$fork_remote" "+refs/heads/$b:$ref" 2>/dev/null; then
+		echo "  MISSING  $b is not on the $fork_remote remote (push it first)"
 		exit 1
 	fi
 	rc=0
