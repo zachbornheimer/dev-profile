@@ -449,7 +449,7 @@ work_order:
   where a session skips fallback: a run that cannot fall through simply dies, which is how
   the nightly learning flow and the atask workers ended up dead on exhausted Google and
   anthropic weekly pools (2026-11-03). Fallback thrash is a separate problem and its fix is
-  the shake guard (`~/.config/omp/fallback-shake`) plus `retry.fallbackOn`, never switching
+  the shake guard (`~/.omp/agent/extensions/fallback-shake`) plus `retry.fallbackOn`, never switching
   fallback off.
 - **On the first invalid-arguments rejection, pull the tool's own docs before
   retrying** (`?` in omp; the schema in the tool description elsewhere). Guessing the
