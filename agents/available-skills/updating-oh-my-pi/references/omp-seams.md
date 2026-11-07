@@ -13,6 +13,8 @@ Copy these. Do not invent a second way.
 
 Auto-discovered; no `config.yml` entry. Proven extensions: `~/.omp/agent/extensions/hide-evidence`, `~/.omp/agent/extensions/thinking`.
 
+Put tests inside the extension's own subdirectory, never directly in `~/.omp/agent/extensions/`: omp loads every top-level `*.ts`/`*.js` there as an extension (so a top-level `*.test.ts` breaks startup), while in a subdirectory it takes only `index.ts` (or a `package.json` manifest), so `rule.test.ts` beside `index.ts` is safe.
+
 ## Command
 
 ```ts
