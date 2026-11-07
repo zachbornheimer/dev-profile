@@ -18,7 +18,12 @@ betterleaks = "1.9.0"
 pinact = "5.0.0"
 zizmor = "1.30.1"
 shellcheck = "0.11.0"
-"github:0sec-labs/foxguard" = "latest"
+# zachbornheimer/foxguard fork of 0sec-labs/foxguard: 0.14.1 plus the TypeScript 5.0
+# `export type * from "x"` parser fix (upstream 0.14.1 skips those files as parse errors,
+# which makes dev-profile-foxguard-introduced fail closed). The fork releases fork-tagged
+# builds (vX.Y.Z-fork.N) of macOS arm64 only; it is a new release, so the age gate is open.
+# Move back to github:0sec-labs/foxguard once upstream ships the fix.
+"github:zachbornheimer/foxguard" = { version = "0.14.1-fork.1", minimum_release_age = "0" }
 # The task tracker. bin/dev-profile-mise-history-watchdog hands a failure it cannot
 # heal to one atask objective, and the doctor fixture drives that path; the asset
 # is named atask-<ver>, not ai-task-<ver>, so the pin carries the matching pattern.
