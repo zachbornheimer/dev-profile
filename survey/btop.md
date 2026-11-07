@@ -1,0 +1,3 @@
+`apps/btop` is the 10 KB `btop.conf` for the btop system monitor, tracked as `~/.config/btop`. It is the file btop writes itself, so it carries the full option set with comments. Non-default choices visible in it: Default theme with truecolor, braille graphs, rounded corners, `update_ms = 2000`, `proc_sorting = "cpu lazy"`, boxes `cpu mem net proc`, Celsius temperatures, and CPU frequency and watts shown.
+
+It has no test. `config/mise.toml` is the only reference (`track`, `encrypt = true`). Because btop rewrites the file when settings change in its UI, drift between the repo copy and the live file is expected and nothing checks for it.
