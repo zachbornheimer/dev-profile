@@ -49,7 +49,7 @@ Decide by **who invokes it**, before anything else.
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ---------------------- |
 | A tool or fixed workflow an omp agent calls, and nothing outside omp needs it: "a new tool for omp", "port this workflow to omp", "a workflow is just a tool" | one custom-tool file: `~/.omp/agent/tools/<name>.ts` (personal) or `.omp/tools/<name>.ts` in a repo (CI-built) (§4.2) | this skill             |
 | A tool any agent calls, including non-omp harnesses or the MCP gateway: "add it to zab-ai", "expose it over MCP"                                              | `@zab-ai/ai` kit + Mastra mount, plus an omp adapter when native (§4, §4.1)                                           | this skill             |
-| Behavior the user triggers or sees: slash command, display toggle, transcript hide, session hook                                                              | extension in `~/.config/omp/`, listed in `~/.omp/agent/config.yml`                                                    | `updating-oh-my-pi` §1 |
+| Behavior the user triggers or sees: slash command, display toggle, transcript hide, session hook                                                              | extension in `~/.omp/agent/extensions/`, auto-discovered                                                              | `updating-oh-my-pi` §1 |
 | A bug or feature in omp itself, or landing a branch into the custom build                                                                                     | topic branch on the fork, listed on `ci`                                                                              | `updating-oh-my-pi` §2 |
 
 "An extension to OhMyPie that does X, Y, and Z" is ambiguous. If an agent calls
@@ -373,7 +373,7 @@ Facts that cost time when missed:
   restart; headless `omp -p` does not discover it (at-ty29zv), so there `edit`,
   `write`, and `todo` are the gateway's tools.
 - Personal behavior no agent calls (a slash command, a display toggle, a session
-  hook) is not an adapter. It is an extension in `~/.config/omp/`; load
+  hook) is not an adapter. It is an extension in `~/.omp/agent/extensions/`; load
   `updating-oh-my-pi` §1.
 
 ### 4.2 Native omp custom tool, no Mastra (default for omp-only work)

@@ -1,6 +1,6 @@
 ---
 name: updating-oh-my-pi
-description: Use for anything about omp itself — landing a branch into the custom omp build (fork zachbornheimer/oh-my-pi), adding or removing a branch from that build, fixing a failed omp-build run or conflict issue, installing, updating, verifying or rolling back omp via mise on the Mac and the fleet, making an upstream PR to can1357/oh-my-pi, or when the user wants personal omp behavior (a slash command, a transcript hide, a presentation toggle, a session hook, "an omp command" such as /thinking or /calm) or is about to edit oh-my-pi, packages/coding-agent or packages/tui for something they want for themselves. Personal omp behavior is an extension in ~/.config/omp/, listed in ~/.omp/agent/config.yml; do not modify the omp repo for that. Not for a Pi extension. Not for a tool that agents call (a new tool for omp, a tool in the zab-ai package, a native omp tool, an MCP gateway tool): that is the creating-new-tools skill.
+description: Use for anything about omp itself — landing a branch into the custom omp build (fork zachbornheimer/oh-my-pi), adding or removing a branch from that build, fixing a failed omp-build run or conflict issue, installing, updating, verifying or rolling back omp via mise on the Mac and the fleet, making an upstream PR to can1357/oh-my-pi, or when the user wants personal omp behavior (a slash command, a transcript hide, a presentation toggle, a session hook, "an omp command" such as /thinking or /calm) or is about to edit oh-my-pi, packages/coding-agent or packages/tui for something they want for themselves. Personal omp behavior is an extension in ~/.omp/agent/extensions/ (auto-discovered, no config entry); do not modify the omp repo for that. Not for a Pi extension. Not for a tool that agents call (a new tool for omp, a tool in the zab-ai package, a native omp tool, an MCP gateway tool): that is the creating-new-tools skill.
   user-invokable: true
 ---
 
@@ -19,27 +19,20 @@ Design and history: [references/build-distribution.md](references/build-distribu
 
 **A tool that agents call is not an extension here.** "A new tool for omp", "add it to the zab-ai package", "expose it over MCP", and "make this a native omp tool" belong to the `creating-new-tools` skill (§0 and §4.1): the logic goes in `@zab-ai/ai`, with a Mastra mount and, if it must be native, an adapter in `mastra/adapters/omp/zab-ai-tools`. Use this skill for what the user triggers or sees (a command, a hide, a toggle, a hook), or for the omp build itself. A request can need both: build the tool there and its command here, and keep one copy of the logic.
 
-**Personal behavior is an extension in `~/.config/omp/`.** The omp repo is not the place for a command or a hide the user wants for themselves. If the user explicitly says to change omp itself, or names an omp bug in the product, edit the repo and land it like any other branch (§2). Otherwise stop and write an extension (§1).
+**Personal behavior is an extension in `~/.omp/agent/extensions/`.** The omp repo is not the place for a command or a hide the user wants for themselves. If the user explicitly says to change omp itself, or names an omp bug in the product, edit the repo and land it like any other branch (§2). Otherwise stop and write an extension (§1).
 
-The failure this prevents: `/thinking` and `/calm` were patched into oh-my-pi. The user wanted `~/.config/omp/`. The installed omp never saw the commands, and the patch folded open tool rows because one apply path did two jobs.
+The failure this prevents: `/thinking` and `/calm` were patched into oh-my-pi. The user wanted an extension. The installed omp never saw the commands, and the patch folded open tool rows because one apply path did two jobs.
 
 ## 1. A personal extension
 
-1. `~/.config/omp/<name>/index.ts` — default export `function (pi: ExtensionAPI)`. Keep the pure rule in a sibling file with a `bun` test next to it.
-2. List the directory in `~/.omp/agent/config.yml`:
-
-   ```yaml
-   extensions:
-     - ~/.config/omp/<name>
-   ```
-
-   A directory that is not listed does not load; `~/.config/omp/` is not scanned. Restart omp — the running process will not see the command.
+1. `~/.omp/agent/extensions/<name>/index.ts` (or `<name>.ts`) — default export `function (pi: ExtensionAPI)`. Keep the pure rule in a sibling file with a `bun` test next to it.
+2. omp auto-discovers `~/.omp/agent/extensions/` (modules one level deep; project-scoped: `<repo>/.omp/extensions/`). No `config.yml` entry is needed. Restart omp — the running process will not see the command. `extensions:` in `~/.omp/agent/config.yml` is only an optional way to load a path outside the native directories.
 3. Draw and input only: not the message, the model context, or the export. Wrap `AssistantMessageComponent.prototype.updateContent` once for display, keep the raw message, and redraw already-drawn rows only on the user's toggle.
 4. Prove it with `bun test` on the pure file, and confirm the omp repo diff does not contain the feature.
 
 Detail, seams and the two working extensions to copy: [references/extensions.md](references/extensions.md) and [references/omp-seams.md](references/omp-seams.md). Read them before writing; do not re-derive the seams from the omp repo.
 
-`~/.omp/agent/extensions/*.ts` (learn-command, undo-clear) is a different pile. New personal extensions go in `~/.config/omp/` and get listed.
+Agent-callable tools can also live in `~/.omp/agent/tools/`, but in this setup they are routed through the `creating-new-tools` skill, not written here.
 
 ## 2. Land a branch in the custom omp (in order)
 

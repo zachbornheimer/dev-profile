@@ -4,7 +4,7 @@
     {
       "id": 1,
       "prompt": "Add an omp command /thinking off that hides thinking blocks already on screen. I don't want this in the omp repo.",
-      "expected_output": "An extension under ~/.config/omp/, listed in ~/.omp/agent/config.yml. No oh-my-pi edits.",
+      "expected_output": "An extension under ~/.omp/agent/extensions/<name>/index.ts (or <name>.ts), auto-discovered with no config.yml entry; restart noted. No oh-my-pi edits.",
       "files": []
     },
     {
