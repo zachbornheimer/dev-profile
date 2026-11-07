@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # Format or check staged/pushed files.
-# - On owned repositories: run dprint (plus oxfmt on JS/TS if the repo configures .oxfmtrc.json).
+# - On owned repositories: run dprint only; it owns JS/TS too (@dprint/typescript), so a
+#   repository's .oxfmtrc.json is not a second formatter there.
 # - On unowned repositories: never fall back to ~/Developer/Personal/dprint.jsonc or
 #   ~/.config/dprint/dprint.jsonc; instead run only the formatters the repository itself
 #   configures at its root (dprint.json*, .oxfmtrc.json/oxfmt.json, biome.json*, .prettierrc*).
@@ -75,9 +76,6 @@ if "$(dirname "${BASH_SOURCE[0]}")/dev-profile-repo-owned"; then
 		exit 2
 		;;
 	esac
-	if [[ -f "${root}/.oxfmtrc.json" || -f "${root}/oxfmt.json" ]]; then
-		run_oxfmt "${mode}" "$@"
-	fi
 	exit 0
 fi
 

@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# Push guard: an add or modify, in the commits being pushed, of trunk or prettier config fails. Deleting stays allowed.
+# Push guard: an add or modify, in the commits being pushed, of config or a dependency for a retired
+# formatter (trunk, prettier, biome, oxfmt) or hook runner (lefthook, husky, lint-staged,
+# simple-git-hooks, the pre-commit framework) fails. dprint formats and hk runs the hooks.
+# Deleting stays allowed.
 "$(dirname "${BASH_SOURCE[0]}")/dev-profile-repo-owned" || exit 0
-banned_file='(^|/)(\.trunk/|\.prettierrc[^/]*$|prettier\.config\.[^/]*$|\.prettierignore$)'
+banned_file='(^|/)(\.trunk/|\.husky/|\.prettierrc[^/]*$|prettier\.config\.[^/]*$|\.prettierignore$|\.?biome\.jsonc?$|\.oxfmtrc(\.jsonc?)?$|oxfmt\.(jsonc?|config\.[^/]*)$|\.?lefthook(-local)?\.(ya?ml|json|toml)$|\.lintstagedrc[^/]*$|lint-staged\.config\.[^/]*$|\.simple-git-hooks\.[^/]*$|simple-git-hooks\.config\.[^/]*$|\.pre-commit-config\.ya?ml$)'
 # Added lines only: removing a dependency or tool line must pass.
-banned_package_line='^\+.*"(prettier|@prettier/[^"]*)"[[:space:]]*:'
-banned_mise_line='^\+[[:space:]]*"?[^=]*\b(prettier|trunk)\b[^=]*"?[[:space:]]*='
+banned_package_line='^\+[[:space:]]*"(prettier|@prettier/[^"]*|@biomejs/[^"]*|oxfmt|husky|lint-staged|lefthook|@evilmartians/lefthook|simple-git-hooks|yorkie)"[[:space:]]*:|^\+[[:space:]]*"[^"]+"[[:space:]]*:[[:space:]]*"[^"]*\b(husky|lefthook|lint-staged|simple-git-hooks)\b[^"]*"'
+banned_mise_line='^\+[[:space:]]*"?[^=]*\b(prettier|trunk|biome|oxfmt|lefthook|husky|lint-staged|simple-git-hooks)\b[^=]*"?[[:space:]]*=|^\+[[:space:]]*"?([a-z]+:)?pre-commit"?[[:space:]]*='
 # The base is the newest commit the pushed commits share with remote history, so a
 # dependency the remote default branch already carries is not "added". Reused clones
 # often have no refs/remotes/origin/HEAD, so it is one candidate among several; the
@@ -49,11 +52,11 @@ while IFS= read -r path; do
 	*) continue ;;
 	esac
 	if git diff -U0 --no-color "${base}" HEAD -- "${path}" | grep -Eq "${pattern}"; then
-		echo "banned: ${path} adds trunk or prettier" >&2
+		echo "banned: ${path} adds a retired formatter or hook runner" >&2
 		failed=1
 	fi
 done < <(git diff --name-only --diff-filter=ACMRT "${base}" HEAD)
 if [[ "${failed}" -ne 0 ]]; then
-	echo "trunk and prettier are banned on this machine. Use dprint via mise (system config ~/Developer/Personal/dprint.jsonc); delete the files instead." >&2
+	echo "trunk, prettier, biome, oxfmt, lefthook, husky, lint-staged, simple-git-hooks and the pre-commit framework are banned on this machine. dprint formats (system config ~/Developer/Personal/dprint.jsonc) and hk runs the hooks; delete the files instead." >&2
 	exit 1
 fi
