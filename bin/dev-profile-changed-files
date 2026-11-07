@@ -118,7 +118,8 @@ elif [[ "${DEV_PROFILE_PUSH_DIRECT:-}" == "1" ]]; then
 	printf '%s %s %s %s\n' "$(git symbolic-ref -q HEAD || echo HEAD)" "$(git rev-parse HEAD)" "${mainline}" "${base}" >"${tmp}/advanced"
 	options=()
 	[[ "${added_only}" -eq 0 ]] || options+=(--added)
-	"${push_introduced}" "${options[@]}" "${tmp}/advanced" >"${tmp}/union" || run_all "direct pre-push refs could not be measured"
+	# bash 3.2 (macOS /bin/bash) treats an empty array as unset under `set -u`.
+	"${push_introduced}" ${options[@]+"${options[@]}"} "${tmp}/advanced" >"${tmp}/union" || run_all "direct pre-push refs could not be measured"
 	union="${tmp}/union"
 elif [[ "${added_only}" -eq 1 ]]; then
 	# No push to measure: origin's default branch is the stand-in base. A
