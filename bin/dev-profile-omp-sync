@@ -14,10 +14,14 @@ PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH"
 export PATH
 
 repo="github:zachbornheimer/oh-my-pi"
-cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/mise/github"
 entrypoint="${OMP_ENTRYPOINT:-$HOME/.local/bin/omp}"
 
-rm -f "$cache_dir"/*oh-my-pi-latest-*.msgpack.z
+# mise resolves its cache directory per platform: XDG on Linux, ~/Library/Caches
+# on macOS. Clearing only the XDG path is a no-op on the Mac, which is how
+# "mise up" kept reporting "up to date" while a newer build was Latest.
+for cache_dir in "${XDG_CACHE_HOME:-$HOME/.cache}/mise/github" "$HOME/Library/Caches/mise/github"; do
+	rm -f "$cache_dir"/*oh-my-pi-latest-*.msgpack.z 2>/dev/null || true
+done
 
 mise up "$repo"
 
