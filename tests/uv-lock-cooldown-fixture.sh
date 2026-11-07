@@ -77,6 +77,18 @@ fixture_named_files_find_their_lock() {
 	check_passes "${dir}/svc" || fail "nested: the lock above a named file was not healed"
 }
 
+# hk passes repo-relative names, but a person runs it where they stand.
+fixture_file_named_from_the_caller_directory() {
+	local dir
+	dir="$(new_project caller)"
+	mv "${dir}/pyproject.toml" "${dir}/uv.toml.moved"
+	mkdir -p "${dir}/svc"
+	mv "${dir}/uv.toml.moved" "${dir}/svc/pyproject.toml"
+	lock_without_cooldown "${dir}/svc"
+	run_heal "${dir}/svc" uv.lock >/dev/null || fail "caller: heal failed"
+	check_passes "${dir}/svc" || fail "caller: a lock named from its own directory was not healed"
+}
+
 # The heal must never hide a real difference: a relock that moves a pin is put
 # back, and the cooldown stays on.
 fixture_refuses_to_move_a_pin() {
@@ -104,6 +116,7 @@ fixture_leaves_other_staleness_alone() {
 
 fixture_heals_a_lock_that_predates_the_cooldown
 fixture_named_files_find_their_lock
+fixture_file_named_from_the_caller_directory
 fixture_refuses_to_move_a_pin
 fixture_leaves_other_staleness_alone
 echo "uv-lock-cooldown fixture ok"

@@ -19,14 +19,27 @@ set -euo pipefail
 #
 # usage: dev-profile-uv-lock-cooldown [file...]   (no files: every uv.lock in the repo)
 command -v uv >/dev/null 2>&1 || exit 0
+caller="$(pwd -P)"
 root="$(cd "$(git rev-parse --show-toplevel)" && pwd -P)"
 cd "${root}"
+
+# A file may be named relative to the caller's directory rather than the root.
+resolve() {
+	if [[ "$1" == /* || -e "$1" || ! -e "${caller}/$1" ]]; then
+		printf '%s\n' "$1"
+	elif [[ "${caller}" == "${root}"* ]]; then
+		printf '%s\n' "${caller#"${root}"/}/$1"
+	else
+		printf '%s\n' "$1"
+	fi
+}
 
 # Lock directories to judge: those owning the given files, else every lock.
 lock_dirs() {
 	local file dir
 	if (($#)); then
 		for file in "$@"; do
+			file="$(resolve "${file}")"
 			dir="$(dirname "${file}")"
 			while :; do
 				if [[ -f "${dir}/uv.lock" ]]; then
