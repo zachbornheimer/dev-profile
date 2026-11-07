@@ -37,6 +37,7 @@ bash "$root/tests/mise-dot-encryption-heal-fixture.sh" >/dev/null || fail "mise 
 bash "$root/tests/php-fmt-basepath-fixture.sh" >/dev/null || fail "php fmt basepath fixture"
 bash "$root/tests/mise-history-watchdog-repair-fixture.sh" >/dev/null || fail "mise history watchdog repair fixture"
 bash "$root/tests/probe-build-fixture.sh" >/dev/null || fail "probe-build fixture"
+bash "$root/tests/uv-lock-cooldown-fixture.sh" "$root" >/dev/null || fail "uv-lock-cooldown fixture"
 bash "$root/tests/tools-install-fixture.sh" "$root" >/dev/null || fail "tools install fixture"
 for f in "$root"/bin/*; do
 	# A directory that a previous run left behind (a stray __pycache__, say) is not
