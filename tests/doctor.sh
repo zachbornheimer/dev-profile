@@ -26,6 +26,7 @@ bash "$root/tests/ruby-security-steps-fixture.sh" >/dev/null || fail "ruby secur
 bash "$root/tests/brakeman-fixture.sh" >/dev/null || fail "brakeman introduced-only fixture"
 bash "$root/tests/oxlint-all-ignored-fixture.sh" >/dev/null || fail "oxlint all ignored fixture"
 bash "$root/tests/pre-commit-fixture.sh" >/dev/null || fail "pre-commit fixture"
+bash "$root/tests/dprint-repo-formatter-fixture.sh" >/dev/null || fail "dprint repo formatter fixture"
 bash "$root/tests/dev-family-fixture.sh" "$root" >/dev/null || fail "dev-family fixture"
 bash "$root/tests/commit-fix-fixture.sh" "$root" >/dev/null || fail "commit-fix fixture"
 bash "$root/tests/done-fixture.sh" "$root" >/dev/null || fail "done fixture"

@@ -1,7 +1,8 @@
 // profile.pkl is no longer the source: this file is, and mise run generate is refused.
 // dprint owns TypeScript and JavaScript (@dprint/typescript) in every repository, the same as
-// the Software-Automation-Holdings profile: a repository does not carry its own oxfmt, biome,
-// prettier or trunk formatter config. oxlint stays as the JS linter.
+// the Software-Automation-Holdings profile, except a repository that declares its own oxfmt, biome
+// or prettier config and no dprint config: hk's dprint step skips it (hk/hk.pkl). oxlint stays as
+// the JS linter.
 {
   "shebangs": {
     "#!/usr/bin/env python3": "py",

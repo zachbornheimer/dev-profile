@@ -137,10 +137,27 @@ local shellcheckFilter =
   done
   """
 
+// True unless the repository root declares another formatter (oxfmt, biome, prettier) and has no
+// dprint config of its own. dprint resolves its config from the repository upward and falls back to
+// the profile's (~/Developer/Personal/dprint.jsonc), whose 2-space TypeScript style rewrote every
+// file of an oxfmt repository on commit (tests/dprint-repo-formatter-fixture.sh). A dprint config
+// at the root is the repository opting in, whatever else it declares; a repository declaring no
+// formatter keeps the profile's dprint. The check reads the repository root only, never a parent
+// directory, because a parent's dprint config is exactly the fallback this guards against.
+local dprintApplies =
+  """
+  root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+  cd "$root" || exit 0
+  for f in dprint.json dprint.jsonc .dprint.json .dprint.jsonc .config/dprint.json .config/dprint.jsonc; do [ -f "$f" ] && exit 0; done
+  for f in .oxfmtrc.json .oxfmtrc.jsonc oxfmt.json biome.json biome.jsonc .prettierrc .prettierrc.* prettier.config.*; do [ -f "$f" ] && exit 1; done
+  exit 0
+  """
+
 local fixers = new Mapping<String, Step> {
   // dprint holds the write lock on its files and waits for the other fixers, so a
   // formatter never rewrites a file another fixer is still editing.
   ["dprint"] = (Builtins.dprint) {
+    step_condition = "exec_ok('\(dprintApplies.replaceAll("\n", "; "))')"
     exclude = lockfiles
     depends =
       List(

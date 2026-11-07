@@ -40,8 +40,10 @@ files=(a.ts b.mts b.cts c.tsx c.jsx d.js d.mjs d.cjs)
 grep -Fxq 'const a = { x: 1, y: 2 };' "${work}/a.ts" || fail "a.ts was not formatted by dprint"
 grep -Fxq 'module.exports = { a: x };' "${work}/d.js" || fail "d.js was not formatted by dprint"
 
-# No other JS formatter step in hk: a second formatter on the same files would fight dprint.
-if grep -Ev '^[[:space:]]*//' "${root}/hk/hk.pkl" | grep -Eiq 'oxfmt|biome|prettier|Builtins\.(prettier|biome|oxfmt)'; then
+# No other JS formatter step in hk: a second formatter on the same files would fight dprint. The
+# dprint step's guard names those tools' config files (tests/dprint-repo-formatter-fixture.sh), so
+# what is forbidden is a step: a builtin of that tool or a step keyed by its name.
+if grep -Ev '^[[:space:]]*//' "${root}/hk/hk.pkl" | grep -Eiq 'Builtins\.(prettier|biome|ox_?fmt)|\["(oxfmt|biome|prettier)[^"]*"\]'; then
 	fail "hk/hk.pkl must not carry an oxfmt, biome or prettier step"
 fi
 
