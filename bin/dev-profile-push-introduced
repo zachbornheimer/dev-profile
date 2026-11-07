@@ -106,6 +106,17 @@ while read -r local_ref local_sha _remote_ref remote_sha; do
 			echo "${parent}" >>"${bases}"
 		fi
 	done
+	# A later authored commit must not turn a merged upstream tree into debt
+	# authored by this push. Retain published side parents of earlier merges.
+	if [[ -n "${base}" ]]; then
+		while read -r _merge _first_parent side_parents; do
+			for parent in ${side_parents}; do
+				if published "${parent}"; then
+					echo "${parent}" >>"${bases}"
+				fi
+			done
+		done < <(git rev-list --merges --parents "${base}..${local_sha}")
+	fi
 
 	if [[ ! -s "${bases}" ]]; then
 		# No base resolved: the push cannot be bounded, so judge everything.
