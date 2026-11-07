@@ -161,6 +161,7 @@ recipients = ["age1qpl3tghy0660prmvz3x2dqjsn69m588e0j0v56ec0rswkujgyshs64dhtc"]
 "~/.config/omp/fallback-shake" = { mode = "track", encrypt = true }
 "~/.config/omp/hide-evidence" = { mode = "track", encrypt = true }
 "~/.config/omp/thinking" = { mode = "track", encrypt = true }
+"~/.config/omp/turn-recovery" = { mode = "track", encrypt = true }
 "~/.config/opencode" = { mode = "track", encrypt = true, exclude = ["service.json", "*.bak*", "*backup*"] }
 "~/.config/php-cs-fixer" = { mode = "track", encrypt = true }
 "~/.config/ripgrep" = { mode = "track", encrypt = true }
