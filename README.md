@@ -35,4 +35,15 @@ Protections enforced on self-saving history:
 
 Run mise run doctor. Run mise dot apply --dry-run before changing live links.
 
+`mise run test:pre-push-upstream-merge` checks both Git pushes and direct
+`hk run pre-push --from-ref <base> --to-ref HEAD` runs. Both judge files authored
+by the branch, not unchanged files inherited from published merge parents;
+authored lint findings still fail, and the history secret scan stays range-wide.
+Direct attribution measures the current checkout at `HEAD`; use `--to-ref HEAD`
+for this mode. The hook's tools lint checkout files, not another ref's tree.
+
+Failed hooks restore tracked content and staged entries, including edits that
+preserve file size and timestamps. Snapshot indexes discard Git's stat cache
+before hashing files; pre-existing tracked deletions remain deleted.
+
 Run `mise run test:kitty-tabs` with Kitty installed to check custom tab labels, icons, equal widths, and the new-tab button using Kitty's renderer without opening a window. Tab icons in `kitty/tab-icons.conf` accept hexadecimal Unicode codepoints such as `U+E73C` or literal glyphs.

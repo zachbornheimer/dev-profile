@@ -45,6 +45,9 @@ push() { # <git args...>
 setup() { # <git args...> — building the fixture's remotes installs no hook
 	(cd "${scratch}/work" && GIT_CONFIG_GLOBAL="${scratch}/plain-gitconfig" git "$@")
 }
+direct() {
+	(cd "${scratch}/work" && PATH="${repo}/bin:${PATH}" hk run pre-push --from-ref origin/main --to-ref HEAD $steps) >"${scratch}/push.txt" 2>&1
+}
 
 git init -q --bare "${scratch}/upstream.git"
 git init -q --bare "${scratch}/fork.git"
@@ -108,6 +111,11 @@ if command -v dprint >/dev/null 2>&1; then
 	fi
 fi
 
+if ! direct; then
+	fail "a direct hk upstream-merge run must pass the hook"
+fi
+grep -q 'gitleaks' "${scratch}/push.txt" || fail "direct hk must still run the history security gate"
+
 # 1. The upstream-merge push passes, and it passes because the push introduces no
 # files of its own: the findings that arrive with the merge are upstream's, not the
 # pusher's. The gate still ran -- gitleaks holds no glob, so it judges the pushed
@@ -131,6 +139,13 @@ if push push -q origin authored; then
 fi
 grep -q '✗ markdownlint' "${scratch}/push.txt" || fail "the markdownlint step must be the one that fails"
 grep -q 'MD040' "${scratch}/push.txt" || fail "the introduced finding must be reported"
+if direct; then
+	fail "a direct hk run must reject authored markdown findings"
+fi
+grep -q 'MD040' "${scratch}/push.txt" || fail "direct hk must report the authored markdown finding"
+if grep -q 'MD024' "${scratch}/push.txt"; then
+	fail "direct hk must not report inherited markdown findings after an authored commit"
+fi
 
 # 2b. An oxlint error the pusher's own commit introduces still blocks.
 if command -v oxlint >/dev/null 2>&1; then
@@ -143,6 +158,13 @@ if command -v oxlint >/dev/null 2>&1; then
 	fi
 	grep -q '✗ oxlint' "${scratch}/push.txt" || fail "the oxlint step must be the one that fails"
 	grep -q 'no-debugger' "${scratch}/push.txt" || fail "the introduced oxlint finding must be reported"
+	if direct; then
+		fail "a direct hk run must reject authored oxlint findings"
+	fi
+	grep -q 'no-debugger' "${scratch}/push.txt" || fail "direct hk must report the authored oxlint finding"
+	if grep -q 'scripts/upstream.js:2:3' "${scratch}/push.txt"; then
+		fail "direct hk must not report inherited oxlint findings after an authored commit"
+	fi
 fi
 
 # 2c. A file dprint cannot parse, introduced by the pusher's own commit, still

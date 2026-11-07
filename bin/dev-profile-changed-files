@@ -33,8 +33,10 @@
 #   published parents  of the pushed tip — the upstream line a fork branch
 #                      merged in, which the push did not write.
 #
-# Without push refs (pre-commit, `hk run check`, a direct run) what this
-# checkout introduces against the mainline stands in for the push: a
+# Direct pre-push steps set DEV_PROFILE_PUSH_DIRECT=1 and reuse the pushed-tip
+# measurement at HEAD, including published merge parents, without Git hook stdin.
+# Other operations without push refs measure what this checkout introduces
+# against the mainline:
 # candidate is introduced when its content at the working tree differs from
 # the merge base with origin's default branch, or the mainline does not
 # track it. DEV_PROFILE_CHANGED_FILES_ALL=1 restores the pass-through that
@@ -102,6 +104,21 @@ elif [[ -n "${refs}" && -r "${refs}" ]]; then
 			run_all "push refs could not be measured"
 		fi
 	fi
+	union="${tmp}/union"
+elif [[ "${DEV_PROFILE_PUSH_DIRECT:-}" == "1" ]]; then
+	mainline=""
+	for ref in refs/remotes/origin/HEAD refs/remotes/origin/main refs/remotes/origin/master; do
+		if git rev-parse -q --verify "${ref}" >/dev/null 2>&1; then
+			mainline="${ref}"
+			break
+		fi
+	done
+	[[ -n "${mainline}" ]] || run_all "direct pre-push has no published mainline"
+	base="$(git merge-base HEAD "${mainline}")" || run_all "direct pre-push has no merge base"
+	printf '%s %s %s %s\n' "$(git symbolic-ref -q HEAD || echo HEAD)" "$(git rev-parse HEAD)" "${mainline}" "${base}" >"${tmp}/advanced"
+	options=()
+	[[ "${added_only}" -eq 0 ]] || options+=(--added)
+	"${push_introduced}" "${options[@]}" "${tmp}/advanced" >"${tmp}/union" || run_all "direct pre-push refs could not be measured"
 	union="${tmp}/union"
 elif [[ "${added_only}" -eq 1 ]]; then
 	# No push to measure: origin's default branch is the stand-in base. A

@@ -34,6 +34,8 @@ command="$("${git_bin}" config --file "${repo}/home/gitconfig" --get hook.hk-pre
 [[ "${command}" == *'${HOME}/.local/share/dev-profile/bin'* ]] || fail "home/gitconfig's hk-pre-commit command no longer names the profile bin directory"
 profile_bin='${HOME}/.local/share/dev-profile/bin'
 command="${command//"${profile_bin}"/${repo}/bin} -S newlines -S trailing-whitespace -S dprint -S stylelint -S no-commit-to-default-branch"
+# Exercise this checkout's rollback helper even when mise prepends installed bins.
+command="${command//dev-profile-restore-tree-on-failure/${repo}/bin/dev-profile-restore-tree-on-failure}"
 cat >"${scratch}/gitconfig" <<EOF
 [user]
 	name = fixture
@@ -92,25 +94,78 @@ git add src/a.ts src/a.css bad.json
 printf 'export const unstaged = 1;\n' >>"${work}/src/a.ts"
 
 tree_state() {
-	{
-		git diff
-		echo --cached
-		git diff --cached
-		echo --index
-		git ls-files -s
-		echo --files
-		shasum "${work}/src/a.ts" "${work}/src/a.css" "${work}/bad.json"
-		git status --porcelain
-	} | shasum
+	git diff
+	echo --cached
+	git diff --cached
+	echo --index
+	git ls-files -s
+	echo --files
+	shasum "${work}/src/a.ts" "${work}/src/a.css" "${work}/bad.json"
+	git status --porcelain
 }
 head_before="$(git rev-parse HEAD)"
-state_before="$(tree_state)"
+tree_state >"${scratch}/state.before"
 if commit "feat: must not land"; then fail "the dprint step must fail on bad.json, or this case proves nothing"; fi
 grep -Eq 'trailing-whitespace – [0-9]+ files? modified' "${scratch}/commit.txt" ||
 	fail "the whitespace fixer must have edited the staged files, or this case proves nothing"
 ! grep -qF 'ConfigurationError' "${scratch}/commit.txt" ||
 	fail "stylelint without a repo config must not dump ConfigurationError to stderr when another step fails"
 [[ "$(git rev-parse HEAD)" == "${head_before}" ]] || fail "a failed hook still made a commit"
-[[ "$(tree_state)" == "${state_before}" ]] || fail "a failed commit changed the work tree or the index"
+tree_state >"${scratch}/state.after"
+if ! cmp -s "${scratch}/state.before" "${scratch}/state.after"; then
+	diff -u "${scratch}/state.before" "${scratch}/state.after" >&2 || true
+	fail "a failed commit changed the work tree or the index"
+fi
+
+# 4. Git may trust size and mtime alone. A failed command that preserves those
+# metadata must still have its content changes rolled back, even when Git's
+# cached stat data calls the file unchanged.
+git config core.trustctime false
+git config core.checkstat minimal
+printf 'staged\n' >"${work}/src/cached.txt"
+touch -t 200001010000 "${work}/src/cached.txt"
+git add src/cached.txt
+cp -p "${work}/src/cached.txt" "${scratch}/cached.orig"
+printf 'before\n' >"${work}/src/cached.txt"
+touch -r "${scratch}/cached.orig" "${work}/src/cached.txt"
+cp -p "${work}/src/cached.txt" "${scratch}/cached.orig"
+git ls-files -s >"${scratch}/index.before"
+status=0
+(
+	cd "${work}"
+	"${repo}/bin/dev-profile-restore-tree-on-failure" bash -c '
+		printf "after!\n" >"$1"
+		touch -r "$2" "$1"
+		exit 17
+	' _ src/cached.txt "${scratch}/cached.orig"
+) >"${scratch}/commit.txt" 2>&1 || status=$?
+[[ "${status}" -eq 17 ]] || fail "rollback must preserve the command's exit status"
+cmp -s "${scratch}/cached.orig" "${work}/src/cached.txt" ||
+	fail "rollback must restore same-size content edits hidden by Git's stat cache"
+git ls-files -s >"${scratch}/index.after"
+cmp -s "${scratch}/index.before" "${scratch}/index.after" ||
+	fail "rollback must preserve staged entries after a cached content edit"
+
+# A failing command can delete a tracked file. A deletion that already
+# existed before the command must instead remain deleted.
+status=0
+(
+	cd "${work}"
+	"${repo}/bin/dev-profile-restore-tree-on-failure" bash -c 'rm src/cached.txt; exit 17'
+) >"${scratch}/commit.txt" 2>&1 || status=$?
+[[ "${status}" -eq 17 ]] || fail "a command deleting a tracked file must reach its own failure"
+cmp -s "${scratch}/cached.orig" "${work}/src/cached.txt" ||
+	fail "rollback must restore a file deleted by the failing command"
+rm "${work}/src/cached.txt"
+status=0
+(
+	cd "${work}"
+	"${repo}/bin/dev-profile-restore-tree-on-failure" bash -c 'exit 17'
+) >"${scratch}/commit.txt" 2>&1 || status=$?
+[[ "${status}" -eq 17 ]] || fail "an existing deletion must not prevent the command from running"
+[[ ! -e "${work}/src/cached.txt" ]] || fail "rollback must preserve a pre-existing deletion"
+git ls-files -s >"${scratch}/index.after"
+cmp -s "${scratch}/index.before" "${scratch}/index.after" ||
+	fail "rollback must preserve staged entries around tracked deletions"
 
 echo "ok pre-commit"
