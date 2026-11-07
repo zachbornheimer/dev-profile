@@ -13,7 +13,7 @@ The `omp` you run is **fork `main` (an exact upstream mirror) + an ordered list 
 - **The branch list** is the `BRANCH_MANIFEST` block in `.github/workflows/omp-build.yml` (a JSON array of `{ "branch": ..., "reason": ... }` entries, merged in order) on the fork's default branch **`ci`**, which holds only that workflow, `scripts/omp-build/resolve-branches.ts` (the single parser of the manifest) and a README. It carries no upstream source tree.
 - **CI** (`omp-build`, hourly poll at minute 17 + manual dispatch; an unchanged tree skips in about a minute) merges each listed branch with `git merge --no-ff` onto **fork `main`**, builds darwin-arm64 + linux-x64, and publishes release `build-<YYYYMMDDHHMMSS>-<main7>-<build7>` as Latest, `<main7>` being the `main` commit it assembled onto. Assembly refuses a `main` that holds commits upstream lacks. Assembly computes the tag and bakes it into both binaries, so `omp --version` prints it on a second line as `github.com/zachbornheimer/oh-my-pi@<tag>`. A branch conflict leaves the previous release Latest. A dispatch with `branches_override` publishes a prerelease only.
 
-Design and history: [references/build-distribution.md](references/build-distribution.md).
+Design and history: [references/build-distribution.md](references/build-distribution.md). Why the fork is shaped this way, and the chosen direction (carry on `main`, one manifest file per branch, fewer branches): the `forking-projects` skill. This skill stays the source for every live command.
 
 ## First: is this a tool agents call, personal behavior, or a change to omp itself?
 
