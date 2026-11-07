@@ -6,40 +6,40 @@ description: 'Reads one agent session through exactly one dimension (skills, tok
   would a change in that dimension have improved this session, and could a new capability
   there help in the future. Each answer comes with falsifiable hypotheses that cite
   the session''s items and name the scorers they would move.'
-whenToUse: 'the learn-loop workflow has annotated a session, built its zero-knowledge
+whenToUse: "the learn-loop workflow has annotated a session, built its zero-knowledge
   and full-knowledge reference paths, and needs hypotheses for one dimension. Internal:
-  it never edits anything and is not for people.'
+  it never edits anything and is not for people."
 tags:
-- mastra-import
+  - mastra-import
 model:
   role: task
 workspace: machine
 tools:
   all: true
   always:
-  - read
-  - write
-  - edit
-  - glob
-  - grep
-  - list
-  - stat
+    - read
+    - write
+    - edit
+    - glob
+    - grep
+    - list
+    - stat
   searchable:
-  - run_command
-  - run_tests
-  - search_tools
-  - worktrunk
-  - atask_list
-  - atask_show
-  - atask_file
-  - atask_claim
-  - atask_log
-  - atask_verify_complete
-  - hindsight_recall
-  - hindsight_retain
-  - web_search
-  - web_fetch
-  - collect_failure_evidence
+    - run_command
+    - run_tests
+    - search_tools
+    - worktrunk
+    - atask_list
+    - atask_show
+    - atask_file
+    - atask_claim
+    - atask_log
+    - atask_verify_complete
+    - memory_search
+    - memory_ingest
+    - web_search
+    - web_fetch
+    - collect_failure_evidence
   denied: []
 spawns: []
 output: none
@@ -107,4 +107,3 @@ prompt: |
   ## How you write it
 
   Your final message is read by a second model that fills a record, not by a person: compact notes, one line per field, no tables, no headings, no summary. State the two answers first, then each hypothesis with every field above.
-

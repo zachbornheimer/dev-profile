@@ -1,4 +1,14 @@
-#!/usr/bin/env -S uv run --script
+#!/usr/bin/env python3
+# A PATH-resolved python3 keeps the start portable: no machine's home directory
+# is baked in. A fleet box can hand the hook an older, barer interpreter
+# (lib/scope_decide.py needs 3.10+ and yaml), so the bootstrap below re-execs
+# through uv — whose script env carries the PEP 723 requirements — and fails
+# open when no capable start exists. The PEP 723 header serves that fallback.
+#
+# Measured under omp's real PATH (mise shim first, then ~/.local/bin/python3
+# 3.13 with yaml, so no uv re-exec; 9 interleaved runs, machine load ~600):
+# 189 ms CPU against 89 ms for the old hardcoded-interpreter shebang. The
+# ~100 ms difference is the mise shim hop; a uv re-exec costs ~1.5 s more.
 # /// script
 # requires-python = ">=3.10"
 # dependencies = ["pyyaml>=6.0"]
@@ -25,7 +35,35 @@ its measured constants live in lib/scope_decide.py.
 
 from __future__ import annotations
 
+import importlib.util
+import os
 import sys
+
+REEXEC_ENV = "HC_SCOPE_GUARD_REEXEC"
+# lib needs dataclass ``slots`` (3.10+); the PEP 723 header above states the same floor.
+LIB_MINIMUM_PYTHON = (3, 10)
+
+
+def _needs_script_env() -> bool:
+    """``lib`` needs ``LIB_MINIMUM_PYTHON`` and yaml; a bare PATH python3 may offer neither."""
+    if tuple(sys.version_info[:2]) < LIB_MINIMUM_PYTHON:
+        return True
+    try:
+        return importlib.util.find_spec("yaml") is None
+    except (ImportError, ValueError):
+        return True
+
+
+if _needs_script_env() and not os.environ.get(REEXEC_ENV):
+    # uv replaces this process, so its interpreter is the hook's; the marker
+    # stops a pathological uv from looping, and a missing uv fails open.
+    os.environ[REEXEC_ENV] = "1"
+    try:
+        os.execvp("uv", ["uv", "run", "--script", os.path.abspath(__file__)])
+    except OSError as exc:
+        sys.stderr.write(f"scope-guard: no capable interpreter start: {exc}\n")
+        sys.exit(0)
+
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))

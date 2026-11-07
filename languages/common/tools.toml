@@ -8,7 +8,9 @@ worktrunk = "latest"
 stylua = "2.5.2"
 aube = "latest"
 jq = "1.8.2"
-"conda:git" = "2.56.0"
+# Linux-only: macOS gets git from Homebrew (same 2.56), so no conda wrapper
+# shadows it on PATH there. Linux has no equivalent portable git.
+"conda:git" = { version = "2.56.0", os = ["linux"] }
 betterleaks = "1.9.0"
 "aqua:gitleaks/gitleaks" = "8.30.1"
 "npm:markdownlint-cli" = "0.49.1"
@@ -17,3 +19,12 @@ pinact = "5.0.0"
 zizmor = "1.30.1"
 shellcheck = "0.11.0"
 "github:0sec-labs/foxguard" = "latest"
+# The task tracker. bin/dev-profile-mise-history-watchdog hands a failure it cannot
+# heal to one atask objective, and the doctor fixture drives that path; the asset
+# is named atask-<ver>, not ai-task-<ver>, so the pin carries the matching pattern.
+# bin/dev-profile-mise-history-repair files and drives atask objectives too, and
+# tests/mise-history-watchdog-repair-fixture.sh drives that script. atask publishes
+# a build per commit, so the release-age gate is open here or `latest` never
+# resolves to an eligible version. This is the only ai-task pin in the profile;
+# languages/agents/tools.toml carried a second, unmatched one.
+"github:zachbornheimer/ai-task" = { version = "latest", matching = "atask-", minimum_release_age = "0" }

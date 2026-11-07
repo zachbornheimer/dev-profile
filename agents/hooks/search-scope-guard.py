@@ -153,7 +153,8 @@ def resolve_command(segment: Segment) -> tuple[int, str | None, int | None]:
         if word == "env":
             index += 1
             while index < length and (
-                segment[index].startswith("-") or ENV_ASSIGNMENT_RE.match(segment[index])
+                segment[index].startswith("-")
+                or ENV_ASSIGNMENT_RE.match(segment[index])
             ):
                 index += 1
             continue
@@ -215,7 +216,16 @@ def normalize_root(root_word: str, home: str) -> str:
 
 
 def is_denied_root(normalized: str, home: str) -> bool:
-    return normalized in {home, "/", "/System", "/Volumes", "/private", "/opt", "/usr", "/Users"}
+    return normalized in {
+        home,
+        "/",
+        "/System",
+        "/Volumes",
+        "/private",
+        "/opt",
+        "/usr",
+        "/Users",
+    }
 
 
 def is_huge_tree_root(normalized: str, home: str) -> bool:
@@ -274,7 +284,9 @@ def glob_pattern_root(pattern: str) -> str:
 
 def search_tool_reason(event: HookEvent, cwd: str, home: str) -> str | None:
     tool = event.raw_tool_name
-    root_word = glob_pattern_root(event.tool_input("pattern")) if tool.lower() == "glob" else ""
+    root_word = (
+        glob_pattern_root(event.tool_input("pattern")) if tool.lower() == "glob" else ""
+    )
     root_word = root_word or event.tool_input("path") or cwd
     if not root_word:
         return None

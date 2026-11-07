@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Size-check only the files a change adds. A file the repository's mainline
+# (origin's default branch) already tracks is not "added", whatever its size:
+# an upstream-owned file over the limit must not block every branch that edits it.
+# Usage: dev-profile-check-added-large-files <file>...
+set -euo pipefail
+
+mainline=""
+for ref in refs/remotes/origin/HEAD refs/remotes/origin/main refs/remotes/origin/master; do
+	if git rev-parse -q --verify "$ref" >/dev/null; then
+		mainline="$ref"
+		break
+	fi
+done
+
+added=()
+for file in "$@"; do
+	if [ "$mainline" != "" ] && git cat-file -e "$mainline:$file" 2>/dev/null; then
+		continue
+	fi
+	added+=("$file")
+done
+
+[ ${#added[@]} -gt 0 ] || exit 0
+exec hk util check-added-large-files "${added[@]}"

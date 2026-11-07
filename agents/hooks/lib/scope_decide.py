@@ -25,11 +25,17 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from completion_gate_session_state import RejectLedger
-from completion_gate_transcript import read_transcript_facts
+from completion_gate_session_state import ISO_SECONDS_CHARS, RejectLedger
+from completion_gate_transcript import read_recent_facts, read_transcript_facts
 from completion_gate_transcript_events import command_of
 from hook_common import Clock, Decision, HookEvent, HookSettings, sha256_digest
-from scope_guard_rules import evaluate_stop, evaluate_tool, prohibited_full_ci
+from scope_guard_rules import (
+    evaluate_stop,
+    evaluate_tool,
+    full_ci_candidate,
+    is_read_only_probe,
+    prohibited_full_ci,
+)
 from typesafe_location import TYPESAFE_CLI
 
 HOOK_NAME = "scope-guard"
@@ -44,6 +50,7 @@ DEFAULT_TIMEOUT_SECS = 6.0
 DEFAULT_CAP = 8
 JUDGMENTS_LOG = "scope-judgments.jsonl"
 CORRECTIONS_LEDGER = "scope-corrections-{session}.tsv"
+ASKS_LOG = "scope-asks-{session}.jsonl"
 TASK_ATTRIBUTIONS = frozenset({"user", "agent"})
 PROMPTS_KEPT = 8
 RUNS_KEPT = 8
@@ -51,6 +58,10 @@ TASK_CHARS = 1200
 CANDIDATE_CHARS = 2400
 CONTEXT_CHARS = 400
 LOG_CHARS = 400
+# A reply this short names no work; the agent message it answers carries the ask.
+SHORT_REPLY_CHARS = 80
+# The agent message joins the task trimmed to its final question, else this tail.
+AGENT_ASKED_CHARS = 400
 
 SECRET_ASSIGNMENT = re.compile(
     r"(?i)\b(token|secret|password|passwd|api[_-]?key|access[_-]?key|authorization)"
@@ -87,10 +98,15 @@ class ScopeRequest:
     tool_input: dict[str, Any]
     final_message: str
     stop_hook_active: bool
+    prompt: str = ""
 
     @property
     def kind(self) -> str | None:
-        return {"PreToolUse": "tool", "Stop": "conversation"}.get(self.event_name)
+        return {
+            "PreToolUse": "tool",
+            "Stop": "conversation",
+            "UserPromptSubmit": "ask",
+        }.get(self.event_name)
 
     @classmethod
     def from_event(cls, event: HookEvent) -> ScopeRequest:
@@ -122,6 +138,7 @@ class ScopeRequest:
                 event.payload.get("stop_hook_active") is True
                 or event.payload.get("stopHookActive") is True
             ),
+            prompt=_event_field(event, "prompt", "userPrompt"),
         )
 
 
@@ -190,6 +207,36 @@ def load_question(path: Path = QUESTION_FILE) -> dict[str, Any]:
     return load_questions(path)["OffTopic"]
 
 
+DIRECTIVES_FILE = Path(__file__).resolve().parents[1] / "scope-guard-directives.yaml"
+DIRECTIVES_ENV = "HC_SCOPE_DIRECTIVES_FILE"
+DIRECTIVE_CHARS = 400
+
+
+def _applicable_directives(env: Mapping[str, str] | None = None) -> list[str]:
+    """Standing directives the judge sees, from one YAML file the harness owns.
+
+    ``applicable_directives`` was hardcoded empty: the guard had no source for
+    the harness's standing rules, so the judge never saw them (the 2026-10-30
+    review, chain 3). The file holds one directive per list entry; a missing
+    file keeps the old empty behavior.
+    """
+    path = Path((env or os.environ).get(DIRECTIVES_ENV, DIRECTIVES_FILE))
+    try:
+        loaded = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except OSError:
+        return []
+    if not isinstance(loaded, Mapping):
+        return []
+    directives = loaded.get("directives")
+    if not isinstance(directives, list):
+        return []
+    return [
+        _clip(str(item).strip(), DIRECTIVE_CHARS)
+        for item in directives
+        if str(item).strip()
+    ]
+
+
 def judge_request(
     task: str,
     candidate: str,
@@ -203,7 +250,7 @@ def judge_request(
         "conversation": _redact(task),
         "context": {
             "user_request": _redact(task),
-            "applicable_directives": [],
+            "applicable_directives": _applicable_directives(),
             "recent_context": [_redact(line) for line in context],
             "candidate_event": {"kind": kind, "content": _redact(candidate)},
         },
@@ -247,8 +294,15 @@ class ScopeJudge:
         names = TOOL_QUESTIONS if kind == "tool" else STOP_QUESTIONS
         started = time.monotonic()
         try:
+            # Argument list, no shell: env runs this interpreter on the judge CLI.
             done = subprocess.run(
-                [sys.executable, str(self.cli), "interrogate", "--json"],
+                [
+                    "/usr/bin/env",
+                    sys.executable,
+                    str(self.cli),
+                    "interrogate",
+                    "--json",
+                ],
                 input=json.dumps(
                     judge_request(task, candidate, kind, context, self.specs, names)
                 ),
@@ -317,6 +371,21 @@ def _candidate(request: ScopeRequest) -> str:
     return _clip(f"{request.tool}: {command}", CANDIDATE_CHARS)
 
 
+# Tools that only look; like a read-only shell probe, they cannot act on the
+# world, so judging them costs a model call and risks denying a legitimate read.
+# Claude's names, omp's own, and the capability gateway's (prefix stripped).
+READ_ONLY_TOOLS = frozenset(
+    {"Read", "Grep", "Glob", "LS", "NotebookRead"}
+    | {"read", "grep", "glob", "find", "ast_grep"}
+    | {"bash_status", "wait"}
+)
+GATEWAY_PREFIX = re.compile(r"^mcp__capability_{1,2}agentmux_capability_")
+
+
+def _is_read_only_tool(tool: str) -> bool:
+    return GATEWAY_PREFIX.sub("", tool) in READ_ONLY_TOOLS
+
+
 def _is_execution_tool(tool: str) -> bool:
     """Avoid treating prose in a file write as a shell command."""
     return bool(
@@ -339,137 +408,142 @@ def _execution_text(request: ScopeRequest) -> str:
     return value if isinstance(value, str) else ""
 
 
-def _transcript_disposed_on_disk(path: str) -> bool:
-    """True when the on-disk JSONL ends at an earlier run's session_exit (e.g. resumed on SQL)."""
-    if not path:
-        return False
+@dataclass(frozen=True, slots=True)
+class Ask:
+    """One user ask and when it was made."""
+
+    text: str
+    at: str
+
+
+def record_ask(state_dir: Path, session: str, prompt: str, at: str) -> None:
+    """Keep the session's newest asks as they are submitted.
+
+    omp flushes a session to its store in batches, so a turn's first tool calls
+    read a transcript that ends at the previous turn: measured on omp:01a19d6a,
+    the prompt was submitted at 18:00:40, judged against at 18:00:45 with no
+    ask at all, and stored at 18:01:15. The prompt hook sees the ask first.
+    """
+    text = prompt.strip()
+    if not session or not text:
+        return
+    path = state_dir / ASKS_LOG.format(session=session)
+    kept = [*_recorded_asks(state_dir, session), Ask(text, at)][-PROMPTS_KEPT:]
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
     try:
-        with Path(path).open("rb") as handle:
-            handle.seek(0, os.SEEK_END)
-            size = handle.tell()
-            handle.seek(max(0, size - 2048), os.SEEK_SET)
-            lines = handle.read().decode("utf-8", errors="ignore").strip().splitlines()
-            return bool(lines and '"customType":"session_exit"' in lines[-1])
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary.write_text(
+            "".join(json.dumps({"text": ask.text, "at": ask.at}) + "\n" for ask in kept)
+        )
+        temporary.replace(path)
     except OSError:
-        return False
+        temporary.unlink(missing_ok=True)
 
 
-def _prompts(facts: Any) -> tuple[str, ...]:
-    if facts is None:
+def _recorded_asks(state_dir: Path, session: str) -> tuple[Ask, ...]:
+    try:
+        lines = (state_dir / ASKS_LOG.format(session=session)).read_text().splitlines()
+    except OSError:
         return ()
-    return tuple(item.text.strip() for item in facts.prompts if item.text.strip())
+    asks = []
+    for line in lines:
+        with contextlib.suppress(ValueError, TypeError, KeyError, AttributeError):
+            value = json.loads(line)
+            if str(value["text"]).strip():
+                asks.append(Ask(str(value["text"]).strip(), str(value["at"])))
+    return tuple(asks)
+
+
+def _asks(facts: Any, recorded: tuple[Ask, ...]) -> tuple[Ask, ...]:
+    """The transcript's asks, then each recorded ask submitted after its newest one.
+
+    Newer is decided by time, not text: the store can hold a prompt in another
+    form than the hook received (an expanded command), and a text match would
+    then put every old recorded ask after the transcript, as the current task.
+    """
+    stored = tuple(
+        Ask(item.text.strip(), str(item.at or ""))
+        for item in (facts.prompts if facts is not None else ())
+        if item.text.strip()
+    )
+    newest = stored[-1].at[:ISO_SECONDS_CHARS] if stored else ""
+    return stored + tuple(
+        ask for ask in recorded if ask.at[:ISO_SECONDS_CHARS] > newest
+    )
 
 
 TASK_PROMPTS = 3
+# The recent window must hold every ask a judgment consumes: the task's
+# prompts plus the earlier ones the judge's context carries. `mise run ci`
+# candidates keep the whole-tail read — prohibited_full_ci consults prompts
+# older than any window.
+RECENT_PROMPTS = max(TASK_PROMPTS, PROMPTS_KEPT + 1)
 
 
-def _task_of(facts: Any) -> str:
+def _final_question(text: str) -> str:
+    """``text`` trimmed to its last question mark, else its final ``AGENT_ASKED_CHARS``."""
+    cut = text.rfind("?")
+    if cut >= 0:
+        return text[: cut + 1]
+    return text[-AGENT_ASKED_CHARS:]
+
+
+def _agent_asked(facts: Any, asks: tuple[Ask, ...]) -> str:
+    """The agent's last message before the newest ask, "" when none is stored.
+
+    A plain "yes" is the agent's question's answer, not a task: measured on omp
+    01a19986 the guard judged a bare "yes" as the whole task and denied the
+    approved ``gh repo create`` as off-task-and-unnecessary. ``_asks`` keeps a
+    recorded ask only when it is newer than the transcript's newest stored
+    prompt, so a newest ask past that prompt means the transcript ends
+    mid-turn — omp flushes in batches — and the question it answers is the
+    current turn's reply (``turn_reply``). Otherwise the newest ask is the
+    transcript's newest prompt, and the question it answers closed the
+    previous turn (``history``).
+    """
+    if facts is None or not asks:
+        return ""
+    stored = getattr(facts, "prompts", ()) or ()
+    newest_stored = str(stored[-1].at or "")[:ISO_SECONDS_CHARS] if stored else ""
+    if asks[-1].at[:ISO_SECONDS_CHARS] > newest_stored:
+        return str(getattr(facts, "turn_reply", "") or "").strip()
+    history = getattr(facts, "history", ()) or ()
+    return str(history[-1].reply.strip() if history else "")
+
+
+def _task_of(asks: tuple[Ask, ...], agent_message: str = "") -> str:
     """The recent asks, oldest first, so a bare path still carries its request.
 
-    ``facts.user_prompt`` is only the newest message. Measured on the live guard:
-    when that message was ``/private/tmp/Downloads/scope-guard-dropin.zip`` the
-    judge scored a real ``pkill`` detour OffTopic 0.68 / UnnecessaryWork 0.83 and
-    allowed it; the identical candidate against a real request scored
-    0.94 / 0.96 / 0.03 and denied. The bar was never the problem — the task it
-    was measured against named no work. The last few asks give the judge the
-    conversation that message belongs to.
+    The newest ask alone can name no work. Measured on the live guard: when it
+    was ``/private/tmp/Downloads/scope-guard-dropin.zip`` the judge scored a
+    real ``pkill`` detour OffTopic 0.68 / UnnecessaryWork 0.83 and allowed it;
+    the identical candidate against a real request scored 0.94 / 0.96 / 0.03
+    and denied. The bar was never the problem — the task it was measured
+    against named no work. The last few asks give the judge the conversation
+    that message belongs to.
+
+    Only a newest ask shorter than ``SHORT_REPLY_CHARS`` is re-labeled with the
+    agent message it answers: a reply that short names no work, while a longer
+    ask is self-contained and must never be judged against the agent's words.
     """
-    prompts = _prompts(facts)[-TASK_PROMPTS:]
-    if not prompts:
+    texts = [ask.text for ask in asks[-TASK_PROMPTS:]]
+    if not texts:
         return ""
-    return _clip("\n".join(prompts), TASK_CHARS)
+    if agent_message and len(asks[-1].text) < SHORT_REPLY_CHARS:
+        reply = asks[-1].text
+        asked = _clip(_final_question(agent_message), AGENT_ASKED_CHARS)
+        return _clip(f"Agent asked: {asked}\nUser replied: {reply}", TASK_CHARS)
+    return _clip("\n".join(texts), TASK_CHARS)
 
 
-CAPABILITY_CLI_ENV = "HC_CAPABILITY_CLI"
-CAPABILITY_TURNS = 3
-CAPABILITY_TIMEOUT_SECS = 3.0
-# Hooks run with a PATH that carries neither `node` nor `bun`, so the CLI's
-# `#!/usr/bin/env node` shebang exits 127 there. The interpreter is resolved here
-# and its directory put on the child's PATH. bun is tried first: it starts in tens
-# of milliseconds, where node costs roughly a second on every tool call.
-CAPABILITY_RUNNERS = (
-    ".local/share/mise/installs/bun/*/bin/bun",
-    ".local/share/mise/installs/node/*/bin/node",
-)
-
-
-def _newest_runner(pattern: str) -> Path | None:
-    found = sorted(path for path in Path.home().glob(pattern) if path.is_file())
-    return found[-1] if found else None
-
-
-def _recent_turns(session_id: str, env: Mapping[str, str]) -> tuple[str, ...]:
-    """The session's newest turns, as the harness reports them.
-
-    The transcript reader yields the user's asks and the tool calls, but not what
-    the agent itself has been saying. The judge needs that to tell "continuing the
-    work" from "started something else". A missing CLI, a missing interpreter, a
-    timeout or a malformed reply returns nothing — the guard then falls back to the
-    transcript, never to a guess.
-    """
-    override = env.get(CAPABILITY_CLI_ENV, "").strip()
-    cli = (
-        Path(override) if override else Path.home() / ".local/share/aube/bin/capability"
-    )
-    if not cli.is_file() or not session_id:
-        return ()
-    runner = next(
-        (found for pattern in CAPABILITY_RUNNERS if (found := _newest_runner(pattern))),
-        None,
-    )
-    if runner is None:
-        return ()
-    payload = json.dumps(
-        {"conversation": f"omp:{session_id}", "turns": CAPABILITY_TURNS}
-    )
-    child_env = dict(os.environ)
-    child_env["PATH"] = f"{runner.parent}:{child_env.get('PATH', '/usr/bin:/bin')}"
-    try:
-        done = subprocess.run(
-            [str(runner), str(cli), "run", "get_recent_turns", "--input", payload],
-            capture_output=True,
-            text=True,
-            timeout=CAPABILITY_TIMEOUT_SECS,
-            check=False,
-            env=child_env,
-        )
-    except (subprocess.SubprocessError, OSError):
-        return ()
-    if done.returncode != 0:
-        return ()
-    try:
-        reply = json.loads(done.stdout)
-    except ValueError:
-        return ()
-    if not isinstance(reply, dict):
-        return ()
-    lines = []
-    for turn in (reply.get("turns") or [])[-CAPABILITY_TURNS:]:
-        if not isinstance(turn, dict):
-            continue
-        for message in turn.get("messages") or []:
-            if not isinstance(message, dict):
-                continue
-            speaker = str(message.get("from") or "").strip()
-            text = " ".join(str(message.get("content") or "").split())
-            if speaker and text:
-                lines.append(
-                    _clip(
-                        f"Earlier in this session, {speaker} said: {text}",
-                        CONTEXT_CHARS,
-                    )
-                )
-    return tuple(lines)
-
-
-def _context(facts: Any) -> tuple[str, ...]:
+def _context(facts: Any, asks: tuple[Ask, ...]) -> tuple[str, ...]:
     """Make relevant prior instructions and the current trajectory visible to Jev."""
-    if facts is None:
-        return ()
     prior = [
-        "Earlier task message: " + _clip(text, CONTEXT_CHARS)
-        for text in _prompts(facts)[:-1][-PROMPTS_KEPT:]
+        "Earlier task message: " + _clip(ask.text, CONTEXT_CHARS)
+        for ask in asks[:-1][-PROMPTS_KEPT:]
     ]
+    if facts is None:
+        return tuple(prior)
     recent = []
     for run in facts.turn_runs[-RUNS_KEPT:]:
         command = str(run.command or "")
@@ -513,17 +587,38 @@ def _observe(
     candidate = _candidate(request)
     if not candidate:
         return Observation(request, skip="empty-candidate")
-    facts = (
-        read_transcript_facts(request.transcript_path, TASK_ATTRIBUTIONS)
-        if request.transcript_path
-        and not _transcript_disposed_on_disk(request.transcript_path)
-        else None
+    # Read-only probes can never mutate state; judging them only burns model
+    # calls and risks denying legitimate `--help`/presence checks.
+    execution_text = _execution_text(request) if request.kind == "tool" else ""
+    if request.kind == "tool":
+        if _is_read_only_tool(request.tool):
+            return Observation(request, candidate=candidate, skip="read-only-tool")
+        if execution_text and is_read_only_probe(execution_text):
+            return Observation(request, candidate=candidate, skip="read-only-probe")
+    # The reader returns the freshest copy (the session database's when omp keeps
+    # the session there) and None for a run that already ended at session_exit.
+    # Everything a judgment needs lives in the recent window — except the
+    # explicit `mise run ci` prohibition, which consults prompts older than any
+    # window, so its candidates take the whole-tail read.
+    facts = None
+    if request.transcript_path:
+        if request.kind == "tool" and full_ci_candidate(execution_text):
+            facts = read_transcript_facts(request.transcript_path, TASK_ATTRIBUTIONS)
+        else:
+            facts = read_recent_facts(
+                request.transcript_path, TASK_ATTRIBUTIONS, RECENT_PROMPTS
+            )
+    asks = _asks(
+        facts, _recorded_asks(HookSettings.from_env(env).state_dir, request.session_id)
     )
-    task = _task_of(facts)
+    # The agent's last message before the newest ask, "" when the fold kept none.
+    # A short reply answers it; a long ask is judged alone, as before.
+    agent_message = _agent_asked(facts, asks)
+    task = _task_of(asks, agent_message)
     if not task:
         return Observation(request, candidate=candidate, skip="no-user-task")
     task = _clip(task, TASK_CHARS)
-    since_iso = str(facts.prompts[-1].at or "") if facts.prompts else ""
+    since_iso = asks[-1].at
     digest = sha256_digest(
         f"{request.session_id}:{since_iso}:{request.kind}:{candidate}"
     )
@@ -538,7 +633,7 @@ def _observe(
     # This explicit prohibition is enforced even if Jev fails, has timed out, or
     # the correction budget is exhausted. Only actual task messages count.
     if request.kind == "tool" and prohibited_full_ci(
-        _execution_text(request), _prompts(facts)
+        _execution_text(request), tuple(ask.text for ask in asks)
     ):
         return Observation(
             request=request,
@@ -576,9 +671,9 @@ def _observe(
         )
 
     try:
-        # The harness's recent turns first, then the transcript's asks and tool
-        # runs: the historical state plus this call, which is what the judge needs.
-        context = _recent_turns(request.session_id, env) + _context(facts)
+        # The transcript's asks and tool runs: the historical state plus this call,
+        # which is what the judge needs.
+        context = _context(facts, asks)
         judgment = ScopeJudge.from_env(env).judge(
             task, candidate, request.kind, context
         )
@@ -594,7 +689,7 @@ def _observe(
     return Observation(request, task, candidate, since_iso, digest, judgment=judgment)
 
 
-def _plan(observation: Observation) -> Correction | None:
+def _plan(observation: Observation, prior_denials: int = 0) -> Correction | None:
     """Turn one verdict into actionable feedback, with no system mutations."""
     if observation.skip:
         return None
@@ -614,11 +709,26 @@ def _plan(observation: Observation) -> Correction | None:
         reason = outcome.reason
 
     if request.kind == "tool":
+        # A denied agent retries because its own instructions say the call is
+        # required (measured on omp 01a188f: one landing call refused four more
+        # times, a judge call each). Name the count, forbid the retry, and
+        # offer the one action that can change the answer: the user.
+        escalation = (
+            f"This is denial {prior_denials + 1} for this request; earlier "
+            "attempts were also denied. "
+            if prior_denials
+            else ""
+        )
         details = (
             "Scope guard: DO NOT execute that proposed tool call.\n"
             f"Current task: {observation.task}\n"
             f"Rejected call: {_clip(observation.candidate, 400)}\n"
             f"Reason: {reason}.\n"
+            f"{escalation}"
+            "Do not retry this call or a rephrased variant of it; a retry is "
+            "denied too. If you believe this call is genuinely required by the "
+            "user's request, ask the user to authorize it explicitly instead "
+            "of retrying.\n"
             "Return to the user's request. Use only the smallest necessary next action; "
             "do not replace this detour with another CPU, disk, or CI investigation. "
             "If verification is unnecessary, answer with the evidence available."
@@ -668,14 +778,30 @@ def _write_log(
 def scope_decision(
     event: HookEvent, *, env: Mapping[str, str] | None = None
 ) -> Decision:
-    """Entrypoint for either hook; emits a decision immediately in this turn."""
+    """Entrypoint for every scope-guard event; emits a decision immediately in this turn.
+
+    A submitted prompt is only recorded (see ``record_ask``); a tool call or a
+    turn end is judged against the asks.
+    """
     environment = os.environ if env is None else env
     request = ScopeRequest.from_event(event)
     settings = HookSettings.from_env(environment)
     clock = Clock.from_env(environment)
+    if request.kind == "ask":
+        record_ask(
+            settings.state_dir, request.session_id, request.prompt, clock.now_iso()
+        )
+        return Decision.no_objection("ask-recorded")
     ledger = _ledger(settings, request.session_id)
     observation = _observe(request, ledger, environment)
-    correction = _plan(observation)
+    # The refusal escalates with the denials already recorded inside this
+    # request's window, so a denied agent stops retrying and asks the user.
+    prior_denials = (
+        ledger.count(observation.since_iso)
+        if ledger is not None and observation.since_iso
+        else 0
+    )
+    correction = _plan(observation, prior_denials)
     if correction is None:
         decision = Decision.no_objection(
             observation.skip

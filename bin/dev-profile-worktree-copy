@@ -48,6 +48,63 @@ until wt step copy-ignored; do
 	sleep "${copy_retry_delay}"
 done
 
+# A branch whose tree carries no ignore rules (a tooling branch) has none for
+# the copied build output either: git presents every copied file as
+# non-ignored untracked, and each hook enumerates and stashes them all. A
+# per-worktree info/exclude has no effect on this git; a per-worktree
+# core.excludesFile does. Write rules for exactly what the copy landed here,
+# folded with the global ignore rules the key replaces.
+exclude_copied_output() { # <primary-worktree> <this-worktree>
+	local primary="$1" current="$2" entry path pattern git_dir excludes inherited patterns
+	patterns=()
+	while IFS= read -r -d '' entry; do
+		[[ "${entry:0:2}" == '!!' ]] || continue # not ignored in the primary
+		path="${entry:3}"
+		[[ -n "${path}" && "${path}" != *$'\n'* && -e "${current}/${path}" ]] || continue # the copy did not land it here
+		if git check-ignore -q -- "${path}"; then continue; fi                            # this branch's rules cover it
+		patterns+=("/${path}")
+	done < <(git -C "${primary}" status --porcelain --ignored -z)
+	((${#patterns[@]})) || return 0
+	git config extensions.worktreeConfig true || return 1
+	git_dir="$(git rev-parse --path-format=absolute --git-dir)"
+	excludes="${git_dir}/info/copy-ignored-excludes"
+	# The key replaces the global ignore outright, so fold its rules in. Read
+	# --local (the shared config; a worktree key reads empty there) then
+	# --global, else the default, so a re-run never stacks its own file.
+	inherited="$(git config --local core.excludesFile 2>/dev/null || true)"
+	[[ -n "${inherited}" ]] || inherited="$(git config --global core.excludesFile 2>/dev/null || true)"
+	[[ -n "${inherited}" ]] || inherited="${XDG_CONFIG_HOME:-${HOME}/.config}/git/ignore"
+	inherited="${inherited/#\~/${HOME}}"
+	mkdir -p "${git_dir}/info" || return 1
+	if [[ ! -e "${excludes}" ]]; then
+		{
+			echo "# dev-profile-worktree-copy: rules for the build output copied into a"
+			echo "# branch whose tree carries none. The global rules the worktree's"
+			echo "# core.excludesFile key replaces are folded in above them. Dies with"
+			echo "# this worktree."
+			if [[ -f "${inherited}" ]]; then
+				cat "${inherited}"
+			fi
+		} >"${excludes}" || return 1
+	fi
+	for pattern in "${patterns[@]}"; do
+		grep -qxF -- "${pattern}" "${excludes}" || printf '%s\n' "${pattern}" >>"${excludes}"
+	done
+	git config --worktree core.excludesFile "${excludes}" || return 1
+	echo "dev-profile-worktree-copy: excluding ${#patterns[@]} copied path(s) in this worktree"
+}
+
+# Like the autoloader repair below, the excludes are advisory: a start that
+# cannot hide the copied output is noisy, not broken. Only a worktree that is
+# not the primary needs them.
+primary="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")"
+current="$(pwd -P)"
+if [[ -d "${primary}" && "${primary}" != "${current}" ]]; then
+	if ! exclude_copied_output "${primary}" "${current}"; then
+		echo "dev-profile-worktree-copy: could not exclude the copied output; run: git config extensions.worktreeConfig true; git config --worktree core.excludesFile \"\$(git rev-parse --path-format=absolute --git-dir)/info/copy-ignored-excludes\"" >&2
+	fi
+fi
+
 # Both markers: composer.json alone is a repo whose dependencies were never
 # installed, and a vendor/ without autoload.php is not an autoloader to rebuild.
 [[ -f composer.json && -f vendor/autoload.php ]] || exit 0

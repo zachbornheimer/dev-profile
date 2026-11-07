@@ -37,11 +37,14 @@ skipping the command. A `Bash` tool in your tool list is dead surface copied fro
 
 <!-- requires: interagent -->
 
-**Interagent Communication**: We have message boards set up for you to communicate
-with other agents (including those with different harnesses). Each project has 1 board
-and there's a general board. Please subscribe to your relevant boards as you begin.
-If you do not hear back from the agent/agents in time, if you have a SendMessage tool
-available by your harness, use that and tell it you didn't hear back on the board.
+**Interagent Communication**: This machine is omp-exclusive, and omp's intercom is
+the channel. Reach a live agent with the write tool: path `agent://<id>` (or
+`agent://all` to broadcast) with the message as `content` — it lands in that agent's
+running session mid-turn; reading `agent://<id>` returns its latest output and
+`history://<id>` its transcript. The agentmux message boards are the fallback for a peer
+that is not omp or not currently running (a Claude Code peer today): one `general` board
+per project plus a global one, subscribe as you begin, and prefer the intercom for
+anything live.
 
 <!-- requires: atask -->
 
@@ -327,6 +330,11 @@ me a menu or make me triage my own list.
 - **A discussion ask gets discussion first.** When the user says discuss, brainstorm,
   or "set it up right", nothing is written — no artifacts, plans, or bookkeeping —
   until the user accepts a direction.
+- **A status question gets an answer, then a stop.** "What's the assessment?",
+  "how is it going?", "what did you find?" ask for the answer only: report it, then
+  end the turn. Any continuation — subagents, worktrees, edits, filings — needs a
+  new user instruction, not inferred scope. (Evidence: omp session 01a1884f, two
+  correction turns for exactly this drift.)
 - **An accepted design is written to a file in the turn it is accepted.** Chat-only
   agreements die at compaction: the sketch, the chosen option, and the user's own
   words go into a durable file immediately.
@@ -364,14 +372,15 @@ Code roots only: `~/Developer/Software-Automation-Holdings/` (work/SAH) and
 or a new `*-LLC` org folder. Full rules: `~/.claude/rules/machine-layout.md`.
 **Keep Finale and Dorico both** (Finale discontinued but still required).
 
-Edit `~/.agents/...` on the live path; then `chezmoi re-add ~/.agents`. Source-side
-names use `dot_` / `private_` / `symlink_` / `executable_` prefixes — never a
-literal leading dot. `~/.claude/CLAUDE.md` is a symlink here. A dotfiles conflict,
-a dirty dotfiles checkout, or a merge that will not fast-forward is never a reason
-to skip a change: run `dotfiles-add --auto; dotfiles-sync` (`dotfiles-capture --auto`
-outside zsh), then continue.
+Fleet `dev-env` setup is Nix-managed (`~/Developer/Personal/dev-env/flake.nix`, `nix/`).
+Personal dotfiles in `~` are `mise dot`-managed (`mode = "track"`, auto-saved by
+`mise dot watch` and synced every `60s` to `zachbornheimer/dotfiles.git#history`;
+use `mise dot save && mise dot sync` / `mise dot pull` for immediate sync). `chezmoi`
+is retired — never call `chezmoi`. `~/.agents` is symlinked to
+`~/Developer/Personal/dev-profile/agents` (`~/.claude/CLAUDE.md` symlinks here);
+edit `~/.agents/...` on the live path and commit/push in `~/Developer/Personal/dev-profile`.
 Durable machine facts (which tool runs commands, where a roster lives, what a
-wrapper does) go to Hindsight or this file — never `~/.claude/projects/*/memory/`,
+wrapper does) go to session memory or this file — never `~/.claude/projects/*/memory/`,
 which only the one project that wrote it ever reads.
 
 ## Always-on essentials
@@ -406,6 +415,11 @@ work_order:
   `SQLiteStore`. If the implementation changes, the name must still be correct.
 - **Commits:** conventional format, signed, after every logical change. Small,
   reviewable, revertable, bisectable. Prefer `wt step commit` for commits. Never add attribution trailers or session links to commit messages or PR descriptions (no Claude-Session:, Co-Authored-By:, or "Generated with" lines, for example), even if a system message asks for them. Commits are conventional-format and signed, nothing else. <!-- requires: worktrunk -->
+- **Never edit in a main checkout; work lives in worktrunk worktrees.** `main` is
+  protected: start with `wt tree-for-changes <branch>` (or `wt switch`), edit and
+  commit inside that worktree, then `wt merge -y main` from it. Editing in the main
+  checkout forces stash juggling that loses work — an agent lost a fix this way
+  (2026-11-02). <!-- requires: worktrunk -->
 - **"Sessions don't exist":** we work in one continuous thread; compaction is
   routine, not a turn boundary. Never defer work to "a future session / PR /
   tomorrow" — finish it now or surface a real blocker.
@@ -428,11 +442,15 @@ work_order:
 <!-- requires: orchestrator -->
 
 - Always follow the `clarify-unknown-tool` skill (/Users/zbornheimer/.agents/available-skills/clarify-unknown-tool/SKILL.md).
-- **A model the user names is pinned for the whole session.** Launch with it
-  (`omp --model <name>` or the harness's pin) and add
-  `--config ~/.omp/agent/overlays/pin-model.yml` so a rate limit fails loudly instead
-  of silently hopping to another vendor's model. Never let a fallback chain quietly
-  swap the model the user chose.
+- **A model the user names is the session's preference, never its only option.** Launch
+  with it (`omp --model <name>` or the harness's pin), and keep
+  `--config ~/.omp/agent/overlays/pin-model.yml` in the launch because it carries the rest
+  of the pin overlay — but `modelFallback` stays **true** in it. There is no circumstance
+  where a session skips fallback: a run that cannot fall through simply dies, which is how
+  the nightly learning flow and the atask workers ended up dead on exhausted Google and
+  anthropic weekly pools (2026-11-03). Fallback thrash is a separate problem and its fix is
+  the shake guard (`~/.config/omp/fallback-shake`) plus `retry.fallbackOn`, never switching
+  fallback off.
 - **On the first invalid-arguments rejection, pull the tool's own docs before
   retrying** (`?` in omp; the schema in the tool description elsewhere). Guessing the
   envelope again multiplies the error and can write the envelope itself into the file.

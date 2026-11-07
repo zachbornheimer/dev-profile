@@ -116,26 +116,37 @@ if ! git rev-parse --verify -q HEAD >/dev/null 2>&1; then
   exit 1
 fi
 {% endif %}
+stash_before=$(git rev-parse -q --verify refs/stash) || stash_before=
 git stash push -u || exit 1
-id=$(uuidgen) || { git stash pop; exit 1; }
+stash_after=$(git rev-parse -q --verify refs/stash) || stash_after=
+if [ \"$stash_after\" = \"$stash_before\" ]; then
+  echo \"wt tree-for-changes: git stash saved nothing, so there is nothing to move; no worktree created.\" >&2
+  exit 0
+fi
+stash_ref=$(git stash list --format='%gd %H' | awk -v want=\"$stash_after\" '$2 == want { print $1; exit }')
+if [ -z \"$stash_ref\" ]; then
+  echo \"wt tree-for-changes: the stash just created ($stash_after) is not in refs/stash; run 'git stash apply $stash_after' to recover it.\" >&2
+  exit 1
+fi
+id=$(uuidgen) || { git stash pop \"$stash_ref\"; exit 1; }
 id=$(printf '%s' \"$id\" | tr '[:upper:]' '[:lower:]')
-[ -n \"$id\" ] || { git stash pop; exit 1; }
+[ -n \"$id\" ] || { git stash pop \"$stash_ref\"; exit 1; }
 {% if args %}
-if wt switch --create \"$id\" --no-cd -x sh -- -c 'git stash pop && exec \"$@\"' tree-for-changes {{ args }}; then
+if wt switch --create \"$id\" --no-cd -x sh -- -c 'git stash pop \"$1\" && shift && exec \"$@\"' tree-for-changes \"$stash_ref\" {{ args }}; then
   wt switch ^
 else
   status=$?
   if git show-ref --verify --quiet \"refs/heads/$id\"; then
     wt switch \"$id\"
   else
-    git stash pop || true
+    git stash pop \"$stash_ref\" || true
   fi
   exit \"$status\"
 fi
 {% else %}
-if ! wt switch --create \"$id\" -x git -- stash pop; then
+if ! wt switch --create \"$id\" -x git -- stash pop \"$stash_ref\"; then
   status=$?
-  git show-ref --verify --quiet \"refs/heads/$id\" || git stash pop || true
+  git show-ref --verify --quiet \"refs/heads/$id\" || git stash pop \"$stash_ref\" || true
   exit \"$status\"
 fi
 {% endif %}"""
@@ -146,28 +157,48 @@ if ! git rev-parse --verify -q HEAD >/dev/null 2>&1; then
 fi
 wt tree-for-changes -- wt land --landing=merge
 {% elif landing | default(\"\") == \"merge\" %}
-if ! git diff --quiet || ! git diff --cached --quiet || [ -n \"$(git ls-files --others --exclude-standard)\" ]; then
-  wt step commit || exit 1
+if ! git diff --quiet || ! git diff --cached --quiet; then
+  wt step commit --stage=tracked || exit 1
 fi
-wt merge
+untracked=$(git ls-files --others --exclude-standard)
+if [ -n \"$untracked\" ]; then
+  echo 'wt land: left these untracked files uncommitted (git add the ones you mean to keep):' >&2
+  echo \"$untracked\" >&2
+fi
+wt merge --stage=tracked
 {% elif landing | default(\"\") == \"pr\" %}
-if ! git diff --quiet || ! git diff --cached --quiet || [ -n \"$(git ls-files --others --exclude-standard)\" ]; then
-  wt step commit || exit 1
+if ! git diff --quiet || ! git diff --cached --quiet; then
+  wt step commit --stage=tracked || exit 1
 fi
-wt pr-auto
+untracked=$(git ls-files --others --exclude-standard)
+if [ -n \"$untracked\" ]; then
+  echo 'wt land: left these untracked files uncommitted (git add the ones you mean to keep):' >&2
+  echo \"$untracked\" >&2
+fi
+wt pr-auto --stage=tracked
 {% elif landing | default(\"\") != \"\" %}
 echo \"wt land: --landing must be merge or pr\" >&2
 exit 1
 {% elif owner | default(\"\") | lower == \"zachbornheimer\" or \"github.com/zachbornheimer/\" in remote_url | default(\"\") | lower or \"github.com:zachbornheimer/\" in remote_url | default(\"\") | lower %}
-if ! git diff --quiet || ! git diff --cached --quiet || [ -n \"$(git ls-files --others --exclude-standard)\" ]; then
-  wt step commit || exit 1
+if ! git diff --quiet || ! git diff --cached --quiet; then
+  wt step commit --stage=tracked || exit 1
 fi
-wt merge
+untracked=$(git ls-files --others --exclude-standard)
+if [ -n \"$untracked\" ]; then
+  echo 'wt land: left these untracked files uncommitted (git add the ones you mean to keep):' >&2
+  echo \"$untracked\" >&2
+fi
+wt merge --stage=tracked
 {% else %}
-if ! git diff --quiet || ! git diff --cached --quiet || [ -n \"$(git ls-files --others --exclude-standard)\" ]; then
-  wt step commit || exit 1
+if ! git diff --quiet || ! git diff --cached --quiet; then
+  wt step commit --stage=tracked || exit 1
 fi
-wt pr-auto
+untracked=$(git ls-files --others --exclude-standard)
+if [ -n \"$untracked\" ]; then
+  echo 'wt land: left these untracked files uncommitted (git add the ones you mean to keep):' >&2
+  echo \"$untracked\" >&2
+fi
+wt pr-auto --stage=tracked
 {% endif %}"""
 commit-unstaged = """
 if ! git rev-parse --verify -q HEAD >/dev/null 2>&1; then
@@ -176,8 +207,10 @@ fi
 wt tree-for-changes -- wt land --landing=merge"""
 commit-fix = "~/.local/share/dev-profile/bin/dev-profile-commit-fix step commit {{ args }}"
 
-[post-start]
+[pre-start]
 copy = "~/.local/share/dev-profile/bin/dev-profile-worktree-copy"
+
+[post-start]
 
 [post-remove]
 reap = "~/.local/share/dev-profile/bin/dev-profile-dev reap {{ worktree_path }}"
@@ -185,10 +218,12 @@ reap = "~/.local/share/dev-profile/bin/dev-profile-dev reap {{ worktree_path }}"
 [post-switch]
 retire-legacy-hooks = "~/.local/share/dev-profile/bin/dev-profile-retire-legacy-hooks"
 
-[post-merge]
-omp-sync = """
-{% if repo == 'oh-my-pi' and target == default_branch %}
-~/.local/share/dev-profile/bin/dev-profile-omp-sync --compile --push
+[pre-merge]
+protect-omp-main = """
+{% if repo == 'oh-my-pi' and (target == 'main' or target == 'master') %}
+echo "Merging into '{{ target }}' in oh-my-pi is forbidden ('main' is a read-only mirror of upstream can1357/oh-my-pi)." >&2
+echo "Keep your change on a topic branch: push it to 'fork' ('git push -u fork {{ branch }}') and list it in the fork's .github/omp-rebuild.toml on the 'ci' branch so CI builds the next release; 'mise up' installs it." >&2
+exit 1
 {% else %}
 true
 {% endif %}"""
@@ -197,8 +232,6 @@ true
 merge-if-clean = """
 {% if branch == 'chore/uncommited' and not target %}
 sh -c 'test \"${WT_AUTO_MERGE:-}\" = 1 && exit 0; git merge-base --is-ancestor HEAD {{ default_branch }} && exit 0; git merge-tree --write-tree --quiet {{ default_branch }} HEAD >/dev/null || exit 0; WT_AUTO_MERGE=1 exec wt merge'
-{% elif repo == 'oh-my-pi' and branch == default_branch %}
-~/.local/share/dev-profile/bin/dev-profile-omp-sync --compile --push
 {% else %}
 true
 {% endif %}"""

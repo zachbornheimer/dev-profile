@@ -5,7 +5,7 @@ description: Use when the user is frustrated, when the token count has been high
 
 # /learn and the frustration hook
 
-`/learn` (omp) and the `frustration-learn` hook no longer start a fresh learner with a prompt.
+`/learn` (omp) and the agent-hooks question pipeline's `learn` effect no longer start a fresh learner with a prompt.
 Both run the `learn-from-transcript` workflow
 (`capability run learn-from-transcript --input '{"source":"<harness>:<id>"}'`), which resolves
 and annotates the session itself, asks its analyze and synthesize questions in one thread, and
@@ -13,9 +13,9 @@ files every ticket it names as an atask objective. There is no handoff note and 
 `## Full annotated transcript` prompt anymore.
 
 `/learn` also delegates: it passes `--dispatch` through `~/.agents/bin/learn-launch`, so the
-workflow starts one `start_atask_task` worker per objective atask will claim. The
-`frustration-learn` hook does not pass it, so a frustrated prompt files tickets without spending
-a fleet of workers. A ticket the model could not give a proof is filed as a draft: it starts no
+workflow starts one `start_atask_task` worker per objective atask will claim. The pipeline's
+`learn` effect (`~/.config/agent-hooks/pipeline/effects/learn.py`) passes `--no-dispatch`, so a frustrated prompt
+files tickets without spending a fleet of workers. A ticket the model could not give a proof is filed as a draft: it starts no
 worker until someone gives it checks (`atask update <id> --proof ... --regression ...`) and
 delegates it (`capability run start_atask_task --input '{"id":"<id>"}'`).
 
@@ -640,12 +640,12 @@ Other relevant capabilities:
 - `agentmux_capability_create_experiment`: prepares a frozen fixture, executable oracle, dataset, and experiment configuration when supported by the scenario. It does not execute the experiment.
 - `agentmux_capability_classify_failure` and `agentmux_capability_collect_failure_evidence`: bounded failure diagnosis.
 - `agentmux_capability_assess_change_quality` and `agentmux_capability_verify_contract`: implementation and contract evidence.
-- `hindsight_recall` and `hindsight_retain`: historical diagnoses and durable conclusions.
+- `memory_search` and `memory_ingest`: historical diagnoses and durable conclusions.
 - `web_search` and `web_fetch`: authoritative external technical evidence.
 
 Use capabilities when they can answer a consequential question. Do not call tools merely to demonstrate thoroughness.
 
-Do not recall Hindsight automatically at the beginning of the analysis. The conversation context is already attached.
+Do not search session memory automatically at the beginning of the analysis. The conversation context is already attached.
 
 ## 4. Reconstruct the execution
 

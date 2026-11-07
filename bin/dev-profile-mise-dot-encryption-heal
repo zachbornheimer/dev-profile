@@ -1,0 +1,125 @@
+#!/usr/bin/env bash
+# Repair the encryption-policy trap in the mise [dotfiles] declarations.
+#
+#   mise dot track <path>
+#
+# always writes a bare `{ mode = "track" }`, which silently opts that path out
+# of the `encrypt = true` of the directory it lives in. The store then records
+# the file as plaintext while the origin holds its ciphertext, and mise stops
+# publishing EVERY path until the declaration matches again:
+#
+#   mise ERROR missing encrypted file envelope: home/.config/agent-hooks/…
+#   mise ERROR cannot publish: encrypted path … has an unencrypted or invalid
+#              version in commit …; encrypting the latest version does not
+#              erase earlier plaintext
+#
+# 2026-11-02 outage: 39 failed sync attempts over 21 hours, nothing notified,
+# local checkpoints piling up unpublished.
+#
+# The policy is: every tracked file is encrypted by default. A bare
+# `{ mode = "track" }` — what `mise dot track` writes — silently opts the
+# path out of any `encrypt = true` around it (or none exists), so the store
+# records it as plaintext and publishing stalls for EVERY path the moment
+# the declaration disagrees. Make the default explicit: heal every bare
+# track entry to `encrypt = true`. An explicit `encrypt = false` is a
+# deliberate choice and is never touched.
+# Idempotent: silent and exit 0 when the declarations already agree.
+#
+# Usage: dev-profile-mise-dot-encryption-heal [--dry-run]
+set -euo pipefail
+
+dry_run=0
+case "${1:-}" in
+--dry-run) dry_run=1 ;;
+'') ;;
+*)
+	echo "usage: ${0##*/} [--dry-run]" >&2
+	exit 2
+	;;
+esac
+
+config="${XDG_CONFIG_HOME:-$HOME/.config}/mise/config.toml"
+[ -f "$config" ] || exit 0
+
+plan=$(
+	python3 - "$config" "$dry_run" <<'PY'
+"""Write down the encryption a `mise dot track` entry never asked for."""
+
+import sys
+import tomllib
+
+path, dry_run = sys.argv[1], sys.argv[2] == "1"
+with open(path, encoding="utf-8") as handle:
+    text = handle.read()
+entries = tomllib.loads(text).get("dotfiles", {})
+maps = {key: value for key, value in entries.items() if isinstance(value, dict)}
+
+
+def quoted(key: str) -> str:
+    return '"' + key.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def default_encrypts(key: str) -> bool:
+    """True for a bare track entry: tracked files are encrypted by default."""
+    value = maps[key]
+    return value.get("mode") == "track" and "encrypt" not in value
+
+
+todo = {key for key in maps if default_encrypts(key)}
+if not todo:
+    raise SystemExit
+
+lines: list[str] = []
+healed: set[str] = set()
+section = ""
+for line in text.splitlines(keepends=True):
+    stripped = line.strip()
+    if stripped.startswith("["):
+        section = stripped.strip("[]")
+    elif section == "dotfiles":
+        for key in todo:
+            if key in healed or not stripped.startswith(quoted(key)):
+                continue
+            if not stripped.endswith("}"):
+                raise SystemExit(f"multi-line entry needs a hand edit: {key}")
+            indent = line[: len(line) - len(line.lstrip())]
+            head = stripped[: stripped.rfind("}")].rstrip()
+            line = f"{indent}{head}, encrypt = true }}\n"
+            healed.add(key)
+            break
+    lines.append(line)
+
+if healed != todo:
+    raise SystemExit("no single-line entry found for: " + ", ".join(sorted(todo - healed)))
+if not dry_run:
+    with open(path, "w", encoding="utf-8") as handle:
+        handle.write("".join(lines))
+print("\n".join(sorted(todo)))
+PY
+)
+
+[ -n "$plan" ] || exit 0
+while IFS= read -r key; do
+	if [ "$dry_run" = 1 ]; then
+		printf 'would heal %s\n' "$key"
+	else
+		printf 'healed %s\n' "$key"
+	fi
+done <<<"$plan"
+[ "$dry_run" = 1 ] && exit 0
+
+# `mise dot save` re-records these paths under the new policy. The watcher owns
+# the history lock most of the time, so a refused attempt is expected; retry
+# instead of waiting on a lock this script does not hold.
+attempt=0
+while [ "$attempt" -lt 6 ]; do
+	attempt=$((attempt + 1))
+	out=$(timeout 120 mise dot save 2>&1) || true
+	if ! grep -q 'another history operation' <<<"$out"; then
+		printf '%s\n' "$out" | tail -2
+		break
+	fi
+done
+if [ "$attempt" -ge 6 ]; then
+	echo 'mise dot save stayed locked; the watcher will record the change' >&2
+fi

@@ -4,7 +4,7 @@
 set -euo pipefail
 # Assigned by world.sh; declared here so this file lints on its own.
 work=''
-. "$(dirname "$0")/world.sh" "$@"
+. "$(dirname "$0")/world.sh"
 
 # Valid YAML that dprint reformats and a strict yamllint rejects.
 lockfile_yaml='lockfileVersion: 9

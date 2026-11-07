@@ -10,8 +10,23 @@ if [[ -z "${GIT_DIR:-}" && -n "${DEV_PROFILE_HOOK_GIT_DIR:-}" ]] &&
 fi
 
 refs="$(mktemp)"
-trap 'rm -f "${refs}"' EXIT
+advanced="$(mktemp)"
+introduced="$(mktemp)"
+files0="$(mktemp)"
+trap 'rm -f "${refs}" "${advanced}" "${introduced}" "${files0}"' EXIT
 cat >"${refs}"
+
+# git hands the hook the refs it is about to send, and hands it none when it
+# will send none: a ref already at its remote tip, or one git will reject (a
+# non-fast-forward, a lease it cannot satisfy), is dropped before the hook runs.
+# An empty list is git saying this push publishes nothing, not a list the hook
+# failed to read: nothing is published, so there is nothing to gate, and the
+# hook passes the push on with a notice instead of falling through to a
+# whole-repository scan.
+if [[ ! -s "${refs}" ]]; then
+	printf 'pre-push: git sent no push refs, so this push publishes nothing and no step ran\n' >&2
+	exit 0
+fi
 
 # A bare repository (such as ~/.local/state/mise/history/repo.git pushed by
 # `mise dot origin set`, `mise dot sync`, or `history-watch`) has no working
@@ -45,5 +60,61 @@ if [[ "$(git rev-parse --is-bare-repository 2>/dev/null)" == "true" ]]; then
 	exit 0
 fi
 
+# Refuse publishing the default branch. `main`/`master` move through a merge
+# request (`wt pr`) or `wt land`, never a direct push. The opt-out is the
+# human's: an agent must not have a reason to set it.
+if [[ -z "${DEV_PROFILE_ALLOW_DEFAULT_BRANCH_PUSH:-}" ]]; then
+	while read -r _local_ref _local_sha remote_ref _remote_sha; do
+		case "${remote_ref}" in
+		refs/heads/main | refs/heads/master)
+			printf 'ERROR: refusing to push %s. Open a PR with wt pr, or land it with wt land; set DEV_PROFILE_ALLOW_DEFAULT_BRANCH_PUSH=1 to override.\n' "${remote_ref}" >&2
+			exit 1
+			;;
+		esac
+	done <"${refs}"
+fi
+
+# hk's stdin is the pushed refs with each ref's old tip moved to its push
+# base. The introduced set that base implies is measured once here, shared
+# with every step through DEV_PROFILE_PUSH_INTRODUCED for the wrappers that
+# narrow a step's candidates, and handed to hk itself with --files0-from:
+# hk then selects each step's files from that exact list, so no step
+# re-measures it (dev-profile-changed-files' fallback costs tens of seconds
+# of git per step in a large repository, and a push with dozens of steps
+# then cannot finish at all) and no step judges a file the push did not
+# introduce. The list is handed over even when it is empty: the push then
+# judges nothing, rather than falling back to every file the refs touch.
+
+# hk also bounds each step's candidate files from those refs. Handed none it
+# selects every tracked file, and the steps then run their tools across the whole
+# tree: a push that reached this hook without refs scanned the repository and
+# failed on a tool with nothing to do with what it wrote. Refs git did send but
+# this hook cannot read are refs it cannot gate on, so it refuses the push.
+if ! dev-profile-push-base <"${refs}" >"${advanced}"; then
+	printf 'pre-push: refusing the push: advancing the pushed refs failed, so the files it introduces cannot be known (proceeding would scan the whole repository)\n' >&2
+	exit 1
+fi
+if ! grep -Eq '^[^[:space:]]+ [0-9a-f]{40,64} [^[:space:]]+ [0-9a-f]{40,64}$' "${advanced}"; then
+	printf 'pre-push: refusing the push: git passed no readable push refs, so the files it introduces cannot be known (proceeding would scan the whole repository)\n' >&2
+	exit 1
+fi
+if dev-profile-push-introduced "${advanced}" >"${introduced}"; then
+	export DEV_PROFILE_PUSH_INTRODUCED="${introduced}"
+	# A measurement of `*` is the convention for "there is no base to measure an
+	# introduced set against" (a first push to an empty remote): hk's own candidates
+	# from the pushed refs stand in, and no step is handed a path list.
+	if grep -qx '\*' "${introduced}"; then
+		:
+	else
+		# --files0-from reads NUL-delimited paths; the measurement is newline-delimited.
+		tr '\n' '\0' <"${introduced}" >"${files0}"
+		set -- --files0-from "${files0}" "$@"
+	fi
+else
+	# Never share a failed measurement: an empty union would skip every
+	# gate. Without the list hk falls back to the refs, and each step that
+	# needs more measures for itself.
+	printf 'pre-push: measuring the introduced files failed; steps measure for themselves\n' >&2
+fi
 export DEV_PROFILE_PUSH_REFS="${refs}"
-hk run pre-push "$@" < <(dev-profile-push-base <"${refs}")
+hk run pre-push "$@" <"${advanced}"

@@ -10,13 +10,16 @@ DEV_PROFILE_BACKUPS = "{{env.HOME}}/.local/state/dev-profile/backups"
 "brew:git" = "latest"
 
 [tasks.setup]
-description = "Seed the global mise config if absent, apply the dotfiles it declares, then install the recorded upstream skills"
+description = "Seed the global mise config, apply the dotfiles, install the upstream skills, then set up omp (entrypoint + oh-my-pi main lock)"
 # ~/.config/mise/config.toml is tracked in place (mode = "track"); seed it from config/mise.toml only when missing.
 # Upstream skills are not committed; aubx-skills installs them from agents/available-skills/.skill-lock.json.
 run = [
   "mkdir -p ~/.config/mise && [ -f ~/.config/mise/config.toml ] || cp config/mise.toml ~/.config/mise/config.toml",
   "mise dot apply --yes",
   "~/.agents/bin/aubx-skills sync",
+  # Installs the stable omp entrypoint (~/.local/bin/omp -> the mise shim) and
+  # the reference-transaction hook keeping oh-my-pi's main a read-only upstream mirror.
+  "~/.local/share/dev-profile/bin/dev-profile-omp-machine-setup",
 ]
 
 [tasks.doctor]

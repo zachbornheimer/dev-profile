@@ -1,0 +1,172 @@
+#!/usr/bin/env bash
+# Scan the given TypeScript files with foxguard's rule pack and report only the
+# findings the branch introduces relative to a target ref.
+#
+# Usage: dev-profile-foxguard-introduced --rules <pack> --target <ref> [--] <file>...
+#
+# foxguard's own `diff <ref>` walks the whole tree on both sides whatever path
+# it is given, which on a monorepo-sized checkout costs tens of minutes per
+# push, and every fix round pays it again. The engine's scoped mode
+# (`--changed-files-from`, which keeps the scan path as the analysis root so
+# cross-file taint context survives) scans only the named files, in seconds.
+# The one thing it loses is `diff`'s suppression of findings the target already
+# carried for those files, so this helper scans the target's own copy of the
+# same files and applies `diff`'s own identity: a finding is its rule, its
+# path, and its snippet, never its line numbers, because edits that only shift
+# lines do not introduce anything. What `diff` would call existing stays
+# suppressed; what the branch introduces does not.
+#
+# Run from the repo root, as hk does, with the files a push introduces.
+# Exits 1 when the branch introduces a finding, 0 when it introduces none, and
+# fails closed with 2 when a scan could not run or a listed file could not be
+# scanned.
+set -euo pipefail
+
+usage() {
+	echo "usage: dev-profile-foxguard-introduced --rules <pack> --target <ref> [--] <file>..." >&2
+	exit 2
+}
+
+rules=""
+target=""
+while (($#)); do
+	case "$1" in
+	--rules)
+		(($# >= 2)) || usage
+		rules="$2"
+		shift 2
+		;;
+	--target)
+		(($# >= 2)) || usage
+		target="$2"
+		shift 2
+		;;
+	--)
+		shift
+		break
+		;;
+	-*) usage ;;
+	*) break ;;
+	esac
+done
+[[ -n "${rules}" && -n "${target}" ]] || usage
+files=("$@")
+# A push that introduces no file runs no scan: the same verdict as a scan that
+# finds nothing, without paying for one.
+((${#files[@]})) || exit 0
+
+root="$(git rev-parse --show-toplevel 2>/dev/null)" || {
+	echo "dev-profile-foxguard-introduced: not inside a git worktree" >&2
+	exit 2
+}
+git rev-parse --verify --quiet "${target}^{commit}" >/dev/null || {
+	echo "dev-profile-foxguard-introduced: target ${target} is not a commit here" >&2
+	exit 2
+}
+
+work="$(mktemp -d)"
+base="${work}/base"
+# shellcheck disable=SC2064 # the paths are resolved now, on purpose
+trap "git -C '${root}' worktree remove --force '${base}' >/dev/null 2>&1 || true; rm -rf '${work}'" EXIT
+
+# foxguard reads repo-root-relative paths, the way the scan root spells them.
+list="${work}/files"
+: >"${list}"
+for file in "${files[@]}"; do
+	printf '%s\n' "${file#./}" >>"${list}"
+done
+
+# The target's own copy of these files, so its findings are measured with the
+# same surrounding context the branch's scan sees.
+if ! git -C "${root}" worktree add --detach --quiet "${base}" "${target}" 2>"${work}/worktree.err"; then
+	cat "${work}/worktree.err" >&2
+	echo "dev-profile-foxguard-introduced: could not check out ${target}" >&2
+	exit 2
+fi
+
+# A listed file foxguard skipped — a parse error, unreadable or non-UTF-8
+# content — was never scanned, and a pass would be silence about it: the
+# pack's readiness warnings on stderr start with "Warning", the per-file skip
+# notices with "warning", so the lowercase anchor never matches the report.
+require_fully_scanned() { # require_fully_scanned <err-file> <scan-name>
+	if grep -q '^warning: skipping' "$1"; then
+		cat "$1" >&2
+		echo "dev-profile-foxguard-introduced: a listed file could not be scanned ($2)" >&2
+		exit 2
+	fi
+}
+
+base_json="${work}/base.json"
+current_json="${work}/current.json"
+
+# A scan's own findings are its verdict's input, so exit 1 here is success;
+# anything beyond it means the scan itself failed.
+base_status=0
+(cd "${base}" && foxguard --rules "${rules}" --changed-files-from "${list}" --format json --quiet .) >"${base_json}" 2>"${work}/base.err" || base_status=$?
+require_fully_scanned "${work}/base.err" "the scan of ${target}"
+case "${base_status}" in
+0 | 1) ;;
+*)
+	cat "${work}/base.err" >&2
+	echo "dev-profile-foxguard-introduced: the scan of ${target} failed" >&2
+	exit 2
+	;;
+esac
+
+current_status=0
+(cd "${root}" && foxguard --rules "${rules}" --changed-files-from "${list}" --format json --quiet .) >"${current_json}" 2>"${work}/current.err" || current_status=$?
+require_fully_scanned "${work}/current.err" "the scan of the branch"
+case "${current_status}" in
+0 | 1) ;;
+*)
+	echo "dev-profile-foxguard-introduced: the scan of the branch failed (exit ${current_status})" >&2
+	exit 2
+	;;
+esac
+
+# What the branch introduces is what `diff` would introduce: a finding of the
+# same rule on the same path with the same snippet is existing, whatever the
+# scan's line and column numbers say, because edits that only shift lines do
+# not introduce anything.
+set +e
+python3 - "${base_json}" "${current_json}" >"${work}/introduced.txt" <<'PY'
+import json
+import sys
+
+base_findings = json.load(open(sys.argv[1]))["findings"]
+current_findings = json.load(open(sys.argv[2]))["findings"]
+
+
+def identity(finding):
+    return (
+        finding["rule_id"],
+        finding["file"].removeprefix("./"),
+        finding["snippet"].strip(),
+    )
+
+
+existing = {identity(f) for f in base_findings}
+introduced = [f for f in current_findings if identity(f) not in existing]
+for f in introduced:
+    path = identity(f)[1]
+    print(f"./{path}:{f['line']}:{f['column']}  [{f['severity'].lower()}]  {f['rule_id']}")
+    print(f"\t{f['snippet'].strip()}")
+print(f"introduced {len(introduced)} finding{'s' if introduced else ''}")
+sys.exit(1 if introduced else 0)
+PY
+compare=$?
+set -e
+case "${compare}" in
+0)
+	cat "${work}/introduced.txt"
+	exit 0
+	;;
+1)
+	cat "${work}/introduced.txt"
+	exit 1
+	;;
+*)
+	echo "dev-profile-foxguard-introduced: could not compare the scans" >&2
+	exit 2
+	;;
+esac

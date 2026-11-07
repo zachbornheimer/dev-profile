@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# UserPromptSubmit hook: batches prompt-level questions, then runs the intent, project and suggestion capabilities.
+# UserPromptSubmit hook: runs the intent, project and suggestion capabilities.
 # It returns the session's scope line, intent/project text and the suggester's XML context: at most 5 skills (name and
 # one line) and 3 tool cards, 3,000 characters in all, so nothing here shortens or drops a block for size. The block's
 # description tells the agent to reach skills via skill_search and tool_call({ address: "skill/<name>" }), tools via
 # tool_search and tool_call({ address, args }). The same set repeated in one session is emitted as a names-only pointer.
 # The per-session skill-picks JSON is a fallback, not the injection path.
-# One prompt_submit_questions answer map is forwarded to the frustration and dictation consumers; they do not re-ask.
+# Frustration and dictation run in agent-hooks' question-pipeline policy (~/.config/agent-hooks/pipeline), not here.
 # The capability runtime calls model APIs or the local proxy; this hook never starts a harness session.
 # Each capability declares the access it needs (tools, mcp, hooks) in its definition; the runtime grants only that.
 #
@@ -25,6 +25,8 @@ readonly KEYS_FILE="$HOME/.cache/ai/keys.env"
 readonly NESTED_RUN_GUARD="$HOME/.agents/hooks/nested-run-guard.sh"
 readonly SKILL_PICKS_DIR="$HOME/.agents/hooks/state/skill-picks"
 readonly SUGGEST_STATE_DIR="$HOME/.agents/hooks/state/suggest-context"
+# A session id names a state file; anything else (a `/`, a `..`) could reach outside the state directories.
+readonly SESSION_ID_PATTERN='^[A-Za-z0-9][A-Za-z0-9_-]*$'
 # The self-test points this at a directory holding a stub `capability`; nothing else sets it.
 readonly CAPABILITY_BIN_DIR="${CAPABILITY_BIN_DIR:-$HOME/.local/share/aube/bin}"
 readonly CAPABILITY_WALL_SECONDS=20
@@ -80,18 +82,11 @@ run_capability() {
 }
 
 run_all() {
-	local prompt="$1" cwd="$2" dir="$3" event_payload="$4" xml_input batch_input answers consumer_payload
-	batch_input="$(jq -nc --arg t "$prompt" '{text: $t, includeDictation: true}')"
-	run_capability "$dir/questions.json" "$cwd" prompt_submit_questions --input "$batch_input"
-	answers="$(jq -c '.output.answers // {} | if type == "object" then . else {} end' "$dir/questions.json" 2>/dev/null)"
-	if [[ -z "$answers" ]]; then answers='{}'; fi
-	consumer_payload="$(jq -c --argjson a "$answers" '. + {answers: $a}' <<<"$event_payload")"
+	local prompt="$1" cwd="$2" dir="$3" xml_input
 	xml_input="$(jq -nc --arg t "$prompt" '{text: $t, output: "xml"}')"
 	run_capability "$dir/intent.json" "$cwd" identify_intent --input "$(jq -nc --arg t "$prompt" '{text: $t}')" &
 	run_capability "$dir/project.json" "$cwd" select_project --text "$prompt" &
 	run_capability "$dir/skills.xml" "$cwd" suggest_skills_tools_and_mcp --input "$xml_input" &
-	printf '%s' "$consumer_payload" | timeout 35 "$HOME/.agents/hooks/prompt-respond.py" >"$dir/respond.json" 2>/dev/null &
-	printf '%s' "$consumer_payload" | timeout 60 "$HOME/.agents/hooks/dictation-rewrite.py" >"$dir/dictation.json" 2>/dev/null &
 	wait
 }
 
@@ -120,14 +115,14 @@ scope_line() {
 
 # Where the skill files are, for AGENTS.md's "read skill-picks/<session_id>.json" fallback. Read from the skill
 # XML; a prompt whose suggestion call failed leaves no file rather than the previous prompt's picks.
+# Reads SESSION_ID and RUN_DIR, which run_hook sets once per prompt.
 write_skill_pick() {
-	local session="$1" file="$2" pick
-	[[ -n "$session" ]] || return 0
-	pick="$SKILL_PICKS_DIR/$session.json"
+	[[ "$SESSION_ID" =~ $SESSION_ID_PATTERN ]] || return 0
+	local pick="$SKILL_PICKS_DIR/$SESSION_ID.json" skills_xml="$RUN_DIR/skills.xml"
 	mkdir -p "$SKILL_PICKS_DIR" 2>/dev/null || return 0
 	rm -f "$pick"
-	[[ "$(head -c 15 "$file" 2>/dev/null)" == '<system-context' ]] || return 0
-	python3 - "$file" >"$pick" 2>/dev/null <<'PY' || rm -f "$pick"
+	[[ "$(head -c 15 2>/dev/null <"$skills_xml")" == '<system-context' ]] || return 0
+	python3 - "$skills_xml" >"$pick" 2>/dev/null <<'PY' || rm -f "$pick"
 import json
 import sys
 import xml.etree.ElementTree as ET
@@ -140,11 +135,10 @@ print(json.dumps({"source": "capability", "choice": names[0] if names else "none
 PY
 }
 
-# The fingerprint of the suggestion set last emitted whole for this session, or empty when none was.
+# The fingerprint of the suggestion set last emitted whole for this session (SESSION_ID), or empty when none was.
 last_suggest_hash() {
-	local session="$1"
-	[[ -n "$session" ]] || return 0
-	cat "$SUGGEST_STATE_DIR/$session" 2>/dev/null || :
+	[[ "$SESSION_ID" =~ $SESSION_ID_PATTERN ]] || return 0
+	cat 2>/dev/null <"$SUGGEST_STATE_DIR/$SESSION_ID" || :
 }
 
 # The fingerprint of the suggestion SET in skills.xml: names and descriptions per kind, in order,
@@ -174,7 +168,7 @@ PY
 
 # skills.xml as the injection block (mode `block`) or its names-only pointer (mode `pointer`). The suggester bounds
 # the block (at most 5 skills and 3 tool cards, 3,000 characters), so neither mode shortens anything. Skills stay as
-# the capability wrote them. A tool arrives as a gateway address (`hindsight/search_knowledge_pages`) with its complete
+# the capability wrote them. A tool arrives as a gateway address (`capability/memory_search`) with its complete
 # card in <how-to-call> (name, description, input, example call, returns, flags); it renders as that card, at most
 # MAX_TOOL_CARDS of them, best confidence first, and the pointer names the same kept tools. A tool with no card
 # cannot be called from the suggestion, so it is dropped. The block's description and the unavailable notice are this
@@ -299,12 +293,12 @@ emit_context() {
 	for line in "$(intent_line "$dir/intent.json")" "$(project_line "$dir/project.json")" "$(scope_line "$session" "$cwd")"; do
 		[[ -n "$line" ]] && lines+="${lines:+$'\n'}$line"
 	done
-	xml="$(cat "$dir/skills.xml" 2>/dev/null)"
+	xml="$(cat 2>/dev/null <"$dir/skills.xml")"
 	if [[ "$xml" == '<system-context'* ]]; then
 		local hash prior
 		block="$(suggest_render block "$dir/skills.xml")"
 		hash="$(suggest_fingerprint "$dir/skills.xml")"
-		prior="$(last_suggest_hash "$session")"
+		prior="$(last_suggest_hash)"
 		if [[ -n "$hash" && "$prior" == "$hash" ]]; then
 			pointer="$(suggest_render pointer "$dir/skills.xml")"
 		fi
@@ -312,17 +306,12 @@ emit_context() {
 			lines+="${lines:+$'\n'}$pointer"
 		elif [[ -n "$block" ]]; then
 			lines+="${lines:+$'\n'}$block"
-			if [[ -n "$session" && -n "$hash" ]]; then
+			if [[ "$session" =~ $SESSION_ID_PATTERN && -n "$hash" ]]; then
 				mkdir -p "$SUGGEST_STATE_DIR" 2>/dev/null || :
 				printf '%s' "$hash" >"$SUGGEST_STATE_DIR/$session" 2>/dev/null || :
 			fi
 		fi
 	fi
-	for line in "$dir/respond.json" "$dir/dictation.json"; do
-		local consumer_context
-		consumer_context="$(jq -r '.hookSpecificOutput.additionalContext // empty' "$line" 2>/dev/null)"
-		[[ -n "$consumer_context" ]] && lines+="${lines:+$'\n'}$consumer_context"
-	done
 	[[ -n "$lines" ]] || return 0
 	jq -nc --arg context "$lines" \
 		'{hookSpecificOutput: {hookEventName: "UserPromptSubmit", additionalContext: $context}}'
@@ -345,8 +334,10 @@ run_hook() {
 		set +a
 	}
 	dir="$(mktemp -d)" || return 0
-	run_all "$prompt" "${cwd:-$HOME}" "$dir" "$payload"
-	write_skill_pick "$session" "$dir/skills.xml"
+	SESSION_ID="$session"
+	RUN_DIR="$dir"
+	run_all "$prompt" "${cwd:-$HOME}" "$dir"
+	write_skill_pick
 	emit_context "$dir" "$session" "${cwd:-$HOME}"
 	rm -rf "$dir"
 }
@@ -430,14 +421,14 @@ file paths from a suggestion.
     </skills>
     <tools>
       <tool>
-        <name>hindsight/search_knowledge_pages</name>
-        <description>Search this repository's knowledge pages for the decisions, conventions and in-flight work that bear on a query.</description>
+        <name>capability/memory_search</name>
+        <description>Search this machine's past agent sessions: what was tried, what broke, what was decided, and in which repository.</description>
         <how-to-call><![CDATA[
-name:        hindsight/search_knowledge_pages
-description: Search this repository's knowledge pages for the decisions, conventions and in-flight work that bear on a query.
-input:       { query: string (required), limit?: integer 1-20 }
-example:     tool_call("hindsight/search_knowledge_pages", {"query":"string"})
-returns:     { results: [{ id: string, title: string, snippet: string }] }
+name:        capability/memory_search
+description: Search this machine's past agent sessions: what was tried, what broke, what was decided, and in which repository.
+input:       { query: string (required), limit?: integer 1-50, repository?: string, as_of?: string }
+example:     tool_call("capability/memory_search", {"query":"what did we decide about the memory backend"})
+returns:     { evidence: [{ id: string, score: number, source: string, session: string, at: string, repository?: string, text: string }], arms: object, degraded?: boolean, reason?: string }
 flags:       read-only
 ]]></how-to-call>
         <confidence>0.86</confidence>
@@ -498,10 +489,10 @@ after the user's message. It was not authored by the user.
 XML
 }
 
-# A `capability` that answers from the fixtures in <dir>, and the consumer hook's answer command, so the self-test
-# needs no model, no network and no installed runtime.
+# A `capability` that answers from the fixtures in <dir>, so the self-test needs no model, no network and no
+# installed runtime.
 write_stubs() {
-	local dir="$1" no_answers='{"output":{"answers":{}}}'
+	local dir="$1"
 	mkdir -p "$dir/bin"
 	printf '%s' '{"output":{"Parts":[{"Type":{"Value":"task"},"Intent":{"Value":"fix"}}]}}' >"$dir/intent.json"
 	printf '%s' '{"output":{"ProjectName":"agent-hooks","NeedsNewProject":false,"Probabilities":{"agent-hooks":0.39}}}' \
@@ -509,15 +500,13 @@ write_stubs() {
 	cat >"$dir/bin/capability" <<STUB
 #!/bin/sh
 case "\$2" in
-prompt_submit_questions) echo '$no_answers' ;;
 identify_intent) cat "$dir/intent.json" ;;
 select_project) cat "$dir/project.json" ;;
 suggest_skills_tools_and_mcp) cat "$dir/suggestions.xml" ;;
 *) exit 1 ;;
 esac
 STUB
-	printf '#!/bin/sh\necho '"'%s'"'\n' "$no_answers" >"$dir/bin/prompt-answers"
-	chmod +x "$dir/bin/capability" "$dir/bin/prompt-answers"
+	chmod +x "$dir/bin/capability"
 }
 
 # Runs the hook once on <payload> and leaves its stdout in <output>; the harness or MCP commands seen under it go to
@@ -525,7 +514,7 @@ STUB
 observe_hook() {
 	local dir="$1" payload="$2" output="$3" pid started
 	PATH="$dir:$PATH" PROMPT_SUBMIT_FRESH=1 env -u AGENTMUX_NESTED_RUN \
-		CAPABILITY_BIN_DIR="$dir/bin" PROMPT_ANSWERS_CMD="$dir/bin/prompt-answers" \
+		CAPABILITY_BIN_DIR="$dir/bin" \
 		"$SELF" --skip-guard <<<"$payload" >"$output" &
 	pid=$!
 	started=$SECONDS
@@ -588,7 +577,7 @@ check_first_turn() {
 	local output="$1" context chars skills cards failed=0
 	if ! has_hook_shape "$output"; then
 		echo "self-test: first turn: output is not the hook shape (Intent line first, a Scope line, XML block last):" >&2
-		cat "$output" >&2
+		cat <"$output" >&2
 		return 1
 	fi
 	context="$(context_of "$output")"
@@ -618,7 +607,7 @@ check_repeat_turn() {
 	local output="$1" first="$2" context failed=0
 	if ! has_hook_shape "$output"; then
 		echo "self-test: repeat turn: output is not the hook shape:" >&2
-		cat "$output" >&2
+		cat <"$output" >&2
 		return 1
 	fi
 	context="$(context_of "$output")"

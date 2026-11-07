@@ -2,10 +2,10 @@
 # `wt land` routing, and `wt tree-for-changes` moving a dirty tree onto a uuid
 # worktree. Dry-run covers the choice. The move is a real stash and switch in
 # a temp repo; it does not commit.
-# Usage: land-alias-fixture.sh <generated-dir>
+# Usage: land-alias-fixture.sh [generated-dir]; no argument reads this checkout.
 set -euo pipefail
 
-out="${1:?usage: land-alias-fixture.sh <generated-dir>}"
+out="${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 cfg="${out}/worktrunk.toml"
 [[ -f "${cfg}" ]] || cfg="${out}/config/worktrunk.toml"
 work="$(cd "$(mktemp -d)" && pwd -P)"
@@ -85,9 +85,9 @@ has "https other" "wt pr-auto" "${work}/other" land
 lacks "https other" "wt merge" "${work}/other" land
 has "ssh other" "wt pr-auto" "${work}/other-ssh" land
 has "commit-unstaged" "wt tree-for-changes -- wt land --landing=merge" "${work}/other" commit-unstaged
-has "tree bare" 'wt switch --create "$id" -x git -- stash pop' "${work}/other" tree-for-changes
+has "tree bare" 'wt switch --create "$id" -x git -- stash pop "$stash_ref"' "${work}/other" tree-for-changes
 lacks "tree bare" "--no-cd -x sh" "${work}/other" tree-for-changes
-has "tree follow-up" "--no-cd -x sh -- -c 'git stash pop && exec" "${work}/other" tree-for-changes -- wt land --landing=merge
+has "tree follow-up" "--no-cd -x sh -- -c 'git stash pop \"\$1\" && shift && exec" "${work}/other" tree-for-changes -- wt land --landing=merge
 
 # Unborn repo (no initial commit yet): bare tree-for-changes prints a helpful error,
 # and commit-unstaged / land commits directly instead of calling git stash.
@@ -110,6 +110,52 @@ chmod +x "${work}/bin/_llm"
 XDG_CONFIG_HOME="${work}/xdg" PATH="${work}/bin:${PATH}" wt -y --config "${cfg}" -C "${unborn}" commit-unstaged
 [[ "$(git -C "${unborn}" show HEAD:a.txt)" == "init" ]] ||
 	fail "commit-unstaged on unborn repo did not create initial commit with a.txt"
+# Real run: land --landing=merge commits the tracked modification and never sweeps
+# the untracked file into it; the alias names what it left alone.
+scratch="${work}/scratch"
+init_repo "${scratch}" feature "https://github.com/zachbornheimer/example.git"
+printf 'tracked\n' >"${scratch}/tracked.txt"
+git -C "${scratch}" add tracked.txt
+git -C "${scratch}" commit -q -m "feat: tracked"
+printf 'modified\n' >>"${scratch}/tracked.txt"
+printf 'draft\n' >"${scratch}/untracked.txt"
+land_out="$(PATH="${work}/bin:${PATH}" XDG_CONFIG_HOME="${work}/xdg" wt -y --config "${cfg}" -C "${scratch}" land --landing=merge 2>&1)" ||
+	fail "land --landing=merge failed: ${land_out}"
+[[ "$(git -C "${scratch}" show main:tracked.txt)" == "tracked"$'\n'"modified" ]] ||
+	fail "land --landing=merge did not commit the tracked modification, main: $(git -C "${scratch}" show main:tracked.txt 2>&1)"
+if git -C "${scratch}" cat-file -e main:untracked.txt 2>/dev/null; then
+	fail "land --landing=merge committed untracked.txt into main"
+fi
+[[ -f "${scratch}/untracked.txt" ]] ||
+	fail "land --landing=merge removed untracked.txt from disk"
+grep -F -q "untracked.txt" <<<"${land_out}" ||
+	fail "land --landing=merge did not report the untracked file it left alone, got: ${land_out}"
+
+# Clean tree with an unrelated stash already on the stack: there is nothing to
+# move, so the alias must not create a worktree and must leave that stash, and
+# every ref, exactly as it found them. Before the fix the pop took whatever was
+# on top of the stack and applied it in a fresh uuid worktree.
+clean="${work}/clean"
+init_repo "${clean}" main "https://github.com/zachbornheimer/example.git"
+printf 'kept\n' >"${clean}/kept.txt"
+git -C "${clean}" add kept.txt
+git -C "${clean}" commit -q -m "feat: kept"
+printf 'stashed\n' >>"${clean}/kept.txt"
+git -C "${clean}" stash push -q -u -m "pre-existing unrelated stash"
+refs_before="$(git -C "${clean}" for-each-ref --format='%(refname) %(objectname)')"
+worktrees_before="$(git -C "${clean}" worktree list --porcelain | grep -c '^worktree ' || true)"
+clean_out="$(PATH="${work}/bin:${PATH}" XDG_CONFIG_HOME="${work}/xdg" wt -y --config "${cfg}" -C "${clean}" tree-for-changes 2>&1)" ||
+	fail "tree-for-changes on a clean tree failed: ${clean_out}"
+refs_after="$(git -C "${clean}" for-each-ref --format='%(refname) %(objectname)')"
+[[ "${refs_after}" == "${refs_before}" ]] ||
+	fail "tree-for-changes on a clean tree moved refs (before: ${refs_before} after: ${refs_after})"
+[[ "$(git -C "${clean}" worktree list --porcelain | grep -c '^worktree ' || true)" == "${worktrees_before}" ]] ||
+	fail "tree-for-changes on a clean tree created a worktree"
+git -C "${clean}" diff --quiet ||
+	fail "tree-for-changes on a clean tree left the working tree dirty"
+grep -F -q "nothing to move" <<<"${clean_out}" ||
+	fail "tree-for-changes on a clean tree did not report that there was nothing to move, got: ${clean_out}"
+
 # Real move: an untracked file leaves the invoking tree and lands on a uuid branch.
 move="${work}/move"
 init_repo "${move}" main "https://github.com/zachbornheimer/example.git"

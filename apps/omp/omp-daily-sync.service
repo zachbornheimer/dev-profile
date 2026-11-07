@@ -1,9 +1,9 @@
 [Unit]
-Description=Daily oh-my-pi synchronization and rebase
+Description=Daily oh-my-pi release update (mise)
 Documentation=https://github.com/can1357/oh-my-pi
 
 [Service]
 Type=oneshot
-ExecStart=/home/zbornheimer/Developer/Personal/dev-profile/bin/dev-profile-omp-sync
+ExecStart=/home/zbornheimer/.local/bin/mise up github:zachbornheimer/oh-my-pi
 StandardOutput=journal
 StandardError=journal

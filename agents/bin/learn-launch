@@ -5,7 +5,7 @@
 # ///
 """Run the learn-from-transcript workflow on one session.
 
-Both /learn (the omp command) and the agent-hooks frustration-learn hook call
+Both /learn (the omp command) and the agent-hooks question pipeline's learn effect call
 this. The source is `<harness>:<id>` (omp, claude, codex, grok, cursor,
 copilot, opencode, pi, hermes, agentmux), a bare omp id, or a Mastra thread
 (`mastra:thread:<id>` or a Studio thread URL). The workflow resolves and
@@ -138,13 +138,20 @@ def find_local_transcript(source: str, home: Path | None = None) -> Path | None:
 
 
 def sync_local_transcript_to_fleet(source: str, host: str = FLEET_HOST, home: Path | None = None) -> bool:
-    """Stream a laptop-local transcript file to the same ``$HOME``-relative path on the fleet."""
+    """Stream a laptop-local transcript to the same ``$HOME``-relative path on the fleet.
+
+    An omp session kept only in the session database is fetched from there and sent to the
+    path omp recorded for it, so the fleet finds it exactly where a file-backed session would be.
+    """
     base = home or Path.home()
     local_file = find_local_transcript(source, base)
+    target = local_file
     if local_file is None:
+        local_file, target = stored_omp_transcript(source)
+    if local_file is None or target is None:
         return False
     try:
-        rel = local_file.relative_to(base).as_posix()
+        rel = target.relative_to(base).as_posix()
     except ValueError:
         return False
     remote_dir = shlex_quote(str(Path(rel).parent.as_posix()))
@@ -161,6 +168,20 @@ def sync_local_transcript_to_fleet(source: str, host: str = FLEET_HOST, home: Pa
         return res.returncode == 0
     except OSError:
         return False
+
+
+def stored_omp_transcript(source: str) -> tuple[Path | None, Path | None]:
+    """(a local copy, omp's recorded path) for an ``omp:<id>`` session held only in the session database."""
+    match = REF.match(source)
+    if not match or match.group(1) != "omp":
+        return None, None
+    sys.path.insert(0, str(Path.home() / ".agents" / "hooks" / "lib"))
+    from omp_session_store import readable_transcript, stored_session_path
+
+    recorded = stored_session_path(match.group(2))
+    if recorded is None:
+        return None, None
+    return readable_transcript(recorded), Path(recorded)
 
 
 def fleet_command(source: str, dispatch: bool, platform: str | None = None, host: str = FLEET_HOST) -> list[str] | None:

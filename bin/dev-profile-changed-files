@@ -1,0 +1,204 @@
+#!/usr/bin/env bash
+# Run a per-file hk step over only the files this operation introduces.
+#
+# Usage: dev-profile-changed-files [--added] <command...> -- <candidate-file>...
+#
+# --added hands the command only the files this push adds: present at the
+# pushed tip, absent at every base the push inherited. A modified file the
+# bases already track is never the push's to add, so a step that judges only
+# additions (check-added-large-files) never sees it. Without push refs the
+# mainline stands in for the bases: a candidate origin's default branch
+# already tracks is not added, whatever a step would say about its content.
+#
+# hk expands {{files}} to every file between the push base and the pushed
+# tip, so a branch that merged its default branch hands a step — and its
+# fixer — thousands of inherited files. This filter hands the command only
+# the introduced candidates, measured once per push by dev-profile-pre-push
+# (dev-profile-push-introduced) and shared with every step through
+# DEV_PROFILE_PUSH_INTRODUCED; without that variable the same measurement
+# runs per step from DEV_PROFILE_PUSH_REFS (the original pre-push stdin,
+# captured by dev-profile-pre-push; the first standalone `--` separates the
+# command — a command that itself contains one runs wrapped in `sh -c '...'`).
+#
+# A file is introduced when its content at the pushed tip differs from its
+# content at every base the push inherited:
+#
+#   the remote tip     advanced by dev-profile-push-base when the branch
+#                      moved onto a newer default branch; an unborn remote
+#                      ref falls back to the branch's published tip on any
+#                      remote-tracking ref (a push of an already-published
+#                      branch introduces nothing it has not published),
+#                      then to the merge base with origin's default branch;
+#   the merge base     of the pushed tip with origin's default branch;
+#   published parents  of the pushed tip — the upstream line a fork branch
+#                      merged in, which the push did not write.
+#
+# Without push refs (pre-commit, `hk run check`, a direct run) what this
+# checkout introduces against the mainline stands in for the push: a
+# candidate is introduced when its content at the working tree differs from
+# the merge base with origin's default branch, or the mainline does not
+# track it. DEV_PROFILE_CHANGED_FILES_ALL=1 restores the pass-through that
+# judged every candidate. --added mode keeps the mainline rule of its own
+# above. A step whose candidates introduce nothing exits 0 without running
+# its command, so an empty file list can never reach a tool as a usage error.
+set -euo pipefail
+
+added_only=0
+if [[ "${1:-}" == "--added" ]]; then
+	added_only=1
+	shift
+fi
+cmd=()
+candidates=()
+after_separator=0
+for arg in "$@"; do
+	if [[ "${after_separator}" -eq 0 && "${arg}" == "--" ]]; then
+		after_separator=1
+	elif [[ "${after_separator}" -eq 0 ]]; then
+		cmd+=("${arg}")
+	else
+		candidates+=("${arg}")
+	fi
+done
+if [[ "${after_separator}" -eq 0 || "${#cmd[@]}" -eq 0 ]]; then
+	echo "usage: dev-profile-changed-files <command...> -- <file>..." >&2
+	exit 2
+fi
+if [[ "${#candidates[@]}" -eq 0 ]]; then
+	exit 0
+fi
+
+refs="${DEV_PROFILE_PUSH_REFS:-}"
+push_base="$(cd "$(dirname "$0")" && pwd)/dev-profile-push-base"
+push_introduced="$(cd "$(dirname "$0")" && pwd)/dev-profile-push-introduced"
+tmp="$(mktemp -d)"
+
+run_all() { # <reason>
+	printf 'dev-profile-changed-files: %d candidate file(s), %s: running %s on every candidate\n' \
+		"${#candidates[@]}" "$1" "${cmd[0]}" >&2
+	rm -rf "${tmp}"
+	exec "${cmd[@]}" "${candidates[@]}"
+}
+
+introduced_for="this push"
+# dev-profile-pre-push measures the files a push changes, not the ones it
+# adds, so --added never reads DEV_PROFILE_PUSH_INTRODUCED: it measures the
+# added set itself from the refs (check-added-large-files is the only --added
+# step, so one step pays for the walk).
+union=""
+if [[ "${added_only}" -eq 0 && -n "${DEV_PROFILE_PUSH_INTRODUCED:-}" && -r "${DEV_PROFILE_PUSH_INTRODUCED}" ]]; then
+	# dev-profile-pre-push measured this push once for every step to share.
+	union="${DEV_PROFILE_PUSH_INTRODUCED}"
+elif [[ -n "${refs}" && -r "${refs}" ]]; then
+	if ! "${push_base}" <"${refs}" >"${tmp}/advanced" 2>/dev/null; then
+		run_all "push refs could not be advanced"
+	fi
+	if [[ "${added_only}" -eq 1 ]]; then
+		if ! "${push_introduced}" --added "${tmp}/advanced" >"${tmp}/union" 2>/dev/null; then
+			run_all "push refs could not be measured"
+		fi
+	else
+		if ! "${push_introduced}" "${tmp}/advanced" >"${tmp}/union" 2>/dev/null; then
+			run_all "push refs could not be measured"
+		fi
+	fi
+	union="${tmp}/union"
+elif [[ "${added_only}" -eq 1 ]]; then
+	# No push to measure: origin's default branch is the stand-in base. A
+	# candidate it already tracks is not added; one it does not is judged as
+	# an addition would be anywhere.
+	mainline=""
+	for ref in refs/remotes/origin/HEAD refs/remotes/origin/main refs/remotes/origin/master; do
+		if git rev-parse -q --verify "${ref}" >/dev/null 2>&1; then
+			mainline="${ref}"
+			break
+		fi
+	done
+	if [[ -z "${mainline}" ]]; then
+		run_all "no push refs and no mainline to measure added files from"
+	fi
+	prefix="$(git rev-parse --show-prefix 2>/dev/null || true)"
+	added=()
+	for candidate in "${candidates[@]}"; do
+		if git cat-file -e "${mainline}:${candidate}" 2>/dev/null ||
+			git cat-file -e "${mainline}:${prefix}${candidate}" 2>/dev/null; then
+			continue
+		fi
+		added+=("${candidate}")
+	done
+	if [[ "${#added[@]}" -eq 0 ]]; then
+		printf 'dev-profile-changed-files: 0 of %d candidate file(s) added: %s skipped\n' \
+			"${#candidates[@]}" "${cmd[0]}" >&2
+		rm -rf "${tmp}"
+		exit 0
+	fi
+	printf 'dev-profile-changed-files: %d of %d candidate file(s) added: running %s\n' \
+		"${#added[@]}" "${#candidates[@]}" "${cmd[0]}" >&2
+	rm -rf "${tmp}"
+	exec "${cmd[@]}" "${added[@]}"
+else
+	# No push to measure: what this checkout introduces against the
+	# mainline stands in for the push. DEV_PROFILE_CHANGED_FILES_ALL=1
+	# restores the pass-through that judged every candidate.
+	if [[ "${DEV_PROFILE_CHANGED_FILES_ALL:-}" == "1" ]]; then
+		run_all "no push refs, DEV_PROFILE_CHANGED_FILES_ALL=1"
+	fi
+	mainline=""
+	for ref in refs/remotes/origin/HEAD refs/remotes/origin/main refs/remotes/origin/master; do
+		if git rev-parse -q --verify "${ref}" >/dev/null 2>&1; then
+			mainline="${ref}"
+			break
+		fi
+	done
+	if [[ -z "${mainline}" ]]; then
+		run_all "no push refs and no mainline to measure introduced files from"
+	fi
+	root="$(git rev-parse --show-toplevel 2>/dev/null)" || run_all "not inside a git worktree"
+	if ! base="$(git merge-base HEAD "${mainline}")" || [[ -z "${base}" ]]; then
+		run_all "the mainline could not be merged with HEAD"
+	fi
+	: >"${tmp}/union"
+	git -C "${root}" diff --name-only --diff-filter=ACMRT "${base}" >>"${tmp}/union"
+	git -C "${root}" ls-files --others --exclude-standard >>"${tmp}/union"
+	union="${tmp}/union"
+	introduced_for="this checkout"
+fi
+
+if [[ -n "${union}" ]] && grep -qx '\*' "${union}"; then
+	# The push could not be measured from any base: judge every candidate,
+	# as an unfiltered step would.
+	run_all "no parsable push refs"
+fi
+
+# Candidates may be spelled relative to a workspace hk switched the step
+# into; the diff sets are root-relative. Match either spelling.
+prefix="$(git rev-parse --show-prefix 2>/dev/null || true)"
+keys="${tmp}/keys"
+map="${tmp}/map"
+: >"${keys}"
+: >"${map}"
+for candidate in "${candidates[@]}"; do
+	printf '%s\n%s\n' "${candidate}" "${prefix}${candidate}" >>"${keys}"
+	printf '%s\t%s\n' "${candidate}" "${candidate}" >>"${map}"
+	printf '%s\t%s\n' "${prefix}${candidate}" "${candidate}" >>"${map}"
+done
+sort -u "${keys}" -o "${keys}"
+sort -u "${union}" -o "${tmp}/union-sorted"
+comm -12 "${keys}" "${tmp}/union-sorted" >"${tmp}/matched"
+awk -F'\t' 'NR == FNR { matched[$1] = 1; next } matched[$1] && !printed[$2]++ { print $2 }' \
+	"${tmp}/matched" "${map}" >"${tmp}/introduced-list"
+introduced=()
+while IFS= read -r file; do
+	[[ -n "${file}" ]] && introduced+=("${file}")
+done <"${tmp}/introduced-list"
+
+if [[ "${#introduced[@]}" -eq 0 ]]; then
+	printf 'dev-profile-changed-files: 0 of %d candidate file(s) %s by %s: %s skipped\n' \
+		"${#candidates[@]}" "$(if [[ "${added_only}" -eq 1 ]]; then echo added; else echo introduced; fi)" "${introduced_for}" "${cmd[0]}" >&2
+	rm -rf "${tmp}"
+	exit 0
+fi
+printf 'dev-profile-changed-files: %d of %d candidate file(s) %s by %s: running %s\n' \
+	"${#introduced[@]}" "${#candidates[@]}" "$(if [[ "${added_only}" -eq 1 ]]; then echo added; else echo introduced; fi)" "${introduced_for}" "${cmd[0]}" >&2
+rm -rf "${tmp}"
+exec "${cmd[@]}" "${introduced[@]}"

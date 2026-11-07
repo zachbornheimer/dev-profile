@@ -6,13 +6,24 @@ set -euo pipefail
 # Refuse a direct commit on main or master, except where that is the normal way
 # work lands: the initial commit on an unborn repository; finishing a merge,
 # cherry-pick, revert, or rebase; a repo with no origin (nothing to publish a
-# branch to); or an explicit opt-out.
+# branch to); or an explicit opt-out (EXCEPT in oh-my-pi, where `main` MUST
+# remain 100% identical to upstream origin/main and never accepts direct commits).
+if git remote get-url origin 2>/dev/null | grep -q 'oh-my-pi'; then
+	current_branch="$(git symbolic-ref --short -q HEAD 2>/dev/null || true)"
+	if [[ "$current_branch" == "main" || "$current_branch" == "master" ]]; then
+		echo "ERROR: Direct commits to '$current_branch' in oh-my-pi are forbidden (main mirrors upstream can1357/oh-my-pi)." >&2
+		echo "Create a topic branch off origin/main ('wt switch --create <branch> --base origin/main'), commit there, push it to 'fork', and list it in the fork's .github/omp-rebuild.toml on the 'ci' branch so CI builds the next release." >&2
+		exit 1
+	fi
+fi
 [[ -z "${DEV_PROFILE_ALLOW_DEFAULT_BRANCH_COMMIT:-}" ]] || exit 0
-git rev-parse --verify -q HEAD >/dev/null 2>&1 || exit 0
 for operation in MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD rebase-merge rebase-apply; do
 	if [[ -e "$(git rev-parse --git-path "${operation}")" ]]; then exit 0; fi
 done
 git remote get-url origin >/dev/null 2>&1 || exit 0
+# hk's util refuses every main commit while the branch exists, including the first one that
+# brings it into being. An unborn repository has no branch to protect yet.
+git rev-parse --verify -q HEAD >/dev/null 2>&1 || exit 0
 if ! hk util no-commit-to-branch; then
 	echo "Run 'wt commit-unstaged' (or 'wt land') to commit and merge through a worktree, 'wt tree-for-changes' to move changes to a new branch (or 'wt switch -c <branch>' for a clean branch), or set DEV_PROFILE_ALLOW_DEFAULT_BRANCH_COMMIT=1." >&2
 	exit 1

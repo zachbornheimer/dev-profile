@@ -1,7 +1,0 @@
-[
-  {
-    "field": "Frustrated",
-    "at_least": 0.7,
-    "argv": ["frustration-learn.py", "--judged", "{Frustrated}"]
-  }
-]

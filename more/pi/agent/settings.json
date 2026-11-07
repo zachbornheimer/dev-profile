@@ -22,7 +22,6 @@
   "shellCommandPrefix": "export AWS_PROFILE=\"sah\"; export AWS_REGION=\"us-east-1\"; export CLAUDE_CODE_SUBAGENT_MODEL=\"sonnet\"; export CLAUDE_CODE_USE_BEDROCK=\"0\"; export QUALITY_GUARD_LOG_FILE=\"/tmp/qg-pretool.log\"; export QUALITY_GUARD_LOG_LEVEL=\"debug\"",
   "enableSkillCommands": true,
   "extensions": [
-    "/Users/zbornheimer/.hindsight/coding-agents/dist/pi.js",
     "/Users/zbornheimer/.pi/agent/extensions/telepathy.ts",
     "/Users/zbornheimer/.pi/agent/extensions/editor-stash.ts",
     "/Users/zbornheimer/.pi/agent/extensions/decisions.ts",

@@ -1,78 +1,70 @@
-"""scope-guard.py: the two interception points, the severity bars, and the bounds.
+"""scope-guard.py: the bars, the deterministic refusals, and the fail-opens.
 
-Every test drives the real hook by path with a fake judge (``HC_SCOPE_JUDGE_CLI``), so the
-policy decides and the log is written; nothing reaches the network. The judge fake takes a
-score, and the numbers here are the ones real traffic produced on 2026-10-30
-(``~/.agents/hooks/state/scope-judgments.jsonl``): the `pkill -f node; ps aux --sort=-%cpu`
-detour at 0.81 and a benign `git commit -S` at 0.96. The judge ranks those backwards, so the
-score alone cannot carry the decision: every call is judged, and whether the candidate
-changes machine state outside the repository picks the bar it has to clear.
+Every test drives the real hook by path with a fake judge (``HC_SCOPE_JUDGE_CLI``) and
+asserts the two consumer-visible outputs of each event: the hook's JSON decision and the
+``scope-judgments.jsonl`` line the hook appends. The fake judge takes one score per
+question, in the order the guard asks them — a tool call asks OffTopic, UnnecessaryWork,
+execute_proposed_call; a Stop asks OffTopic, UnnecessaryWork — and the deny-side numbers
+replay the live traffic that set the bars (2026-10-30,
+``~/.agents/hooks/state/scope-judgments.jsonl``): the ``pkill -f node; ps aux --sort=-%cpu``
+detour scored 0.94 / 0.96 / 0.03 against "push the current branch", while a benign
+``git commit -S`` scored higher still — which is why a single strong signal alone never
+denies a call. The policy's constants live in ``lib/scope_guard_rules.py``; these tests
+pin their behavior at the boundaries, on the paths above them:
+
+  tool.before -> deny when OffTopic >= 0.80 AND UnnecessaryWork >= 0.75, or
+                 UnnecessaryWork >= 0.88, unless execute_proposed_call > 0.35;
+  turn.stop   -> block when OffTopic >= 0.88 AND UnnecessaryWork >= 0.80;
+  read-only probes, the `mise run ci` prohibition, the repeat-call ledger, and the
+  correction cap are decided without the judge; everything the guard cannot judge
+  fails open, with the reason in the log line.
+
+Transcripts are written into the test's state dir under non-omp file names, so
+``omp_session_store`` never consults the session database from these tests.
 """
 
 from __future__ import annotations
 
 import json
-import sys
-from pathlib import Path
 
 import pytest
 from hook_harness import FIXTURES_DIR, HookRun, HookSession
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "lib"))
-
-from completion_gate_transcript import read_transcript_facts
-from scope_decide import TASK_ATTRIBUTIONS, host_mutation_reason
 
 PY_HOOK = "scope-guard.py"
 STEM = "scope-guard"
 JUDGMENTS_LOG = "scope-judgments.jsonl"
 FAKE_JUDGE = FIXTURES_DIR / "scope-judge" / "fake_judge.py"
-CATALOG = Path.home() / ".config/agent-hooks/hooks.toml"
 TASK = "push the current branch to origin, then tell me the SHA"
-REDIRECTED_TASK = "actually, just tell me the SHA of the last commit"
 # The detour this guard exists for, at the score real traffic gave it.
 HOST_DRIFT = "pkill -f node; ps aux --sort=-%cpu | head -20"
-HOST_DRIFT_SCORE = 0.81
 ON_TASK = "git push origin HEAD"
-DEVICE_RUN_COMMAND = "xd://mcp__capability_agentmux_capability_run_command"
-DEVICE_READ = "xd://mcp__capability_agentmux_capability_read"
-# The live false positive that made the tool bar a band: a signed commit fixing the very
-# vulnerabilities its task named, which the judge scored 0.96 — higher than the process kill.
-VULN_TASK = "Fix the vulns first: bump the vulnerable action pins, then push"
-VULN_COMMIT = (
-    "git commit -S -m 'fix(ci): replace vulnerable setup-php and publish action pins'"
+PROBE = "wt switch --help"
+# `--help` on a command that still writes: the probe skip must not swallow it.
+PROBE_THAT_WRITES = "omp --help > /tmp/scope-guard-help.txt"
+CI_COMMAND = "mise run ci"
+CI_PROHIBITED_TASK = "ship the fix, but do not run mise run ci"
+CI_AUTHORIZED_TASK = "the pins are bumped; please run mise run ci"
+CI_UNRELATED_LATER_TASK = "also tell me the SHA of the last commit"
+# A turn that ends by finishing work nobody asked for.
+STOPPING_EARLY = (
+    "I finished the pin bump. While waiting I also refactored my dotfiles, "
+    "rebuilt my prompt theme, and cleaned up my Downloads folder."
 )
-HELP_PIPELINE = "omp --help 2>&1 | head -50"
-# Commands that can act, so the informational skip must not swallow them; none of them is a
-# host mutation, so each one is allowed without a judge call.
-NON_MUTATING_THAT_ACT = (
-    "sed -i '' s/a/b/ f",
-    "tee /tmp/scope-guard-out",
-    "sort -o /tmp/scope-guard-out.txt in.txt",
-    "rm -v /tmp/scope-guard-out",
-    "omp --help > /tmp/scope-guard-help.txt",
-)
-# The host mutations a deny is for. Every one is judged, and refused at its score.
-HOST_MUTATIONS = (
-    HOST_DRIFT,
-    "rm -rf ~/Library/Caches/x",
-    "brew upgrade go",
-    "xargs kill 1234",
-    "killall node",
-    "launchctl kickstart -k system/com.example.job",
-    "defaults write com.apple.dock autohide -bool true",
-    "npm i -g typescript",
-    "cp agent.plist ~/Library/LaunchAgents/agent.plist",
-    "echo x > /etc/hosts.local",
-)
+# Scores, one per question in the order the guard asks them.
+DRIFT = "scores:0.94,0.96,0.03"  # the corroborated detour: denied on both rules
+ON_TASK_SCORES = "scores:0.04,0.05,0.90"  # execute_proposed_call > 0.35: allow
+OFF_TOPIC_ALONE = "scores:0.97,0.60,0.02"  # one strong signal: allow
+UNNECESSARY_ALONE = "scores:0.10,0.96,0.02"  # UnnecessaryWork >= 0.88: deny
+TOOL_EDGE = "scores:0.80,0.75,0.35"  # inclusive bars, execute at its cap: deny
+STOP_BLOCK = "scores:0.95,0.92"  # both Stop bars cleared: block
+STOP_EDGE = "scores:0.88,0.80"  # the Stop bars are inclusive: block
+STOP_ALLOW = "scores:0.87,0.92"  # OffTopic under 0.88: allow
 # Before the harness's pinned now (2000-01-01T00:00:00Z), so a correction recorded this
 # run falls inside the current request's window when the cap filters by its timestamp.
 PROMPT_AT = "1999-12-31T00:00:00Z"
-TOOL_CALL = "tool.before"
-TURN_STOP = "turn.stop"
-DENY_BAR = 0.9
-DESTRUCTIVE_BAR = 0.8
-BLOCK_BAR = 0.8
+# A newer ask, past the harness's pinned now (2000-01-01T00:00:00Z): it opens a
+# fresh request window, so denials recorded this run fall outside it.
+LATER_PROMPT_AT = "2000-01-02T00:00:00Z"
 
 
 @pytest.fixture
@@ -81,6 +73,7 @@ def state(hooks) -> HookSession:
 
 
 def rows(state: HookSession) -> list[dict]:
+    """Every judgment log line the hook has appended so far."""
     path = state.state_dir / JUDGMENTS_LOG
     return (
         [json.loads(line) for line in path.read_text().splitlines()]
@@ -111,15 +104,19 @@ def asked(state: HookSession) -> list[dict]:
 
 def transcript(
     state: HookSession,
-    tasks: list[str] = (TASK,),
+    tasks: list[str] | None = None,
     name: str = "t",
     attribution: str | None = None,
+    prompt_at: str = PROMPT_AT,
 ) -> str:
     """An omp session log: a session header, the user's turns, and one tool call.
 
     ``attribution="agent"`` writes what omp records for a message the harness delivered —
     the work order a parent agent delegated, which is a delegated agent's own task.
+    The file name carries no omp session id, so the session database is never consulted.
     """
+    if tasks is None:
+        tasks = [TASK]
     lines = [json.dumps({"type": "session", "id": "s1"}, separators=(",", ":"))]
     for task in tasks:
         message = {"role": "user", "content": task}
@@ -127,7 +124,7 @@ def transcript(
             message["attribution"] = attribution
         lines.append(
             json.dumps(
-                {"type": "message", "timestamp": PROMPT_AT, "message": message},
+                {"type": "message", "timestamp": prompt_at, "message": message},
                 separators=(",", ":"),
             )
         )
@@ -135,7 +132,7 @@ def transcript(
             json.dumps(
                 {
                     "type": "message",
-                    "timestamp": PROMPT_AT,
+                    "timestamp": prompt_at,
                     "message": {
                         "role": "assistant",
                         "content": [
@@ -156,7 +153,7 @@ def transcript(
             json.dumps(
                 {
                     "type": "message",
-                    "timestamp": PROMPT_AT,
+                    "timestamp": prompt_at,
                     "message": {
                         "role": "toolResult",
                         "toolCallId": "c1",
@@ -196,9 +193,7 @@ def stop_payload(tpath: str, message: str, **extra: object) -> dict:
     }
 
 
-def run(
-    state: HookSession, payload: dict, mode: str = "score:0.97", **env: str
-) -> HookRun:
+def run(state: HookSession, payload: dict, mode: str = DRIFT, **env: str) -> HookRun:
     return state.run_payload(PY_HOOK, payload, judge_env(mode, state, **env))
 
 
@@ -208,10 +203,10 @@ def reason_of(run_result: HookRun) -> str:
     return specific.get("permissionDecisionReason") or output.get("reason") or ""
 
 
-# --- 1. the in-turn refusal: every call judged, severity picks the bar -------------
+# --- 1. a tool call: corroboration, execute support, and the edges -------------------
 
 
-def test_a_host_mutation_is_denied_with_the_task_and_the_next_step(
+def test_an_off_task_call_is_denied_with_the_task_and_the_rejected_call(
     state: HookSession,
 ) -> None:
     result = run(state, tool_payload(transcript(state), HOST_DRIFT))
@@ -219,256 +214,352 @@ def test_a_host_mutation_is_denied_with_the_task_and_the_next_step(
     reason = reason_of(result)
     assert TASK in reason
     assert HOST_DRIFT in reason
-    assert "next step" in reason
-    assert "off-task 0.97" in reason
+    assert "Reason: off-task-and-unnecessary." in reason
+    assert "Return to the user's request" in reason
     row = rows(state)[-1]
     assert row["decision"] == "off-task-tool-call"
     assert row["decision_kind"] == "deny"
-    assert row["score"] == 0.97
-    assert row["destructive"] is True
-    assert row["thresholds"] == {
-        "off-task-tool-call": DENY_BAR,
-        "off-task-turn-end": BLOCK_BAR,
+    assert row["source"] == "model"
+    assert row["scores"] == {
+        "OffTopic": 0.94,
+        "UnnecessaryWork": 0.96,
+        "execute_proposed_call": 0.03,
     }
+    assert row["hop"] == "typesafe"
     assert row["task"] == TASK
-    assert row["tool"] == "Bash"
-    assert HOST_DRIFT in row["candidate"]
-    assert row["model"] and row["hop"] == "openrouter"
-    assert isinstance(row["latency_ms"], float)
-    assert row["fallback_reason"] == ""
-    assert asked(state)[0]["context"]["user_request"] == TASK
-    assert asked(state)[0]["context"]["candidate_event"] == {
+    assert row["candidate"] == f"Bash: {HOST_DRIFT}"
+    request = asked(state)[0]
+    assert request["context"]["user_request"] == TASK
+    assert request["context"]["candidate_event"] == {
         "kind": "tool",
-        "content": f"Bash — {HOST_DRIFT}",
+        "content": f"Bash: {HOST_DRIFT}",
     }
+    assert len(request["questions"]) == 3
 
 
-def test_the_destructive_bar_is_inclusive_at_its_edge(state: HookSession) -> None:
-    result = run(
-        state,
-        tool_payload(transcript(state), HOST_DRIFT),
-        mode=f"score:{DESTRUCTIVE_BAR}",
-    )
-    assert result.decision == "deny"
-
-
-def test_the_host_drift_at_its_real_score_is_denied(state: HookSession) -> None:
-    """The `pkill` detour scored 0.81; the severity bar, not the 0.9 band, catches it."""
-    result = run(
-        state,
-        tool_payload(transcript(state), HOST_DRIFT),
-        mode=f"score:{HOST_DRIFT_SCORE}",
-    )
-    assert result.decision == "deny"
-    assert rows(state)[-1]["destructive"] is True
-
-
-def test_an_ordinary_off_task_call_between_the_bars_is_allowed(
+def test_an_execute_supported_call_is_allowed_above_the_veto_bar(
     state: HookSession,
 ) -> None:
-    """Just above the destructive bar, just below the ordinary one: allowed, and judged."""
-    result = run(
-        state,
-        tool_payload(transcript(state), ON_TASK),
-        mode=f"score:{DESTRUCTIVE_BAR + 0.05}",
-    )
+    """Model support wins outright: execute_proposed_call > 0.35 vetoes the veto."""
+    result = run(state, tool_payload(transcript(state), ON_TASK), mode=ON_TASK_SCORES)
     assert result.decision == "none", result.output
-    row = rows(state)[-1]
-    assert row["allow_reason"] == f"on-task-score-{DESTRUCTIVE_BAR + 0.05:.2f}"
-    assert row["destructive"] is False
     assert asked(state) != []
+    row = rows(state)[-1]
+    assert row["decision"] == "allow"
+    assert row["reason"] == ""
+    assert row["scores"]["execute_proposed_call"] == 0.90
 
 
-@pytest.mark.parametrize("command", HOST_MUTATIONS)
-def test_every_host_mutation_class_reaches_the_judge(
-    state: HookSession, command: str
-) -> None:
-    result = run(state, tool_payload(transcript(state), command))
-    assert result.decision == "deny", command
-    assert rows(state)[-1]["allow_reason"] == ""
+def test_execute_support_at_exactly_the_bar_does_not_win(state: HookSession) -> None:
+    """0.35 is not > 0.35, so the corroborated waste signals still decide."""
+    result = run(state, tool_payload(transcript(state), HOST_DRIFT), mode=TOOL_EDGE)
+    assert result.decision == "deny", result.output
+    assert "Reason: off-task-and-unnecessary." in reason_of(result)
+    row = rows(state)[-1]
+    assert row["decision"] == "off-task-tool-call"
+    assert row["scores"]["execute_proposed_call"] == 0.35
+    assert row["scores"]["OffTopic"] == 0.80
+    assert row["scores"]["UnnecessaryWork"] == 0.75
 
 
-def test_a_benign_commit_is_allowed_below_the_ordinary_bar(
-    state: HookSession,
-) -> None:
-    """The live 0.96 false positive: a commit is never host-mutating, so it needs the 0.9 bar."""
-    assert host_mutation_reason(VULN_COMMIT) is None
+def test_one_strong_signal_alone_allows(state: HookSession) -> None:
+    """Corroboration: a lone off-topic score under UnnecessaryWork 0.75 never denies."""
     result = run(
-        state,
-        tool_payload(transcript(state, [VULN_TASK]), VULN_COMMIT),
-        mode="score:0.85",
+        state, tool_payload(transcript(state), HOST_DRIFT), mode=OFF_TOPIC_ALONE
     )
     assert result.decision == "none", result.output
     row = rows(state)[-1]
     assert row["decision"] == "allow"
-    assert row["allow_reason"] == "on-task-score-0.85"
-    assert row["destructive"] is False
-    assert row["score"] == 0.85
-    assert asked(state) != []
+    assert row["reason"] == ""
+    assert row["scores"]["OffTopic"] == 0.97
 
 
-def test_the_same_commit_above_the_ordinary_bar_is_denied(state: HookSession) -> None:
-    """The bar is not lowered to hide the framing bug: at 0.96 the call is still refused."""
+def test_clearly_unnecessary_work_alone_denies(state: HookSession) -> None:
+    """The one single signal that denies on its own: UnnecessaryWork >= 0.88."""
     result = run(
-        state,
-        tool_payload(transcript(state, [VULN_TASK]), VULN_COMMIT),
-        mode="score:0.96",
+        state, tool_payload(transcript(state), HOST_DRIFT), mode=UNNECESSARY_ALONE
     )
     assert result.decision == "deny", result.output
-    assert rows(state)[-1]["destructive"] is False
+    assert "Reason: clearly-unnecessary." in reason_of(result)
+    row = rows(state)[-1]
+    assert row["decision"] == "off-task-tool-call"
+    assert row["scores"]["UnnecessaryWork"] == 0.96
+
+
+def test_an_on_task_call_passes_untouched(state: HookSession) -> None:
+    """Everything scored low: allowed, judged, and the log says so."""
+    result = run(
+        state, tool_payload(transcript(state), ON_TASK), mode="scores:0.02,0.03,0.05"
+    )
+    assert result.decision == "none", result.output
+    row = rows(state)[-1]
+    assert row["decision"] == "allow"
+    assert row["reason"] == ""
+
+
+# --- 2. the Stop side: a stronger bar, because a wrong block only delays --------------
+
+
+def test_a_turn_that_ends_off_task_is_blocked(state: HookSession) -> None:
+    result = run(
+        state, stop_payload(transcript(state), STOPPING_EARLY), mode=STOP_BLOCK
+    )
+    assert result.decision == "block", result.output
+    reason = reason_of(result)
+    assert TASK in reason
+    assert "Reason: off-task-ending." in reason
+    assert "Finish the requested work" in reason
+    row = rows(state)[-1]
+    assert row["decision"] == "off-task-turn-end"
+    assert row["decision_kind"] == "block"
+    assert row["scores"] == {"OffTopic": 0.95, "UnnecessaryWork": 0.92}
+    assert row["candidate"] == STOPPING_EARLY
+    request = asked(state)[0]
+    assert request["context"]["candidate_event"] == {
+        "kind": "conversation",
+        "content": STOPPING_EARLY,
+    }
+    assert len(request["questions"]) == 2
+
+
+def test_the_stop_bar_is_inclusive_at_its_edge(state: HookSession) -> None:
+    result = run(state, stop_payload(transcript(state), STOPPING_EARLY), mode=STOP_EDGE)
+    assert result.decision == "block", result.output
+    assert "Reason: off-task-ending." in reason_of(result)
+    assert rows(state)[-1]["decision"] == "off-task-turn-end"
+
+
+def test_a_stop_under_the_off_topic_bar_allows(state: HookSession) -> None:
+    """Even a clearly unnecessary ending needs OffTopic >= 0.88 to block."""
+    result = run(
+        state, stop_payload(transcript(state), STOPPING_EARLY), mode=STOP_ALLOW
+    )
+    assert result.decision == "none", result.output
+    row = rows(state)[-1]
+    assert row["decision"] == "allow"
+    assert row["reason"] == ""
+    assert row["scores"] == {"OffTopic": 0.87, "UnnecessaryWork": 0.92}
+
+
+# --- 3. decided without the judge: probes and explicit prohibitions -------------------
+
+
+def test_a_read_only_probe_is_allowed_without_the_judge(state: HookSession) -> None:
+    result = run(state, tool_payload(transcript(state), PROBE))
+    assert result.decision == "none", result.output
+    assert asked(state) == []
+    row = rows(state)[-1]
+    assert row["decision"] == "allow"
+    assert row["reason"] == "read-only-probe"
+    assert row["scores"] == {}
+
+
+def test_a_probe_shape_that_writes_still_reaches_the_judge(state: HookSession) -> None:
+    """`--help` with a redirect acts on the host, so the skip must not swallow it."""
+    result = run(state, tool_payload(transcript(state), PROBE_THAT_WRITES))
+    assert asked(state) != []
+    assert result.decision == "deny", result.output
 
 
 @pytest.mark.parametrize(
-    ("command", "skipped"),
-    [
-        ("rg foo src", True),
-        ("git status --short", False),
-        ("ps aux", False),
-        ("xargs ls", False),
-    ],
+    "tool",
+    ["read", "mcp__capability_agentmux_capability_grep"],
+    ids=["omp-read", "gateway-grep"],
 )
-def test_a_lookup_or_inspection_command_needs_the_ordinary_bar(
-    state: HookSession, command: str, skipped: bool
+def test_a_read_only_tool_is_allowed_without_the_judge(
+    state: HookSession, tool: str
 ) -> None:
-    """Nothing here can be refused at the destructive bar, and only a reader skips the judge."""
-    assert host_mutation_reason(command) is None, command
-    result = run(state, tool_payload(transcript(state), command), mode="score:0.02")
-    assert result.decision == "none", command
-    row = rows(state)[-1]
-    assert row["destructive"] is False, command
-    if skipped:
-        assert row["allow_reason"] == "informational-command", command
-        assert asked(state) == [], command
-    else:
-        assert row["allow_reason"] == "on-task-score-0.02", command
-        assert asked(state) != [], command
-
-
-def test_a_write_outside_the_repository_is_host_mutating(state: HookSession) -> None:
+    """omp's read and the gateway's grep only look, so they never cost a judge call."""
     payload = tool_payload(
         transcript(state),
         "",
-        tool="Write",
-        file_path="/Library/LaunchAgents/com.x.plist",
+        tool=tool,
+        file_path="/tmp/session.jsonl",
+        pattern="scope",
     )
-    payload["tool_input"].pop("command")
-    assert run(state, payload).decision == "deny"
+    result = run(state, payload)
+    assert result.decision == "none", result.output
+    assert asked(state) == []
+    row = rows(state)[-1]
+    assert row["decision"] == "allow"
+    assert row["reason"] == "read-only-tool"
+    assert row["scores"] == {}
 
 
-def test_a_write_inside_the_repository_needs_the_ordinary_bar(
+def test_an_edit_and_a_mutating_shell_call_are_still_judged(
     state: HookSession,
 ) -> None:
-    payload = tool_payload(transcript(state), "", tool="Write", file_path="/tmp/a.py")
-    payload["tool_input"].pop("command")
-    result = run(state, payload, mode="score:0.02")
-    assert result.decision == "none"
-    row = rows(state)[-1]
-    assert row["allow_reason"] == "on-task-score-0.02"
-    assert row["destructive"] is False
+    """The skip is for tools that only look; a file edit and a Bash call still pay."""
+    edit = run(
+        state,
+        tool_payload(
+            transcript(state),
+            "",
+            tool="edit",
+            file_path="/tmp/a.py",
+            old_string="x",
+            new_string="y",
+        ),
+    )
+    assert edit.decision == "deny", edit.output
+    bash = run(state, tool_payload(transcript(state, name="t2"), HOST_DRIFT))
+    assert bash.decision == "deny", bash.output
+    assert len(asked(state)) == 2
+    assert rows(state)[-1]["decision"] == "off-task-tool-call"
+    """`--help` with a redirect acts on the host, so the skip must not swallow it."""
+    result = run(state, tool_payload(transcript(state), PROBE_THAT_WRITES))
     assert asked(state) != []
+    assert result.decision == "deny", result.output
 
 
-def test_a_message_write_is_not_a_command_line(state: HookSession) -> None:
-    """A Write of prose is not classified by parsing its text: it denied a real message."""
-    payload = tool_payload(
-        transcript(state),
-        "",
-        tool="Write",
-        content="Acknowledged. I will kill nothing; the note lives in /Library/Notes.md.",
-    )
-    payload["tool_input"].pop("command")
-    # The severity test reads the command, never the prose: the message names a kill and a
-    # /Library path and is still not a host mutation.
-    assert host_mutation_reason("") is None
-    result = run(state, payload, mode="score:0.02")
-    assert result.decision == "none", result.output
+def test_a_prohibited_full_ci_call_is_denied_without_the_judge(
+    state: HookSession,
+) -> None:
+    tpath = transcript(state, [CI_PROHIBITED_TASK])
+    result = run(state, tool_payload(tpath, CI_COMMAND))
+    assert result.decision == "deny", result.output
+    assert asked(state) == []
+    reason = reason_of(result)
+    assert "User explicitly prohibited `mise run ci`." in reason
+    assert CI_PROHIBITED_TASK in reason
     row = rows(state)[-1]
-    assert row["allow_reason"] == "on-task-score-0.02"
-    assert row["destructive"] is False
-    assert asked(state)[0]["context"]["candidate_event"]["kind"] == "tool"
+    assert row["decision"] == "off-task-tool-call"
+    assert row["source"] == "explicit-constraint"
+    assert row["scores"] == {}
 
 
-def test_on_task_tool_call_passes_untouched(state: HookSession) -> None:
-    result = run(state, tool_payload(transcript(state), ON_TASK), mode="score:0.02")
-    assert result.decision == "none"
-    assert result.output is None
-    assert rows(state)[-1]["decision"] == "allow"
+def test_a_later_authorization_runs_the_ci(state: HookSession) -> None:
+    """The prohibition honors the latest explicit instruction, so this is judged."""
+    tpath = transcript(state, [CI_PROHIBITED_TASK, CI_AUTHORIZED_TASK])
+    result = run(state, tool_payload(tpath, CI_COMMAND), mode=ON_TASK_SCORES)
+    assert result.decision == "none", result.output
+    assert asked(state) != []
+    row = rows(state)[-1]
+    assert row["decision"] == "allow"
+    assert row["reason"] == ""
 
 
-def test_a_later_user_redirect_replaces_the_task(state: HookSession) -> None:
-    tpath = transcript(state, [TASK, REDIRECTED_TASK])
-    reason = reason_of(run(state, tool_payload(tpath, HOST_DRIFT)))
-    assert REDIRECTED_TASK in reason
-    assert TASK not in reason
+def test_an_unrelated_later_prompt_keeps_the_prohibition(state: HookSession) -> None:
+    tpath = transcript(state, [CI_PROHIBITED_TASK, CI_UNRELATED_LATER_TASK])
+    result = run(state, tool_payload(tpath, CI_COMMAND))
+    assert result.decision == "deny", result.output
+    assert asked(state) == []
+    assert "User explicitly prohibited `mise run ci`." in reason_of(result)
 
 
-def test_the_judged_state_carries_the_request_trajectory(state: HookSession) -> None:
-    """Task framing, not the bar: the earlier user turns ride along with the current task."""
-    tpath = transcript(state, [TASK, REDIRECTED_TASK])
-    assert run(state, tool_payload(tpath, HOST_DRIFT)).decision == "deny"
-    context = asked(state)[0]["context"]
-    assert context["user_request"] == REDIRECTED_TASK
-    assert any(
-        line.startswith("Earlier the user asked: push the current branch")
-        for line in context["recent_context"]
-    )
-
-
-def test_a_delegated_task_is_the_task(state: HookSession) -> None:
+def test_a_delegated_work_order_is_still_the_task(state: HookSession) -> None:
     """omp attributes a parent agent's work order to "agent"; it is still the task."""
     tpath = transcript(state, attribution="agent")
     result = run(state, tool_payload(tpath, HOST_DRIFT))
-    assert result.decision == "deny"
+    assert result.decision == "deny", result.output
     assert TASK in reason_of(result)
     assert rows(state)[-1]["task"] == TASK
 
 
-def test_the_completion_gate_reader_still_ignores_a_delegated_turn(
+# --- 4. the repeat-call ledger and the correction cap --------------------------------
+
+
+def test_the_same_denied_call_is_denied_again_without_a_second_judgment(
     state: HookSession,
 ) -> None:
-    """The relaxed attributions are the scope guard's, not a change to the shared reader."""
-    tpath = transcript(state, attribution="agent")
-    assert read_transcript_facts(tpath).user_prompt == ""
-    assert read_transcript_facts(tpath, TASK_ATTRIBUTIONS).user_prompt == TASK
+    payload = tool_payload(transcript(state), HOST_DRIFT)
+    assert run(state, payload).decision == "deny"
+    second = run(state, payload)
+    assert second.decision == "deny", second.output
+    assert len(asked(state)) == 1
+    reason = reason_of(second)
+    assert "This exact tool call was already denied for this request." in reason
+    assert HOST_DRIFT in reason
+    row = rows(state)[-1]
+    assert row["decision"] == "off-task-tool-call"
+    assert row["source"] == "explicit-constraint"
+    assert row["scores"] == {}
 
 
-def test_omp_device_write_to_a_shell_command_is_judged(state: HookSession) -> None:
-    """omp runs a shell command as ``write xd://…run_command`` with the args as JSON."""
-    payload = tool_payload(
-        transcript(state),
-        "",
-        tool="write",
-        path=DEVICE_RUN_COMMAND,
-        content=json.dumps({"command": HOST_DRIFT}),
+def test_a_denied_call_refusal_forbids_the_retry(state: HookSession) -> None:
+    """A refusal the agent can act on: no retry, and the user can authorize."""
+    result = run(state, tool_payload(transcript(state), HOST_DRIFT))
+    reason = reason_of(result)
+    assert "Do not retry this call" in reason
+    assert "ask the user to authorize it explicitly" in reason
+    # The first denial of a request carries no count.
+    assert "This is denial" not in reason
+
+
+def test_a_rephrased_retry_names_its_denial_number(state: HookSession) -> None:
+    """A second, rephrased attempt is denied again and says it is the second.
+
+    The exact-repeat ledger cannot catch it (the text differs), so the refusal
+    itself must close the loop: measured on omp 01a188f, one landing call was
+    refused four more times, a judge call each, because the refusal never said
+    the retry was futile.
+    """
+    assert run(state, tool_payload(transcript(state), HOST_DRIFT)).decision == "deny"
+    rephrased = "ps aux --sort=-%cpu | head -20; pkill -f node"
+    second = run(state, tool_payload(transcript(state, name="t2"), rephrased))
+    assert second.decision == "deny", second.output
+    assert len(asked(state)) == 2
+    assert "This is denial 2 for this request" in reason_of(second)
+
+
+def test_a_new_ask_resets_the_denial_count(state: HookSession) -> None:
+    """A newer ask opens a fresh window; the count does not carry over."""
+    assert run(state, tool_payload(transcript(state), HOST_DRIFT)).decision == "deny"
+    tpath = transcript(state, [TASK], name="t3", prompt_at=LATER_PROMPT_AT)
+    result = run(state, tool_payload(tpath, HOST_DRIFT))
+    assert result.decision == "deny", result.output
+    assert "This is denial 2" not in reason_of(result)
+
+
+def test_reaching_the_correction_cap_allows(state: HookSession) -> None:
+    tpath = transcript(state)
+    assert (
+        run(state, tool_payload(tpath, HOST_DRIFT), SCOPE_GUARD_CAP="1").decision
+        == "deny"
     )
-    payload["tool_input"].pop("command")
-    result = run(state, payload)
-    assert result.decision == "deny"
-    assert HOST_DRIFT in reason_of(result)
-    assert rows(state)[-1]["candidate"].endswith(HOST_DRIFT)
-
-
-# --- 2. every failure allows, and says why -----------------------------------------
-
-
-@pytest.mark.parametrize(
-    ("mode", "expected"),
-    [
-        ("no-key", "cli-exit-1:missing key"),
-        ("crash", "cli-exit-1"),
-        ("garbage", "cli-output-not-json"),
-        ("no-source", "typesafe-unavailable:missing key"),
-        ("no-noul", "answer-missing-noul"),
-    ],
-)
-def test_an_unusable_judge_allows(state: HookSession, mode: str, expected: str) -> None:
-    result = run(state, tool_payload(transcript(state), HOST_DRIFT), mode=mode)
-    assert result.decision == "none"
+    result = run(
+        state,
+        tool_payload(tpath, "rm -rf ~/Library/Caches/x"),
+        SCOPE_GUARD_CAP="1",
+    )
+    assert result.decision == "none", result.output
+    assert len(asked(state)) == 1
     row = rows(state)[-1]
     assert row["decision"] == "allow"
-    assert row["score"] is None
-    assert row["fallback_reason"].startswith(expected)
-    assert row["allow_reason"].startswith("judge-unavailable-allow:")
+    assert row["reason"] == "correction-cap-reached"
+    assert row["scores"] == {}
+
+
+# --- 5. everything the guard cannot judge fails open, and the log says why -----------
+
+
+def test_the_bypass_env_allows_before_anything(state: HookSession) -> None:
+    result = run(state, tool_payload(transcript(state), HOST_DRIFT), SCOPE_GUARD="off")
+    assert result.decision == "none", result.output
+    assert asked(state) == []
+    row = rows(state)[-1]
+    assert row["decision"] == "allow"
+    assert row["reason"] == "guard-disabled"
+    assert row["scores"] == {}
+
+
+def test_no_user_task_allows(state: HookSession) -> None:
+    result = run(state, tool_payload(transcript(state, []), HOST_DRIFT))
+    assert result.decision == "none", result.output
+    assert asked(state) == []
+    row = rows(state)[-1]
+    assert row["decision"] == "allow"
+    assert row["reason"] == "no-user-task"
+    assert row["scores"] == {}
+
+
+def test_a_missing_transcript_allows(state: HookSession) -> None:
+    result = run(state, tool_payload("/nonexistent/session.jsonl", HOST_DRIFT))
+    assert result.decision == "none", result.output
+    assert asked(state) == []
+    row = rows(state)[-1]
+    assert row["decision"] == "allow"
+    assert row["reason"] == "no-user-task"
 
 
 def test_a_hung_judge_times_out_and_allows(state: HookSession) -> None:
@@ -478,248 +569,45 @@ def test_a_hung_judge_times_out_and_allows(state: HookSession) -> None:
         mode="hang",
         HC_SCOPE_JUDGE_TIMEOUT_SECS="1",
     )
-    assert result.decision == "none"
-    assert rows(state)[-1]["fallback_reason"] == "timeout-1s"
-
-
-def test_bypass_env_allows_before_anything(state: HookSession) -> None:
-    result = run(state, tool_payload(transcript(state), HOST_DRIFT), SCOPE_GUARD="off")
-    assert result.decision == "none"
-    assert rows(state)[-1]["allow_reason"] == "bypass-SCOPE_GUARD=off"
-    assert asked(state) == []
-
-
-def test_no_user_task_allows(state: HookSession) -> None:
-    result = run(state, tool_payload(transcript(state, []), HOST_DRIFT))
-    assert result.decision == "none"
-    assert rows(state)[-1]["allow_reason"] == "no-user-task"
-    assert asked(state) == []
-
-
-def test_a_missing_transcript_allows(state: HookSession) -> None:
-    result = run(state, tool_payload("/nonexistent/session.jsonl", HOST_DRIFT))
-    assert result.decision == "none"
-    assert rows(state)[-1]["allow_reason"] == "no-user-task"
-
-
-# --- 3. the prefilter: housekeeping, exact matches, and the bounds -----------------
-
-
-def test_a_lookup_tool_is_housekeeping(state: HookSession) -> None:
-    result = run(
-        state, tool_payload(transcript(state), "", tool="Read", file_path="/tmp/a.py")
-    )
-    assert result.decision == "none"
-    assert rows(state)[-1]["allow_reason"] == "lookup-tool-Read"
-    assert asked(state) == []
-
-
-def test_a_device_write_to_a_capability_lookup_is_housekeeping(
-    state: HookSession,
-) -> None:
-    payload = tool_payload(transcript(state), "", tool="write", path=DEVICE_READ)
-    payload["tool_input"].pop("command")
-    result = run(state, payload)
-    assert result.decision == "none"
-    assert rows(state)[-1]["allow_reason"].startswith("lookup-tool-")
-    assert asked(state) == []
-
-
-def test_a_self_description_pipeline_is_not_judged(state: HookSession) -> None:
-    """`omp --help | head -50` was the live false positive that set the tool bar."""
-    result = run(state, tool_payload(transcript(state), HELP_PIPELINE))
-    assert result.decision == "none"
-    assert rows(state)[-1]["allow_reason"] == "informational-command"
-    assert asked(state) == []
-
-
-@pytest.mark.parametrize("command", NON_MUTATING_THAT_ACT)
-def test_the_informational_skip_never_swallows_a_command_that_can_act(
-    state: HookSession, command: str
-) -> None:
-    """Each writes a file or runs a program, so it reaches the judge, not the reader skip."""
-    assert host_mutation_reason(command) is None, command
-    result = run(state, tool_payload(transcript(state), command), mode="score:0.02")
-    assert result.decision == "none", command
-    assert rows(state)[-1]["allow_reason"] == "on-task-score-0.02", command
-    assert asked(state) != [], command
-
-
-@pytest.mark.parametrize("command", NON_MUTATING_THAT_ACT)
-def test_a_judged_command_that_can_act_is_denied_above_the_ordinary_bar(
-    state: HookSession, command: str
-) -> None:
-    """The judge is what decides it, at the ordinary bar, because it is not host-mutating."""
-    result = run(
-        state, tool_payload(transcript(state), command), mode=f"score:{DENY_BAR}"
-    )
-    assert result.decision == "deny", command
-    assert rows(state)[-1]["destructive"] is False, command
-
-
-def test_an_exact_match_on_the_task_skips_the_judge(state: HookSession) -> None:
-    tpath = transcript(state, ["kill the stale worker 18379 and report"])
-    result = run(state, tool_payload(tpath, "kill 18379"))
-    assert result.decision == "none"
-    assert rows(state)[-1]["allow_reason"] == "on-task-exact-match"
-    assert asked(state) == []
-
-
-def test_the_same_candidate_is_never_corrected_twice(state: HookSession) -> None:
-    tpath = transcript(state)
-    assert run(state, tool_payload(tpath, HOST_DRIFT)).decision == "deny"
-    assert run(state, tool_payload(tpath, HOST_DRIFT)).decision == "none"
-    assert rows(state)[-1]["allow_reason"] == "already-corrected"
-    assert len(asked(state)) == 1
-
-
-def test_the_per_turn_cap_stops_further_corrections(state: HookSession) -> None:
-    tpath = transcript(state)
-    assert run(state, tool_payload(tpath, HOST_DRIFT)).decision == "deny"
-    assert run(state, tool_payload(tpath, "killall node")).decision == "deny"
-    third = run(state, tool_payload(tpath, "launchctl list | grep -i index"))
-    assert third.decision == "none"
-    assert rows(state)[-1]["allow_reason"] == "correction-cap-2"
-    assert len(asked(state)) == 2
-
-
-def test_the_cap_is_configurable(state: HookSession) -> None:
-    tpath = transcript(state)
-    assert (
-        run(state, tool_payload(tpath, HOST_DRIFT), SCOPE_GUARD_CAP="1").decision
-        == "deny"
-    )
-    assert (
-        run(state, tool_payload(tpath, "killall node"), SCOPE_GUARD_CAP="1").decision
-        == "none"
-    )
-    assert rows(state)[-1]["allow_reason"] == "correction-cap-1"
-
-
-# --- 4. the Stop side: a second chance, never a halt ------------------------------
-
-
-def test_stop_blocks_a_turn_that_ended_off_task(state: HookSession) -> None:
-    result = run(
-        state,
-        stop_payload(
-            transcript(state),
-            "Host load is 400, so I started investigating the top CPU processes.",
-        ),
-    )
-    assert result.decision == "block"
-    reason = reason_of(result)
-    assert TASK in reason
-    assert "Finish the request now" in reason
+    assert result.decision == "none", result.output
     row = rows(state)[-1]
-    assert row["decision"] == "off-task-turn-end"
-    assert row["decision_kind"] == "block"
-    assert asked(state)[0]["context"]["candidate_event"]["kind"] == "conversation"
+    assert row["decision"] == "allow"
+    assert row["reason"] == "judge-timeout"
+    assert row["scores"] == {}
 
 
-def test_stop_blocks_from_its_own_bar(state: HookSession) -> None:
-    """A wrong block only keeps the agent working, so a turn end is corrected at 0.80."""
-    result = run(
-        state,
-        stop_payload(
-            transcript(state),
-            "Host load is 400, so I started investigating the top CPU processes.",
-        ),
-        mode=f"score:{BLOCK_BAR}",
-    )
-    assert result.decision == "block"
+@pytest.mark.parametrize(
+    ("mode", "fallback"),
+    [
+        ("garbage", "judge-not-json"),
+        ("no-source", "judge-source-unavailable"),
+        ("no-noul", "judge-answer-OffTopic-invalid"),
+        ("no-key", "judge-exit-1"),
+        ("crash", "judge-exit-1"),
+    ],
+    ids=["garbage", "no-source", "no-noul", "no-key", "crash"],
+)
+def test_an_unusable_judge_allows_and_names_why(
+    state: HookSession, mode: str, fallback: str
+) -> None:
+    result = run(state, tool_payload(transcript(state), HOST_DRIFT), mode=mode)
+    assert result.decision == "none", result.output
+    row = rows(state)[-1]
+    assert row["decision"] == "allow"
+    assert row["reason"] == fallback
+    assert row["scores"] == {}
 
 
-def test_stop_allows_below_its_bar(state: HookSession) -> None:
-    result = run(
-        state,
-        stop_payload(
-            transcript(state),
-            "Host load is 400, so I started investigating the top CPU processes.",
-        ),
-        mode="score:0.75",
-    )
-    assert result.decision == "none"
-    assert rows(state)[-1]["allow_reason"] == "on-task-score-0.75"
-
-
-def test_stop_needs_no_host_mutation(state: HookSession) -> None:
-    """The turn-end candidate is prose; the gate is the tool side's, not this one's."""
-    result = run(
-        state,
-        stop_payload(
-            transcript(state), "I read three files and stopped to think about the load."
-        ),
-    )
-    assert result.decision == "block"
-    assert asked(state) != []
-
-
-def test_stop_allows_a_turn_that_ended_on_task(state: HookSession) -> None:
-    result = run(
-        state,
-        stop_payload(transcript(state), "Pushed the branch; the commit is abc123."),
-        mode="score:0.02",
-    )
-    assert result.decision == "none"
-    assert rows(state)[-1]["allow_reason"] == "on-task-score-0.02"
-
-
-def test_stop_at_the_correction_cap_allows(state: HookSession) -> None:
-    """The cap bounds the Stop side too, so it cannot be gamed into a loop."""
-    tpath = transcript(state)
-    assert run(state, tool_payload(tpath, HOST_DRIFT)).decision == "deny"
-    assert run(state, tool_payload(tpath, "killall node")).decision == "deny"
-    result = run(state, stop_payload(tpath, "Still drifting."))
-    assert result.decision == "none"
-    assert rows(state)[-1]["allow_reason"] == "correction-cap-2"
-
-
-def test_stop_after_a_block_is_not_judged_again(state: HookSession) -> None:
-    """``stop_hook_active`` marks a Stop that follows this guard's own block."""
-    result = run(
-        state,
-        stop_payload(transcript(state), "Still drifting.", stop_hook_active=True),
-    )
-    assert result.decision == "none"
-    assert rows(state)[-1]["allow_reason"] == "stop-hook-active"
+def test_an_unsupported_event_is_not_judged(state: HookSession) -> None:
+    payload = {
+        "session_id": "s-scope",
+        "transcript_path": transcript(state),
+        "cwd": "/tmp",
+        "hook_event_name": "SubagentStop",
+    }
+    result = run(state, payload)
+    assert result.decision == "none", result.output
     assert asked(state) == []
-
-
-def test_an_unknown_event_is_not_judged(state: HookSession) -> None:
-    result = run(
-        state,
-        {"session_id": "s", "hook_event_name": "UserPromptSubmit", "prompt": TASK},
-    )
-    assert result.decision == "none"
-    assert rows(state)[-1]["allow_reason"] == "event-UserPromptSubmit"
-    assert asked(state) == []
-
-
-# --- 5. the wiring the hook depends on --------------------------------------------
-
-
-def test_both_catalog_rows_are_wired_and_fail_open() -> None:
-    """A row with no command never runs, and ``on_failure = "block"`` would wedge every call."""
-    tomllib = pytest.importorskip("tomllib")
-    if not CATALOG.exists():
-        pytest.skip(f"no live catalog at {CATALOG}")
-    hooks = tomllib.loads(CATALOG.read_text())["hooks"]
-    by_name = {hook["name"]: hook for hook in hooks}
-    names = [hook["name"] for hook in hooks]
-
-    tool_row = by_name["pretooluse-scope-guard"]
-    assert tool_row["events"] == [TOOL_CALL]
-    assert tool_row["command"] == [str(Path.home() / ".agents/hooks/scope-guard.py")]
-    assert tool_row["on_failure"] == "warn"
-    for spelling in ("Bash", "run_command", "write", "Write", "edit", "eval", "task"):
-        assert spelling in tool_row["matcher"].split("|"), spelling
-
-    stop_row = by_name["stop-scope-guard"]
-    assert stop_row["events"] == [TURN_STOP]
-    assert stop_row["command"] == [str(Path.home() / ".agents/hooks/scope-guard.py")]
-    assert stop_row["on_failure"] == "warn"
-    assert "matcher" not in stop_row
-    # The aggregator takes the reason from the first row with one, and the completion gate
-    # is the row that must keep winning it; this one is the second chance beside it.
-    assert names.index("stop-scope-guard") == names.index("stop-completion-gate-py") + 1
+    row = rows(state)[-1]
+    assert row["decision"] == "allow"
+    assert row["reason"] == "unsupported-event"

@@ -1,208 +1,36 @@
 #!/usr/bin/env bash
+# Sync the custom omp release, then prove the installed binary is that release.
+#
+# mise caches the GitHub "latest release" response under ~/.cache/mise/github.
+# A release published minutes ago is invisible to `mise up` until that entry
+# expires, so `mise up` can report "up to date" while a newer build exists.
+# Drop the cached response first, upgrade, then require the binary's own
+# identity (`omp --version` second line) to name the version mise has active.
 set -euo pipefail
 
-# Ensure environment PATH has necessary dev tools and shims on both macOS (MBP) and Linux (VPS)
-export PATH="$HOME/Developer/Personal/dev-profile/bin:$HOME/.local/share/mise/shims:$HOME/.local/bin:$HOME/.bun/bin:$HOME/.cargo/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+# A systemd/launchd run has a minimal PATH; mise and the entrypoint live in
+# ~/.local/bin, and the entrypoint is a mise shim.
+PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH"
+export PATH
 
-REPO_DIR="${OMP_REPO_DIR:-$HOME/Developer/Personal/oh-my-pi}"
-LOG_FILE="${OMP_SYNC_LOG:-$HOME/.local/state/omp-sync.log}"
-COMPILE_BINARY="${OMP_SYNC_COMPILE:-0}"
+repo="github:zachbornheimer/oh-my-pi"
+cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/mise/github"
+entrypoint="${OMP_ENTRYPOINT:-$HOME/.local/bin/omp}"
 
-show_status() {
-	if [ ! -d "$REPO_DIR/.git" ]; then
-		echo "Error: oh-my-pi repository not found at $REPO_DIR" >&2
-		exit 1
-	fi
+rm -f "$cache_dir"/*oh-my-pi-latest-*.msgpack.z
 
-	cd "$REPO_DIR"
+mise up "$repo"
 
-	local omp_bin="$HOME/.local/bin/omp"
-	local omp_ver="unknown"
-	if [ -x "$omp_bin" ]; then
-		omp_ver="$("$omp_bin" --version 2>/dev/null || echo "error")"
-	elif command -v omp >/dev/null 2>&1; then
-		omp_ver="$(omp --version 2>/dev/null || echo "error")"
-	fi
-
-	local head_sha head_short
-	head_sha="$(git rev-parse HEAD 2>/dev/null || echo "unknown")"
-	head_short="$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")"
-
-	local ahead_origin="unknown"
-	if git rev-parse --verify --quiet origin/main >/dev/null; then
-		ahead_origin="$(git rev-list --count origin/main..HEAD 2>/dev/null || echo "unknown")"
-	fi
-
-	local ahead_fork="unknown" behind_fork="unknown"
-	if git rev-parse --verify --quiet fork/main >/dev/null; then
-		ahead_fork="$(git rev-list --count fork/main..HEAD 2>/dev/null || echo "unknown")"
-		behind_fork="$(git rev-list --count HEAD..fork/main 2>/dev/null || echo "unknown")"
-	fi
-
-	echo "platform:             $(uname -s)/$(uname -m)"
-	echo "omp version:          $omp_ver"
-	echo "active HEAD SHA:      $head_sha ($head_short)"
-	echo "installed SHA stamp:  $(cat "$HOME/.local/bin/.omp-sha" 2>/dev/null || echo "linked-to-source")"
-	echo "ahead of origin/main: $ahead_origin"
-	echo "vs fork/main:         ahead $ahead_fork, behind $behind_fork"
-	exit 0
-}
-
-INCLUDE_BRANCH=""
-PUSH_FORK=0
-
-while [ $# -gt 0 ]; do
-	case "$1" in
-	--status)
-		show_status
-		;;
-	--compile)
-		COMPILE_BINARY=1
-		;;
-	--push)
-		PUSH_FORK=1
-		;;
-	--include)
-		[ $# -ge 2 ] || { echo "Error: --include requires a branch name" >&2; exit 2; }
-		INCLUDE_BRANCH="$2"
-		shift
-		;;
-	-h | --help)
-		echo "Usage: dev-profile-omp-sync [--status|--compile|--include <branch>|--push|--help]"
-		echo ""
-		echo "Synchronize oh-my-pi repository with fork/main and upstream origin/main,"
-		echo "optionally cherry-pick an upstream PR branch (--include <branch>) onto main,"
-		echo "run bun install, ensure native addon (macOS darwin-arm64 or Linux x64),"
-		echo "wire or compile ~/.local/bin/omp, and optionally push fork/main (--push)."
-		exit 0
-		;;
-	*)
-		echo "Unknown argument: $1" >&2
-		echo "Usage: dev-profile-omp-sync [--status|--compile|--include <branch>|--push|--help]" >&2
-		exit 1
-		;;
-	esac
-	shift
-done
-
-mkdir -p "$(dirname "$LOG_FILE")"
-
-log() {
-	local ts
-	ts="$(date '+%Y-%m-%d %H:%M:%S')"
-	echo "[$ts] $*" | tee -a "$LOG_FILE"
-}
-
-log "=== Starting dev-profile-omp-sync ($(uname -s)/$(uname -m)) ==="
-
-if [ ! -d "$REPO_DIR/.git" ]; then
-	log "Cloning zachbornheimer/oh-my-pi into $REPO_DIR..."
-	mkdir -p "$(dirname "$REPO_DIR")"
-	git clone --filter=blob:none -o fork https://github.com/zachbornheimer/oh-my-pi.git "$REPO_DIR" >>"$LOG_FILE" 2>&1
-	git -C "$REPO_DIR" remote add origin https://github.com/can1357/oh-my-pi.git >>"$LOG_FILE" 2>&1 || true
-fi
-
-cd "$REPO_DIR"
-
-# Stash any uncommitted changes before syncing
-stashed=0
-if ! git diff --quiet || ! git diff --cached --quiet; then
-	log "Working tree has uncommitted changes; stashing..."
-	git stash push -m "dev-profile-omp-sync auto-stash $(date +%s)" >>"$LOG_FILE" 2>&1
-	stashed=1
-fi
-
-if git remote get-url fork >/dev/null 2>&1; then
-	log "Fetching fork..."
-	git fetch --filter=blob:none fork >>"$LOG_FILE" 2>&1 || log "Warning: git fetch fork failed"
-	if git rev-parse --verify --quiet fork/main >/dev/null; then
-		if git merge-base --is-ancestor HEAD fork/main 2>/dev/null; then
-			git merge --ff-only fork/main >>"$LOG_FILE" 2>&1 || true
-		fi
-	fi
-fi
-
-if git remote get-url origin >/dev/null 2>&1; then
-	log "Fetching origin..."
-	git fetch --filter=blob:none origin main >>"$LOG_FILE" 2>&1 || log "Warning: git fetch origin failed"
-fi
-
-if git rev-parse --verify --quiet origin/main >/dev/null; then
-	log "Attempting rebase onto origin/main..."
-	if git -c commit.gpgsign=false rebase origin/main >>"$LOG_FILE" 2>&1; then
-		log "Rebase onto origin/main succeeded cleanly."
-	else
-		log "Rebase conflict detected; safely aborting rebase to preserve working stack..."
-		git rebase --abort >>"$LOG_FILE" 2>&1 || true
-		log "Rebase aborted. Kept working stack at $(git rev-parse --short HEAD)."
-	fi
-fi
-if [ -n "$INCLUDE_BRANCH" ]; then
-	log "Folding commits from $INCLUDE_BRANCH (origin/main..$INCLUDE_BRANCH) onto main..."
-	git -c commit.gpgsign=false cherry-pick "origin/main..$INCLUDE_BRANCH" >>"$LOG_FILE" 2>&1 || {
-		log "Cherry-pick conflict from $INCLUDE_BRANCH; aborting cherry-pick..."
-		git cherry-pick --abort >>"$LOG_FILE" 2>&1 || true
-		exit 1
-	}
-fi
-
-if [ "$stashed" -eq 1 ]; then
-	log "Restoring stashed changes..."
-	git stash pop >>"$LOG_FILE" 2>&1 || log "Warning: git stash pop reported conflict or issue"
-fi
-
-log "Running bun install..."
-bun install >>"$LOG_FILE" 2>&1 || log "Warning: bun install returned non-zero"
-
-# Ensure platform-specific native addon exists (macOS darwin-arm64 or Linux x86_64)
-os_name="$(uname -s)"
-arch_name="$(uname -m)"
-mkdir -p "$REPO_DIR/packages/natives/native"
-if [ "$os_name" = "Darwin" ]; then
-	native_pattern="pi_natives.darwin-*.node"
-else
-	native_pattern="pi_natives.linux-*.node"
-fi
-
-if ! compgen -G "$REPO_DIR/packages/natives/native/$native_pattern" >/dev/null; then
-	native_cached="$(find "$HOME/.omp/natives" -name "$native_pattern" 2>/dev/null | head -n 1 || true)"
-	if [ -n "$native_cached" ] && [ -f "$native_cached" ]; then
-		log "Copying cached native addon $native_cached into packages/natives/native/..."
-		cp -p "$native_cached" "$REPO_DIR/packages/natives/native/"
-	else
-		log "Building native addon for $os_name/$arch_name..."
-		OMP_NATIVE_CARGO_PROFILE=ci bun --cwd=packages/natives run build >>"$LOG_FILE" 2>&1
-	fi
-fi
-
-mkdir -p "$HOME/.local/bin"
-head_sha="$(git rev-parse HEAD)"
-
-if [ "$COMPILE_BINARY" = "1" ]; then
-	log "Compiling standalone omp binary (bun --cwd=packages/coding-agent run build)..."
-	bun --cwd=packages/coding-agent run build >>"$LOG_FILE" 2>&1
-	install -m 0755 "$REPO_DIR/packages/coding-agent/dist/omp" "$HOME/.local/bin/omp"
-	if [ "$os_name" = "Darwin" ] && [ -f "$REPO_DIR/scripts/macos-entitlements.plist" ]; then
-		codesign --force --sign - --entitlements "$REPO_DIR/scripts/macos-entitlements.plist" "$HOME/.local/bin/omp" >>"$LOG_FILE" 2>&1 || true
-	fi
-	printf '%s\n' "$head_sha" >"$HOME/.local/bin/.omp-sha"
-	log "Installed compiled binary to $HOME/.local/bin/omp ($head_sha)"
-else
-	target_script="$REPO_DIR/packages/coding-agent/scripts/omp"
-	chmod +x "$target_script"
-	ln -sf "$target_script" "$HOME/.local/bin/omp"
-	printf '%s\n' "$head_sha" >"$HOME/.local/bin/.omp-sha"
-	log "Linked $HOME/.local/bin/omp -> $target_script ($head_sha)"
-fi
-
-current_version="$("$HOME/.local/bin/omp" --version 2>/dev/null || echo "failed")"
-if [ "$current_version" = "failed" ]; then
-	log "Error: $HOME/.local/bin/omp --version failed!"
+active="$(mise current "$repo" 2>/dev/null || true)"
+if [ -z "$active" ]; then
+	echo "omp sync: mise has no active version for $repo after mise up" >&2
 	exit 1
 fi
-log "omp version: $current_version"
-if [ "$PUSH_FORK" = "1" ] && git remote get-url fork >/dev/null 2>&1; then
-	log "Pushing main to fork/main..."
-	git push fork main --force-with-lease >>"$LOG_FILE" 2>&1
+
+installed="$("$entrypoint" --version | sed -n '2p')"
+expected="github.com/zachbornheimer/oh-my-pi@$active"
+if [ "$installed" != "$expected" ]; then
+	echo "omp sync: installed '${installed:-<no identity line>}' but mise has '$expected'" >&2
+	exit 1
 fi
-log "=== dev-profile-omp-sync completed successfully ==="
+echo "omp sync: $installed"

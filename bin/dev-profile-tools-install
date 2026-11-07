@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# Install the tools the active mise config pins, retrying the transient failures
+# GitHub's release CDN returns for .../releases/download/... (HTTP 504). mise's own
+# retries are three attempts inside a few seconds, shorter than one of these blips,
+# so a single flaky fetch otherwise fails a whole CI job. mise install is
+# incremental: a retry fetches only what is still missing.
+attempts="${DEV_PROFILE_TOOLS_INSTALL_ATTEMPTS:-5}"
+delay="${DEV_PROFILE_TOOLS_INSTALL_DELAY_SECONDS:-20}"
+[[ "${attempts}" =~ ^[1-9][0-9]*$ ]] || {
+	echo 'DEV_PROFILE_TOOLS_INSTALL_ATTEMPTS must be a positive integer' >&2
+	exit 1
+}
+[[ "${delay}" =~ ^[0-9]+$ ]] || {
+	echo 'DEV_PROFILE_TOOLS_INSTALL_DELAY_SECONDS must be a non-negative integer' >&2
+	exit 1
+}
+attempt=1
+while ! mise install --yes; do
+	if ((attempt >= attempts)); then
+		echo "mise install failed after ${attempt} attempts" >&2
+		exit 1
+	fi
+	echo "mise install failed (attempt ${attempt}/${attempts}); retrying in ${delay}s" >&2
+	sleep "${delay}"
+	attempt=$((attempt + 1))
+done

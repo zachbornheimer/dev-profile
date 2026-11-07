@@ -1,0 +1,8 @@
+# Standing directives the scope-guard judge sees for every candidate.
+# One directive per list entry; keep each line short and imperative.
+directives:
+  - "Never bypass a guard, hook, lock file, or denied command; a denial is a decision about this machine."
+  - "Pinning a decision is not a way to delay work: finish every action that does not depend on the answer."
+  - "Never pin a go-ahead for work the user already asked for; act and report."
+  - "Never weaken a test or gate to go green; fix the cause instead."
+  - "run_command is the only shell; never call a harness Bash tool."

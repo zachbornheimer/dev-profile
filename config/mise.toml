@@ -2,6 +2,11 @@
 "aqua:1password/cli" = "2.41.1"
 colima = "latest"
 gofumpt = "latest"
+# Custom omp: release tarballs from the fork. `matching = "omp-"` keeps the two
+# platform tarballs and drops SHA256SUMS; autodetect picks per-OS/arch.
+# `minimum_release_age = "0"`: the fork's own CI builds these releases (the
+# upstream supply-chain default of 24h would hide each day's build until the next).
+"github:zachbornheimer/oh-my-pi" = { version = "latest", matching = "omp-", minimum_release_age = "0" }
 node = "22.23.4"
 
 [env._]
@@ -14,8 +19,8 @@ path = ["~/.agents/bin", "~/.local/share/dev-profile/bin"]
 # versions). With a `git` shim on PATH that call re-enters mise, which resolves
 # the toolset again, which runs `git ls-remote` again: an unbounded fork loop
 # whenever mise has no warm cache (seen under aubx-skills' throwaway HOME).
-# conda:git (dev-profile) stays installed; these names just get no shim, so
-# `git` resolves to /opt/homebrew/bin/git (2.56, same as the pinned conda git).
+# conda:git (dev-profile) is pinned for Linux only; on macOS `git` is Homebrew's
+# (2.56), and these names never get a shim, so no git shim can re-enter mise.
 shims.exclude = [
   "git",
   "git-credential-osxkeychain",
@@ -184,10 +189,8 @@ recipients = ["age1qpl3tghy0660prmvz3x2dqjsn69m588e0j0v56ec0rswkujgyshs64dhtc"]
 "~/.omp/agent/extensions/machine-host-context.ts" = { mode = "track", encrypt = true }
 "~/.omp/agent/extensions/pending-decisions.ts" = { mode = "track", encrypt = true }
 "~/.omp/agent/extensions/run-agent-hooks.ts" = { mode = "track", encrypt = true }
-"~/.omp/agent/extensions/semgrep-guardian.ts" = { mode = "track", encrypt = true }
 "~/.omp/agent/extensions/superset-hooks.ts" = { mode = "track", encrypt = true }
 "~/.omp/agent/extensions/undo-clear.ts" = { mode = "track", encrypt = true }
-"~/.omp/build.toml" = { mode = "track" }
 "~/.profile" = { mode = "track", encrypt = true }
 "~/.stylelintrc.json" = { source = "~/Developer/Personal/dev-profile/config/stylelintrc.json" }
 "~/.tmux.conf" = { mode = "track", encrypt = true }
@@ -204,3 +207,40 @@ recipients = ["age1qpl3tghy0660prmvz3x2dqjsn69m588e0j0v56ec0rswkujgyshs64dhtc"]
 "~/Developer/Personal/deny.toml" = { source = "~/Developer/Personal/dev-profile/config/deny.toml" }
 "~/Developer/Personal/dprint.jsonc" = { source = "~/Developer/Personal/dev-profile/config/dprint.jsonc" }
 "~/Developer/Personal/mise.toml" = { source = "~/Developer/Personal/dev-profile/config/personal-overlay.toml" }
+
+# Self-heal for the mise history watcher: kills duplicate `mise dot watch`
+# processes, clears stale history locks, restarts a wedged watcher, and
+# notifies when conflicts silently block publishing (2026-11-01 outage).
+[bootstrap.macos.launchd.agents.mise-history-watchdog]
+program = "/bin/sh"
+args = [
+  "-c",
+  '''
+export PATH="$HOME/.local/share/mise/shims:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+exec "$HOME/.local/share/dev-profile/bin/dev-profile-mise-history-watchdog"
+''',
+]
+start_interval = 300
+stdout_path = "~/Library/Logs/mise-history-watchdog.log"
+stderr_path = "~/Library/Logs/mise-history-watchdog.err.log"
+process_type = "Background"
+
+# The same self-heal and conflict repair on a Linux fleet box: one script, run by a
+# systemd user timer (5 minutes after the last run, first run 2 minutes after boot).
+# The oneshot unit is started only by its timer. Its output is the journal:
+# `journalctl --user -u dev.mise.mise-history-watchdog`.
+[bootstrap.linux.systemd.units.mise-history-watchdog]
+description = "mise dot history watcher self-heal and conflict repair"
+type = "oneshot"
+exec_start = "%h/.local/share/dev-profile/bin/dev-profile-mise-history-watchdog"
+environment = { PATH = "%h/.local/share/mise/shims:%h/.local/bin:/usr/local/bin:/usr/bin:/bin" }
+standard_output = "journal"
+standard_error = "journal"
+start = false
+wanted_by = []
+
+[bootstrap.linux.systemd.units.mise-history-watchdog-timer]
+description = "run the mise dot history watchdog every 5 minutes"
+on_boot_sec = "2min"
+on_unit_active_sec = "5min"
+unit = "mise-history-watchdog"

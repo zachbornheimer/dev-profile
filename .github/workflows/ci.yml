@@ -36,7 +36,7 @@ jobs:
         run: |
           export MISE_GLOBAL_CONFIG_FILE="${GITHUB_WORKSPACE}/profile/mise.toml"
           echo "MISE_GLOBAL_CONFIG_FILE=${MISE_GLOBAL_CONFIG_FILE}" >>"$GITHUB_ENV"
-          mise install --yes
+          "${GITHUB_WORKSPACE}/bin/dev-profile-tools-install"
       - name: Test
         # Pins live in the repo. There is no generate step.
         env:
@@ -58,13 +58,17 @@ jobs:
       - uses: ./
       - name: Repo without a go pin gets the profile's go
         run: |
-          want="$(sed -n 's/^go = "\(.*\)"$/\1/p' "${HOME}/.config/mise/conf.d/dev-profile/languages/go/tools.toml")"
+          # The profile pins go = "latest", so mise picks the version; the pin file names
+          # nothing to compare against. Require go to come from the profile's install
+          # (mise's data directory), not from whatever go the runner image ships.
           mkdir "${RUNNER_TEMP}/bare"
           cd "${RUNNER_TEMP}/bare" || exit
           printf '[tasks.noop]\nrun = "true"\n' >mise.toml
           mise trust
-          got="$(mise exec -- go version)"
-          grep -Fq "go${want}." <<<"${got}" || { echo "want go ${want}, got: ${got}" >&2; exit 1; }
+          got="$(mise exec -- which go)"
+          [[ "${got}" == "${HOME}/.local/share/mise/installs/go/"* ]] ||
+            { echo "go is not the profile's install: ${got}" >&2; exit 1; }
+          mise exec -- go version
       - name: Repo with its own go pin keeps it
         run: |
           mkdir "${RUNNER_TEMP}/pinned"

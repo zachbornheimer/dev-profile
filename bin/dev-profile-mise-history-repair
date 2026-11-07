@@ -1,0 +1,353 @@
+#!/usr/bin/env bash
+# Escalate a mise dot history failure the watchdog could not heal by itself.
+#
+# `dev-profile-mise-history-watchdog` runs every five minutes and heals the
+# mechanical failures on its own: duplicate `mise dot watch` processes, a wedged
+# watcher, history locks older than ten minutes, and the encryption declarations
+# `mise dot track` gets wrong. Two failures it cannot touch used to end in a
+# desktop notification and nothing else:
+#
+#   publishing-blocked — `mise dot status` carries a hard failure line (a sync
+#     conflict, or a pull refused because a tracked path changed type) and local
+#     checkpoints pile up unpublished. That ran silent for hours on 2026-11-01,
+#     21 hours on 2026-11-02, and from 10:42 to 17:52 on 2026-11-04 with a
+#     notification every five minutes and no repair.
+#   heal-failed — the sibling heal tool itself exits non-zero, so the watchdog
+#     cannot clear the declarations that block publishing.
+#
+# Each class files one atask objective (idempotent on its title) and spawns one
+# `start_atask_task` worker run on it. The worker diagnoses the failure, repairs
+# what is deterministic, and leaves the objective incomplete with a named
+# decision when the call is a person's. That decision reaches the user on the
+# next tick: a run that ends without repairing the failure and names the step it
+# could not take needs no retry. Otherwise a person is notified only when no
+# worker can be started at all, or after MAX_ATTEMPTS attempts failed to clear it.
+#
+# The run is started in its own session: the watchdog's LaunchAgent kills the
+# rest of its process group when the tick exits, and this run has to outlive the
+# tick — it waits on the worker, then lands the work.
+#
+# Usage: dev-profile-mise-history-repair --class <publishing-blocked|heal-failed> --detail <text> [--dry-run]
+#        dev-profile-mise-history-repair --clear
+#
+# Prints one verdict line and decides the watchdog's next move by its exit code:
+#   spawned <task-id>     a worker run was started for the objective
+#   running <task-id>     an attempt is in flight, or inside its cooldown
+#   exhausted <task-id>   every attempt spent, or the run named a decision; this is
+#                         a person's call
+#   alerted <task-id>     a person was already told about this incident
+#   blocked <reason>      no worker could be started
+# Exit 0: the watchdog stays quiet. Exit 1: notify a person.
+# Every spawn is appended to ~/Library/Logs/mise-history-repair.log.
+set -euo pipefail
+
+ATASK="${MISE_HISTORY_REPAIR_ATASK:-atask}"
+SPAWN="${MISE_HISTORY_REPAIR_SPAWN:-$HOME/.local/share/aube/bin/capability}"
+PROJECT="${MISE_HISTORY_REPAIR_PROJECT:-dev-profile}"
+STATE_DIR="${MISE_HISTORY_REPAIR_STATE:-$HOME/.local/state/mise-history-watchdog}"
+# The watchdog exports its log directory; run alone, the same per-OS default applies.
+OS="${MISE_HISTORY_WATCHDOG_OS:-$(uname -s)}"
+case "$OS" in
+Darwin) LOG_DIR_DEFAULT="$HOME/Library/Logs" ;;
+*) LOG_DIR_DEFAULT="${XDG_STATE_HOME:-$HOME/.local/state}/mise-history-watchdog" ;;
+esac
+LOG_DIR="${MISE_HISTORY_LOG_DIR:-$LOG_DIR_DEFAULT}"
+mkdir -p "$LOG_DIR"
+SPAWN_LOG="$LOG_DIR/mise-history-repair.log"
+HIST_DIR="$HOME/.local/state/mise/history"
+# How many worker runs one failure class gets before a person is asked, and how
+# long after a spawn the next attempt may start. The cooldown is shorter than one
+# worker budget on purpose: a retry attaches to a run still in flight instead of
+# starting a second worker, which is what `start_atask_task` does with a repeat id.
+MAX_ATTEMPTS="${MISE_HISTORY_REPAIR_MAX_ATTEMPTS:-3}"
+COOLDOWN_S="${MISE_HISTORY_REPAIR_COOLDOWN_S:-2700}"
+# How long a spawned run must still be alive before it counts as started: a run
+# that dies inside this window never reached a worker.
+STARTUP_GRACE_S="${MISE_HISTORY_REPAIR_STARTUP_GRACE_S:-5}"
+# How long the detached caller waits on the worker before it answers `running`
+# and leaves the run in place. A worker may run for its own budget (3600s by
+# default) and the caller has to stay for the landing.
+CALLER_BUDGET_S=5400
+
+MODE=attempt
+CLASS=""
+DETAIL=""
+DRY_RUN=0
+usage() {
+	echo "usage: ${0##*/} --class <publishing-blocked|heal-failed> --detail <text> [--dry-run] | --clear" >&2
+	exit 2
+}
+while [ $# -gt 0 ]; do
+	case "$1" in
+	--clear)
+		MODE=clear
+		shift
+		;;
+	--class)
+		CLASS="${2:-}"
+		shift 2
+		;;
+	--detail)
+		DETAIL="${2:-}"
+		shift 2
+		;;
+	--dry-run)
+		DRY_RUN=1
+		shift
+		;;
+	*)
+		usage
+		;;
+	esac
+done
+if [ "$MODE" != clear ] && { [ -z "$CLASS" ] || [ -z "$DETAIL" ]; }; then
+	usage
+fi
+
+# `--clear` removes this directory, so only a path several levels below the root
+# is ever taken, which no override of /, $HOME or a bare top-level directory is.
+case "$STATE_DIR" in
+/*/*/*) ;;
+*)
+	echo "${0##*/}: refusing state dir $STATE_DIR" >&2
+	exit 2
+	;;
+esac
+
+if [ "$MODE" = clear ]; then
+	# The watchdog calls this on a tick with nothing to escalate, so a failure
+	# that returns later starts a fresh attempt budget instead of inheriting an
+	# exhausted one.
+	rm -rf "$STATE_DIR"
+	exit 0
+fi
+
+case "$CLASS" in
+publishing-blocked | heal-failed) ;;
+*)
+	echo "${0##*/}: unknown class ${CLASS}" >&2
+	exit 2
+	;;
+esac
+
+DETAIL="$(printf '%s' "$DETAIL" | tr '\n\r' '  ')"
+WHEN="$(date '+%F %T')"
+
+TITLE=""
+OUTCOME=""
+PROOF=""
+REGRESSION=""
+ACCEPT=()
+CONSTRAINTS=()
+case "$CLASS" in
+publishing-blocked)
+	TITLE="Restore mise dot history publishing"
+	OUTCOME="Restore mise dot history publishing so local dotfile checkpoints reach the remote history repo again, or leave this objective incomplete with the exact decision a person must make recorded in atask log --next."
+	ACCEPT=(
+		"Observed $WHEN: $DETAIL"
+		"mise dot status reports no last-error line, and no backlog of unpublished checkpoints."
+		"The cause is identified from mise dot status, mise dot conflicts, $HIST_DIR and its repository, and recorded with atask log --learned."
+		"Every mechanically fixable cause is fixed: a path that should never have been tracked is untracked, a stale lock is removed, a declaration that disagrees with the store is corrected, or a path whose type conflicts with the manifest is reconciled."
+		"No local checkpoint was lost: the history repository refs before and after are compared and reported."
+		"A genuine local/remote conflict is resolved here, not reported: for each conflicted path, read mise dot conflicts <path>, first copy both versions to ~/.local/state/mise-history-watchdog/rescued/<timestamp>/<path>.local and .remote, then write the merge that keeps both sides' intent (the union of additive edits; for the same key or line, the side with the newer checkpoint), apply it with mise dot pull --keep-local <path> or --take-remote <path>, and run mise dot sync."
+		"Each resolved conflict is recorded with atask log --learned: the path, the rescued copies, which side won each hunk, and the mise dot undo or rollback that reverses it."
+		"Only a secret-scan refusal stays incomplete: atask log --next names the paths and the options, because publishing past it needs a person."
+	)
+	CONSTRAINTS=(
+		"Do not destroy, rewrite, or discard unpublished local checkpoints."
+		"Do not disable encryption, set a path to plaintext, or add an encryption opt-out."
+		"Do not force-push or discard remote history."
+		"Do not kill, unload, or stop the service-owned watcher dev.mise.mise-history (a LaunchAgent on macOS, a systemd user unit on Linux); the watchdog owns restarts."
+		"Do not publish over a secret-scan refusal (--allow-plaintext-history) on your own."
+		"Never resolve a conflict without the rescued copies of both versions in place first."
+		"Run every command through run_command; commit with wt step commit as signed conventional commits, with no attribution trailers."
+	)
+	PROOF="run: test \"\$(mise dot status 2>/dev/null | grep -c 'last error')\" = 0 size=medium"
+	REGRESSION="run: bash tests/mise-history-watchdog-repair-fixture.sh size=medium"
+	;;
+heal-failed)
+	TITLE="Fix the mise dot encryption heal"
+	OUTCOME="Make dev-profile-mise-dot-encryption-heal exit 0 against the live declarations again, with a test in tests/ that is red without the fix."
+	ACCEPT=(
+		"Observed $WHEN: $DETAIL"
+		"The heal tool, run live from the worktree as bin/dev-profile-mise-dot-encryption-heal, exits 0."
+		"The cause is named with atask log --learned and is covered by a test in tests/ that fails without the fix."
+		"The heal stays silent and exit 0 when the declarations already agree, and never rewrites a deliberate encrypt = false."
+		"mise run ci is green in the worktree."
+		"If the cause lies outside dev-profile, or needs a person's decision, the objective stays incomplete and atask log --next names it."
+	)
+	CONSTRAINTS=(
+		"Fix the root cause in the heal tool; do not wrap, mask, or swallow its exit code in the watchdog."
+		"Do not weaken, skip, or delete an existing test or fixture to go green."
+		"Do not set a path to plaintext or add an encryption opt-out."
+		"Do not edit the LaunchAgent plist or unload dev.mise.mise-history."
+		"Run every command through run_command; commit with wt step commit as signed conventional commits, with no attribution trailers."
+	)
+	PROOF="run: bin/dev-profile-mise-dot-encryption-heal size=medium"
+	REGRESSION="run: bash tests/mise-dot-encryption-heal-fixture.sh size=medium"
+	;;
+esac
+
+# The attempt ledger: one file per class, so a repeat failure reuses the
+# objective it already filed instead of filing a second one.
+state="$STATE_DIR/repair-$CLASS"
+attempts=0
+last_spawn=0
+alerted=0
+task=""
+if [ -f "$state" ]; then
+	while IFS='=' read -r key value; do
+		case "$key" in
+		task) task="$value" ;;
+		attempts) attempts="$value" ;;
+		last_spawn) last_spawn="$value" ;;
+		alerted) alerted="$value" ;;
+		esac
+	done <"$state"
+fi
+now=$(date +%s)
+
+write_state() {
+	mkdir -p "$STATE_DIR"
+	{
+		printf 'class=%s\n' "$CLASS"
+		printf 'detail=%s\n' "$DETAIL"
+		printf 'task=%s\n' "$1"
+		printf 'attempts=%s\n' "$2"
+		printf 'last_spawn=%s\n' "$3"
+		printf 'alerted=%s\n' "$4"
+	} >"$state"
+}
+
+# No worker could be started: this one is the user's, told once per incident.
+blocked() {
+	write_state "${task:-none}" "$attempts" "$last_spawn" 1
+	printf 'blocked %s\n' "$1"
+	exit 1
+}
+
+if [ "$DRY_RUN" = 1 ]; then
+	printf 'class=%s\nwhen=%s\nattempts=%s\ncooldown_s=%s\nstate=%s\ntitle=%s\noutcome=%s\nproof=%s\nregression=%s\ndetail=%s\n' \
+		"$CLASS" "$WHEN" "$attempts" "$COOLDOWN_S" "${task:-none}" "$TITLE" "$OUTCOME" "$PROOF" "$REGRESSION" "$DETAIL"
+	printf 'accept=%s\n' "${ACCEPT[@]}"
+	printf 'constraint=%s\n' "${CONSTRAINTS[@]}"
+	exit 0
+fi
+
+# A person was already told about this incident: stay quiet until it clears.
+if [ "$alerted" = 1 ]; then
+	printf 'alerted %s\n' "${task:-unknown}"
+	exit 0
+fi
+# What the objective says about the last attempt: `atask show --json` is one
+# envelope, and a run that cannot repair the failure releases the claim and
+# records the step it could not take.
+objective_state() {
+	python3 - "$1" <<'PY' 2>/dev/null || true
+import json
+import sys
+
+data = json.loads(sys.argv[1])["result"]
+print(data.get("status", "unknown"))
+print(((data.get("handoff") or {}).get("latest_next") or "").replace("\n", " "))
+PY
+}
+
+# Attempt budget spent: this is a person's call now, and they are told once.
+if [ "$attempts" -ge "$MAX_ATTEMPTS" ]; then
+	write_state "${task:-none}" "$attempts" "$last_spawn" 1
+	printf 'exhausted %s after %s attempt(s)\n' "${task:-none}" "$attempts"
+	exit 1
+fi
+
+# A worker that gave up needs neither a retry nor the cooldown: it named the
+# decision, so the user hears about it on this tick instead of after two more
+# runs of the same diagnosis. A worker still holding the claim is running; a
+# claim older than any worker budget is treated as lost.
+if [ "$attempts" -gt 0 ] && [ -n "$task" ]; then
+	shown="$("$ATASK" show "$task" --json 2>/dev/null || true)"
+	if [ -n "$shown" ]; then
+		state_out="$(objective_state "$shown")"
+		objective="$(head -1 <<<"$state_out")"
+		next="$(sed -n '2p' <<<"$state_out")"
+		if [ -n "$next" ]; then
+			write_state "$task" "$attempts" "$last_spawn" 1
+			printf 'exhausted %s: the run ended and named a decision: %s\n' "$task" "${next:0:140}"
+			exit 1
+		fi
+		case "$objective" in
+		claimed | working | running)
+			if [ $((now - last_spawn)) -lt 7200 ]; then
+				printf 'running %s (%s for %ss)\n' "$task" "$objective" "$((now - last_spawn))"
+				exit 0
+			fi
+			;;
+		esac
+	fi
+fi
+
+# An attempt is in flight, or its cooldown has not run out.
+if [ "$attempts" -gt 0 ] && [ $((now - last_spawn)) -lt "$COOLDOWN_S" ]; then
+	printf 'running %s (%ss into a %ss cooldown)\n' "$task" "$((now - last_spawn))" "$COOLDOWN_S"
+	exit 0
+fi
+
+command -v "$ATASK" >/dev/null 2>&1 || blocked "atask is not on PATH ($ATASK)"
+[ -x "$SPAWN" ] || blocked "the capability CLI is missing ($SPAWN)"
+
+# File the objective. `atask add` is idempotent on the title, so a second attempt
+# reuses the objective the first one filed.
+args=("$ATASK" add "$TITLE" --project "$PROJECT" --outcome "$OUTCOME" --json)
+for line in "${ACCEPT[@]}"; do args+=(--accept "$line"); done
+for line in "${CONSTRAINTS[@]}"; do args+=(--constraint "$line"); done
+args+=(--proof "$PROOF" --regression "$REGRESSION")
+out=""
+if out="$("${args[@]}" 2>&1)"; then
+	# `atask add --json` answers one envelope line; the objective id is in it.
+	task="$(sed -n 's/.*"task":{"id":"\([^"]*\)".*/\1/p' <<<"$out" | head -1)"
+fi
+[ -n "$task" ] || blocked "atask could not file the objective: $(tail -2 <<<"$out" | tr '\n' ' ')"
+
+{
+	printf '\n%s %s: attempt %s on %s for %s\n' "$WHEN" "$CLASS" "$((attempts + 1))" "$task" "$PROJECT"
+	printf '  detail: %s\n' "$DETAIL"
+} >>"$SPAWN_LOG"
+
+payload="$(printf '{"id":"%s","onComplete":"merge","timeout_s":%s}' "$task" "$CALLER_BUDGET_S")"
+if [ "$OS" = Darwin ]; then
+	run_pid="$(
+		python3 - "$SPAWN" "$payload" "$SPAWN_LOG" <<'PY' 2>>"$SPAWN_LOG"
+import subprocess
+import sys
+
+spawn, payload, log = sys.argv[1], sys.argv[2], sys.argv[3]
+handle = open(log, "ab", buffering=0)
+# Its own session, so the watchdog's LaunchAgent does not kill it with the rest
+# of the tick's process group; it stays for the worker and the landing.
+process = subprocess.Popen(
+    [spawn, "run", "start_atask_task", "--input", payload],
+    stdin=subprocess.DEVNULL,
+    stdout=handle,
+    stderr=subprocess.STDOUT,
+    start_new_session=True,
+)
+print(process.pid)
+PY
+	)" || run_pid=""
+	[ -n "$run_pid" ] || blocked "could not start $SPAWN (see $SPAWN_LOG)"
+	sleep "$STARTUP_GRACE_S"
+	kill -0 "$run_pid" 2>/dev/null || blocked "the run exited within ${STARTUP_GRACE_S}s: $(tail -2 "$SPAWN_LOG" | tr '\n' ' ')"
+else
+	# systemd kills every process left in a oneshot unit's cgroup when the tick ends, and a new
+	# session does not leave the cgroup. A transient unit does, so the run outlives the tick.
+	unit="mise-history-repair-$task"
+	systemd-run --user --collect --quiet "--unit=$unit" "--setenv=PATH=$PATH" \
+		-p "StandardOutput=append:$SPAWN_LOG" -p "StandardError=append:$SPAWN_LOG" \
+		-- "$SPAWN" run start_atask_task --input "$payload" 2>>"$SPAWN_LOG" ||
+		blocked "could not start $SPAWN as a transient systemd unit (see $SPAWN_LOG)"
+	sleep "$STARTUP_GRACE_S"
+	systemctl --user is-active --quiet "$unit" || blocked "the run exited within ${STARTUP_GRACE_S}s: $(tail -2 "$SPAWN_LOG" | tr '\n' ' ')"
+fi
+
+write_state "$task" "$((attempts + 1))" "$now" 0
+printf 'spawned %s (attempt %s of %s)\n' "$task" "$((attempts + 1))" "$MAX_ATTEMPTS"

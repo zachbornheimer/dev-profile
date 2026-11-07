@@ -134,6 +134,31 @@ function withSessionRef(params: Record<string, unknown>): Record<string, unknown
   return params;
 }
 
+// A remote session's pane lives in the Mac's Herdr: dev-env's vps:* tasks
+// tunnel these reports to the Mac's socket and set HERDR_AGENT_SOURCE to the
+// local fg hook's source, because the pane's foreground process is the ssh/mise
+// wrapper, not omp. Restoring that pane has to reattach the session from the
+// Mac, so name the front door that does it — Herdr's built-in
+// `omp --resume <path>` would name a /home path the Mac cannot open.
+const FORWARDED_PANE_SOURCE = "zsh-fg";
+const REMOTE_RESUME_PREFIX = ["ompr", "--resume"];
+
+/** The command Herdr re-runs for this pane after a restart, if it needs one. */
+export function resumeArgvForSource(
+  reportSource: string,
+  sessionId: string | undefined,
+): string[] | undefined {
+  if (reportSource !== FORWARDED_PANE_SOURCE || !sessionId) {
+    return undefined;
+  }
+  return [...REMOTE_RESUME_PREFIX, sessionId];
+}
+
+function withResumeArgv(params: Record<string, unknown>): Record<string, unknown> {
+  const argv = resumeArgvForSource(source, currentAgentSessionId);
+  return argv ? { ...params, resume_argv: argv } : params;
+}
+
 function parseDurationEnv(name: string, fallback: number): number {
   const raw = process.env[name];
   if (!raw) {
@@ -172,14 +197,14 @@ function reportSession(sessionStartSource = "startup"): Promise<void> {
   const req = sendRequest({
     id: `${source}:session:${Date.now()}:${Math.random().toString(36).slice(2)}`,
     method: "pane.report_agent_session",
-    params: {
+    params: withResumeArgv({
       pane_id: paneId,
       source,
       agent: "omp",
       seq: nextReportSeq(),
       session_start_source: sessionStartSource,
       ...sessionRef,
-    },
+    }),
   });
 
   if (isRemoteSession()) {
@@ -203,14 +228,14 @@ function sendState(state: AgentState, message?: string, seq = nextReportSeq()): 
   return sendRequest({
     id: `${source}:${Date.now()}:${Math.random().toString(36).slice(2)}`,
     method: "pane.report_agent",
-    params: withSessionRef({
+    params: withResumeArgv(withSessionRef({
       pane_id: paneId,
       source,
       agent: "omp",
       state,
       message,
       seq,
-    }),
+    })),
   });
 }
 
