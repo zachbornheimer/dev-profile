@@ -7,6 +7,12 @@ gofumpt = "latest"
 # `minimum_release_age = "0"`: the fork's own CI builds these releases (the
 # upstream supply-chain default of 24h would hide each day's build until the next).
 "github:zachbornheimer/oh-my-pi" = { version = "latest", matching = "omp-", minimum_release_age = "0" }
+# ghx: the rate-limit-aware `gh` wrapper, released by its own CI (private repo; the
+# github backend authenticates through [settings.github] credential_command below).
+# Assets are ghx_<version>_<os>_<arch>.tar.gz plus checksums.txt, which autodetect resolves
+# without `matching`. `postinstall` runs after every install or upgrade and re-points
+# ~/.local/bin/gh at the new install (`ghx wrap install`), so `gh` is always ghx.
+"github:zachbornheimer/ghx" = { version = "latest", minimum_release_age = "0", postinstall = "ghx wrap install" }
 node = "22.23.4"
 
 [env._]
@@ -33,6 +39,11 @@ shims.exclude = [
 ]
 history.sync_interval = "60s"
 history.fetch_interval = "60s"
+
+# mise calls the GitHub API itself for private repositories (ghx) and rate-limited `latest`
+# lookups. gh keeps its token in the macOS Keychain, so mise cannot read hosts.yml: ask gh.
+[settings.github]
+credential_command = 'gh auth token --hostname "$MISE_CREDENTIAL_HOST"'
 
 [settings.age]
 key_file = "/home/zbornheimer/.config/mise/age.txt"
