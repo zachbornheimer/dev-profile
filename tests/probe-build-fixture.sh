@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# probe-build.sh assembles the branch list CI actually configures: the
-# BRANCH_MANIFEST block in fork/ci:.github/workflows/omp-build.yml, resolved
-# by the omp repo's own scripts/omp-build/resolve-branches.ts. This fixture
-# builds a throwaway oh-my-pi checkout whose fork remote carries that workflow
-# (and the retired omp-rebuild.toml with no branches key, as on the real
-# fork), so the probe must read the manifest or die. It proves: the configured
-# branches merge in order, --drop leaves a branch out, and --add of a branch
-# missing from the fork fails naming it. Everything is local: origin and fork
-# are bare repos under the work dir.
+# probe-build.sh reads the branch list CI actually configures: the TOML files
+# under .omp-build/branches/ on fork/main, resolved by the fork's own
+# .omp-build/resolve-branches.ts. This fixture builds a throwaway oh-my-pi
+# checkout whose fork remote carries main = upstream base + one carry commit
+# (a miniature resolver and two branch files), so the probe must read the
+# directory or die. It proves: the configured branches merge in order, --drop
+# leaves a branch out, and --add of a branch missing from the fork fails
+# naming it. Everything is local: origin and fork are bare repos under the
+# work dir.
 # Usage: probe-build-fixture.sh [probe-build.sh]
 set -euo pipefail
 
@@ -35,46 +35,37 @@ fail() {
 command -v bun >/dev/null 2>&1 || fail "bun is required"
 [ -x "$probe" ] || bash -n "$probe" 2>/dev/null || fail "cannot read $probe"
 
-# The fork's resolver, verbatim: the probe must run the fork's own parser,
-# so the fake fork carries the same script the real one does.
+# A miniature of the fork's resolver: same contract (one branch name per line
+# from .omp-build/branches/**/*.toml, path minus .toml, ordered by (layer,
+# path)), without the full validation.
 resolver="$work/resolver.ts"
 cat >"$resolver" <<'RESOLVER'
 #!/usr/bin/env bun
-const override = process.argv[2] ?? "";
-const event = process.argv[3] ?? "workflow_dispatch";
-type Entry = { branch: string; reason: string };
-function parseManifest(raw: string): string[] {
-	const source = raw.trim();
-	if (source.length === 0) {
-		throw new Error("BRANCH_MANIFEST is empty");
+import * as fs from "node:fs";
+import * as path from "node:path";
+const root = path.join(import.meta.dir, "branches");
+const files: string[] = [];
+const walk = (dir: string) => {
+	for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+		const p = path.join(dir, e.name);
+		if (e.isDirectory()) walk(p);
+		else if (e.name.endsWith(".toml")) files.push(p);
 	}
-	const parsed = JSON.parse(source) as unknown;
-	if (!Array.isArray(parsed)) {
-		throw new Error("BRANCH_MANIFEST must be a JSON array");
-	}
-	return parsed.map((rawEntry, index) => {
-		const entry = rawEntry as Partial<Entry>;
-		if (typeof entry?.branch !== "string" || entry.branch.trim().length === 0) {
-			throw new Error(`BRANCH_MANIFEST[${index}]: missing a \`branch\` name`);
-		}
-		if (typeof entry?.reason !== "string" || entry.reason.trim().length === 0) {
-			throw new Error(`BRANCH_MANIFEST[${index}] (${entry.branch}): missing a \`reason\``);
-		}
-		return entry.branch.trim();
-	});
-}
-function parseOverride(raw: string): string[] {
-	return raw.split(",").map((e) => e.trim()).filter((e) => e.length > 0);
-}
-const branches =
-	event === "workflow_dispatch" && override.trim().length > 0
-		? parseOverride(override)
-		: parseManifest(process.env.BRANCH_MANIFEST ?? "");
-console.log(branches.join("\n"));
+};
+walk(root);
+const entries = files.map((f) => {
+	const text = fs.readFileSync(f, "utf8");
+	const layer = Number(/^layer\s*=\s*(\d+)/m.exec(text)?.[1] ?? 50);
+	const branch = path.relative(root, f).replace(/\.toml$/, "");
+	if (!/^reason\s*=/m.test(text)) throw new Error(`${f}: missing reason`);
+	return { branch, layer, file: f };
+});
+entries.sort((a, b) => a.layer - b.layer || (a.file < b.file ? -1 : 1));
+console.log(entries.map((e) => e.branch).join("\n"));
 RESOLVER
 
-# Bare remotes: origin holds main (the upstream base); fork holds ci (the
-# workflow, the pin, the resolver, and the retired toml) plus two branches.
+# Bare remotes: origin holds main (the upstream base); fork holds main (base
+# plus the carry commit) and two branches.
 origin="$work/origin.git"
 fork="$work/fork.git"
 git init -q --bare "$origin"
@@ -85,38 +76,20 @@ git init -q -b main "$seed"
 git -C "$seed" commit -q --allow-empty -m base
 git -C "$seed" remote add origin "$origin"
 git -C "$seed" push -q origin main
-base="$(git -C "$seed" rev-parse HEAD)"
 
 git -C "$seed" remote add fork "$fork"
-git -C "$seed" checkout -q -b ci
-mkdir -p "$seed/.github/workflows" "$seed/scripts/omp-build" "$seed/.github"
-cp "$resolver" "$seed/scripts/omp-build/resolve-branches.ts"
-printf 'This file no longer holds the branch list.\n' >"$seed/.github/omp-rebuild.toml"
-printf '%s\n' "$base" >"$seed/.github/omp-upstream.txt"
-cat >"$seed/.github/workflows/omp-build.yml" <<'WORKFLOW'
-jobs:
-  assemble:
-    env:
-      BRANCH_MANIFEST: |
-        [
-          {
-            "branch": "feat/one",
-            "reason": "Fixture branch one."
-          },
-          {
-            "branch": "feat/two",
-            "reason": "Fixture branch two."
-          }
-        ]
-WORKFLOW
+mkdir -p "$seed/.omp-build/branches/feat"
+cp "$resolver" "$seed/.omp-build/resolve-branches.ts"
+printf 'reason = "Fixture branch one."\n' >"$seed/.omp-build/branches/feat/one.toml"
+printf 'reason = "Fixture branch two."\n' >"$seed/.omp-build/branches/feat/two.toml"
 git -C "$seed" add -A
-git -C "$seed" commit -q -m ci
-git -C "$seed" push -q fork ci
+git -C "$seed" commit -q -m "carry: build machinery"
+git -C "$seed" push -q fork main
 git -C "$seed" checkout -q -b feat/one
 printf 'one\n' >"$seed/one.txt"
 git -C "$seed" add -A && git -C "$seed" commit -q -m one
 git -C "$seed" push -q fork feat/one
-git -C "$seed" checkout -q ci
+git -C "$seed" checkout -q main
 git -C "$seed" checkout -q -b feat/two
 printf 'two\n' >"$seed/two.txt"
 git -C "$seed" add -A && git -C "$seed" commit -q -m two

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # Install the stable omp entrypoint and the reference-transaction hook that
-# keeps oh-my-pi's `main` a read-only mirror (both run by `mise run setup`).
+# keeps oh-my-pi's local `main` equal to `fork/main` (both run by `mise run setup`).
 #
 # omp itself is installed by mise from the fork's GitHub releases
 # (`github:zachbornheimer/oh-my-pi` in the global mise config). mise owns the
@@ -30,13 +30,13 @@ cat >"$REPO_DIR/.git/hooks/reference-transaction" <<'EOF'
 set -euo pipefail
 state="${1:-}"
 [ "$state" = "prepared" ] || exit 0
-origin_main_sha="$(git rev-parse --verify -q refs/remotes/origin/main 2>/dev/null || true)"
-[ -n "$origin_main_sha" ] || exit 0
+fork_main_sha="$(git rev-parse --verify -q refs/remotes/fork/main 2>/dev/null || true)"
+[ -n "$fork_main_sha" ] || exit 0
 while read -r _old_value new_value ref_name; do
 	if [ "$ref_name" = "refs/heads/main" ]; then
-		if [ "$new_value" != "0000000000000000000000000000000000000000" ] && [ "$new_value" != "$origin_main_sha" ]; then
-			echo "ERROR [oh-my-pi reference-transaction]: refs/heads/main is read-only and must match origin/main ($origin_main_sha)." >&2
-			echo "Never commit or merge onto 'main' in oh-my-pi. Keep changes on a topic branch pushed to 'fork' and listed in the fork's .github/omp-rebuild.toml so CI builds them." >&2
+		if [ "$new_value" != "0000000000000000000000000000000000000000" ] && [ "$new_value" != "$fork_main_sha" ]; then
+			echo "ERROR [oh-my-pi reference-transaction]: refs/heads/main must match fork/main ($fork_main_sha)." >&2
+			echo "Fork main is upstream plus one carry commit, changed only through the fork (see the updating-oh-my-pi skill). Put changes on a topic branch pushed to 'fork' and add a file under .omp-build/branches/ so CI builds it." >&2
 			exit 1
 		fi
 	fi

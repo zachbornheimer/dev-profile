@@ -4,19 +4,28 @@ Accepted 2026-11-02 (user: "perfect. please proceed with this approach").
 
 ## Goal
 
-One custom `omp` = upstream `can1357/oh-my-pi` main + the topic branches listed in the `BRANCH_MANIFEST`
-block of `.github/workflows/omp-build.yml` (branch `ci`), built once in GitHub Actions on `zachbornheimer/oh-my-pi`,
-installed on the MBP and every fleet machine by mise. `main` stays a pure upstream mirror.
+One custom `omp` = fork `main` (upstream `can1357/oh-my-pi` main plus one carry commit holding the build machinery:
+`.github/workflows/omp-build.yml` and `.omp-build/`) + the topic branches listed one TOML file each under
+`.omp-build/branches/`, built once in GitHub Actions on `zachbornheimer/oh-my-pi`, installed on the MBP and every
+fleet machine by mise. `main` is the default branch; there is no `ci` branch and no pin file.
+
+Revised 2026-11-06 (user: "we should not pin upstream, it should use our main"): the earlier design pinned a
+40-hex upstream SHA on a `ci` branch. Replaced by: base = the triggering commit (fork `main` tip), advanced only by
+merging upstream (`scripts/sync-fork-main.sh`). Cut over to carry-on-main the same day: the workflow, the resolver
+(`.omp-build/resolve-branches.ts`) and the branch files live on `main`; `ci` and `carry/omp-build` are deleted; the
+130 `tools/*` branches left the fork for the private repo `zachbornheimer/omp-tools`.
 
 ## Contract
 
-- Workflow: `.github/workflows/omp-build.yml` on the fork's default branch `ci` (scheduled workflows only run
-  from the default branch; `main` stays the mirror), `schedule` daily 04:00 UTC + `workflow_dispatch`
-  (input `branches_override`: comma list, empty string = no branches).
-- Assembles `omp-build` from upstream main + listed branches. Any conflict: fail, publish nothing,
-  open/update one GitHub issue naming the branch and files. Previous release stays `latest`.
+- Workflow: `.github/workflows/omp-build.yml` on the fork's default branch `main`, `schedule` hourly at minute 17 +
+  `workflow_dispatch` (input `branches_override`: comma list; non-empty publishes a prerelease only).
+- Branch list: one file per branch under `.omp-build/branches/` (path minus `.toml` is the branch name); fields
+  `reason`, `upstream` = no|candidate|submitted|merged, `pr`, `layer` (default 50); order is (layer, path).
+- Assembles `omp-build` from the triggering commit (fork `main` tip) + listed branches. Any conflict: fail, publish
+  nothing, open/update one `omp-rebuild` issue per branch naming the files. Previous release stays `latest`.
   An assembled tree identical to the latest release's build commit skips build and release.
-- Release: tag `build-<YYYYMMDDHHMMSS>-<upstream-short-sha>-<build-short-sha>`, marked latest. Assembly computes the
+- Release: tag `build-<YYYYMMDDHHMMSS>-<upstream-short-sha>-<build-short-sha>`, where the middle field is the newest
+  upstream commit contained in `main`, marked latest. Assembly computes the
   tag and bakes it into both binaries (`PI_BUILD_IDENTITY`), so `omp --version` prints `omp/<semver>` then
   `github.com/zachbornheimer/oh-my-pi@<tag>`, and the welcome banner shows that identity as its version label.
   Assets: `omp-darwin-arm64.tar.gz`, `omp-linux-x64.tar.gz` (each containing a single `omp`), plus `SHA256SUMS`.
@@ -43,5 +52,8 @@ installed on the MBP and every fleet machine by mise. `main` stays a pure upstre
 
 ## Open
 
-Five listed branches conflict with current upstream (a stack topped by `feat/browser-aria-ref-delegation`, plus
-`omp-neon-sessions`); tracked in ZYS-2206 and fork issue #1. Until it lands, releases contain no custom branches.
+- `steering-fixes` is still one stack of branches, not split into independent branches based on `main`.
+- Twelve branches carry `upstream = "candidate"`: they have not yet been rebuilt as PR-clean branches off
+  `upstream/main` and submitted.
+- Custom omp tools are in the private repo `zachbornheimer/omp-tools` (`.omp/tools/<name>`); omp loads custom tools
+  from `~/.omp/agent/tools` or `.omp/tools`, and they are not yet installed there.

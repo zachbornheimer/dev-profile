@@ -69,6 +69,25 @@ local jsGlobs =
     "**/*.astro",
   )
 
+// A push of only files the repo's .oxlintrc.json ignores leaves oxlint no file to lint, and it
+// exits 1 with "No files found to lint". --no-error-on-unmatched-pattern turns that into a pass
+// and leaves the lint of every file the config does not ignore as strict as the builtin's
+// (tests/oxlint-all-ignored-fixture.sh pins both halves). Both oxlint steps are this one step.
+local oxlintStep = (Builtins.ox_lint) {
+  glob = jsGlobs
+  check {
+    command {
+      argv = List("oxlint", "--deny-warnings", "--no-error-on-unmatched-pattern", "{{files}}")
+    }
+  }
+  fix {
+    command {
+      argv =
+        List("oxlint", "--deny-warnings", "--no-error-on-unmatched-pattern", "--fix", "{{files}}")
+    }
+  }
+}
+
 local pyGlobs = List("**/*.py", "**/*.pyi")
 local mdGlobs = List("**/*.md", "**/*.markdown")
 local tfGlobs = List("**/*.tf", "**/*.tfvars")
@@ -144,7 +163,7 @@ local fixers = new Mapping<String, Step> {
   ["go-imports"] = (Builtins.go_imports) { glob = List("**/*.go") }
   // hk's oxlint builtin denies warnings; ours used to warn and pass. The builtin's
   // command is the profile's policy now: a warning is a finding.
-  ["oxlint-fix"] = (Builtins.ox_lint) { glob = jsGlobs }
+  ["oxlint-fix"] = oxlintStep
   // --fix-only never reports or exits non-zero on leftover violations, so this
   // fixer cannot block a push on inherited findings and stays bare.
   ["ruff-fix"] {
@@ -226,7 +245,7 @@ local gates = new Mapping<String, Step> {
     workspace_indicator = "go.mod"
     exclusive = true
   }
-  ["oxlint"] = (Builtins.ox_lint) { glob = jsGlobs }
+  ["oxlint"] = oxlintStep
   // Foxguard judges every TypeScript file with the retained pack plus its own built-ins. Findings are fixed by hand.
   // It replaced the semgrep gate on 2026-11-03: semgrep's own transitive pins carried Dependabot moderates no
   // semgrep release fixes (mcp==1.29.0, opentelemetry-api~=1.37.0 are hard requirements of the scanner itself).

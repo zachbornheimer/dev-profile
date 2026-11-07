@@ -222,7 +222,7 @@ retire-legacy-hooks = "~/.local/share/dev-profile/bin/dev-profile-retire-legacy-
 protect-omp-main = """
 {% if repo == 'oh-my-pi' and (target == 'main' or target == 'master') %}
 echo "Merging into '{{ target }}' in oh-my-pi is forbidden ('main' is a read-only mirror of upstream can1357/oh-my-pi)." >&2
-echo "Keep your change on a topic branch: push it to 'fork' ('git push -u fork {{ branch }}') and list it in the fork's .github/omp-rebuild.toml on the 'ci' branch so CI builds the next release; 'mise up' installs it." >&2
+echo "Keep your change on a topic branch and push it to 'fork' first ('git push -u fork {{ branch }}'); a listed branch that is missing from 'fork' fails the whole CI assembly. Then add an entry (branch, reason) to the BRANCH_MANIFEST JSON array in .github/workflows/omp-build.yml on the fork's default branch 'ci' so CI builds the next release; 'mise up' installs it." >&2
 exit 1
 {% else %}
 true

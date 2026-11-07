@@ -67,8 +67,10 @@ WORKTRUNK_FLOW = (
 OH_MY_PI_FLOW = (
     "oh-my-pi's `main` is a read-only mirror of can1357/oh-my-pi. Create a topic "
     "branch off origin/main (`wt switch --create <branch> --base origin/main`), "
-    "push it to `fork`, and list it in the fork's `.github/omp-rebuild.toml` on "
-    "the `ci` branch so CI builds the next release."
+    "push it to `fork` first (a listed branch missing from `fork` fails the whole "
+    "CI assembly), then add a {branch, reason} entry to the BRANCH_MANIFEST JSON "
+    "array in `.github/workflows/omp-build.yml` on the fork's default branch `ci` "
+    "so CI builds the next release."
 )
 
 
