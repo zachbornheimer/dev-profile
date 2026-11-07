@@ -10,6 +10,18 @@ set -euo pipefail
 # nearest directory at or above a file that holds app/, so an app below the repo
 # root is scanned from its own root, one run per app. A file no Rails app holds
 # cannot be scanned by brakeman: it is named on stderr as not scanned.
+#
+# The push is blocked only by warnings it introduces. Some brakeman warnings belong
+# to the whole app, not to the files pushed (EOLRails reads Gemfile.lock and is
+# reported whichever files --only-files names), so a gate that failed on every
+# warning would reject every push to an app whose Rails went end of life. Each app
+# is scanned at -w2 twice: its pushed files as they are, and the app as the merge
+# base with origin's default branch had it. A warning is pre-existing when the base
+# reports the same fingerprint (brakeman's hash of warning code, code, location,
+# file and confidence, which an edit that only shifts lines does not change). It is
+# printed under "pre-existing", never hidden, and does not fail the push; a warning
+# the base lacks does. With no base, or an app new at the tip, every warning is
+# introduced. CI keeps the whole-app view.
 # Skips when brakeman is not installed or no file is given.
 command -v brakeman >/dev/null 2>&1 || exit 0
 repo="$(pwd -P)"
@@ -49,6 +61,48 @@ for file in "$@"; do
 done
 ((${#files[@]})) || exit 0
 
+# default_base: the merge base of HEAD with origin's default branch, or nothing.
+default_base() {
+	local ref
+	for ref in "$(git symbolic-ref -q --short refs/remotes/origin/HEAD || true)" origin/main origin/master; do
+		if [[ -n "${ref}" ]] && git rev-parse -q --verify "${ref}^{commit}" >/dev/null; then
+			git merge-base HEAD "${ref}" 2>/dev/null || true
+			return 0
+		fi
+	done
+}
+
+# scan <app path> <json out> [brakeman args…]: brakeman at -w2. Exit 3 means warnings
+# were found, which the comparison judges; any other exit is a scan that did not run
+# and fails the push.
+scan() {
+	local path="$1" out="$2" code=0
+	shift 2
+	mise exec ruby@4 -- brakeman -q -w2 --path "${path}" "$@" -f json -o "${out}" 2>"${out}.err" || code=$?
+	case "${code}" in
+	0 | 3) return 0 ;;
+	*)
+		cat "${out}.err" >&2
+		echo "dev-profile-brakeman: brakeman failed (exit ${code}) scanning ${path}" >&2
+		return 1
+		;;
+	esac
+}
+
+# report <heading> <warnings json>: the heading, then one line per warning.
+report() {
+	[[ "$(jq 'length' "$2")" -gt 0 ]] || return 0
+	echo "$1" >&2
+	jq -r '.[] | "  [\(.confidence)] \(.warning_type)  \(.file):\(.line // 0)  \(.message)"' "$2" >&2
+}
+
+tmp="$(mktemp -d)"
+trap 'rm -rf "${tmp}"' EXIT
+base="$(default_base)"
+if [[ -z "${base}" ]]; then
+	echo "dev-profile-brakeman: no upstream default branch; every warning counts as introduced" >&2
+fi
+
 status=0
 while IFS= read -r root; do
 	scoped=()
@@ -65,6 +119,31 @@ while IFS= read -r root; do
 	for path in "${scoped[@]:1}"; do
 		only+=",${path}"
 	done
-	mise exec ruby@4 -- brakeman -q -w2 --path "${root}" --only-files "${only}" || status=$?
+	run="$(mktemp -d "${tmp}/app.XXXXXX")"
+	scan "${root}" "${run}/current.json" --only-files "${only}" || {
+		status=1
+		continue
+	}
+	# The fingerprints the base already reports, as a set. An app the base lacks has none.
+	existing='{}'
+	if [[ -n "${base}" ]]; then
+		mkdir -p "${run}/base"
+		git archive "${base}" -- "${root}" 2>/dev/null | tar -x -C "${run}/base" || true
+		if [[ -d "${run}/base/${root}/app" ]]; then
+			scan "${run}/base/${root}" "${run}/base.json" || {
+				status=1
+				continue
+			}
+			existing="$(jq -c '[.warnings[].fingerprint | {(.): true}] | add // {}' "${run}/base.json")"
+		fi
+	fi
+	jq --argjson existing "${existing}" '.warnings | map(select($existing[.fingerprint] | not))' "${run}/current.json" >"${run}/introduced.json"
+	jq --argjson existing "${existing}" '.warnings | map(select($existing[.fingerprint]))' "${run}/current.json" >"${run}/preexisting.json"
+	echo "brakeman ${root}: $(jq length "${run}/introduced.json") introduced, $(jq length "${run}/preexisting.json") pre-existing (pre-existing never blocks)" >&2
+	report "pre-existing warnings (already on the base, not introduced by this push):" "${run}/preexisting.json"
+	if [[ "$(jq length "${run}/introduced.json")" -gt 0 ]]; then
+		report "warnings introduced by this push:" "${run}/introduced.json"
+		status=1
+	fi
 done < <(printf '%s\n' "${roots[@]}" | sort -u)
 exit "${status}"
