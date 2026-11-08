@@ -88,6 +88,9 @@ has "commit-unstaged" "wt tree-for-changes -- wt land --landing=merge" "${work}/
 has "tree bare" 'wt switch --create "$id" -x git -- stash pop "$stash_ref"' "${work}/other" tree-for-changes
 lacks "tree bare" "--no-cd -x sh" "${work}/other" tree-for-changes
 has "tree follow-up" "--no-cd -x sh -- -c 'git stash pop \"\$1\" && shift && exec" "${work}/other" tree-for-changes -- wt land --landing=merge
+has "sync loop" "until wt-sync -u -p; do" "${work}/other" sync -- -u -p
+has "sync branch switch" 'wt -y switch "feat/other" --no-cd -x pwd' "${work}/other" sync -- --branch=feat/other -u -p
+has "sync branch omp prompt" "Please get branch feat/other clean and rebased so 'wt-sync -u -p' succeeds" "${work}/other" sync -- --branch=feat/other -u -p
 
 # Unborn repo (no initial commit yet): bare tree-for-changes prints a helpful error,
 # and commit-unstaged / land commits directly instead of calling git stash.
@@ -156,6 +159,17 @@ git -C "${clean}" diff --quiet ||
 grep -F -q "nothing to move" <<<"${clean_out}" ||
 	fail "tree-for-changes on a clean tree did not report that there was nothing to move, got: ${clean_out}"
 
+# Real sync retry: wt-sync fails once, omp fixes the state, and the next loop
+# iteration of wt-sync succeeds. Invoke the resolved wt binary directly so the
+# mise shim does not prepend ~/.local/bin ahead of ${work}/bin.
+real_wt="$(mise which wt)"
+printf '#!/bin/sh\n[ -f "%s/sync-fixed" ] && exit 0\nexit 1\n' "${work}" >"${work}/bin/wt-sync"
+printf '#!/bin/sh\nprintf "%%s\\n" "$*" >"%s/omp-args"\n: >"%s/sync-fixed"\n' "${work}" "${work}" >"${work}/bin/omp"
+chmod +x "${work}/bin/wt-sync" "${work}/bin/omp"
+PATH="${work}/bin:${PATH}" XDG_CONFIG_HOME="${work}/xdg" "${real_wt}" -y --config "${cfg}" -C "${work}/other" sync -- -u -p ||
+	fail "wt sync retry loop did not recover after omp ran"
+grep -F -q "attempt 1/5" "${work}/omp-args" ||
+	fail "wt sync did not invoke omp with attempt 1/5, got: $(cat "${work}/omp-args" 2>&1)"
 # Real move: an untracked file leaves the invoking tree and lands on a uuid branch.
 move="${work}/move"
 init_repo "${move}" main "https://github.com/zachbornheimer/example.git"

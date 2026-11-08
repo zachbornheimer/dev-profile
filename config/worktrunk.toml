@@ -1,7 +1,10 @@
 worktree-path = "{{ repo_path }}/../.worktrees/{{ repo }}-{{ branch | sanitize }}"
 
 [step.copy-ignored]
-exclude = [".venv/", "**/.venv/", "backups/", "**/backups/"]
+# public/assets/ is Rails precompiled output for the SOURCE tree: copied into a
+# worktree it serves stale JS that does not match the branch (ninja-quoter's
+# website_quoter_review_spec failed on it, 2026-11-06). Each tree builds its own.
+exclude = [".venv/", "**/.venv/", "backups/", "**/backups/", "public/assets/", "**/public/assets/"]
 
 [commit.generation]
 command = "_llm"
@@ -151,7 +154,10 @@ if ! wt switch --create \"$id\" -x git -- stash pop \"$stash_ref\"; then
 fi
 {% endif %}"""
 land = """
-{% if branch | default(\"\") == default_branch %}
+{% if not branch %}
+echo \"wt land: detached HEAD (a pull --rebase, rebase, or checkout of a commit is in progress); finish or abort it, or switch to a branch, then rerun. Nothing was committed.\" >&2
+exit 1
+{% elif branch == default_branch %}
 if ! git rev-parse --verify -q HEAD >/dev/null 2>&1; then
   exec wt step commit
 fi
@@ -206,6 +212,21 @@ if ! git rev-parse --verify -q HEAD >/dev/null 2>&1; then
 fi
 wt tree-for-changes -- wt land --landing=merge"""
 commit-fix = "~/.local/share/dev-profile/bin/dev-profile-commit-fix step commit {{ args }}"
+sync = """
+if [ -n \"{{ branch | default(\"\") }}\" ] && [ \"$(git branch --show-current)\" != \"{{ branch | default(\"\") }}\" ]; then
+  cd \"$(wt -y switch \"{{ branch | default(\"\") }}\" --no-cd -x pwd)\" || exit 1
+fi
+for arg in {{ args }}; do
+  case \"$arg\" in
+  -n|--dry-run|-h|--help|-V|--version) exec wt-sync {{ args }} ;;
+  esac
+done
+count=0
+until wt-sync {{ args }}; do
+  count=$((count + 1))
+  [ \"$count\" -le 5 ] || exit 1
+  omp -p --model @task \"Please get branch {{ branch | default(\"\") }} clean and rebased so 'wt-sync {{ args }}' succeeds (attempt $count/5).\"
+done"""
 
 [pre-start]
 copy = "~/.local/share/dev-profile/bin/dev-profile-worktree-copy"
