@@ -1,37 +1,44 @@
 #!/usr/bin/env bash
-# Escalate a mise dot history failure the watchdog could not heal by itself.
+# Escalate a mise dot history or apply failure the watchdog could not heal by itself
+# by dropping directly into a headless omp agent to reconcile differences by hand.
 #
 # `dev-profile-mise-history-watchdog` runs every five minutes and heals the
 # mechanical failures on its own: duplicate `mise dot watch` processes, a wedged
-# watcher, history locks older than ten minutes, and the encryption declarations
-# `mise dot track` gets wrong. Two failures it cannot touch used to end in a
-# desktop notification and nothing else:
+# watcher, history locks older than ten minutes, transient "reconcile again"
+# planning races, and the encryption declarations `mise dot track` gets wrong.
+# Three failures it cannot touch used to end in a desktop notification or a
+# broken capability-RPC hop:
 #
 #   publishing-blocked — `mise dot status` carries a hard failure line (a sync
 #     conflict, or a pull refused because a tracked path changed type) and local
 #     checkpoints pile up unpublished. That ran silent for hours on 2026-11-01,
 #     21 hours on 2026-11-02, and from 10:42 to 17:52 on 2026-11-04 with a
 #     notification every five minutes and no repair.
+#   apply-failed — `mise dot apply --dry-run` exits non-zero (conflicting file vs
+#     symlink/directory target, missing source, or broken template/edit).
 #   heal-failed — the sibling heal tool itself exits non-zero, so the watchdog
 #     cannot clear the declarations that block publishing.
 #
-# Each class files one atask objective (idempotent on its title) and spawns one
-# `start_atask_task` worker run on it. The worker diagnoses the failure, repairs
-# what is deterministic, and leaves the objective incomplete with a named
-# decision when the call is a person's. That decision reaches the user on the
-# next tick: a run that ends without repairing the failure and names the step it
-# could not take needs no retry. Otherwise a person is notified only when no
-# worker can be started at all, or after MAX_ATTEMPTS attempts failed to clear it.
+# Each class files one atask objective (idempotent on its title) in the shared
+# atask store and spawns one headless `omp --auto-approve --model @task -p`
+# worker run directly (no capability-RPC middleman). The worker claims the
+# objective, diagnoses the failure, reconciles local/remote or source/target
+# differences by hand after rescuing copies of both sides, and leaves the
+# objective incomplete with a named decision when the call is a person's. That
+# decision reaches the user on the next tick: a run that ends without repairing
+# the failure and names the step it could not take needs no retry. Otherwise a
+# person is notified only when no worker can be started at all, or after
+# MAX_ATTEMPTS attempts failed to clear it.
 #
-# The run is started in its own session: the watchdog's LaunchAgent kills the
-# rest of its process group when the tick exits, and this run has to outlive the
-# tick — it waits on the worker, then lands the work.
+# The run is started in its own session (or transient user unit on Linux): the
+# watchdog's LaunchAgent kills the rest of its process group when the tick
+# exits, and this run has to outlive the tick.
 #
-# Usage: dev-profile-mise-history-repair --class <publishing-blocked|heal-failed> --detail <text> [--dry-run]
+# Usage: dev-profile-mise-history-repair --class <publishing-blocked|apply-failed|heal-failed> --detail <text> [--dry-run]
 #        dev-profile-mise-history-repair --clear
 #
 # Prints one verdict line and decides the watchdog's next move by its exit code:
-#   spawned <task-id>     a worker run was started for the objective
+#   spawned <task-id>     an omp worker run was started for the objective
 #   running <task-id>     an attempt is in flight, or inside its cooldown
 #   exhausted <task-id>   every attempt spent, or the run named a decision; this is
 #                         a person's call
@@ -41,8 +48,19 @@
 # Every spawn is appended to ~/Library/Logs/mise-history-repair.log.
 set -euo pipefail
 
+# Load the machine's shared agent state (ATASK_DB_URL, SESSIONS_DB_URL) when the
+# caller did not already supply an atask database, so objectives filed from a
+# LaunchAgent or cron tick land in the same database the omp worker reads.
+AGENT_ENV="${MISE_HISTORY_AGENT_ENV:-$HOME/.config/agent-state/env}"
+if [ -z "${ATASK_DB:-}${ATASK_DB_URL:-}" ] && [ -r "$AGENT_ENV" ] && [ ! -L "$AGENT_ENV" ]; then
+	set -a
+	# shellcheck disable=SC1090
+	. "$AGENT_ENV"
+	set +a
+fi
+
 ATASK="${MISE_HISTORY_REPAIR_ATASK:-atask}"
-SPAWN="${MISE_HISTORY_REPAIR_SPAWN:-$HOME/.local/share/aube/bin/capability}"
+SPAWN="${MISE_HISTORY_REPAIR_SPAWN:-$(command -v omp 2>/dev/null || printf '%s' "$HOME/.local/bin/omp")}"
 PROJECT="${MISE_HISTORY_REPAIR_PROJECT:-dev-profile}"
 STATE_DIR="${MISE_HISTORY_REPAIR_STATE:-$HOME/.local/state/mise-history-watchdog}"
 # The watchdog exports its log directory; run alone, the same per-OS default applies.
@@ -56,25 +74,20 @@ mkdir -p "$LOG_DIR"
 SPAWN_LOG="$LOG_DIR/mise-history-repair.log"
 HIST_DIR="$HOME/.local/state/mise/history"
 # How many worker runs one failure class gets before a person is asked, and how
-# long after a spawn the next attempt may start. The cooldown is shorter than one
-# worker budget on purpose: a retry attaches to a run still in flight instead of
-# starting a second worker, which is what `start_atask_task` does with a repeat id.
+# long after a spawn the next attempt may start.
 MAX_ATTEMPTS="${MISE_HISTORY_REPAIR_MAX_ATTEMPTS:-3}"
 COOLDOWN_S="${MISE_HISTORY_REPAIR_COOLDOWN_S:-2700}"
 # How long a spawned run must still be alive before it counts as started: a run
 # that dies inside this window never reached a worker.
 STARTUP_GRACE_S="${MISE_HISTORY_REPAIR_STARTUP_GRACE_S:-5}"
-# How long the detached caller waits on the worker before it answers `running`
-# and leaves the run in place. A worker may run for its own budget (3600s by
-# default) and the caller has to stay for the landing.
-CALLER_BUDGET_S=5400
+WORKER_CONFIG="${MISE_HISTORY_REPAIR_OMP_CONFIG:-$HOME/.omp/agent/overlays/pin-model.yml}"
 
 MODE=attempt
 CLASS=""
 DETAIL=""
 DRY_RUN=0
 usage() {
-	echo "usage: ${0##*/} --class <publishing-blocked|heal-failed> --detail <text> [--dry-run] | --clear" >&2
+	echo "usage: ${0##*/} --class <publishing-blocked|apply-failed|heal-failed> --detail <text> [--dry-run] | --clear" >&2
 	exit 2
 }
 while [ $# -gt 0 ]; do
@@ -123,7 +136,7 @@ if [ "$MODE" = clear ]; then
 fi
 
 case "$CLASS" in
-publishing-blocked | heal-failed) ;;
+publishing-blocked | apply-failed | heal-failed) ;;
 *)
 	echo "${0##*/}: unknown class ${CLASS}" >&2
 	exit 2
@@ -149,12 +162,13 @@ publishing-blocked)
 		"The cause is identified from mise dot status, mise dot conflicts, $HIST_DIR and its repository, and recorded with atask log --learned."
 		"Every mechanically fixable cause is fixed: a path that should never have been tracked is untracked, a stale lock is removed, a declaration that disagrees with the store is corrected, or a path whose type conflicts with the manifest is reconciled."
 		"No local checkpoint was lost: the history repository refs before and after are compared and reported."
-		"A genuine local/remote conflict is resolved here, not reported: for each conflicted path, read mise dot conflicts <path>, first copy both versions to ~/.local/state/mise-history-watchdog/rescued/<timestamp>/<path>.local and .remote, then write the merge that keeps both sides' intent (the union of additive edits; for the same key or line, the side with the newer checkpoint), apply it with mise dot pull --keep-local <path> or --take-remote <path>, and run mise dot sync."
+		"A genuine local/remote conflict is resolved here by hand, never by blanket --take-remote-all or --keep-local-all: for each conflicted path, read mise dot conflicts <path>, first copy both versions to ~/.local/state/mise-history-watchdog/rescued/<timestamp>/<path>.local and .remote, then write the merge by hand that keeps both sides' intent (the union of additive edits; for the same key or line, the side with the newer checkpoint), save it with mise dot save <path>, apply it with mise dot pull --keep-local <path> (or --take-remote <path> only when local was strictly superseded), and run mise dot sync."
 		"Each resolved conflict is recorded with atask log --learned: the path, the rescued copies, which side won each hunk, and the mise dot undo or rollback that reverses it."
 		"Only a secret-scan refusal stays incomplete: atask log --next names the paths and the options, because publishing past it needs a person."
 	)
 	CONSTRAINTS=(
 		"Do not destroy, rewrite, or discard unpublished local checkpoints."
+		"Do not use mise dot pull --take-remote-all or --keep-local-all; reconcile every conflicted file by hand."
 		"Do not disable encryption, set a path to plaintext, or add an encryption opt-out."
 		"Do not force-push or discard remote history."
 		"Do not kill, unload, or stop the service-owned watcher dev.mise.mise-history (a LaunchAgent on macOS, a systemd user unit on Linux); the watchdog owns restarts."
@@ -163,6 +177,25 @@ publishing-blocked)
 		"Run every command through run_command; commit with wt step commit as signed conventional commits, with no attribution trailers."
 	)
 	PROOF="run: test \"\$(mise dot status 2>/dev/null | grep -c 'last error')\" = 0 size=medium"
+	REGRESSION="run: bash tests/mise-history-watchdog-repair-fixture.sh size=medium"
+	;;
+apply-failed)
+	TITLE="Reconcile mise dot apply failure"
+	OUTCOME="Reconcile the dotfiles declarations and target files by hand so mise dot apply succeeds without losing local edits, or leave this objective incomplete with the exact decision a person must make recorded in atask log --next."
+	ACCEPT=(
+		"Observed $WHEN: $DETAIL"
+		"mise dot apply --dry-run and mise dot apply --yes both exit 0."
+		"For any target path that conflicted with a source or changed type, both the live target and the declared source were first rescued under ~/.local/state/mise-history-watchdog/rescued/<timestamp>/, and their differences were reconciled by hand into the canonical source before applying."
+		"The cause, the rescued copies, and how the differences were reconciled are recorded with atask log --learned."
+		"No local edit in a target file was silently overwritten with mise dot apply --force unless its content was first folded into the source or rescued and superseded."
+	)
+	CONSTRAINTS=(
+		"Do not run mise dot apply --force blindly; rescue the existing target and reconcile differences by hand first."
+		"Do not delete or untrack a user config file to make apply pass without folding its live changes into the canonical source."
+		"Do not disable encryption or set a tracked path to plaintext."
+		"Run every command through run_command; commit any dev-profile changes with wt step commit as signed conventional commits, with no attribution trailers."
+	)
+	PROOF="run: mise dot apply --dry-run size=medium"
 	REGRESSION="run: bash tests/mise-history-watchdog-repair-fixture.sh size=medium"
 	;;
 heal-failed)
@@ -247,7 +280,7 @@ objective_state() {
 import json
 import sys
 
-data = json.loads(sys.argv[1])["result"]
+data = json.loads(sys.argv[1]).get("result") or {}
 print(data.get("status", "unknown"))
 print(((data.get("handoff") or {}).get("latest_next") or "").replace("\n", " "))
 PY
@@ -263,10 +296,12 @@ fi
 # A worker that gave up needs neither a retry nor the cooldown: it named the
 # decision, so the user hears about it on this tick instead of after two more
 # runs of the same diagnosis. A worker still holding the claim is running; a
-# claim older than any worker budget is treated as lost.
+# claim older than any worker budget is treated as lost. If the recorded task
+# id no longer exists in the active atask store (for example after an env switch
+# from local SQLite to Neon), drop the stale id so a fresh objective is filed.
 if [ "$attempts" -gt 0 ] && [ -n "$task" ]; then
 	shown="$("$ATASK" show "$task" --json 2>/dev/null || true)"
-	if [ -n "$shown" ]; then
+	if [ -n "$shown" ] && grep -q '"ok":true' <<<"$shown"; then
 		state_out="$(objective_state "$shown")"
 		objective="$(head -1 <<<"$state_out")"
 		next="$(sed -n '2p' <<<"$state_out")"
@@ -283,17 +318,19 @@ if [ "$attempts" -gt 0 ] && [ -n "$task" ]; then
 			fi
 			;;
 		esac
+	else
+		task=""
 	fi
 fi
 
 # An attempt is in flight, or its cooldown has not run out.
-if [ "$attempts" -gt 0 ] && [ $((now - last_spawn)) -lt "$COOLDOWN_S" ]; then
+if [ "$attempts" -gt 0 ] && [ -n "$task" ] && [ $((now - last_spawn)) -lt "$COOLDOWN_S" ]; then
 	printf 'running %s (%ss into a %ss cooldown)\n' "$task" "$((now - last_spawn))" "$COOLDOWN_S"
 	exit 0
 fi
 
 command -v "$ATASK" >/dev/null 2>&1 || blocked "atask is not on PATH ($ATASK)"
-[ -x "$SPAWN" ] || blocked "the capability CLI is missing ($SPAWN)"
+[ -x "$SPAWN" ] || blocked "the omp CLI is missing ($SPAWN)"
 
 # File the objective. `atask add` is idempotent on the title, so a second attempt
 # reuses the objective the first one filed.
@@ -313,19 +350,27 @@ fi
 	printf '  detail: %s\n' "$DETAIL"
 } >>"$SPAWN_LOG"
 
-payload="$(printf '{"id":"%s","onComplete":"merge","timeout_s":%s}' "$task" "$CALLER_BUDGET_S")"
+prompt="Automatic mise dot fallback ($CLASS) for atask objective $task ($TITLE). Observed failure: $DETAIL. Claim the objective with \`atask claim $task\`, read \`atask context $task\`, and reconcile the problem by hand. Before changing any conflicted or failing path, rescue copies of both sides under ~/.local/state/mise-history-watchdog/rescued/\$(date +%Y%m%d-%H%M%S)/ (.local and .remote for sync conflicts; live target and declared source for apply failures). Reconcile differences by hand so both sides' intent is preserved (union of additive edits; newer checkpoint wins on the same key/line; never run --take-remote-all, --keep-local-all, or mise dot apply --force blindly). Then run \`mise dot save\`, \`mise dot pull --keep-local <path>\` (or \`--take-remote <path>\` when strictly superseded), \`mise dot sync\`, and \`mise dot apply --yes\` as needed. Record what you rescued and reconciled with \`atask log --learned ...\`, verify with \`atask verify complete\`, and if any repo worktree changed, land it with \`wt merge -y main\`. If a genuine human decision (such as a secret-scan refusal) blocks completion, record the exact options with \`atask log --next ...\` and release the claim with \`atask claim release --note ...\`."
+
+omp_args=(--auto-approve --model @task)
+if [ -r "$WORKER_CONFIG" ]; then
+	omp_args+=(--config "$WORKER_CONFIG")
+fi
+omp_args+=(-p "$prompt")
+
 if [ "$OS" = Darwin ]; then
 	run_pid="$(
-		python3 - "$SPAWN" "$payload" "$SPAWN_LOG" <<'PY' 2>>"$SPAWN_LOG"
+		python3 - "$SPAWN" "$SPAWN_LOG" "${omp_args[@]}" <<'PY' 2>>"$SPAWN_LOG"
 import subprocess
 import sys
 
-spawn, payload, log = sys.argv[1], sys.argv[2], sys.argv[3]
+spawn, log = sys.argv[1], sys.argv[2]
+args = sys.argv[3:]
 handle = open(log, "ab", buffering=0)
 # Its own session, so the watchdog's LaunchAgent does not kill it with the rest
 # of the tick's process group; it stays for the worker and the landing.
 process = subprocess.Popen(
-    [spawn, "run", "start_atask_task", "--input", payload],
+    [spawn, *args],
     stdin=subprocess.DEVNULL,
     stdout=handle,
     stderr=subprocess.STDOUT,
@@ -342,8 +387,10 @@ else
 	# session does not leave the cgroup. A transient unit does, so the run outlives the tick.
 	unit="mise-history-repair-$task"
 	systemd-run --user --collect --quiet "--unit=$unit" "--setenv=PATH=$PATH" \
+		${ATASK_DB_URL:+"--setenv=ATASK_DB_URL=$ATASK_DB_URL"} \
+		${SESSIONS_DB_URL:+"--setenv=SESSIONS_DB_URL=$SESSIONS_DB_URL"} \
 		-p "StandardOutput=append:$SPAWN_LOG" -p "StandardError=append:$SPAWN_LOG" \
-		-- "$SPAWN" run start_atask_task --input "$payload" 2>>"$SPAWN_LOG" ||
+		-- "$SPAWN" "${omp_args[@]}" 2>>"$SPAWN_LOG" ||
 		blocked "could not start $SPAWN as a transient systemd unit (see $SPAWN_LOG)"
 	sleep "$STARTUP_GRACE_S"
 	systemctl --user is-active --quiet "$unit" || blocked "the run exited within ${STARTUP_GRACE_S}s: $(tail -2 "$SPAWN_LOG" | tr '\n' ' ')"

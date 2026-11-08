@@ -219,15 +219,17 @@ recipients = ["age1qpl3tghy0660prmvz3x2dqjsn69m588e0j0v56ec0rswkujgyshs64dhtc"]
 "~/Developer/Personal/dprint.jsonc" = { source = "~/Developer/Personal/dev-profile/config/dprint.jsonc" }
 "~/Developer/Personal/mise.toml" = { source = "~/Developer/Personal/dev-profile/config/personal-overlay.toml" }
 
-# Self-heal for the mise history watcher: kills duplicate `mise dot watch`
-# processes, clears stale history locks, restarts a wedged watcher, and
-# notifies when conflicts silently block publishing (2026-11-01 outage).
+# Self-heal and automatic omp fallback for the mise history watcher: kills
+# duplicate `mise dot watch` processes, clears stale history locks, restarts a
+# wedged watcher, and drops into a headless omp agent to reconcile sync
+# conflicts, sync/publish errors, or apply failures by hand (2026-11-01 outage).
 [bootstrap.macos.launchd.agents.mise-history-watchdog]
 program = "/bin/sh"
 args = [
   "-c",
   '''
 export PATH="$HOME/.local/share/mise/shims:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+if [ -r "$HOME/.config/agent-state/env" ]; then set -a; . "$HOME/.config/agent-state/env"; set +a; fi
 exec "$HOME/.local/share/dev-profile/bin/dev-profile-mise-history-watchdog"
 ''',
 ]
@@ -236,12 +238,12 @@ stdout_path = "~/Library/Logs/mise-history-watchdog.log"
 stderr_path = "~/Library/Logs/mise-history-watchdog.err.log"
 process_type = "Background"
 
-# The same self-heal and conflict repair on a Linux fleet box: one script, run by a
-# systemd user timer (5 minutes after the last run, first run 2 minutes after boot).
-# The oneshot unit is started only by its timer. Its output is the journal:
-# `journalctl --user -u dev.mise.mise-history-watchdog`.
+# The same self-heal, conflict, and apply fallback on a Linux fleet box: one script,
+# run by a systemd user timer (5 minutes after the last run, first run 2 minutes
+# after boot). The oneshot unit is started only by its timer. Its output is the
+# journal: `journalctl --user -u dev.mise.mise-history-watchdog`.
 [bootstrap.linux.systemd.units.mise-history-watchdog]
-description = "mise dot history watcher self-heal and conflict repair"
+description = "mise dot history watcher self-heal and omp conflict/apply fallback"
 type = "oneshot"
 exec_start = "%h/.local/share/dev-profile/bin/dev-profile-mise-history-watchdog"
 environment = { PATH = "%h/.local/share/mise/shims:%h/.local/bin:/usr/local/bin:/usr/bin:/bin" }
@@ -249,7 +251,6 @@ standard_output = "journal"
 standard_error = "journal"
 start = false
 wanted_by = []
-
 [bootstrap.linux.systemd.units.mise-history-watchdog-timer]
 description = "run the mise dot history watchdog every 5 minutes"
 on_boot_sec = "2min"

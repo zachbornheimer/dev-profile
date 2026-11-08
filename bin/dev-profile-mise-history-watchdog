@@ -1,24 +1,28 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# Self-heal for the mise dotfile history service (dev.mise.mise-history).
+# Self-heal and automatic omp fallback for the mise dotfile history service
+# (dev.mise.mise-history).
 #
-# Failure modes observed 2026-11-01 (session omp_01a192d8):
+# Failure modes observed 2026-11-01 onward (session omp_01a192d8):
 #   1. A second `mise dot watch` beside the launchd-owned one; both contend
 #      for ~/.local/state/mise/history/{operation,sync.lock} and publishing
 #      stalls for hours with only "another history operation is running".
 #   2. The watcher wedges (uninterruptible state, CPU climbing, health
 #      timestamp frozen) while holding the lock.
 #   3. Locks left behind after a kill keep blocking every operation.
-#   4. Sync conflicts silently block ALL publishing while local checkpoints
-#      pile up unpublished.
+#   4. Sync conflicts or sync/pull errors silently block ALL publishing while
+#      local checkpoints pile up unpublished.
+#   5. `mise dot apply` failures (conflicting target type, missing source, or
+#      broken template/edit) leave declared dotfiles unapplied.
 #
 # Runs every 5 minutes on every machine that runs the watcher: the
 # mise-history-watchdog LaunchAgent on macOS, the dev.mise.mise-history-watchdog
 # systemd user timer on Linux (both declared in the global mise config, which the
-# history sync carries to each machine). Heals 1-3
-# itself, and hands 4-5 to a worker run: each failure it cannot clear files one
-# atask objective and spawns one `start_atask_task` run on it
-# (dev-profile-mise-history-repair). A person is notified only when no worker
+# history sync carries to each machine). Heals 1-3 (plus encryption declarations
+# and transient "reconcile again" stale-plan races) itself, and hands 4-5 to a
+# headless omp agent run: each failure it cannot clear files one atask objective
+# and drops directly into `omp --auto-approve -p` (dev-profile-mise-history-repair)
+# to reconcile differences by hand. A person is notified only when no agent
 # could be started, or when the attempts ran out. Idempotent: a healthy service
 # produces no log lines.
 
@@ -29,6 +33,17 @@ set -euo pipefail
 # whole tick under set -e + pipefail. The fixture may also put its stubs (launchctl,
 # systemctl, pgrep) in front through MISE_HISTORY_WATCHDOG_PATH_PREFIX.
 export PATH="${MISE_HISTORY_WATCHDOG_PATH_PREFIX:+$MISE_HISTORY_WATCHDOG_PATH_PREFIX:}$HOME/.local/share/mise/shims:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:${PATH:-/usr/bin:/bin}"
+
+# Load the machine's shared agent state (ATASK_DB_URL, SESSIONS_DB_URL) when the
+# service environment did not already supply an atask database, so objectives filed
+# by the LaunchAgent land in the same database the worker session reads.
+AGENT_ENV="${MISE_HISTORY_AGENT_ENV:-$HOME/.config/agent-state/env}"
+if [ -z "${ATASK_DB:-}${ATASK_DB_URL:-}" ] && [ -r "$AGENT_ENV" ] && [ ! -L "$AGENT_ENV" ]; then
+	set -a
+	# shellcheck disable=SC1090
+	. "$AGENT_ENV"
+	set +a
+fi
 
 # One script for every machine that runs `mise dot watch`: a LaunchAgent on macOS, a
 # systemd user timer on the Linux fleet boxes. The OS override lets the fixture drive
@@ -85,7 +100,7 @@ restart_service() {
 	esac
 }
 
-# An unfixable failure becomes one atask objective with one worker run on it.
+# An unfixable failure becomes one atask objective with one omp agent run on it.
 # The repair script keeps the attempt ledger and answers a verdict; this decides
 # what the user hears: nothing while an attempt is in flight, one line when a run
 # starts, and a notification only when no worker could be started or the attempts
@@ -167,17 +182,27 @@ else
 	escalate heal-failed "the heal tool is missing or not executable: $HEAL"
 fi
 
-# 5. Any failing publish blocks every path while local checkpoints wait, and
-# only `mise dot status` says so: the 2026-11-01 outage was silent for hours, the
-# 2026-11-02 one for 21, and the 2026-11-04 one notified every five minutes from
-# 10:42 to 17:52 without repairing anything. Report whatever error the status
-# carries, not just the literal "conflict(s)" (the status boilerplate mentions
-# "sync conflicts" unconditionally and must not trigger this). A worker run gets
-# the failure first and resolves a conflict itself (both versions rescued first);
-# the user hears of it only when the worker cannot start, runs out of attempts,
-# or meets a secret-scan refusal that needs a person.
+# 5. Any failing publish or conflict blocks every path while local checkpoints
+# wait, and only `mise dot status` says so: the 2026-11-01 outage was silent for
+# hours, the 2026-11-02 one for 21, and the 2026-11-04 one notified every five
+# minutes from 10:42 to 17:52 without repairing anything. Report whatever error
+# the status carries, not just the literal "conflict(s)" (the status boilerplate
+# mentions "sync conflicts" unconditionally and must not trigger this).
+# When a local checkpoint landed mid-reconcile ("local saved history changed
+# while planning; reconcile again"), retry `mise dot sync` and `mise dot pull`
+# once before escalating so a transient race heals without spawning an agent.
+# Otherwise an omp worker run gets the failure first and resolves a conflict by
+# hand (both versions rescued first); the user hears of it only when the worker
+# cannot start, runs out of attempts, or meets a secret-scan refusal.
 status="$("$MISE_BIN" dot status 2>/dev/null || true)"
 stall="$(sed -n 's/.*✗ last error: //p' <<<"$status" | head -1)"
+if [[ "${stall:-}" == *"local saved history changed while planning; reconcile again"* ]]; then
+	if "$MISE_BIN" dot sync >/dev/null 2>&1 && "$MISE_BIN" dot pull >/dev/null 2>&1; then
+		log "cleared stale-plan reconcile race with mise dot sync && mise dot pull"
+		status="$("$MISE_BIN" dot status 2>/dev/null || true)"
+		stall="$(sed -n 's/.*✗ last error: //p' <<<"$status" | head -1)"
+	fi
+fi
 if [ -z "$stall" ] && grep -q 'conflict(s)' <<<"$status"; then
 	stall="sync conflicts are blocking publishing; run mise dot conflicts"
 fi
@@ -186,7 +211,17 @@ if [ -n "$stall" ]; then
 	escalate publishing-blocked "$stall"
 fi
 
-# 6. Manual-save files (autosave = false, like ~/.gitconfig, which tools rewrite
+# 6. `mise dot apply --dry-run` checks that every `[dotfiles]` entry (symlinks,
+# copies, templates, and edits) can apply cleanly without writing anything. A
+# non-zero exit (conflicting target type, missing source, or broken template)
+# escalates to an omp worker to reconcile the target and source by hand.
+if ! apply_out="$("$MISE_BIN" dot apply --dry-run 2>&1)"; then
+	apply_err="$(tr '\n\r' '  ' <<<"$apply_out")"
+	apply_err="${apply_err//\"/}"
+	escalate apply-failed "${apply_err:-mise dot apply --dry-run exited non-zero}"
+fi
+
+# 7. Manual-save files (autosave = false, like ~/.gitconfig, which tools rewrite
 # constantly) never reach history on their own. Save each one once every 24
 # hours so history is never more than a day behind. The stamp is only renewed
 # when every save succeeded, so a failed save is retried on the next tick.

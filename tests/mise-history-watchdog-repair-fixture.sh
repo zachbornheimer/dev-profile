@@ -39,17 +39,41 @@ export ATASK_DB="$work/atask.db"
 export ATASK_OUTPUT=json
 
 # --- stubs ------------------------------------------------------------------
-printf '%s\n' '#!/usr/bin/env bash' 'case "$*" in' '"dot status") cat "$MISE_STATUS" ;;' \
-	'"dot paths") printf "%s\n" "~/.zshrc    track  default      1  ~/.config/mise/config.toml" "~/.gitconfig  track  manual-save  1  ~/.config/mise/config.toml" ;;' \
-	'"dot save "*) printf "%s\n" "$*" >>"$MISE_SAVE_CALLS"; [ -z "${FAKE_SAVE_FAIL:-}" ] || exit 1 ;;' \
-	'esac' 'exit 0' >"$work/bin/mise"
+cat >"$work/bin/mise" <<'EOF'
+#!/usr/bin/env bash
+case "$*" in
+"dot status") cat "$MISE_STATUS" ;;
+"dot conflicts") [ -f "${MISE_CONFLICTS:-}" ] && cat "$MISE_CONFLICTS" || echo "No sync conflicts" ;;
+"dot sync")
+	printf '%s\n' "$*" >>"$MISE_SYNC_CALLS"
+	[ -z "${FAKE_SYNC_FAIL:-}" ] || exit 1
+	;;
+"dot pull")
+	printf '%s\n' "$*" >>"$MISE_SYNC_CALLS"
+	if [ -z "${FAKE_PULL_FAIL:-}" ]; then
+		printf '%s\n' '✓ 100 entries up to date (`--verbose` lists them all)' '  ✓ 908 checkpoints · latest 1147 (baseline, 2026-11-04 16:54)' '  watcher health (updated 13s ago): last capture 2026-11-04 18:00' >"$MISE_STATUS"
+	else
+		exit 1
+	fi
+	;;
+"dot apply --dry-run")
+	if [ -n "${FAKE_APPLY_ERR:-}" ]; then
+		printf '%s\n' "$FAKE_APPLY_ERR" >&2
+		exit 1
+	fi
+	;;
+"dot paths") printf "%s\n" "~/.zshrc    track  default      1  ~/.config/mise/config.toml" "~/.gitconfig  track  manual-save  1  ~/.config/mise/config.toml" ;;
+"dot save "*) printf "%s\n" "$*" >>"$MISE_SAVE_CALLS"; [ -z "${FAKE_SAVE_FAIL:-}" ] || exit 1 ;;
+esac
+exit 0
+EOF
 printf '%s\n' '#!/usr/bin/env bash' 'printf "%s\\n" "$*" >>"$NOTIFY_CALLS"' >"$work/bin/notify"
 printf '%s\n' '#!/usr/bin/env bash' 'exit 0' >"$work/bin/launchctl"
 printf '%s\n' '#!/usr/bin/env bash' 'exit 1' >"$work/bin/pgrep"
 printf '%s\n' '#!/usr/bin/env bash' 'exit 0' >"$work/bin/heal-ok"
 printf '%s\n' '#!/usr/bin/env bash' 'echo "heal: multi-line entry needs a hand edit: ~/.config/x.toml" >&2' 'exit 1' >"$work/bin/heal-fail"
 printf '%s\n' '#!/usr/bin/env bash' 'printf "%s\\n" "$*" >>"$SPAWN_CALLS"' 'exec sleep 30' >"$work/bin/capability-ok"
-printf '%s\n' '#!/usr/bin/env bash' 'printf "%s\\n" "$*" >>"$SPAWN_CALLS"' 'echo "capability: no such tool start_atask_task"' 'exit 3' >"$work/bin/capability-fail"
+printf '%s\n' '#!/usr/bin/env bash' 'printf "%s\\n" "$*" >>"$SPAWN_CALLS"' 'echo "omp: failed to start"' 'exit 3' >"$work/bin/capability-fail"
 cat >"$work/bin/systemctl" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$SYSTEMCTL_CALLS"
@@ -85,7 +109,9 @@ export MISE_HISTORY_REPAIR_STATE="$work/state"
 export SPAWN_CALLS="$work/spawn-calls"
 export NOTIFY_CALLS="$work/notify-calls"
 export MISE_STATUS="$work/status"
+export MISE_CONFLICTS="$work/conflicts"
 export MISE_SAVE_CALLS="$work/mise-save-calls"
+export MISE_SYNC_CALLS="$work/mise-sync-calls"
 export SYSTEMCTL_CALLS="$work/systemctl-calls"
 export SYSTEMD_RUN_CALLS="$work/systemd-run-calls"
 # The sections below run as a Mac; the Linux section switches the OS itself.
@@ -101,8 +127,11 @@ reset() {
 	mkdir -p "$work/state"
 	: >"$SPAWN_CALLS"
 	: >"$NOTIFY_CALLS"
+	: >"$MISE_SYNC_CALLS"
 	: >"$log"
 	: >"$spawn_log"
+	rm -f "$MISE_CONFLICTS"
+	unset FAKE_APPLY_ERR FAKE_SYNC_FAIL FAKE_PULL_FAIL
 }
 
 stalled() {
@@ -124,15 +153,16 @@ tick() {
 
 spawns() { wc -l <"$SPAWN_CALLS" | tr -d ' '; }
 notifications() { wc -l <"$NOTIFY_CALLS" | tr -d ' '; }
-filed_id() { sed -n 's/.*--input {"id":"\(at-[a-z0-9]*\)".*/\1/p' "$SPAWN_CALLS" | head -1; }
+filed_id() { sed -n 's/.*for atask objective \(at-[a-z0-9]*\) (.*/\1/p' "$SPAWN_CALLS" | head -1; }
 
-# --- a stalled publish files one objective and spawns one run ----------------
+# --- a stalled publish files one objective and spawns one direct omp run ------
 reset
 stalled
 tick 'first escalation'
 [ "$(spawns)" = 1 ] || fail "a blocked publish did not spawn exactly one run: $(cat "$SPAWN_CALLS")"
 [ "$(notifications)" = 0 ] || fail "the user was notified before any worker could try: $(cat "$NOTIFY_CALLS")"
-grep -q 'run start_atask_task --input {"id":"at-[a-z0-9]*","onComplete":"merge","timeout_s":5400}' "$SPAWN_CALLS" || fail "the run was not spawned through start_atask_task: $(cat "$SPAWN_CALLS")"
+grep -q -- '--auto-approve --model @task.* -p Automatic mise dot fallback (publishing-blocked) for atask objective at-[a-z0-9]* (' "$SPAWN_CALLS" || fail "the run was not spawned directly through omp -p: $(cat "$SPAWN_CALLS")"
+grep -q -- 'Reconcile differences by hand' "$SPAWN_CALLS" || fail "the prompt did not require hand reconciliation: $(cat "$SPAWN_CALLS")"
 grep -q "publishing-blocked: spawned at-" "$log" || fail "the spawn was not logged: $(cat "$log")"
 task="$(filed_id)"
 [ -n "$task" ] || fail 'no objective id in the spawn call'
@@ -141,6 +171,7 @@ grep -q '"title":"Restore mise dot history publishing"' <<<"$objective" || fail 
 grep -q '"project":"probe"' <<<"$objective" || fail "objective filed on the wrong board: $objective"
 grep -q 'is not a directory' <<<"$objective" || fail 'the objective does not carry the observed failure'
 grep -q 'Do not destroy, rewrite, or discard unpublished local checkpoints' <<<"$objective" || fail "the objective lost its constraints: $objective"
+grep -q 'Never resolve a conflict without the rescued copies of both versions in place first' <<<"$objective" || fail "the objective lost hand-reconciliation constraint: $objective"
 [ "$(cat "$spawn_log")" ] || fail 'the spawn was not recorded for a human'
 
 # --- a second tick inside the cooldown neither spawns nor notifies -----------
@@ -154,6 +185,13 @@ export MISE_HISTORY_REPAIR_COOLDOWN_S=0
 tick 'retry'
 [ "$(spawns)" = 2 ] || fail 'the retry did not spawn again after its cooldown'
 [ "$(filed_id)" = "$task" ] || fail 'the retry filed a second objective instead of reusing the first'
+
+# --- a stale/missing task id in state is replaced with a fresh task ----------
+printf 'task=at-deadbeef\nattempts=1\nlast_spawn=0\n' >"$work/state/repair-publishing-blocked"
+: >"$SPAWN_CALLS"
+tick 'stale task id'
+[ "$(spawns)" = 1 ] || fail 'stale task id did not spawn a worker'
+[ "$(filed_id)" = "$task" ] || fail "stale task id was not replaced by the active objective: $(filed_id) vs $task"
 
 # --- attempts spent: the user is told once, then the tick stays quiet --------
 export MISE_HISTORY_REPAIR_MAX_ATTEMPTS=2
@@ -194,6 +232,27 @@ export MISE_HISTORY_REPAIR_SPAWN="$work/bin/capability-ok"
 tick 'unstartable run, second tick'
 [ "$(notifications)" = 1 ] || fail 'the user was notified twice for one incident'
 
+# --- transient reconcile-again planning race heals via sync + pull -----------
+reset
+printf '%s\n' '✓ 100 entries up to date (`--verbose` lists them all)' 'Repository' '  ✗ last error: local saved history changed while planning; reconcile again (failing since 2026-11-08 02:13, 2 attempt(s))' >"$MISE_STATUS"
+tick 'reconcile-again self-heal'
+[ "$(spawns)" = 0 ] || fail "reconcile-again race spawned a worker instead of self-healing: $(cat "$SPAWN_CALLS")"
+grep -q '^dot sync$' "$MISE_SYNC_CALLS" || fail "reconcile-again did not run mise dot sync: $(cat "$MISE_SYNC_CALLS")"
+grep -q '^dot pull$' "$MISE_SYNC_CALLS" || fail "reconcile-again did not run mise dot pull: $(cat "$MISE_SYNC_CALLS")"
+grep -q 'cleared stale-plan reconcile race with mise dot sync && mise dot pull' "$log" || fail "reconcile-again self-heal was not logged: $(cat "$log")"
+
+# --- mise dot apply failure escalates to omp with hand-reconciliation --------
+reset
+healthy
+export FAKE_APPLY_ERR='mise dot apply: target ~/.config/foo.toml conflicts with existing regular file'
+tick 'apply failed'
+[ "$(spawns)" = 1 ] || fail "a failing apply did not spawn a repair run: $(cat "$SPAWN_CALLS")"
+grep -q -- '--auto-approve --model @task.* -p Automatic mise dot fallback (apply-failed) for atask objective at-[a-z0-9]* (' "$SPAWN_CALLS" || fail "apply-failed was not spawned through omp -p: $(cat "$SPAWN_CALLS")"
+apply_obj="$("$atask" show "$(filed_id)" --json)"
+grep -q '"title":"Reconcile mise dot apply failure"' <<<"$apply_obj" || fail "apply failure filed the wrong objective: $apply_obj"
+grep -q 'losing local edits' <<<"$apply_obj" || fail "apply objective missing local-edits protection: $apply_obj"
+unset FAKE_APPLY_ERR
+
 # --- the heal tool failing is the watchdog's own tooling, and escalates too --
 reset
 healthy
@@ -214,6 +273,8 @@ tick 'healthy'
 bash "$repair" --class publishing-blocked --detail 'x' --dry-run >"$work/plan" || fail 'the dry run failed'
 grep -q '^title=Restore mise dot history publishing$' "$work/plan" || fail "the dry run did not print the plan: $(cat "$work/plan")"
 grep -q '^proof=run: ' "$work/plan" || fail "the plan has no proof: $(cat "$work/plan")"
+bash "$repair" --class apply-failed --detail 'x' --dry-run >"$work/apply-plan" || fail 'the apply-failed dry run failed'
+grep -q '^title=Reconcile mise dot apply failure$' "$work/apply-plan" || fail "the apply-failed dry run did not print the plan: $(cat "$work/apply-plan")"
 [ ! -e "$work/state" ] || fail 'the dry run wrote state'
 [ "$(spawns)" = 1 ] || fail 'the dry run spawned a run'
 if bash "$repair" --class nonsense --detail x >/dev/null 2>&1; then
@@ -254,7 +315,7 @@ tick 'linux first escalation'
 [ "$(spawns)" = 0 ] || fail 'the run was started in the tick cgroup, where systemd would kill it when the tick ends'
 grep -q -- '--unit=mise-history-repair-at-' "$SYSTEMD_RUN_CALLS" || fail "the run is not a named transient unit: $(cat "$SYSTEMD_RUN_CALLS")"
 grep -q "StandardOutput=append:$linux_spawn_log" "$SYSTEMD_RUN_CALLS" || fail "the run does not log to the Linux state dir: $(cat "$SYSTEMD_RUN_CALLS")"
-grep -q 'run start_atask_task --input {"id":"at-[a-z0-9]*","onComplete":"merge"' "$SYSTEMD_RUN_CALLS" || fail "the run is not start_atask_task: $(cat "$SYSTEMD_RUN_CALLS")"
+grep -q -- '--auto-approve --model @task.* -p Automatic mise dot fallback (publishing-blocked) for atask objective at-[a-z0-9]* (' "$SYSTEMD_RUN_CALLS" || fail "the Linux run is not direct omp -p: $(cat "$SYSTEMD_RUN_CALLS")"
 grep -q 'publishing-blocked: spawned at-' "$linux_log" || fail "the Linux spawn was not logged under the state dir: $(cat "$linux_log" 2>&1)"
 [ "$(notifications)" = 0 ] || fail 'the user was notified before any worker could try on Linux'
 
