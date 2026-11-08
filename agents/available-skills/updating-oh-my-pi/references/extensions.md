@@ -6,7 +6,7 @@ Personal omp behavior is an extension in `~/.omp/agent/extensions/`. The omp rep
 
 1. `~/.omp/agent/extensions/<name>/index.ts` (or `<name>.ts`) — default export `function (pi: ExtensionAPI)`.
 2. A sibling file for the pure rule, with a `bun` test next to it.
-3. Nothing else: omp auto-discovers `~/.omp/agent/extensions/` (one level deep; project-scoped: `<repo>/.omp/extensions/`). No `config.yml` entry. Restart omp. The current process will not see the command until then.
+3. Nothing else: omp auto-discovers `~/.omp/agent/extensions/` (one level deep; project-scoped: `<repo>/.omp/extensions/`). No `config.yml` entry. Run `/reload-plugins` (`AgentSession.refreshExtensions()`) to load new or edited extensions in place (unloading old commands, tools, shortcuts, timers, and `pi.events.on` listeners via `session_shutdown` before replaying `session_start`), or set `tools.hotReloadExtensions: true` in `~/.omp/agent/config.yml` (off by default) to auto-reload changed extensions every 2 seconds (deferred until turn end while busy). Only `/restart` when changing omp core or replacing an in-place prototype wrap.
 
 `extensions:` in `~/.omp/agent/config.yml` is only an optional way to load a path outside the native directories. Agent-callable tools can live in `~/.omp/agent/tools/`, but go through the `creating-new-tools` skill.
 
@@ -30,7 +30,7 @@ Events that carry the assistant message: `message_update`, `message_end`. Use th
 
 ## Proof
 
-`bun test` the pure file from the extension directory. Confirm the omp repo diff does not contain the feature. Do not claim the running omp has the command until a new process has discovered the extension.
+`bun test` the pure file from the extension directory. Confirm the omp repo diff does not contain the feature. Do not claim the running omp has the command until `/reload-plugins`, `tools.hotReloadExtensions`, or a new process has loaded the extension.
 
 ## Not this skill's job
 

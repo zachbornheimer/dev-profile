@@ -26,7 +26,7 @@ The failure this prevents: `/thinking` and `/calm` were patched into oh-my-pi. T
 ## 1. A personal extension
 
 1. `~/.omp/agent/extensions/<name>/index.ts` (or `<name>.ts`) — default export `function (pi: ExtensionAPI)`. Keep the pure rule in a sibling file with a `bun` test next to it.
-2. omp auto-discovers `~/.omp/agent/extensions/` (modules one level deep; project-scoped: `<repo>/.omp/extensions/`). No `config.yml` entry is needed. Restart omp — the running process will not see the command. `extensions:` in `~/.omp/agent/config.yml` is only an optional way to load a path outside the native directories.
+2. omp auto-discovers `~/.omp/agent/extensions/` (modules one level deep; project-scoped: `<repo>/.omp/extensions/`). No `config.yml` entry is needed (`extensions:` in `~/.omp/agent/config.yml` is only an optional way to load a path outside the native directories). Run `/reload-plugins` (`AgentSession.refreshExtensions()`) to load or reload extensions in the running session, or set `tools.hotReloadExtensions: true` in `~/.omp/agent/config.yml` so omp polls every 2 seconds and hot-reloads changed extensions at the end of a turn; `/restart` is only needed when changing omp core or an unguarded prototype patch.
 3. Draw and input only: not the message, the model context, or the export. Wrap `AssistantMessageComponent.prototype.updateContent` once for display, keep the raw message, and redraw already-drawn rows only on the user's toggle.
 4. Prove it with `bun test` on the pure file, and confirm the omp repo diff does not contain the feature.
 
