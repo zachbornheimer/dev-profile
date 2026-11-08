@@ -146,11 +146,11 @@ Rules:
 
 ```ts
 export const process_snapshot_description =
-  "Analyze a supplied ps aux process snapshot for CPU and memory pressure, " +
-  "repeated commands, and unusual processes. Use when diagnosing process load " +
-  "from output the agent already collected. Input is process-list text; " +
-  "returns structured observations and supporting process rows. " +
-  "Do not use for live server inspection, root-cause proof, or process termination.";
+  "Analyze a supplied ps aux process snapshot for CPU and memory pressure, "
+  + "repeated commands, and unusual processes. Use when diagnosing process load "
+  + "from output the agent already collected. Input is process-list text; "
+  + "returns structured observations and supporting process rows. "
+  + "Do not use for live server inspection, root-cause proof, or process termination.";
 ```
 
 **Poor alternative:** `"Helps agents investigate server problems efficiently."`
@@ -163,11 +163,11 @@ not an unsupported diagnosis.
 
 ```ts
 export const update_ticket_readiness_description =
-  "Update the readiness fields of an explicitly identified Linear ticket " +
-  "using verified evidence supplied by the caller. Use when the user has " +
-  "authorized changing that ticket's readiness state; not for researching " +
-  "tickets, creating tickets, or making unapproved changes. Returns the " +
-  "ticket identifier and verified persisted state, or a structured failure.";
+  "Update the readiness fields of an explicitly identified Linear ticket "
+  + "using verified evidence supplied by the caller. Use when the user has "
+  + "authorized changing that ticket's readiness state; not for researching "
+  + "tickets, creating tickets, or making unapproved changes. Returns the "
+  + "ticket identifier and verified persisted state, or a structured failure.";
 ```
 
 These examples are **patterns, not declarations of existing tool behavior**.
@@ -284,8 +284,8 @@ register tools as side effects. See the existing comment in
 `mastra/src/capability/edit/edit.ts`.
 
 ```ts
+import { runX, X_NAME } from "@zab-ai/ai/tools/<family>/<name>";
 import { x_description } from "@zab-ai/ai/tools/<family>/description";
-import { X_NAME, runX } from "@zab-ai/ai/tools/<family>/<name>";
 import {
   x_input_schema,
   x_output_schema,
@@ -347,16 +347,17 @@ import { x_description } from "@zab-ai/ai/tools/<family>/description";
 import { typedTool } from "./types.js";
 import type { ToolFactory } from "./types.js";
 
-const factory: ToolFactory = (pi) => typedTool({
-  name: "<name>", // a builtin's own name overrides it; a new name adds a tool
-  label: "<Label>",
-  description: x_description,
-  parameters: pi.zod.object({ /* same fields as the kit schema */ }),
-  async execute(_toolCallId, params, signal, _onUpdate, context) {
-    // call the kit with the omp-process ports; context.invokeTool(params)
-    // delegates to the builtin of the same name.
-  },
-});
+const factory: ToolFactory = (pi) =>
+  typedTool({
+    name: "<name>", // a builtin's own name overrides it; a new name adds a tool
+    label: "<Label>",
+    description: x_description,
+    parameters: pi.zod.object({/* same fields as the kit schema */}),
+    async execute(_toolCallId, params, signal, _onUpdate, context) {
+      // call the kit with the omp-process ports; context.invokeTool(params)
+      // delegates to the builtin of the same name.
+    },
+  });
 export default factory;
 ```
 
@@ -398,10 +399,13 @@ const factory: CustomToolFactory = (pi) => {
     name: "<name>",
     label: "<Label>",
     description: "<routing contract, §2.1>",
-    parameters: z.object({ /* fields with .describe(...) */ }),
+    parameters: z.object({/* fields with .describe(...) */}),
     async execute(_toolCallId, params, onUpdate, ctx, signal) {
       // ctx.sessionManager is the live session; pi.exec runs subprocesses.
-      return { content: [{ type: "text", text: "<rendering>" }], details: output };
+      return {
+        content: [{ type: "text", text: "<rendering>" }],
+        details: output,
+      };
     },
   };
 };
