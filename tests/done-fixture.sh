@@ -394,4 +394,40 @@ grep -Fq 'export HK=0' "$done" || fail "dev-profile-done must export HK=0 so hk 
 grep -Eq 'commit -q --no-verify' "$done" || fail "dev-profile-done commits must pass --no-verify"
 grep -Eq 'push --quiet --no-verify' "$done" || fail "dev-profile-done pushes must pass --no-verify"
 
+# --- A declared submodule with no checkout holds no local work; drop must proceed.
+setup_clone submodule
+git -C "$repo" config -f .gitmodules submodule.corpus.path corpus
+git -C "$repo" config -f .gitmodules submodule.corpus.url "${work}/missing-corpus.git"
+git -C "$repo" add .gitmodules
+git -C "$repo" update-index --add --cacheinfo "160000,839da3d154de36feda5fb736d7ad14f80a505302,corpus"
+git -C "$repo" commit --no-verify -q -m "submodule: add corpus gitlink"
+git -C "$repo" push --no-verify -q origin main
+run_done "$repo" --drop >"${work}/submodule.out" 2>&1 ||
+	fail "done --drop must ignore a declared submodule with no checkout: $(cat "${work}/submodule.out")"
+test ! -d "$repo" || fail "done --drop must trash a clone whose declared submodule has no checkout"
+
+# --- A populated submodule with unpushed work still stops the drop.
+setup_clone submodule-work
+git init -q --bare --initial-branch=main "${work}/corpus.git"
+git clone -q "${work}/corpus.git" "${work}/corpus-src"
+git -C "${work}/corpus-src" config user.email t@example.com
+git -C "${work}/corpus-src" config user.name t
+printf 'corpus\n' >"${work}/corpus-src/data.txt"
+git -C "${work}/corpus-src" add data.txt
+git -C "${work}/corpus-src" commit --no-verify -q -m "corpus: data"
+git -C "${work}/corpus-src" push --no-verify -q origin main
+git -C "$repo" config -f .gitmodules submodule.corpus.path corpus
+git -C "$repo" config -f .gitmodules submodule.corpus.url "${work}/corpus.git"
+git -C "$repo" add .gitmodules
+git -C "$repo" update-index --add --cacheinfo "160000,$(git -C "${work}/corpus-src" rev-parse HEAD),corpus"
+git -C "$repo" commit --no-verify -q -m "submodule: add corpus gitlink"
+git -C "$repo" push --no-verify -q origin main
+git -c protocol.file.allow=always -C "$repo" submodule update --init -q -- corpus
+printf 'local\n' >"${repo}/corpus/local.txt"
+git -C "${repo}/corpus" add local.txt
+git -C "${repo}/corpus" commit --no-verify -q -m "corpus: local only"
+run_done "$repo" --drop >"${work}/submodule-work.out" 2>&1 &&
+	fail "done --drop must refuse a populated submodule with unpushed work"
+grep -q "nested repository" "${work}/submodule-work.out" || fail "the refusal must name the nested repository"
+test -d "$repo" || fail "done --drop must keep a clone holding submodule work"
 echo "done fixture ok"

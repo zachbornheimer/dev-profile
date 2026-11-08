@@ -1131,6 +1131,15 @@ prune_remote() {
 	wave_finish
 }
 
+# A submodule declared in .gitmodules with no checkout on disk holds no local
+# work: its gitlink is in HEAD, and every tip is pushed before drop runs.
+declared_submodule() {
+	local path="$1" rel="$2"
+	[[ -f "${path}/.gitmodules" ]] || return 1
+	git -C "${path}" config -f .gitmodules --get-regexp '^submodule\..*\.path$' 2>/dev/null |
+		awk -v p="${rel}" '$2 == p { found = 1 } END { exit !found }'
+}
+
 scan_danger_one() {
 	local path="$1" rel bytes max
 	max=$((max_file_mb * 1024 * 1024))
@@ -1142,6 +1151,10 @@ scan_danger_one() {
 	done < <(git -C "${path}" ls-files -z --others --directory --exclude-standard)
 	while IFS= read -r rel; do
 		[[ -z "${rel}" ]] && continue
+		# A declared submodule with no checkout is a gitlink, not a nested clone: nothing local can be lost.
+		if [[ ! -e "${path}/${rel}/.git" ]] && declared_submodule "${path}" "${rel}"; then
+			continue
+		fi
 		printf '%s\n' "nested repository ${path}/${rel}" >>"${state}/blockers"
 	done < <(git -C "${path}" ls-files -s | awk -F '\t' '$1 ~ /^160000 / { print $2 }')
 	while IFS= read -r -d '' rel; do
