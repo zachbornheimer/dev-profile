@@ -9,7 +9,7 @@ description: Use when the user is frustrated, when the token count has been high
 Both run the `learn-from-transcript` workflow
 (`capability run learn-from-transcript --input '{"source":"<harness>:<id>"}'`), which resolves
 and annotates the session itself, asks its analyze and synthesize questions in one thread, and
-files every ticket it names as an atask objective. There is no handoff note and no
+files every ticket it names as a Linear issue. atask is not the backlog: it is the execution claim created only when a worker is dispatched. There is no handoff note and no
 `## Full annotated transcript` prompt anymore.
 
 `/learn` also delegates: it passes `--dispatch` through `~/.agents/bin/learn-launch`, so the
