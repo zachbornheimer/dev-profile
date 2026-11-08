@@ -49,7 +49,24 @@ format_file() {
 		fi
 		;;
 	php-cs-fixer)
-		php-cs-fixer fix --using-cache=no "${file}"
+		# Run the repo's own pinned fixer with the repo's own config. A bare
+		# `php-cs-fixer` resolves to whatever is on PATH, and without --config the
+		# tool discovers one from the CWD — which for dprint's exec is its own
+		# config dir, so a stray template there decides formatting for every repo
+		# and fails the hook when its rules need a fixer newer than the repo pins.
+		# PHP_CS_FIXER_IGNORE_ENV keeps a local runtime above the fixer's supported
+		# max from blocking commits; CI still formats and checks on the repo's 8.2.
+		local fixer="php-cs-fixer" config=()
+		if [[ -x "${root}/vendor/bin/php-cs-fixer" ]]; then
+			fixer="${root}/vendor/bin/php-cs-fixer"
+		fi
+		for candidate in .php-cs-fixer.dist.php .php-cs-fixer.php; do
+			if [[ -f "${root}/${candidate}" ]]; then
+				config=(--config="${root}/${candidate}")
+				break
+			fi
+		done
+		PHP_CS_FIXER_IGNORE_ENV=1 "${fixer}" fix --using-cache=no "${config[@]}" "${file}"
 		;;
 	phpcs)
 		if [[ -f "${root}/phpcs.xml" ]]; then

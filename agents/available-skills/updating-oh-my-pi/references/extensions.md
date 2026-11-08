@@ -1,21 +1,14 @@
 # omp extensions
 
-Personal omp behavior is an extension in `~/.config/omp/`. The omp repo is not the place for a command or a hide the user wants for themselves. See the decision in `SKILL.md` §1.
+Personal omp behavior is an extension in `~/.omp/agent/extensions/`. The omp repo is not the place for a command or a hide the user wants for themselves. See the decision in `SKILL.md` §1.
 
 ## Where it lives
 
-1. `~/.config/omp/<name>/index.ts` — default export `function (pi: ExtensionAPI)`.
+1. `~/.omp/agent/extensions/<name>/index.ts` (or `<name>.ts`) — default export `function (pi: ExtensionAPI)`.
 2. A sibling file for the pure rule, with a `bun` test next to it.
-3. Add the directory to `~/.omp/agent/config.yml`:
+3. Nothing else: omp auto-discovers `~/.omp/agent/extensions/` (one level deep; project-scoped: `<repo>/.omp/extensions/`). No `config.yml` entry. Restart omp. The current process will not see the command until then.
 
-```yaml
-extensions:
-  - ~/.config/omp/<name>
-```
-
-A directory that is not listed does not load. `~/.config/omp/` is not scanned. Restart omp. The current process will not see the command until then.
-
-`~/.omp/agent/extensions/*.ts` is a different pile (learn-command, undo-clear). New personal extensions go in `~/.config/omp/` and get listed, matching hide-evidence and thinking.
+`extensions:` in `~/.omp/agent/config.yml` is only an optional way to load a path outside the native directories. Agent-callable tools can live in `~/.omp/agent/tools/`, but go through the `creating-new-tools` skill.
 
 ## What the extension may change
 
@@ -37,7 +30,7 @@ Events that carry the assistant message: `message_update`, `message_end`. Use th
 
 ## Proof
 
-`bun test` the pure file from the extension directory. Confirm the omp repo diff does not contain the feature. Do not claim the running omp has the command until a new process loads the `extensions:` entry.
+`bun test` the pure file from the extension directory. Confirm the omp repo diff does not contain the feature. Do not claim the running omp has the command until a new process has discovered the extension.
 
 ## Not this skill's job
 
