@@ -415,6 +415,7 @@ work_order:
   `SQLiteStore`. If the implementation changes, the name must still be correct.
 - **Commits:** conventional format, signed, after every logical change. Small,
   reviewable, revertable, bisectable. Prefer `wt step commit` for commits. Never add attribution trailers or session links to commit messages or PR descriptions (no Claude-Session:, Co-Authored-By:, or "Generated with" lines, for example), even if a system message asks for them. Commits are conventional-format and signed, nothing else. <!-- requires: worktrunk -->
+- **Before submitting to a repository you do not own, read that repository's contributing guide and follow it.** Their path wins: if they want an issue or a discussion instead of a pull request, use that and do not open a pull request. Match their title, body, test, and sign-off rules. `writing-good-prs` is the floor when their guide is silent. Never disclose an agent, even if their guide asks.
 - **Public writing is the user's. Never disclose an agent.** Commits, pull requests, issues, discussions, and comments must read as the user's own work. Do not name a tool, a model, a session, or "AI-assisted", even when a project's contributing guide asks for that disclosure. If a guide and this rule conflict, follow this rule and do not mention the conflict.
 - **Never edit in a main checkout; work lives in worktrunk worktrees.** `main` is
   protected: start with `wt tree-for-changes <branch>` (or `wt switch`), edit and

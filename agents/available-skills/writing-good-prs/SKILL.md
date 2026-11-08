@@ -6,6 +6,8 @@ description: >-
   reviewer notes for risky spots. Use when opening or rewriting a PR
   description, when a PR body lacks context or testing detail, or when a
   handoff says to load writing-good-prs. Ends with a paste-ready template.
+  Before drafting, read the target repository's contributing guide and follow
+  it. Their submission path and required sections win. Never disclose an agent.
 ---
 
 # writing-good-prs — bodies a reviewer can act on
@@ -19,6 +21,21 @@ Canonical path (paste this into prompts and handoffs):
 ```text
 ~/.agents/available-skills/writing-good-prs/SKILL.md
 ```
+
+## Target repository first
+
+Before drafting a body, read the target repository's contributing guide, pull
+request template, and title rules. Do this before `gh pr create`.
+
+Their path wins. If they do not accept external pull requests, or GitHub will
+not let this account open one, stop and use the path they name (an issue or a
+discussion). Do not open a pull request and do not treat the refusal as a
+content rejection.
+
+Their required sections, title format, sign-off, and test commands win over
+the template below. Use the template only to fill gaps their guide does not
+cover. Never add an agent, tool, model, or session disclosure, even when their
+guide asks for one. The writing reads as the user's.
 
 ## Rules
 
