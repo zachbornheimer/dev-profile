@@ -26,14 +26,11 @@ printf -v _zsh_fast_session_id '%08x%08x%08x%08x' \
 	$((RANDOM * 65536 + RANDOM)) $((RANDOM * 65536 + RANDOM)) \
 	$((RANDOM * 65536 + RANDOM)) $((EPOCHSECONDS * 65536 + RANDOM))
 
-# Generated text that runs a tool on every cd/prompt must name the real binary:
-# a bare `zoxide` resolves to the mise shim (~0.7-0.9s per call, blocking cd).
 _zsh_init_cache_postprocess() {
 	emulate -L zsh
-	local name="$1" cache="$2" bin="$3"
+	local name="$1" cache="$2"
 	case $name in
 	atuin) sed -i '' 's|\$(atuin uuid)|${_zsh_fast_session_id}|' "$cache" ;;
-	zoxide) sed -i '' "s|\\\\command zoxide |\\\\command ${bin} |g" "$cache" ;;
 	esac
 }
 
@@ -54,7 +51,7 @@ _zsh_eval_cached() {
 
 	if [[ ! -s $cache ]]; then
 		"${gen[@]}" >|"$cache" 2>/dev/null || return 1
-		_zsh_init_cache_postprocess "$name" "$cache" "$binpath"
+		_zsh_init_cache_postprocess "$name" "$cache"
 	elif [[ $binpath -nt $cache ]]; then
 		(
 			emulate -L zsh
@@ -63,7 +60,9 @@ _zsh_eval_cached() {
 				rm -f "$tmp"
 				exit 1
 			}
-			_zsh_init_cache_postprocess "$name" "$tmp" "$binpath"
+			case $name in
+			atuin) sed -i '' 's|\$(atuin uuid)|${_zsh_fast_session_id}|' "$tmp" ;;
+			esac
 			mv -f "$tmp" "$cache"
 		) &!
 	fi
