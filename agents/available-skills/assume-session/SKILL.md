@@ -1,21 +1,61 @@
 ---
 name: assume-session
-description: Use when given a session ref (grok|claude|codex|copilot|pi|omp|cursor|opencode:<id>) or a Mastra thread URL, or the phrase "assume session" — fetches the transcript through the capability MCP, states what it understands the goal to be, then (per the required `--then` flag) either continues or waits for confirmation before taking over the work in this session.
+description: Use whenever a prompt contains a session ref (grok|claude|codex|copilot|pi|omp|cursor|opencode|hermes:<id>, a bare id with a harness named, or `<harness>:latest`) or a Mastra thread URL — to fetch, read, analyze, review, summarize, or debug that session's transcript BY ID (read-only lookup, the default), or to take the session over and continue its work (`--then continue|confirm`). Also the entry for "analyze/look at/what happened in session omp:01a1…", "why did that session fail", "find out what session X did". Resolves the id through the capability tools (`get_recent_turns`, `create_session_handoff_doc`); never hand-grep session directories.
 user-invokable: true
-argument-hint: "<tool>:<session-id> | <mastra-thread-url>  --then continue|confirm"
+argument-hint: "<tool>:<session-id> | <mastra-thread-url>  [--then continue|confirm]   (omit --then to only read/analyze)"
 ---
 
 # Assume Session
 
-Reads a foreign session's transcript through the `capability` MCP, **states what it
-understands your goal to be**, then **takes over the work in this session** —
+One entry point for any session ref (`omp:01a1c0b2-…`, `claude:<id>`, a Mastra
+thread URL). It resolves the id to a transcript through the capability tools,
+then does one of two things:
+
+- **Lookup (default).** The user wants to _read, analyze, review, summarize or
+  debug_ the session ("analyze omp:01a1…", "what did session X do", "why did it
+  fail"). Fetch the transcript, answer the question asked, stop. No takeover, no
+  `--then`, none of the takeover gates below.
+- **Takeover.** The user passed `--then continue|confirm`, or said "assume",
+  "take over", "continue that session", "pick up where it left off". Everything
+  below the lookup section applies.
+
+If the request is ambiguous between the two, do lookup: reading is reversible,
+taking over someone's in-flight work is not. Never hand-grep
+`~/.omp/agent/sessions`, `~/.claude/projects` or similar; the tools below find the
+session from its id.
+
+## Lookup mode (read-only transcript by ID)
+
+Pass the ref exactly as given in `conversation`. After `<harness>:` it accepts a
+full id, a unique prefix, `latest`, or title words. In omp these are native tools
+(`get_recent_turns`, `create_session_handoff_doc`, `get_annotated_transcript`,
+`extract_hypotheses`, `learn_from_transcript`); in other harnesses the same tools
+are `capability/run_<name>`.
+
+| User wants                                                             | Call                                                                                                            |
+| ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Read the conversation, answer a question about it                      | `get_recent_turns` `{conversation, turns, length_limit, max_tokens}`; raise all three to read the whole session |
+| Where it stopped: cwd, branch, side effects, errors, last user message | `create_session_handoff_doc` `{conversation}` (read `context`)                                                  |
+| Per-turn cost, waste, corrections, tokens                              | `get_annotated_transcript` `{sources: ["<ref>"]}`, then read the `path` it returns                              |
+| Adversarial review: what the session wasted, how to do better          | `extract_hypotheses` `{sources: ["<ref>"]}`                                                                     |
+| Turn a bad session into filed fixes                                    | `learn_from_transcript` `{source: "<ref>"}` (only when asked; it files tickets)                                 |
+| Claude session's native transcript path, jobId or pid                  | the `find-session` skill                                                                                        |
+
+Report what the transcript shows with turn numbers or verbatim quotes, and mark
+inference as inference. An ambiguous prefix or title is refused with candidates:
+relay them. A "no session found" error is final: do not guess another id.
+
+## Takeover mode
+
+Reads the transcript, **states what it understands your goal to be**, then
+**takes over the work in this session** —
 verifying the now-stale state and continuing where the other agent left off,
 instead of handing you a document to paste. A required `--then` flag decides
 whether it continues on its own or waits for your confirmation after stating the
 goal. The synthesis stays in a subagent so this session's context is lean enough
 to actually do the work.
 
-## Hard stops on takeover
+## Hard stops on takeover (takeover mode only; lookup mode skips them)
 
 - **Gate: the goal statement comes before any action.** After the capability
   returns the transcript (step 2), your very next output is the three-part block
@@ -41,6 +81,8 @@ to actually do the work.
 ## How to invoke
 
 ```text
+/assume-session omp:01a1c0b2-1775-76e8-adc1-ab04fb9d04f4            # lookup: read/analyze only
+/assume-session claude:663aeacb why did it stall?                    # lookup with a question
 /assume-session claude:663aeacb-9509-4229-8c87-c248defeac34 --then confirm
 /assume-session grok:01a020ee-d80c-7540-a2fe-a4a518d46c2e --then continue
 /assume-session codex:able-efgh-1234 --then confirm
@@ -60,7 +102,7 @@ Two reference forms:
 - A Mastra chat-thread URL, `https://<host>/agents/<agentId>/threads/<threadId>`
   (the capability reads it as `mastra:thread:<threadId>`).
 
-`--then` is **required**:
+For takeover, `--then` is **required** (lookup mode has no `--then`):
 
 | Value      | After step 2                                                                                           |
 | ---------- | ------------------------------------------------------------------------------------------------------ |
@@ -78,9 +120,13 @@ in both modes — a user's confirmation waives neither.
 ## Steps
 
 1. **Parse the argument.** Take the reference (a `<harness>:<id>` ref or a Mastra
-   thread URL) and `--then`. If the reference has no harness prefix and is not a
-   URL, ask which tool. If `--then` is missing or not `continue`/`confirm`, ask
-   the user for it (one question, two options) — never default it.
+   thread URL) and, if present, `--then`. If the reference has no harness prefix
+   and is not a URL, infer the harness from the id's shape or the session you are
+   in (an `01a…` uuid with `omp` mentioned is `omp:<id>`); ask only if it is
+   still unknown. No `--then` and no takeover wording means lookup mode: follow
+   "Lookup mode" above and skip the rest of this list. `--then` present but not
+   `continue`/`confirm`, or takeover wording without it, means ask the user for it
+   (one question, two options) — never default a takeover.
 
 2. **Deliver the transcript through the capability MCP.** The capability finds
    the session and normalizes the URL itself; pass the reference exactly as given
