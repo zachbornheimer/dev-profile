@@ -52,6 +52,37 @@ if [[ -f package.json && ! -d node_modules ]]; then
 		command aube install || true
 	fi
 fi
-# Routes are <name>.localhost: they need the proxy, never a prompt.
-command portless proxy start >/dev/null 2>&1 || true
+# Nothing to serve (no dev-serve task, composer.json, dev script, Caddyfile):
+# skip the proxy and the dev run. `dev` only logs state=unconfigured there.
+case "$(command dev-profile-dev status 2>/dev/null)" in
+*state=unconfigured*) exit 0 ;;
+esac
+
+# Routes are <name>.localhost: they need the proxy on port 443, and starting it
+# needs root. The worker is detached from the shell, so a terminal "Password:"
+# prompt would land on the user's prompt and stop this job on the tty. Ask in a
+# GUI dialog instead (sudo -A), once; if it is declined, skip the proxy for an
+# hour rather than asking at every cd.
+proxy_up() { command nc -z 127.0.0.1 443 >/dev/null 2>&1; }
+ensure_proxy() {
+	proxy_up && return 0
+	local declined="${cache}/proxy-declined"
+	[[ -n "$(command find "${declined}" -mmin -60 -print 2>/dev/null)" ]] && return 1
+	local askpass="${cache}/askpass.sh"
+	printf '%s\n' '#!/bin/sh' \
+		"exec /usr/bin/osascript -e 'display dialog \"portless needs your password to start its HTTPS proxy on port 443.\" default answer \"\" with hidden answer with title \"dev-profile\" with icon caution' -e 'text returned of result'" \
+		>"${askpass}"
+	command chmod 700 "${askpass}"
+	# -v caches the credential for this tty, so the sudo portless runs itself
+	# succeeds without prompting. -n re-checks it: no cached credential, no start.
+	if SUDO_ASKPASS="${askpass}" command sudo -A -v </dev/null 2>/dev/null && command sudo -n true 2>/dev/null; then
+		command timeout 20 portless proxy start </dev/null >/dev/null 2>&1 || true
+	else
+		command touch "${declined}"
+		printf 'proxy skipped: sudo not granted\n'
+		return 1
+	fi
+	proxy_up
+}
+ensure_proxy || exit 0
 command mise run dev
