@@ -2,8 +2,8 @@
 # SessionStart hook: puts a small digest of the sessions that worked in this repository before into a new session's
 # context, so the memory index pays off without anyone running memory_search by hand.
 #
-# Key: the repository, which is the last segment of the session's working directory (the same key the memory
-# indexer writes into `repository`). SessionStart carries no prompt, so the key is the directory alone.
+# Key: the repository (last segment of the working directory) and the workspace scope (sah, zysys, or personal,
+# derived from the working directory path so two orgs that share a repo name never leak sessions into each other).
 # Source: one read-only, bounded SELECT over Neon `public.memory_chunks` through `psql`. It starts no model call, no
 # embedding call, no Node process, no harness and no MCP gateway; one run costs one connection (about a second).
 # Digest: the opening ask of the most recent substantive sessions, newest first, each cited by its transcript path.
@@ -19,9 +19,10 @@
 #   session-recall.sh              run as a hook
 #   session-recall.sh --self-test  run the whole hook against a stub `psql`: assert the output shape, the character
 #                                  budget, the untrusted-data fence, the read-only query keyed on the working
-#                                  directory, silence for an empty store, a failing store, garbage, a hung store, a
-#                                  missing DSN and a nested run, the wall-time bound, and that no harness or MCP child
-#                                  process appeared; prints "ok". SELF_TEST_SHOW_CONTEXT=1 prints the digest.
+#                                  directory and workspace scope, silence for an empty store, a failing store, garbage,
+#                                  a hung store, a missing DSN and a nested run, the wall-time bound, and that no
+#                                  harness or MCP child process appeared; prints "ok". SELF_TEST_SHOW_CONTEXT=1 prints
+#                                  the digest.
 set -uo pipefail
 
 readonly NESTED_RUN_GUARD="$HOME/.agents/hooks/nested-run-guard.sh"
@@ -50,11 +51,11 @@ readonly SELF="${BASH_SOURCE[0]}"
 
 # --- the query -------------------------------------------------------------------------------------------
 
-# The opening chunk of the most recent main sessions of one repository (transcripts directly under a project
-# directory, not the subagent transcripts beneath them), the session that is starting excluded, as one JSON array
-# of {path, body}. Variables repo, session, min_chunks and candidates are bound by psql's own quoting. The session
-# is read-only and timed out on the server side as well, which works through Neon's pooled endpoint where a startup
-# option would be refused.
+# The opening chunk of the most recent main sessions of one repository and workspace scope (transcripts directly
+# under a project directory, not the subagent transcripts beneath them), the session that is starting excluded, as
+# one JSON array of {path, body}. Variables repo, scope, session, min_chunks and candidates are bound by psql's own
+# quoting. The session is read-only and timed out on the server side as well, which works through Neon's pooled
+# endpoint where a startup option would be refused.
 read -r -d '' RECENT_SESSIONS_SQL <<'SQL' || true
 set default_transaction_read_only = on;
 set statement_timeout = :statement_timeout_ms;
@@ -63,15 +64,28 @@ from (
   select m.session_path as path, left(m.body, 600) as body, m.occurred_at as at
   from public.memory_chunks m
   where m.repository = :'repo'
+    and m.scope = :'scope'
+    and m.kind = 'chunk'
     and m.chunk_index = 0
     and m.session_path ~ '^/.*/sessions/[^/]+/[0-9T-]+Z_[^/]+\.jsonl$'
     and (:'session' = '' or position(:'session' in m.session_path) = 0)
-    and (select count(*) from public.memory_chunks c where c.session_path = m.session_path) >= :min_chunks
+    and (select count(*) from public.memory_chunks c where c.session_path = m.session_path and c.kind = 'chunk') >= :min_chunks
   order by m.occurred_at desc
   limit :candidates
 ) r
 SQL
 readonly RECENT_SESSIONS_SQL
+
+# Map a working directory to its isolated workspace scope (sah, zysys, or personal).
+infer_scope() {
+	local lower
+	lower="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
+	case "$lower" in
+	*software-automation-holdings*) printf 'sah' ;;
+	*/developer/zysys/* | */developer/zysys | */dropbox/zysys* | */zysys/*) printf 'zysys' ;;
+	*) printf 'personal' ;;
+	esac
+}
 
 # The store's connection string, or nothing when this process has none.
 session_store_dsn() {
@@ -81,14 +95,14 @@ session_store_dsn() {
 	[[ -n "$dsn" ]] && printf '%s' "$dsn"
 }
 
-# recent_sessions <dsn> <repository> <session id>: the store's answer on stdout; a failure status when the store did
-# not answer in time or refused.
+# recent_sessions <dsn> <repository> <scope> <session id>: the store's answer on stdout; a failure status when the
+# store did not answer in time or refused.
 # The DSN is an argument of the psql process, as the capability runtime's own pool takes it; only this user's `ps`
 # sees it, and the omp process environment already holds the same string.
 recent_sessions() {
 	PGCONNECT_TIMEOUT="$CONNECT_TIMEOUT_SECONDS" \
 		timeout "$WALL_SECONDS" psql "$1" -X -q -A -t -v ON_ERROR_STOP=1 \
-		-v "repo=$2" -v "session=$3" -v "min_chunks=$MIN_SESSION_CHUNKS" -v "candidates=$CANDIDATE_SESSIONS" \
+		-v "repo=$2" -v "scope=$3" -v "session=$4" -v "min_chunks=$MIN_SESSION_CHUNKS" -v "candidates=$CANDIDATE_SESSIONS" \
 		-v "statement_timeout_ms=$STATEMENT_TIMEOUT_MS" \
 		<<<"$RECENT_SESSIONS_SQL" 2>/dev/null
 }
@@ -139,13 +153,14 @@ run_hook() {
 	# The shims that resolve jq and psql read the mise config of the directory they run in; a project whose
 	# config does not parse must not decide whether recall works.
 	cd "$HOME" || return 0
-	local cwd session repository dsn rows
+	local cwd session repository scope dsn rows
 	# The working directory and the session id, one unit separator apart, from one jq run.
 	IFS=$'\x1f' read -r cwd session < <(jq -r '[.cwd, .session_id] | map(strings // "") | join("\u001f")' 2>/dev/null) || return 0
 	[[ -n "$cwd" && "$cwd" != "/" && "$cwd" != "$HOME" ]] || return 0
 	repository="$(basename "$cwd")"
+	scope="$(infer_scope "$cwd")"
 	dsn="$(session_store_dsn)" || return 0
-	rows="$(recent_sessions "$dsn" "$repository" "$session")" || return 0
+	rows="$(recent_sessions "$dsn" "$repository" "$scope" "$session")" || return 0
 	render_digest "$repository" <<<"$rows"
 }
 
@@ -303,8 +318,10 @@ check_digest() {
 	argv="$(cat "$dir/rows.argv")"
 	[[ "$(wc -l <"$dir/rows.argv" | tr -d ' ')" == 1 ]] || fail "digest: expected one psql call" || return 1
 	grep -q -- '-v repo=selftest-repo' <<<"$argv" || fail "digest: the query is not keyed on the working directory's last segment: $argv" || return 1
+	grep -q -- '-v scope=personal' <<<"$argv" || fail "digest: the query is not scoped to personal for /work/projects: $argv" || return 1
 	grep -q -- '-v session=selftest-session' <<<"$argv" || fail "digest: the starting session is not excluded: $argv" || return 1
 	grep -q 'public.memory_chunks' "$dir/rows.sql" || fail "digest: the query does not read memory_chunks" || return 1
+	grep -q "m.scope = :'scope'" "$dir/rows.sql" || fail "digest: the query does not filter by m.scope" || return 1
 	if grep -Eiq '\b(insert|update|delete|drop|alter|create|truncate)\b' "$dir/rows.sql"; then
 		fail "digest: the query is not read-only"
 		return 1
@@ -323,7 +340,7 @@ check_entry_cap() {
 
 self_test() {
 	command -v jq >/dev/null || fail "jq is missing" || return 1
-	local dir payload verdict=0 seconds
+	local dir payload sah_payload zys_payload verdict=0 seconds
 	dir="$(mktemp -d)" || return 1
 	write_canaries "$dir"
 	write_stub_psql "$dir"
@@ -331,7 +348,11 @@ self_test() {
 	write_fixture_many "$dir"
 	ps -p $$ >/dev/null 2>&1 || echo "self-test: note: ps is not permitted here; checking launcher canaries only" >&2
 	payload="$(jq -nc '{session_id: "selftest-session", cwd: "/work/projects/selftest-repo", hook_event_name: "SessionStart", type: "session_start"}')"
+	sah_payload="$(jq -nc '{session_id: "selftest-session", cwd: "/Users/u/Developer/Software-Automation-Holdings/zyins", hook_event_name: "SessionStart", type: "session_start"}')"
+	zys_payload="$(jq -nc '{session_id: "selftest-session", cwd: "/Users/u/Developer/Zysys/webmaster", hook_event_name: "SessionStart", type: "session_start"}')"
 	run_case "$dir" rows rows "$payload"
+	run_case "$dir" sah empty "$sah_payload"
+	run_case "$dir" zys empty "$zys_payload"
 	run_case "$dir" many many "$payload"
 	run_case "$dir" empty empty "$payload"
 	run_case "$dir" fail fail "$payload"
@@ -347,6 +368,8 @@ self_test() {
 		verdict=1
 	fi
 	check_digest "$dir" || verdict=1
+	grep -q -- '-v scope=sah' "$dir/sah.argv" || fail "sah scope was not bound for SAH cwd" || verdict=1
+	grep -q -- '-v scope=zysys' "$dir/zys.argv" || fail "zysys scope was not bound for Zysys cwd" || verdict=1
 	check_entry_cap "$dir" || verdict=1
 	check_silent "$dir" empty "empty store" || verdict=1
 	check_silent "$dir" fail "failing store" || verdict=1
