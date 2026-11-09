@@ -28,6 +28,9 @@ work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
 export HOME="$work/home"
+# The watchdog honours an inherited log dir; a login shell exports the real one,
+# which would send every tick's log outside this fixture's HOME.
+unset MISE_HISTORY_LOG_DIR
 mkdir -p "$HOME/Library/Logs" "$work/bin" "$HOME/.local/bin"
 printf '%s\n' '#!/usr/bin/env bash' "export HOME=\"$real_home\"" "exec \"$atask_bin\" \"\$@\"" >"$work/bin/atask"
 chmod +x "$work/bin/atask"
