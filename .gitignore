@@ -35,6 +35,8 @@
 !/docs/
 !/docs/design/
 !/docs/design/*
+!/docs/adr/
+!/docs/adr/*
 !/hk/
 !/hk/*
 !/config/
