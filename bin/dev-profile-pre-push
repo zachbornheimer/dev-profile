@@ -117,4 +117,27 @@ else
 	printf 'pre-push: measuring the introduced files failed; steps measure for themselves\n' >&2
 fi
 export DEV_PROFILE_PUSH_REFS="${refs}"
-hk run pre-push "$@" <"${advanced}"
+
+# pinact and zizmor call the GitHub API. Unauthenticated that is 60 requests an
+# hour per IP: past it every lookup answers 403, the step fails, and hk cancels
+# its siblings (measured: oh-my-pi-ci, 2026-11-06). Hand them the token gh holds.
+if [[ -z "${GITHUB_TOKEN:-}" && -z "${GH_TOKEN:-}" ]] && command -v gh >/dev/null 2>&1; then
+	gh_token="$(gh auth token 2>/dev/null || true)"
+	[[ -z "${gh_token}" ]] || export GITHUB_TOKEN="${gh_token}"
+	unset gh_token
+fi
+
+# When one step fails hk cancels the steps still running, and the error it
+# prints can be a cancelled sibling ("command was cancelled") instead of the
+# step that failed (five different steps were named on oh-my-pi-ci,
+# 2026-11-03). The failing command's own output is kept in HK_OUTPUT_FILE;
+# show it so the verdict names the real cause.
+hk_output="$(mktemp)"
+trap 'rm -f "${refs}" "${advanced}" "${introduced}" "${files0}" "${hk_output}"' EXIT
+rc=0
+HK_OUTPUT_FILE="${hk_output}" hk run pre-push "$@" <"${advanced}" || rc=$?
+if [[ "${rc}" -ne 0 && -s "${hk_output}" ]]; then
+	printf '\npre-push: hk failed (exit %s). The failing command output follows; a "command was cancelled" above is a sibling step hk stopped, not the cause:\n' "${rc}" >&2
+	cat "${hk_output}" >&2
+fi
+exit "${rc}"
