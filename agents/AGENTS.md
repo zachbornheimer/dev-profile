@@ -466,7 +466,7 @@ If this turn has no `TypeSafe skill pick:` line, read `~/.agents/hooks/state/ski
 Every ask: run `prompt-writer` first, then route the scoped order:
 
 - **Research** / many files → **explore** (read-only; summary, not files)
-- **A session ref or id** (`omp:01a1…`, `claude:<id>`, `<harness>:latest`, a Mastra thread URL) with "analyze / review / look at / what happened / why did it fail" → `assume-session` in lookup mode (read-only; `get_recent_turns`, `create_session_handoff_doc`, `get_annotated_transcript`, `extract_hypotheses`). Takeover only on "assume / take over / continue it" (`--then`). Never hand-grep `~/.omp/agent/sessions` or `~/.claude/projects`.
+- **A session ref or id** (`omp:01a1…`, `claude:<id>`, `<harness>:latest`, a Mastra thread URL) with "analyze / review / look at / what happened / why did it fail" → `assume-session` in lookup mode (read-only; `get_transcript` writes the transcript as a JSONL file, `annotate: true` adds cost/waste; also `get_recent_turns`, `create_session_handoff_doc`, `extract_hypotheses`). Takeover only on "assume / take over / continue it" (`--then`). Never hand-grep `~/.omp/agent/sessions` or `~/.claude/projects`.
 - **Make a change** → **implement** (`code-construction` + `testing-practices` if tests/bugs)
 - **Check before done** → **reviewer** + `verify`. Feature/UI/module → `review-bar`
 - **Home Assistant** → `home-assistant-homelab`, then `docs/automations.md` and live state

@@ -26,20 +26,24 @@ session from its id.
 
 ## Lookup mode (read-only transcript by ID)
 
-Pass the ref exactly as given in `conversation`. After `<harness>:` it accepts a
-full id, a unique prefix, `latest`, or title words. In omp these are native tools
-(`get_recent_turns`, `create_session_handoff_doc`, `get_annotated_transcript`,
+Pass the ref exactly as given. After `<harness>:` it accepts a full id, a unique
+prefix, `latest`, or title words. **`get_transcript` is the primary tool**: it
+writes the whole session as a JSON Lines file (one `item` line per message, tool
+call or tool result, with `turn` and `role`) that you `read`, `grep` or `jq`; add
+`annotate: true` for per-item cost/waste/correction readings. In omp these are
+native tools (`get_transcript`, `get_recent_turns`, `create_session_handoff_doc`,
 `extract_hypotheses`, `learn_from_transcript`); in other harnesses the same tools
 are `capability/run_<name>`.
 
-| User wants                                                             | Call                                                                                                            |
-| ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| Read the conversation, answer a question about it                      | `get_recent_turns` `{conversation, turns, length_limit, max_tokens}`; raise all three to read the whole session |
-| Where it stopped: cwd, branch, side effects, errors, last user message | `create_session_handoff_doc` `{conversation}` (read `context`)                                                  |
-| Per-turn cost, waste, corrections, tokens                              | `get_annotated_transcript` `{sources: ["<ref>"]}`, then read the `path` it returns                              |
-| Adversarial review: what the session wasted, how to do better          | `extract_hypotheses` `{sources: ["<ref>"]}`                                                                     |
-| Turn a bad session into filed fixes                                    | `learn_from_transcript` `{source: "<ref>"}` (only when asked; it files tickets)                                 |
-| Claude session's native transcript path, jobId or pid                  | the `find-session` skill                                                                                        |
+| User wants                                                             | Call                                                                                                                  |
+| ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Read or search the whole transcript, answer a question about it        | `get_transcript` `{sources: ["<ref>"]}`, then `read`/`grep`/`jq` the `path` it returns (line 1 is the session header) |
+| Just the last few turns inline                                         | `get_recent_turns` `{conversation, turns, length_limit, max_tokens}`                                                  |
+| Where it stopped: cwd, branch, side effects, errors, last user message | `create_session_handoff_doc` `{conversation}` (read `context`)                                                        |
+| Per-turn cost, waste, corrections, tokens                              | `get_transcript` `{sources: ["<ref>"], annotate: true}`, then read the `path` it returns (`annotation` on each line)  |
+| Adversarial review: what the session wasted, how to do better          | `extract_hypotheses` `{sources: ["<ref>"]}`                                                                           |
+| Turn a bad session into filed fixes                                    | `learn_from_transcript` `{source: "<ref>"}` (only when asked; it files tickets)                                       |
+| Claude session's native transcript path, jobId or pid                  | the `find-session` skill                                                                                              |
 
 Report what the transcript shows with turn numbers or verbatim quotes, and mark
 inference as inference. An ambiguous prefix or title is refused with candidates:
