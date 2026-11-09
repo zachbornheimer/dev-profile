@@ -52,6 +52,36 @@ def test_assume_session_keeps_continuity(assume: str) -> None:
     assert "finish the work that was in flight" in assume
 
 
+def test_assume_session_description_advertises_lookup_by_id() -> None:
+    text = (SKILLS / "assume-session" / "SKILL.md").read_text()
+    description = text.split("---")[1].lower()
+    for needle in (
+        "analyze",
+        "by id",
+        "read-only lookup",
+        "get_recent_turns",
+        "never hand-grep",
+    ):
+        assert needle in description
+
+
+def test_assume_session_lookup_mode_needs_no_then(assume: str) -> None:
+    assert "lookup (default)" in assume
+    assert "no takeover, no `--then`" in assume
+    assert "if the request is ambiguous between the two, do lookup" in assume
+    assert "(takeover mode only; lookup mode skips them)" in assume
+
+
+def test_find_session_defers_content_analysis_to_assume_session() -> None:
+    text = skill_text("find-session").lower()
+    assert "assume-session lookup mode" in text
+
+
+def test_assume_session_lookup_uses_get_transcript(assume: str) -> None:
+    assert "`get_transcript` is the primary tool" in assume
+    assert "get_annotated_transcript" not in assume
+
+
 @pytest.mark.parametrize(
     "clause",
     [

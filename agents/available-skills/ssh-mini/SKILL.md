@@ -24,28 +24,27 @@ ssh-mini docker ps -a
 ssh-mini 'cd ~/homelab && docker compose ps'
 ```
 
-Wrapper lives at `~/.local/bin/ssh-mini` (also `mini`). It always uses `/usr/bin/ssh` + Host `mini` + `IdentitiesOnly` + `~/.ssh/claude_macmini`.
+Wrapper lives at `~/.local/bin/ssh-mini` (also `mini`). It uses `/usr/bin/ssh` + Host `mini`. Host `mini` is Tailscale SSH. Do not pass `claude_macmini`.
 
 ## Facts agents get wrong
 
-| Wrong                                                    | Right                                                                                                                                                  |
-| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `192.168.1.102`                                          | **`192.168.4.102`** (VLAN). 1.102 is stale/offline.                                                                                                    |
-| User `zbornheimer`                                       | **`zachbornheimer`**                                                                                                                                   |
-| Agent’s default `ssh` (30 keys)                          | **IdentitiesOnly** + `claude_macmini` only — else “Too many authentication failures”                                                                   |
-| Bare `docker` on remote non-login shell                  | **PATH** needs `/opt/homebrew/bin` — `ssh-mini` injects it                                                                                             |
-| Colima IP `192.168.4.118` as SSH target                  | That is the **VM**, not the host. SSH the mini host; Docker talks to colima’s socket on the mini.                                                      |
-| This MacBook’s colima                                    | Local only (agentmux, etc.). Homelab stack is on the **mini**.                                                                                         |
-| `ssh -f` / `ssh … &` without a timeout                   | Never. Prefer `ssh host -- cmd` (or `ssh-mini cmd`) so the session **exits** when the command does. Backgrounded ssh survives `tool_result` (ZYS-732). |
-| Tool-started `ControlMaster` / `ControlPath` multiplexer | Don't. It outlives the command. One-shot `ssh host -- cmd` only.                                                                                       |
+| Wrong                                              | Right                                                                                                   |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `192.168.4.102` or `claude_macmini` for normal SSH | Tailscale SSH via Host `mini` (`zacharys-mac-mini.tail158749.ts.net`). LAN key path is `mini-lan` only. |
+| User `zbornheimer`                                 | `zachbornheimer`                                                                                        |
+| Agent default ssh (30 keys)                        | Host `mini` sets `PreferredAuthentications none`. Do not add an IdentityFile.                           |
+| Bare `docker` on a remote non-login shell          | PATH needs `/opt/homebrew/bin`. `ssh-mini` injects it.                                                  |
+| Colima IP `192.168.4.118` as an SSH target         | That is the VM, not the host. SSH the mini host. Docker uses the colima socket on the mini.             |
+| This MacBook's colima                              | Local only. The homelab stack is on the mini.                                                           |
+| `ssh -f` or background ssh without a timeout       | Never. Prefer `ssh host -- cmd` so the session exits with the command.                                  |
 
 ## Do not leave ssh running
 
 A tool-started ssh shell must not survive after `tool_result` returns.
 
-- Never `ssh -f` and never background ssh without a timeout wrapping the whole invocation (`timeout 30 ssh host -- cmd`).
+- Never `ssh -f` and never background ssh without a timeout wrapping the whole invocation.
 - Prefer `ssh host -- cmd` so the remote session ends with the command.
-- Session-scoped cleanup: `~/.agents/hooks/ssh-session-reap.py` pkills leftover ssh tagged with this session on PostToolUse/Stop. It will not touch untagged terminals, `-N` tunnels, or other sessions.
+- Session-scoped cleanup: `~/.agents/hooks/ssh-session-reap.py` pkills leftover ssh tagged with this session. It will not touch untagged terminals, `-N` tunnels, or other sessions.
 
 ## SSH config aliases
 
@@ -53,11 +52,14 @@ In `~/.ssh/config`:
 
 ```text
 Host mini tdarr-mini mac-mini zacharys-mini
-  Hostname 192.168.4.102
+  Hostname zacharys-mac-mini.tail158749.ts.net
   User zachbornheimer
-  IdentityFile ~/.ssh/claude_macmini
+  PreferredAuthentications none
   IdentitiesOnly yes
+  IdentityAgent none
 ```
+
+`mini-lan` is `192.168.4.102` plus `~/.ssh/claude_macmini`. Break-glass only.
 
 ## Quick health check
 
@@ -65,10 +67,10 @@ Host mini tdarr-mini mac-mini zacharys-mini
 ssh-mini 'hostname; docker ps --format "table {{.Names}}\t{{.Status}}"'
 ```
 
-If that fails: ping `192.168.4.102`, confirm VNC/user is on the mini, confirm `~/.ssh/claude_macmini` still authorized.
+If that fails: `ssh mini-lan`. Confirm the mini's `tailscale debug prefs` still has `RunSSH` true before changing Host `mini` back.
 
 ## Related
 
-- Homelab compose: `~/homelab` **on the mini** (and often mirrored under `~/Developer/Personal/homelab` on the laptop for git).
-- NAS is separate: `ssh nas` / `gorillabank` (`ravn@192.168.1.99`) — not this skill.
-- Home Assistant skill: `home-assistant-homelab` (HA config), still use `ssh-mini` for live container checks.
+- Homelab compose: `~/homelab` on the mini (mirrored under `~/Developer/Personal/homelab` on the laptop for git).
+- NAS is separate: `ssh nas` / `gorillabank` (`ravn@192.168.1.99`). Tailscale SSH does not run on Synology.
+- Home Assistant skill: `home-assistant-homelab`. Still use `ssh-mini` for live container checks.

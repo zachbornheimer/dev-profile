@@ -1,6 +1,6 @@
 ---
 name: find-session
-description: Use to resolve any Claude Code session identifier (session id, a fragment of one, a session name, a job id, or a pid) to its transcript path — including when the id another tool printed (e.g. ListAgents) doesn't match any filename you can find by hand. Also use when asked to "find the session called X" or "where is session Y's transcript".
+description: Use to resolve a Claude Code session identifier (session id, fragment, session name, job id, or pid) to its native transcript FILE PATH — including when the id another tool printed (e.g. ListAgents) doesn't match any filename you can find by hand. Also use when asked to "find the session called X" or "where is session Y's transcript". Reading or analyzing the session's content by id (omp:<id>, claude:<id>, ...) goes through assume-session lookup mode (get_recent_turns), not this script.
 ---
 
 # find-session — resolve any Claude Code session identifier to its transcript
