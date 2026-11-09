@@ -64,7 +64,7 @@ base_commit() {
 # the profile's dprint config, any other is empty), base-committed
 # with the hook off, and a staged tab-indented src/a.ts.
 new_repo() {
-	local name="$1" cfg dir="${scratch}/$1"
+	local cfg dir="${scratch}/$1"
 	shift
 	"${git_bin}" init -q -b main "${dir}"
 	for cfg in "$@"; do
