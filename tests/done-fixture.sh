@@ -389,6 +389,17 @@ test ! -d "$repo" || fail "done --drop must trash stashclash clone"
 test "$(git -C "$origin" show wip:parked.txt)" = parked || fail "existing origin/wip must not be overwritten"
 test "$(git -C "$origin" show wip-2:base.txt)" = stashed-version || fail "stash must be parked onto origin/wip-2"
 test "$(git -C "$origin" show wip-2:storage/logos/a.txt)" = logo-bytes || fail "stash tracked additions must be on origin/wip-2"
+# --- An existing wip/<topic> branch must not stop uncommitted work from parking (refs/heads/wip is then a directory).
+setup_clone wipprefix
+git -C "$repo" switch -q -c wip/topic main
+commit "$repo" topic.txt topic
+git -C "$repo" push -q origin wip/topic
+git -C "$repo" switch -q main
+printf 'dirty\n' >"${repo}/base.txt"
+run_done "$repo" --drop >"${work}/wipprefix.out" 2>&1 ||
+	fail "done --drop with an existing wip/topic branch must succeed: $(cat "${work}/wipprefix.out")"
+test ! -d "$repo" || fail "done --drop must trash wipprefix clone"
+test "$(git -C "$origin" show wip-2:base.txt)" = dirty || fail "uncommitted work must be parked onto origin/wip-2 when wip/topic exists"
 # The script itself must disable quality hooks; the fixture did not export HK=0.
 grep -Fq 'export HK=0' "$done" || fail "dev-profile-done must export HK=0 so hk cannot block parking"
 grep -Eq 'commit -q --no-verify' "$done" || fail "dev-profile-done commits must pass --no-verify"

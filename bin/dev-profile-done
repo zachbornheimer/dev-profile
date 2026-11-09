@@ -321,8 +321,11 @@ contained() {
 
 free_name() {
 	local base="$1" name="$1" n=2
+	# A ref cannot be created where branches already live beneath it
+	# (wip vs wip/everest-unstash-commit), locally or on origin.
 	while git show-ref --verify --quiet "refs/heads/${name}" ||
 		git show-ref --verify --quiet "refs/remotes/origin/${name}" ||
+		[[ -n "$(git for-each-ref --count=1 "refs/heads/${name}/" "refs/remotes/origin/${name}/")" ]] ||
 		marked "${name}" "${state}/planned" || marked "${name}" "${state}/hold" ||
 		marked "${name}" "${state}/reserved"; do
 		name="${base}-${n}"
