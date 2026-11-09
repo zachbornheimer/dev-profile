@@ -52,6 +52,13 @@ if [[ -f package.json && ! -d node_modules ]]; then
 		command aube install || true
 	fi
 fi
+# Nothing to serve (no dev-serve task, composer.json, dev script, Caddyfile):
+# skip the proxy and the dev run. `portless proxy start` can reach for sudo on
+# a tty a detached worker does not own and sit stopped, and `dev` only logs
+# state=unconfigured in such a checkout.
+case "$(command dev-profile-dev status 2>/dev/null)" in
+*state=unconfigured*) exit 0 ;;
+esac
 # Routes are <name>.localhost: they need the proxy, never a prompt.
-command portless proxy start >/dev/null 2>&1 || true
+command timeout 20 portless proxy start </dev/null >/dev/null 2>&1 || true
 command mise run dev
