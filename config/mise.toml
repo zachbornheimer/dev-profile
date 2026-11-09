@@ -187,6 +187,7 @@ recipients = ["age1qpl3tghy0660prmvz3x2dqjsn69m588e0j0v56ec0rswkujgyshs64dhtc"]
 "~/.editorconfig" = { mode = "track", encrypt = true }
 "~/.gitconfig" = { mode = "track", encrypt = true }
 "~/.local/share/dev-profile/bin" = { source = "~/Developer/Personal/dev-profile/bin" }
+"~/.local/share/dev-profile/mise.zsh" = { source = "~/Developer/Personal/dev-profile/shell/mise.zsh" }
 "~/.local/share/dev-profile/shell.zsh" = { source = "~/Developer/Personal/dev-profile/shell/shell.zsh" }
 "~/.local/share/dev-profile/xdg" = { source = "~/Developer/Personal/dev-profile/xdg" }
 "~/.markdownlintrc" = { mode = "track", encrypt = true }

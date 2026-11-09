@@ -24,20 +24,24 @@ cd "${project}" &&
 				source "${DEV_PROFILE_OUT}/mise.zsh"
 				print -r -- "start=${SHELL_INIT_TEST:-missing}"
 				builtin cd /tmp
-				_dev_profile_mise_refresh
+				print -r -- "cd-returned=${SHELL_INIT_TEST:-missing}"
+				_dev_profile_async_wait
 				print -r -- "away=${SHELL_INIT_TEST:-missing}"
 				builtin cd "${TEST_PROJECT}"
-				_dev_profile_mise_refresh
+				_dev_profile_async_wait
 				print -r -- "back=${SHELL_INIT_TEST:-missing}"
 				printf "[env]\nSHELL_INIT_TEST = \"two\"\n" >mise.toml
 				touch -t 203001010000 mise.toml
 				_dev_profile_mise_refresh
+				_dev_profile_async_wait
 				print -r -- "edited=${SHELL_INIT_TEST:-missing}"
 			'
 )" || fail "zsh shell init failed"
 
 expect() { grep -qxF "$1" <<<"${output}" || fail "missing '$1' in: ${output}"; }
 expect "start=one"
+# cd must return before the hook lands: the old environment is still in place.
+expect "cd-returned=one"
 expect "away=missing"
 expect "back=one"
 expect "edited=two"
