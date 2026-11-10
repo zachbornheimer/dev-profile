@@ -123,6 +123,33 @@ ompr() {
 	fi
 }
 
+# Probe an ssh host; if Tailscale SSH demands a browser re-auth, open the check page and wait
+# (up to 90s) for approval instead of hanging silently. Returns ssh's success.
+_omp_probe_remote() {
+	emulate -L zsh
+	setopt local_options no_monitor no_notify
+	local host="$1" out pid url opened=0 n
+	out="$(mktemp -t omp-probe.XXXXXX)" || return 1
+	timeout 90 ssh -o LogLevel=INFO -o BatchMode=yes -o ConnectTimeout=2 "$host" true >"$out" 2>&1 </dev/null &
+	pid=$!
+	for ((n = 0; n < 180; n++)); do
+		kill -0 $pid 2>/dev/null || break
+		if ((!opened)); then
+			url="$(grep -Eo 'https://login\.tailscale\.com/a/[A-Za-z0-9]+' "$out" 2>/dev/null | head -n1)"
+			if [[ -n $url ]]; then
+				opened=1
+				print -u2 "[omp] Tailscale re-auth needed; opening $url (waiting up to 90s)..."
+				open "$url" >/dev/null 2>&1 || true
+			fi
+		fi
+		sleep 0.5
+	done
+	wait $pid 2>/dev/null
+	local rc=$?
+	command rm -f "$out"
+	return $rc
+}
+
 # On the Mac, `omp` stays local-first — but if you resume or continue a session whose
 # latest turns are in Neon (because it was running on the remote box), `omp` automatically
 # takes it over: pulls the Neon transcript to disk, rsyncs newer working-tree files from
@@ -215,10 +242,11 @@ omp() {
 					;;
 				esac
 				print -u2 "[omp] taking over session ${tk_sid:-latest} from remote compute arm..."
-				# Tailscale SSH can block forever on a browser "check" re-auth that ConnectTimeout
-				# does not cover, so every remote call here is hard-bounded; a failed probe skips takeover.
+				# Tailscale SSH can block on a browser "check" re-auth that ConnectTimeout does not
+				# cover. The probe opens that check page for you and waits for approval (bounded);
+				# every later remote call is hard-bounded too, so a failed probe skips takeover.
 				local -a rssh=(timeout 6 ssh -o BatchMode=yes -o ConnectTimeout=2)
-				if "${rssh[@]}" backend.ai.lan.zachandaj.com true >/dev/null 2>&1; then
+				if _omp_probe_remote backend.ai.lan.zachandaj.com; then
 					if [[ -n $tk_sid ]]; then
 						"${rssh[@]}" backend.ai.lan.zachandaj.com "pkill -u zbornheimer -f 'omp.*${tk_sid}' 2>/dev/null || true" >/dev/null 2>&1 || true
 					fi
