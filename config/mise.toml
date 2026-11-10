@@ -146,6 +146,7 @@ recipients = ["age1qpl3tghy0660prmvz3x2dqjsn69m588e0j0v56ec0rswkujgyshs64dhtc"]
 [dotfiles]
 "~/.agents" = { source = "~/Developer/Personal/dev-profile/agents" }
 "~/.config/1Password" = { mode = "track", encrypt = true }
+"~/.config/agent-checkpoints/enrollment.toml" = { source = "~/Developer/Personal/dev-profile/config/agent-checkpoints/enrollment.toml" }
 "~/.config/agent-hooks" = { mode = "track", encrypt = true, exclude = ["*.bak*"] }
 "~/.config/ai" = { mode = "track", encrypt = true }
 "~/.config/ast-grep" = { mode = "track", encrypt = true }
@@ -193,6 +194,7 @@ recipients = ["age1qpl3tghy0660prmvz3x2dqjsn69m588e0j0v56ec0rswkujgyshs64dhtc"]
 "~/.local/share/dev-profile/xdg" = { source = "~/Developer/Personal/dev-profile/xdg" }
 "~/.markdownlintrc" = { mode = "track", encrypt = true }
 "~/.omp/agent/extensions/advisor-style.ts" = { mode = "track", encrypt = true }
+"~/.omp/agent/extensions/agent-checkpoint-publish.ts" = { source = "~/Developer/Personal/dev-profile/apps/omp/extensions/agent-checkpoint-publish.ts" }
 "~/.omp/agent/extensions/capability-completion.ts" = { mode = "track", encrypt = true }
 "~/.omp/agent/extensions/capability-wake.ts" = { mode = "track", encrypt = true }
 "~/.omp/agent/extensions/collapsible-blocks.ts" = { mode = "track", encrypt = true }
