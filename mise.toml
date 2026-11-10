@@ -63,6 +63,10 @@ run = "pytest agents/hooks/tests/test_scope_guard.py"
 description = "Run the Herdr turn-recovery fault-injection tests (TURN_RECOVERY_TEST_DB=postgres://... for the database cases)"
 run = "bun test apps/omp/turn-recovery"
 
+[tasks."test:agent-checkpoints"]
+description = "Run the turn-stop checkpoint publication and mise reconciliation tests"
+run = "bun test apps/omp/extensions/agent-checkpoint-publish.test.ts"
+
 [tasks."list:skills:unmanaged"]
 alias = ["list:skills:unamanaged", "skills:unmanaged"]
 description = "List skills in ~/.agents/available-skills not tracked in .skill-lock.json"
