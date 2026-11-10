@@ -4,7 +4,16 @@ worktree-path = "{{ repo_path }}/../.worktrees/{{ repo }}-{{ branch | sanitize }
 # public/assets/ is Rails precompiled output for the SOURCE tree: copied into a
 # worktree it serves stale JS that does not match the branch (ninja-quoter's
 # website_quoter_review_spec failed on it, 2026-11-06). Each tree builds its own.
-exclude = [".venv/", "**/.venv/", "backups/", "**/backups/", "public/assets/", "**/public/assets/"]
+exclude = [
+  ".venv/",
+  "**/.venv/",
+  "backups/",
+  "**/backups/",
+  "public/assets/",
+  "**/public/assets/",
+  "agents/hooks/state/",
+  "**/agents/hooks/state/",
+]
 
 [commit.generation]
 command = "_llm"

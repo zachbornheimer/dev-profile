@@ -46,7 +46,7 @@ history.fetch_interval = "60s"
 credential_command = 'gh auth token --hostname "$MISE_CREDENTIAL_HOST"'
 
 [settings.age]
-key_file = "/home/zbornheimer/.config/mise/age.txt"
+key_file = "~/.config/mise/age.txt"
 
 [tasks."learn:doctor"]
 # /learn is three files that `mise dot apply` installs together: the omp command, the launcher it
@@ -100,10 +100,10 @@ process_type = "Background"
 # [bootstrap.macos.launchd.agents.contextforge-bridges]
 # # start-bridges.sh exports the gateway secrets from the Keychain and execs
 # # `capability contextforge bridges`, which restarts a bridge whose child exits.
-# program = "/Users/zbornheimer/.config/contextforge/start-bridges.sh"
+# program = "~/.config/contextforge/start-bridges.sh"
 # # launchd hands the job /usr/bin:/bin:/usr/sbin:/sbin, and `capability` is `#!/usr/bin/env node`
 # # with node living only in the mise install, so the job cannot exec without this PATH.
-# environment = { HOME = "/Users/zbornheimer", PATH = "/Users/zbornheimer/.local/share/mise/installs/node/26/bin:/Users/zbornheimer/.local/bin:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin" }
+# environment = { HOME = "{{ env.HOME }}", PATH = "~/.local/share/mise/installs/node/26/bin:~/.local/bin:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin" }
 # working_directory = "~/.config/contextforge"
 # keep_alive = true
 # run_at_load = true
