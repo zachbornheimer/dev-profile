@@ -215,15 +215,19 @@ omp() {
 					;;
 				esac
 				print -u2 "[omp] taking over session ${tk_sid:-latest} from remote compute arm..."
-				if ssh -o ConnectTimeout=2 backend.ai.lan.zachandaj.com true >/dev/null 2>&1; then
+				# Tailscale SSH can block forever on a browser "check" re-auth that ConnectTimeout
+				# does not cover, so every remote call here is hard-bounded; a failed probe skips takeover.
+				local -a rssh=(timeout 6 ssh -o BatchMode=yes -o ConnectTimeout=2)
+				if "${rssh[@]}" backend.ai.lan.zachandaj.com true >/dev/null 2>&1; then
 					if [[ -n $tk_sid ]]; then
-						ssh backend.ai.lan.zachandaj.com "pkill -u zbornheimer -f 'omp.*${tk_sid}' 2>/dev/null || true" >/dev/null 2>&1 || true
+						"${rssh[@]}" backend.ai.lan.zachandaj.com "pkill -u zbornheimer -f 'omp.*${tk_sid}' 2>/dev/null || true" >/dev/null 2>&1 || true
 					fi
 					if [[ -d $tk_dir && -n $remote_dir ]]; then
-						rsync -azu --exclude='.worktrees' --exclude='node_modules' --exclude='.venv' --exclude='target' --exclude='__pycache__' \
+						timeout 120 rsync -azu -e "ssh -o BatchMode=yes -o ConnectTimeout=2" --exclude='.worktrees' --exclude='node_modules' --exclude='.venv' --exclude='target' --exclude='__pycache__' \
 							"backend.ai.lan.zachandaj.com:${remote_dir}/" "${tk_dir}/" >/dev/null 2>&1 || true
 					fi
-					if ! ssh backend.ai.lan.zachandaj.com "pgrep -u zbornheimer -f '(^|/)(omp|atask)([[:space:]]|$)' >/dev/null || [ \"\$(who | grep -c 'pts/')\" -gt 0 ]" >/dev/null 2>&1; then
+					# Scale down only on an explicit "idle" answer, never on a timeout or ssh failure.
+					if [[ "$("${rssh[@]}" backend.ai.lan.zachandaj.com "if pgrep -u zbornheimer -f '(^|/)(omp|atask)([[:space:]]|$)' >/dev/null || [ \"\$(who | grep -c 'pts/')\" -gt 0 ]; then echo busy; else echo idle; fi" 2>/dev/null)" == idle ]]; then
 						print -u2 "[omp] no other active sessions on remote box; scaling down in background..."
 						(nohup mise -C "$HOME/Developer/Personal/dev-env" run vps:down >/dev/null 2>&1 </dev/null &)
 					fi
