@@ -43,9 +43,9 @@ if [ -z "${OP_SERVICE_ACCOUNT_TOKEN:-}" ] && [ -r "$HOME/.config/dev-env/secrets
   export OP_SERVICE_ACCOUNT_TOKEN
   export OP_BIOMETRIC_UNLOCK_ENABLED=false
 fi
-builtin source "$HOME/.config/ai/env.sh"
+[[ -r "$HOME/.config/ai/env.sh" ]] && builtin source "$HOME/.config/ai/env.sh"
 
 # Kiro CLI post block. Keep at the bottom of this file.
 [[ -f "${HOME}/Library/Application Support/kiro-cli/shell/profile.post.bash" ]] && builtin source "${HOME}/Library/Application Support/kiro-cli/shell/profile.post.bash"
 
-. "$HOME/.turso/env"
+[[ -r "$HOME/.turso/env" ]] && . "$HOME/.turso/env"

@@ -4,8 +4,13 @@ ai-env::load() {
 	local keys_env="$HOME/.cache/ai/keys.env"
 	local template="$HOME/.config/ai/keys.env.op"
 
+	local zsh_bin
+	zsh_bin="$(command -v zsh)" || zsh_bin=""
+
 	if [[ ! -r "$keys_env" || ! "$keys_env" -nt "$template" ]]; then
-		keys_env="$(/bin/zsh -fc 'builtin source "$HOME/.config/zsh/ai-keys.zsh"; ai-keys::env')" || return 1
+		# No zsh (Linux boxes): keys arrive through the environment instead.
+		[[ -n "$zsh_bin" ]] || return 0
+		keys_env="$("$zsh_bin" -fc 'builtin source "$HOME/.config/zsh/ai-keys.zsh"; ai-keys::env')" || return 1
 	fi
 
 	builtin source "$keys_env"
