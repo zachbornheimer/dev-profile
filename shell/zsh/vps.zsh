@@ -170,29 +170,40 @@ omp() {
 				import { dirname } from "node:path";
 				const sid = process.argv[1] || "";
 				const cwd = process.argv[2] || "";
+				const home = (process.env.HOME || "").replace(/\/+$/, "");
+				const toLocal = (p) => String(p || "").replace(/^\/(?:home|Users)\/z(?:ach)?bornheimer(?=\/|$)/, home);
 				const bucket = "-" + cwd.replace(/^\/Users\/[^/]+\/?/, "").replace(/[\/_]/g, "-");
 				const sql = new Bun.SQL(process.env.SESSIONS_DB_URL);
 				let rows = [];
 				if (sid) {
-					rows = await sql`SELECT path, content, mtime_ms, left(content, 2048) AS head FROM omp_session_files WHERE path LIKE ${"%" + sid + "%"}`;
+					rows = await sql`SELECT path, mtime_ms FROM omp_session_files WHERE path LIKE ${"%" + sid + "%"}`;
 				} else if (bucket.length > 1) {
-					rows = await sql`SELECT path, content, mtime_ms, left(content, 2048) AS head FROM omp_session_files WHERE path LIKE ${"%/" + bucket + "/%.jsonl"} ORDER BY mtime_ms DESC LIMIT 1`;
+					rows = await sql`SELECT path, mtime_ms FROM omp_session_files WHERE path LIKE ${"%/" + bucket + "/%.jsonl"} ORDER BY mtime_ms DESC LIMIT 1`;
 				}
+				rows = rows
+					.map((r) =>({ ...r, localPath: toLocal(r.path) }))
+					.filter((r) => home && r.localPath.startsWith(home + "/"));
+				const stale = rows.filter((r) =>{
+					const diskMtime = existsSync(r.localPath) ? Math.trunc(statSync(r.localPath).mtimeMs) : -1;
+					return diskMtime < Number(r.mtime_ms);
+				});
 				let tookOver = false;
 				let sessionId = sid;
 				let localDir = "";
-				for (const r of rows) {
-					if (!r.path.startsWith("/Users/zbornheimer/")) continue;
-					const diskMtime = existsSync(r.path) ? Math.trunc(statSync(r.path).mtimeMs) : -1;
-					if (diskMtime < Number(r.mtime_ms)) {
-						mkdirSync(dirname(r.path), { recursive: true });
-						await Bun.write(r.path, r.content);
+				if (stale.length) {
+					const paths = stale.map((r) => r.path);
+					for (const r of await sql`SELECT path, content FROM omp_session_files WHERE path IN ${sql(paths)}`) {
+						const lp = toLocal(r.path);
+						mkdirSync(dirname(lp), { recursive: true });
+						await Bun.write(lp, r.content);
 						tookOver = true;
 					}
-					if (r.path.endsWith(".jsonl") && !localDir) {
-						const m = String(r.head || "").match(/"cwd":"([^"]+)"/);
-						if (m) localDir = m[1].replace(/^\/home\/zbornheimer\b/, "/Users/zbornheimer");
-						const idMatch = r.path.match(/_([0-9a-f-]{36})\.jsonl$/);
+					const main = rows.find((r) => r.path.endsWith(".jsonl"));
+					if (main) {
+						const [h] = await sql`SELECT left(content, 2048) AS head FROM omp_session_files WHERE path = ${main.path}`;
+						const m = String(h?.head || "").match(/"cwd":"([^"]+)"/);
+						if (m) localDir = toLocal(m[1]);
+						const idMatch = main.path.match(/_([0-9a-f-]{36})\.jsonl$/);
 						if (!sessionId && idMatch) sessionId = idMatch[1];
 					}
 				}
@@ -207,8 +218,8 @@ omp() {
 				tk_dir="$(jq -r '.localDir // empty' <<<"$meta" 2>/dev/null)"
 				[[ -z $tk_dir ]] && tk_dir="$PWD"
 				case "$tk_dir" in
-				/Users/zbornheimer | /Users/zbornheimer/*)
-					remote_dir="/home/zbornheimer${tk_dir#/Users/zbornheimer}"
+				"$HOME" | "$HOME"/*)
+					remote_dir="/home/zbornheimer${tk_dir#"$HOME"}"
 					;;
 				*)
 					remote_dir="$tk_dir"
