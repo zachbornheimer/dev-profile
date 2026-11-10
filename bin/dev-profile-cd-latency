@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# Start one detached omp session to fix a slow cd.
+#
+# Called detached from the shell's cd-latency hook (~/.config/zsh/cd-latency.zsh):
+#   dev-profile-cd-latency <ms> <dir> <log>
+#
+# Guards, because a loaded machine can produce a slow cd on every prompt and a
+# model session per cd would make it worse:
+#   - one session at a time (lock directory holding the worker's pid)
+#   - at most one start per CD_LATENCY_COOLDOWN_S seconds (default 1800)
+# Off: CD_LATENCY_FIX_DISABLE=1.
+set -uo pipefail
+
+ms="${1:-?}"
+dir="${2:-?}"
+log="${3:-${HOME}/.local/state/dev-profile/cd-latency.log}"
+[[ ${CD_LATENCY_FIX_DISABLE:-0} == 1 ]] && exit 0
+
+state="${XDG_CACHE_HOME:-${HOME}/.cache}/dev-profile/cd-latency"
+command mkdir -p "${state}" || exit 0
+
+lock="${state}/lock"
+if ! command mkdir "${lock}" 2>/dev/null; then
+	pid="$(command cat "${lock}/pid" 2>/dev/null || true)"
+	if [[ -n ${pid} ]] && kill -0 "${pid}" 2>/dev/null; then
+		exit 0
+	fi
+	command rm -rf "${lock}"
+	command mkdir "${lock}" 2>/dev/null || exit 0
+fi
+trap 'command rm -rf "${lock}"' EXIT
+printf '%s\n' "$$" >"${lock}/pid"
+
+stamp="${state}/last-start"
+now="$(command date +%s)"
+last="$(command stat -f %m "${stamp}" 2>/dev/null || echo 0)"
+if ((now - last < ${CD_LATENCY_COOLDOWN_S:-1800})); then
+	exit 0
+fi
+: >"${stamp}"
+
+session_log="${state}/session-$(command date +%Y%m%d-%H%M%S).log"
+repo="${HOME}/Developer/Personal/dev-profile"
+command cd "${repo}" 2>/dev/null || exit 0
+
+read -r -d '' prompt <<EOF || true
+A zsh cd just took ${ms} ms to reach the next prompt (into ${dir}). The rule: the blocking part of a cd stays within about 100 ms (a cd over 300 ms is a bug); everything else must run in the background (detached with &!). Fix the cause.
+
+Evidence: ${log} (tab-separated: time, ms, from, to, command). Read its newest lines first. Each line is the time from Enter to the prompt being ready, measured by ~/.config/zsh/cd-latency.zsh.
+
+Method:
+1. Load the skill time-zsh-cd-hooks-without-shim-skew and time every chpwd/precmd hook individually in the slow directory. Time from a real pty (zsh/zpty driving zsh -i, then read \$_cdlat_last_ms); a run with stdin not a tty takes a different, synchronous prompt path and misleads. Check the directory too: git status there, number of packs, hung git/starship/portless processes.
+2. Fix the root cause in ~/Developer/Personal/dev-profile (shell/zsh, bin). Edit in a worktree: wt switch -c <branch> --no-cd. Commit signed with a conventional subject of 60 characters or fewer. Land with wt merge -y main. Commit hooks and wt merge can each take minutes: run them in the background and wait. Never edit the main checkout.
+3. Apply live: back up the file to ~/.local/state/dev-profile/backups/, copy the repo file into ~/.config/zsh/, and re-time with the same pty harness. Done means the blocking cd is within 100 ms there, or you recorded exactly what blocks it and why it cannot be backgrounded.
+
+Constraints: run every command through run_command. Do not kill processes you did not start. Do not edit ~/.config/mise/config.toml. Never print environment variables or secrets. Do not touch cd-latency logging itself except to fix a bug in it.
+EOF
+
+exec timeout "${CD_LATENCY_SESSION_TIMEOUT_S:-3600}" omp --auto-approve --model @task \
+	--config "${HOME}/.omp/agent/overlays/pin-model.yml" -p "${prompt}" \
+	>"${session_log}" 2>&1 </dev/null

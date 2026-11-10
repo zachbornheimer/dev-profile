@@ -17,22 +17,27 @@ _enter_converge_enabled() {
 	(($+commands[dev-profile-enter]))
 }
 
-# Cheap gate: one fork per cd is fine; a fork in every random directory is not.
-# The worker proves the rest (git root, serve command) for itself.
-_enter_converge_is_project() {
+# Cheap gate: file tests are builtins, so a directory with no marker costs
+# nothing. Only the .gitmodules case needs git, and that forks in the detached
+# subshell, never on the cd path. The worker proves the rest (git root, serve
+# command) for itself.
+_enter_converge_has_marker() {
 	emulate -L zsh
 	local d="${1:-.}"
 	[[ -f $d/mise.toml || -f $d/.mise.toml || -f $d/package.json ||
 		-f $d/pyproject.toml || -f $d/go.mod || -f $d/composer.json ||
-		-f $d/Gemfile || -f $d/aube-lock.yaml || -f $d/uv.lock ]] && return 0
-	[[ -f $d/.gitmodules ]] || return 1
-	git -C "$d" rev-parse --is-inside-work-tree >/dev/null 2>&1
+		-f $d/Gemfile || -f $d/aube-lock.yaml || -f $d/uv.lock ]]
 }
 
 _enter_converge_chpwd() {
 	_enter_converge_enabled || return 0
-	_enter_converge_is_project "$PWD" || return 0
-	dev-profile-enter "$PWD" &!
+	if _enter_converge_has_marker "$PWD"; then
+		dev-profile-enter "$PWD" >/dev/null 2>&1 </dev/null &!
+	elif [[ -f $PWD/.gitmodules ]]; then
+		(
+			git rev-parse --is-inside-work-tree >/dev/null 2>&1 && exec dev-profile-enter "$PWD"
+		) >/dev/null 2>&1 </dev/null &!
+	fi
 }
 
 add-zsh-hook -D chpwd _enter_converge_chpwd 2>/dev/null
