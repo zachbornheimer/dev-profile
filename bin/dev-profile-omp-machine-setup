@@ -20,26 +20,56 @@ shims_dir="${MISE_DATA_DIR:-$HOME/.local/share/mise}/shims"
 mkdir -p "$HOME/.local/bin"
 ln -sfn "$shims_dir/omp" "$HOME/.local/bin/omp"
 
-# Install the reference-transaction hook (see the header comment).
-REPO_DIR="$HOME/Developer/Personal/oh-my-pi"
-
-[ -d "$REPO_DIR/.git" ] || exit 0
-mkdir -p "$REPO_DIR/.git/hooks"
-cat >"$REPO_DIR/.git/hooks/reference-transaction" <<'EOF'
+# Install the reference-transaction hook in oh-my-pi and any fork repo under
+# ~/Developer that tracks an `upstream` remote or holds `.omp-build/`.
+install_fork_reference_transaction_hook() {
+	local repo_dir="$1"
+	local is_omp="$2"
+	[ -d "$repo_dir/.git" ] || return 0
+	mkdir -p "$repo_dir/.git/hooks"
+	cat >"$repo_dir/.git/hooks/reference-transaction" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
-state="${1:-}"
-[ "$state" = "prepared" ] || exit 0
-origin_main_sha="$(git rev-parse --verify -q refs/remotes/origin/main 2>/dev/null || true)"
-[ -n "$origin_main_sha" ] || exit 0
+state="\${1:-}"
+[ "\$state" = "prepared" ] || exit 0
+is_omp="$is_omp"
+origin_main_sha="\$(git rev-parse --verify -q refs/remotes/origin/main 2>/dev/null || true)"
 while read -r _old_value new_value ref_name; do
-	if [ "$ref_name" = "refs/heads/main" ]; then
-		if [ "$new_value" != "0000000000000000000000000000000000000000" ] && [ "$new_value" != "$origin_main_sha" ]; then
-			echo "ERROR [oh-my-pi reference-transaction]: refs/heads/main is read-only and must match origin/main ($origin_main_sha)." >&2
-			echo "Never commit or merge onto 'main' in oh-my-pi. Keep changes on a topic branch pushed to 'fork' and listed in the fork's .github/omp-rebuild.toml so CI builds them." >&2
+	if [ "\$is_omp" = "1" ] && [ "\$ref_name" = "refs/heads/main" ] && [ -n "\$origin_main_sha" ]; then
+		if [ "\$new_value" != "0000000000000000000000000000000000000000" ] && [ "\$new_value" != "\$origin_main_sha" ]; then
+			echo "ERROR [oh-my-pi reference-transaction]: refs/heads/main must match origin/main (\$origin_main_sha)." >&2
+			echo "origin/main is upstream plus one carry commit, changed only through the fork (see the updating-oh-my-pi skill). Put changes on a topic branch pushed to 'origin' and add a file under .omp-build/branches/ so CI builds it." >&2
 			exit 1
 		fi
 	fi
+	case "\$ref_name" in
+		refs/heads/assembled|refs/heads/next|refs/heads/seen)
+			if [ "\$new_value" != "0000000000000000000000000000000000000000" ]; then
+				short_branch="\${ref_name#refs/heads/}"
+				remote_sha="\$(git rev-parse --verify -q "refs/remotes/origin/\$short_branch" 2>/dev/null || true)"
+				if [ "\$new_value" != "\$remote_sha" ] && ! git rev-parse --verify -q "\${new_value}^2" >/dev/null 2>&1; then
+					echo "ERROR [fork reference-transaction]: \$ref_name is an integration branch; direct non-merge commits and cherry-picks are forbidden." >&2
+					echo "Create a topic branch off origin/main instead and register it under .omp-build/branches/<topic>.toml." >&2
+					exit 1
+				fi
+			fi
+			;;
+	esac
 done
 EOF
-chmod +x "$REPO_DIR/.git/hooks/reference-transaction"
+	chmod +x "$repo_dir/.git/hooks/reference-transaction"
+}
+
+REPO_DIR="$HOME/Developer/Personal/oh-my-pi"
+install_fork_reference_transaction_hook "$REPO_DIR" "1"
+
+for root in "$HOME/Developer/Personal" "$HOME/Developer/Software-Automation-Holdings"; do
+	[ -d "$root" ] || continue
+	for candidate in "$root"/*; do
+		[ -d "$candidate/.git" ] || continue
+		[ "$candidate" = "$REPO_DIR" ] && continue
+		if [ -d "$candidate/.omp-build" ] || git -C "$candidate" remote get-url upstream >/dev/null 2>&1; then
+			install_fork_reference_transaction_hook "$candidate" "0"
+		fi
+	done
+done

@@ -41,6 +41,7 @@ from orchestrator_only_git import dash_c_dir, skip_global_options
 HOOK_NAME = "main-branch-guard"
 
 PROTECTED_BRANCHES = frozenset({"main", "master"})
+INTEGRATION_BRANCHES = frozenset({"assembled", "next", "seen"})
 MUTATING_SUBCOMMANDS = frozenset(
     {"commit", "merge", "cherry-pick", "rebase", "am", "revert", "reset"}
 )
@@ -65,12 +66,18 @@ WORKTRUNK_FLOW = (
     "then `wt step commit`; land with `wt land` or open a PR with `wt pr`."
 )
 OH_MY_PI_FLOW = (
-    "oh-my-pi's `main` is a read-only mirror of can1357/oh-my-pi. Create a topic "
-    "branch off origin/main (`wt switch --create <branch> --base origin/main`), "
-    "push it to `fork` first (a listed branch missing from `fork` fails the whole "
-    "CI assembly), then add a {branch, reason} entry to the BRANCH_MANIFEST JSON "
-    "array in `.github/workflows/omp-build.yml` on the fork's default branch `ci` "
-    "so CI builds the next release."
+    "oh-my-pi's `main` is upstream plus one carry commit (.omp-build/ and "
+    ".github/workflows/omp-build.yml). Create a topic branch off upstream/main "
+    "or origin/main (`wt switch --create feat/<slug> --base origin/main`), "
+    "push it to `origin`, and register `.omp-build/branches/<branch>.toml` on "
+    "`main` so `omp-build` assembles it ephemerally."
+)
+INTEGRATION_FLOW = (
+    "Integration branches (`assembled`, `next`, `seen`) only integrate topic "
+    "branches via `git merge` (with `rerere.enabled=true`); never commit, "
+    "cherry-pick, or rebase directly onto an integration branch. Put the change "
+    "on its own topic branch (`feat/<slug>` or `fix/<slug>`) off `origin/main` "
+    "and register it in `.omp-build/branches/<branch>.toml`."
 )
 
 
@@ -135,8 +142,22 @@ def _has_flag(args: list[str], flags: frozenset[str]) -> bool:
     return any(arg.split("=", 1)[0] in flags for arg in args)
 
 
-def push_targets_default_branch(args: list[str], branch: str) -> bool:
-    """True when a push's refspecs (or its implicit current branch) write main."""
+def _merge_in_progress(repo: str) -> bool:
+    path = _git(repo, "rev-parse", "--git-path", "MERGE_HEAD")
+    if not path:
+        return False
+    full = path if os.path.isabs(path) else os.path.join(repo, path)
+    return os.path.isfile(full)
+
+
+def _is_merge_commit(repo: str, rev: str) -> bool:
+    if not _git(repo, "rev-parse", "-q", "--verify", f"{rev}^{{commit}}"):
+        # Unknown local ref: fail open rather than blocking an unrelated command.
+        return True
+    return bool(_git(repo, "rev-parse", "-q", "--verify", f"{rev}^2"))
+
+
+def _push_refspecs(args: list[str]) -> list[str]:
     positionals: list[str] = []
     skip_next = False
     for arg in args:
@@ -149,9 +170,12 @@ def push_targets_default_branch(args: list[str], branch: str) -> bool:
         if arg.startswith("-"):
             continue
         positionals.append(arg)
+    return positionals[1:] if positionals else []
 
-    # positionals[0] is the remote when present; the rest are refspecs.
-    refspecs = positionals[1:] if positionals else []
+
+def push_targets_default_branch(args: list[str], branch: str) -> bool:
+    """True when a push's refspecs (or its implicit current branch) write main."""
+    refspecs = _push_refspecs(args)
     if not refspecs:
         return branch in PROTECTED_BRANCHES
     for refspec in refspecs:
@@ -166,10 +190,48 @@ def push_targets_default_branch(args: list[str], branch: str) -> bool:
     return False
 
 
+def push_writes_non_merge_to_integration(
+    repo: str, args: list[str], branch: str
+) -> bool:
+    """True when a push writes a single-parent commit to an integration branch."""
+    refspecs = _push_refspecs(args)
+    if not refspecs:
+        return branch in INTEGRATION_BRANCHES and not _is_merge_commit(repo, "HEAD")
+    for refspec in refspecs:
+        clean = refspec.lstrip("+")
+        if not clean:
+            continue
+        if ":" in clean:
+            source, destination = clean.split(":", 1)
+            source = source.strip()
+        else:
+            source, destination = clean.strip(), clean.strip()
+        if not source:
+            # Deletion refspec (`:branch`) is allowed.
+            continue
+        destination = destination.strip()
+        if destination == "HEAD":
+            destination = branch
+        destination = destination.removeprefix("refs/heads/")
+        if destination in INTEGRATION_BRANCHES and not _is_merge_commit(
+            repo, source
+        ):
+            return True
+    return False
+
+
 def _deny(shown: str, flow: str, detail: str) -> Decision:
     return Decision.deny(
         f"`{shown}` writes to the default branch, which agents must not do "
         f"directly. {flow}",
+        log_detail=detail,
+    )
+
+
+def _deny_integration(shown: str, detail: str) -> Decision:
+    return Decision.deny(
+        f"`{shown}` writes a non-merge change directly to an integration branch. "
+        f"{INTEGRATION_FLOW}",
         log_detail=detail,
     )
 
@@ -203,6 +265,14 @@ def decide(event: HookEvent) -> Decision | None:
             wt_args = skip_global_options(argv[1:])
             sub = wt_args[0] if wt_args else ""
             if (
+                sub == "step"
+                and len(wt_args) > 1
+                and wt_args[1] == "commit"
+                and branch in INTEGRATION_BRANCHES
+                and not _merge_in_progress(repo)
+            ):
+                return _deny_integration(shown, "wt-step-commit-integration")
+            if (
                 sub in WT_SUBCOMMANDS
                 and in_oh_my_pi
                 and "omp-build" not in " ".join(wt_args[1:])
@@ -214,14 +284,22 @@ def decide(event: HookEvent) -> Decision | None:
         if sub == "push":
             if push_targets_default_branch(args, branch):
                 return _deny(shown, flow, "push-main")
+            if push_writes_non_merge_to_integration(repo, args, branch):
+                return _deny_integration(shown, "push-non-merge-integration")
             continue
         if sub not in MUTATING_SUBCOMMANDS:
-            continue
-        if branch not in PROTECTED_BRANCHES:
             continue
         if _has_flag(args, IN_PROGRESS_FLAGS):
             continue
         if sub == "reset" and not _has_flag(args, RESET_MUTATING_FLAGS):
+            continue
+        if branch in INTEGRATION_BRANCHES:
+            if sub == "merge":
+                continue
+            if sub == "commit" and _merge_in_progress(repo):
+                continue
+            return _deny_integration(shown, f"{sub}-integration")
+        if branch not in PROTECTED_BRANCHES:
             continue
         return _deny(shown, flow, f"{sub}-main")
 
