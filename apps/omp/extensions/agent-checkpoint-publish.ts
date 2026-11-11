@@ -399,7 +399,7 @@ export function buildCheckpointRef(
   if (!/^t\d+$/.test(turnId)) return { error: "blocked-namespace" };
   if (!/^[0-9a-f]{40}$/.test(sha)) return { error: "blocked-namespace" };
   const short = `agent-checkpoints/${repoSlug}/${branchSlug}/${turnId}-${sha}`;
-  const ref = `${OWNED_REF_PREFIX}${short}`;
+  const ref = `refs/heads/${short}`;
   if (ref.length > MAX_REF_BYTES) return { error: "blocked-namespace" };
   return { ref, short };
 }
@@ -563,27 +563,26 @@ function toIso(ms: number): string {
   return new Date(ms).toISOString();
 }
 
-function turnCounter(repoCommonDir: string): number {
+function repositoryJobs(repoCommonDir: string): JobRecord[] {
   const jobsDir = path.join(stateDir(), "jobs");
-  if (!deps.exists(jobsDir)) return 1;
-  let count = 0;
+  if (!deps.exists(jobsDir)) return [];
+  const jobs: JobRecord[] = [];
   try {
-    const files = readdirSyncSafe(jobsDir);
-    for (const file of files) {
+    for (const file of readdirSyncSafe(jobsDir)) {
       if (!file.endsWith(".json")) continue;
       const text = deps.readFile(path.join(jobsDir, file));
       if (!text) continue;
       try {
         const job = JSON.parse(text) as JobRecord;
-        if (job.repoCommonDir === repoCommonDir) count++;
+        if (job.repoCommonDir === repoCommonDir) jobs.push(job);
       } catch {
-        // a corrupt record does not reset the counter
+        // a corrupt record does not reset the turn counter
       }
     }
   } catch {
-    // unreadable dir: start at 1
+    // unreadable dir: no history
   }
-  return count + 1;
+  return jobs;
 }
 
 function readdirSyncSafe(dir: string): string[] {
@@ -612,7 +611,12 @@ export function repositoryReport(repoDir: string, enrollment: Enrollment | null)
   const sha = headInfo.stdout.trim();
   const branchInfo = runGit(["branch", "--show-current"], { cwd: repoDir, timeout: 10000 });
   const branchSlug = slugify((branchInfo.code === 0 ? branchInfo.stdout.trim() : "") || "head") || "head";
-  const turnId = `t${String(turnCounter(repoCommonDir)).padStart(4, "0")}`;
+  // R8.1: the same commit in the same repository keeps its ref and its job
+  const priorJobs = repositoryJobs(repoCommonDir);
+  const sameCommit = priorJobs
+    .filter((job) => job.sha === sha)
+    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))[0];
+  const turnId = sameCommit?.turnId ?? `t${String(priorJobs.length + 1).padStart(4, "0")}`;
   const built = buildCheckpointRef(entry.slug, branchSlug, turnId, sha);
   if ("error" in built) return { outcome: built.error };
   const key = jobKey(repoCommonDir, built.ref, sha);
@@ -986,8 +990,13 @@ function lsRemoteCeilingMs(): number {
   return Number.isFinite(raw) && raw > 0 ? raw : 5_000;
 }
 
+/**
+ * `mise dot` state is machine-global (the global config's [dotfiles] and the
+ * history repository), so every call runs from HOME: a project directory's own
+ * mise.toml must not be loaded, or trust-checked, for a turn-end status read.
+ */
 function runMise(args: string[], timeoutMs: number): RunResult {
-  return deps.spawn("mise", args, { timeout: timeoutMs });
+  return deps.spawn("mise", args, { cwd: home(), timeout: timeoutMs });
 }
 
 export function readMiseStatus(): MiseStatusHistory | null {
@@ -1289,7 +1298,7 @@ export function reconcileMise(declaredCanonical: string | null, declaredPresent:
     declaredCanonical,
     declaredDestinationPresent: declaredPresent,
     liveOrigin: origin,
-    originReachable: probe.reachable ? true : null,
+    originReachable: origin ? probe.reachable : null,
   });
 
   if (decision.outcome === "blocked" || decision.outcome === "pending" || decision.outcome === "scheduled") {
@@ -1374,9 +1383,15 @@ export function reconcileMise(declaredCanonical: string | null, declaredPresent:
       remoteHead: postRemoteHead,
     };
   }
+  const postBlockedReason = !postProbe.reachable
+    ? "offline"
+    : (postSync.conflicts ?? []).length > 0
+    ? "conflict"
+    : "failing";
   return {
     outcome: "blocked",
-    reason: "failing",
+    reason: postBlockedReason,
+    conditions: [{ reason: postBlockedReason, message: verification.detail ?? "sync did not verify" }],
     detail: verification.detail,
     syncRan: true,
     localHead: postLocalHead,
