@@ -892,7 +892,8 @@ export function runCheckpointWorker(key: string): RepoOutcome | null {
     }
 
     const unique = revListNot(repoDir, job.sha, present);
-    const allowed = new Set([...job.provenance, ...revListNot(repoDir, job.sha, job.provenanceTips)]);
+    const expanded = job.provenanceTips.length > 0 ? revListNot(repoDir, job.sha, job.provenanceTips) : [];
+    const allowed = new Set([...job.provenance, ...expanded]);
     if (!unique.every((commit) => allowed.has(commit))) {
       return finish("blocked-provenance", "a commit outside the recorded provenance list would be pushed");
     }

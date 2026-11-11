@@ -298,7 +298,7 @@ async function waitUntil<T>(fn: () => T | undefined, timeoutMs: number, what: st
 // Git repository fixtures
 // ---------------------------------------------------------------------------
 
-function makeGitRepo(dir: string, opts: { sign?: boolean } = {}): string {
+function makeGitRepo(dir: string, opts: { sign?: boolean; seed?: string } = {}): string {
   mkdirSync(dir, { recursive: true });
   const sign = opts.sign ?? true;
   sh("git", ["init", "-b", "main", dir], process.env);
@@ -311,7 +311,7 @@ function makeGitRepo(dir: string, opts: { sign?: boolean } = {}): string {
     config.push(["gpg.format", "ssh"], ["user.signingkey", signingKey], ["gpg.ssh.allowedSignersFile", signersFile]);
   }
   for (const [key, value] of config) sh("git", ["-C", dir, "config", key, value], process.env);
-  commitFile(dir, "README.md", "initial\n", "initial commit");
+  commitFile(dir, "README.md", `initial ${opts.seed ?? ""}\n`, `initial commit ${opts.seed ?? ""}`.trim());
   return dir;
 }
 
@@ -1028,7 +1028,7 @@ describe("repository outcome (ZYS-9037 rebuild)", () => {
     const sb = makeSandbox();
     const dest = path.join(sb.root, "dest.git");
     sh("git", ["init", "--bare", "-b", "main", dest], process.env);
-    const unrelated = makeGitRepo(path.join(sb.root, "unrelated"));
+    const unrelated = makeGitRepo(path.join(sb.root, "unrelated"), { seed: "unrelated" });
     const unrelatedSha = commitFile(unrelated, "u.txt", "u\n", "unrelated commit");
     sh("git", ["-C", unrelated, "push", dest, `${unrelatedSha}:refs/heads/main`], process.env);
     const repo = makeGitRepo(path.join(sb.root, "repo"));
