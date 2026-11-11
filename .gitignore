@@ -1,5 +1,3 @@
-# Sources, and the xdg render of them the gate reads. `mise dot apply` installs
-# them; `mise run generate` is refused.
 *
 !/.gitignore
 !/README.md
@@ -25,7 +23,6 @@
 !/tools/*/*.pkl
 !/tests/
 !/tests/*.sh
-!/tests/*.pkl
 !/tests/*.pcf
 !/tests/kitty_tabs.py
 !/tests/contract/
@@ -41,6 +38,8 @@
 !/hk/*
 !/config/
 !/config/*
+!/config/agent-checkpoints/
+!/config/agent-checkpoints/*
 !/languages/
 !/languages/**
 !/profile/
