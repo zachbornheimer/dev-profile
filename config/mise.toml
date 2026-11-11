@@ -200,6 +200,7 @@ recipients = ["age1qpl3tghy0660prmvz3x2dqjsn69m588e0j0v56ec0rswkujgyshs64dhtc"]
 "~/.omp/agent/extensions/capability-wake.ts" = { mode = "track", encrypt = true }
 "~/.omp/agent/extensions/collapsible-blocks.ts" = { mode = "track", encrypt = true }
 "~/.omp/agent/extensions/draft-stash.ts" = { mode = "track", encrypt = true }
+"~/.omp/agent/extensions/file-edit" = { mode = "track", encrypt = true, exclude = ["**/node_modules/**"] }
 "~/.omp/agent/extensions/herdr-omp-agent-state.ts" = { mode = "track", encrypt = true }
 "~/.omp/agent/extensions/learn-command.ts" = { mode = "track", encrypt = true }
 "~/.omp/agent/extensions/machine-host-context.ts" = { mode = "track", encrypt = true }
