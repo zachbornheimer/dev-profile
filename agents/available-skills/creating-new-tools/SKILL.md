@@ -45,12 +45,12 @@ path selects the tool correctly.** Test discovery separately from execution.
 
 Decide by **who invokes it**, before anything else.
 
-| The request                                                                                                                                                   | Home                                                                                                                  | Load                   |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ---------------------- |
-| A tool or fixed workflow an omp agent calls, and nothing outside omp needs it: "a new tool for omp", "port this workflow to omp", "a workflow is just a tool" | one custom-tool file: `~/.omp/agent/tools/<name>.ts` (personal) or `.omp/tools/<name>.ts` in a repo (CI-built) (§4.2) | this skill             |
-| A tool any agent calls, including non-omp harnesses or the MCP gateway: "add it to zab-ai", "expose it over MCP"                                              | `@zab-ai/ai` kit + Mastra mount, plus an omp adapter when native (§4, §4.1)                                           | this skill             |
-| Behavior the user triggers or sees: slash command, display toggle, transcript hide, session hook                                                              | extension in `~/.omp/agent/extensions/`, auto-discovered                                                              | `updating-oh-my-pi` §1 |
-| A bug or feature in omp itself, or landing a branch into the custom build                                                                                     | topic branch on the fork, listed on `ci`                                                                              | `updating-oh-my-pi` §2 |
+| The request                                                                                                                              | Home                                                                                                                                                                                     | Load                   |
+| ---------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
+| A tool or fixed workflow an omp agent calls ("a new tool for omp", "port this tool/workflow to omp", "move X into `~/.omp/agent/tools`") | self-contained in `~/.omp/agent/tools/<name>.ts` or `~/.omp/agent/tools/<name>/index.ts` (personal) or `.omp/tools/<name>.ts` in a repo (§4.2); zero `@zab-ai/ai` or `@mastra/*` imports | this skill (§4.2)      |
+| A tool non-omp harnesses call over the MCP gateway ("expose it over MCP", "add it to zab-ai")                                            | `@zab-ai/ai` kit + Mastra mount (§4); `mastra/adapters/omp/zab-ai-tools` (§4.1) is legacy and being migrated into `~/.omp/agent/tools/`                                                  | this skill (§4)        |
+| Behavior the user triggers or sees: slash command, display toggle, transcript hide, session hook                                         | self-contained extension in `~/.omp/agent/extensions/`, auto-discovered                                                                                                                  | `updating-oh-my-pi` §1 |
+| A bug or feature in omp itself, or landing a branch into the custom build                                                                | topic branch on the fork, listed on `ci`                                                                                                                                                 | `updating-oh-my-pi` §2 |
 
 "An extension to OhMyPie that does X, Y, and Z" is ambiguous. If an agent calls
 X, Y, and Z, it is a tool: continue here. If the user invokes or watches them,
@@ -187,6 +187,12 @@ Prefer `enum`, discriminated union, constrained string, or a single source objec
 over ambiguous combinations. Reject unsupported states early. Do not make agents
 supply data the runtime can safely derive.
 
+**Wire-schema and description budget (measured 2026-11-10/11):**
+
+- Every character in a disclosed (top-level) tool's `description` and JSON Schema is sent on **every turn**. Compacting `run_command` in `~/.omp/agent/tools/run_command/` from 10,598 wire chars (4,515 desc + 5,999 schema) to 3,832 wire chars (1,222 desc + 2,610 schema) cut startup cost by **2,508 tokens per turn** (~10,000 tokens over a 4-turn task) while keeping a 100% pass rate.
+- Never paste JSON schemas, multi-paragraph tutorials, or repeated constraint prose (`{minLength: 1}`, `{exclusiveMinimum: 0}`) into `.describe(...)`. Keep field descriptions to one short phrase (`"Max 300"`, `"Absolute; default session cwd"`), and enforce value refinements and cross-field rules per variant `type` inside `execute()` / `validateInput()` with a clear error message instead of inflating the wire JSON Schema with `oneOf` unions.
+- Keep required fields explicit in `z.object({ ... })` (avoid making the primary argument `.optional()` unless `{}` is a valid call). `onUserPromptSubmit.ts` (`argsExample` and `readToolSource`) builds the `<tools>` `how-to-call` example from required fields; when a tool has no required fields (and no `command` property), its `how-to-call` shows `args: {}`, which causes agents to call `tool_call` with empty args and burn an extra turn.
+
 For outputs, document the shape and semantics: stable IDs, observed vs. inferred
 facts, warnings, partial results, and failure status. Prefer compact, structured,
 high-signal results to verbose narration. Never disguise a failed operation as
@@ -207,8 +213,10 @@ Exercise the actual `tool_search` and `UserPromptSubmit` suggestion path where
 available. Check both whether the correct tool is found and whether incorrect
 suggestions are suppressed. Do not claim tests for a route you cannot exercise.
 
-Run the real suggestion path and read the confidence it gives each pick. The
-`UserPromptSubmit` hook (`prompt.submit`) calls this capability:
+Run the real suggestion path and read the shortlist and `how-to-call` examples it produces:
+
+- **In omp (primary):** `UserPromptSubmit` lives self-contained in `~/.omp/agent/extensions/onUserPromptSubmit.ts` (`discoverTools`, `discoverSkills`, `discoverMcpTools`, `retrieveShortlist`). Test discovery and `how-to-call` rendering with `cd ~/.omp/agent/extensions/hooks && bun test user_prompt_submit.test.ts`, and inspect live fire logs in `~/.local/state/omp-hooks/onUserPromptSubmit.jsonl`.
+- **In Mastra (legacy gateway):**
 
 ```sh
 cd ~/Developer/Personal/capability-replicas/mastra
@@ -377,16 +385,37 @@ Facts that cost time when missed:
   hook) is not an adapter. It is an extension in `~/.omp/agent/extensions/`; load
   `updating-oh-my-pi` §1.
 
-### 4.2 Native omp custom tool, no Mastra (default for omp-only work)
+### 4.2 Native omp custom tool, no Mastra (default for omp work)
 
 A workflow is a tool. A fixed workflow is one custom tool whose `execute()` runs
 ordinary functions in a fixed order; the model calls the tool, not the steps.
-No `@zab-ai/ai`, no Mastra mount, no gateway. Everything below was exercised
-while porting `get_recent_turns` (a deterministic workflow with no model step).
+No `@zab-ai/ai`, no Mastra mount, no gateway.
 
-**Where.** `~/.omp/agent/tools/<name>.ts` (or `<name>/index.ts`) for a personal
-tool; `.omp/tools/<name>.ts` inside a repo for a project tool. The oh-my-pi fork
-builds `.omp/tools/**` and `.omp/tests/**` in CI, so put shared tools there.
+**Where.** `~/.omp/agent/tools/<name>.ts` (or `~/.omp/agent/tools/<name>/index.ts`
+when the tool has helper modules and unit tests, like `~/.omp/agent/tools/run_command/`)
+for a personal tool; `.omp/tools/<name>.ts` inside a repo for a project tool.
+The oh-my-pi fork builds `.omp/tools/**` and `.omp/tests/**` in CI, so put shared
+repo tools there.
+
+**Visibility: disclosed upfront vs lazy (`hidden: true`, `loadMode: "discoverable"`).**
+
+- Only the tiny startup core (`run_command`, `write`, `read`, `tool_search`,
+  `tool_call`, `skill_search` in the 6-tool `lean` benchmark config — 117.6k
+  tokens/task and 33.7 s vs 752.6k tokens/task and 63.5 s with all 168 tools
+  disclosed) belongs on the top-level startup tool list.
+- **Every other custom tool in `~/.omp/agent/tools/` MUST set both `hidden: true`
+  and `loadMode: "discoverable"`** on the object returned by the factory:
+  - `hidden: true` keeps omp from sending the tool's schema on every turn (**0
+    startup tokens**).
+  - `loadMode: "discoverable"` is the valid `ToolLoadMode` value (`"essential" |
+    "discoverable"`; `"hidden"` is **not** a valid `loadMode` and triggers an
+    `audit_startup` finding).
+  - `onUserPromptSubmit.ts` (`readToolSource`) and `tool_search`
+    (`discoverDiskCustomTools`) still scan `~/.omp/agent/tools/<name>.ts` and
+    `~/.omp/agent/tools/<name>/index.ts` on disk, surface the tool in the
+    per-prompt `<tools>` XML block (with required field names extracted from
+    `z.object({ ... })`) and in `tool_search` results, and `tool_call({ address:
+    "omp/<name>", args })` executes the factory in-process on demand.
 
 **Shape.** Default-export a `CustomToolFactory`, not an extension:
 
@@ -399,7 +428,12 @@ const factory: CustomToolFactory = (pi) => {
     name: "<name>",
     label: "<Label>",
     description: "<routing contract, §2.1>",
-    parameters: z.object({/* fields with .describe(...) */}),
+    hidden: true,
+    loadMode: "discoverable",
+    parameters: z.object({
+      // Keep required fields non-optional in z.object({ ... }) so
+      // onUserPromptSubmit.ts extracts them into the how-to-call example.
+    }),
     async execute(_toolCallId, params, onUpdate, ctx, signal) {
       // ctx.sessionManager is the live session; pi.exec runs subprocesses.
       return {
@@ -427,26 +461,35 @@ export default factory;
 - **No MCP time limit.** `execute()` has none, so a long workflow is fine if it
   sends `onUpdate` heartbeats (see `~/.omp/agent/tools/ask_mastra.ts`), passes
   `signal` to `pi.exec` and every await, and clears its timers in `finally`.
-- **Self-contained.** `@mastra/*` does not resolve inside the omp process. Copy
-  the few modules the tool needs next to it; do not import the Mastra repo.
+- **Self-contained.** Zero imports from `@zab-ai/ai`, `@mastra/*`, or
+  `capability-replicas`. Put helper modules and unit tests inside
+  `~/.omp/agent/tools/<name>/` (with `index.ts` as the entry point).
 
-**Workflow steps.** Keep steps as plain functions in the same module, called in
-order by `execute()`. For a judgment step, spawn `omp -p` or `--mode rpc` with a
-schema through `pi.exec`, as `work_ticket_with_omp` does. There is no suspend and
-resume: record each step's result (an `atask` log or a JSON state file) so a
-rerun skips finished steps, and say in the description when a run is not
-resumable.
+**Workflow steps.** Keep steps as plain functions in the same module (or sibling
+files in `~/.omp/agent/tools/<name>/`), called in order by `execute()`. For a
+judgment step, spawn `omp -p` or `--mode rpc` with a schema through `pi.exec`,
+as `work_ticket_with_omp` does. There is no suspend and resume: record each
+step's result (an `atask` log or a JSON state file) so a rerun skips finished
+steps, and say in the description when a run is not resumable.
 
-**Loading.** Tool files load once at session start. The installed omp (18.16.0)
-does not pick up a new or edited tool in a running session; restart it. Hot
-reload (`/reload-plugins`, or `tools.hotReload`) exists on the fork branch
-`feat/hot-reload-tools` and is not in the installed build until that lands.
-Load failures are silent in the session and logged as `Custom tool load failed`
-in `~/.omp/logs/omp.<date>.<pid>.log`.
+**Loading and `tool_call` execution gotchas.**
 
-**Replacing a Mastra capability.** Keep the same name only after the Mastra
-twin is retired. While both exist, an agent that cannot find the native tool
-falls back to `capability/run_<name>` without saying so.
+- Top-level tool files load at session start; restart (or `omp_restart`) to pick
+  up top-level schema changes. Load failures are silent in the session and
+  logged as `Custom tool load failed` in `~/.omp/logs/omp.<date>.<pid>.log`.
+- When invoked lazily via `tool_call({ address: "omp/<name>", args })`,
+  `executeCustomTool` dynamically imports `~/.omp/agent/tools/<name>.ts` (or
+  `<name>/index.ts`). A newly created file in `~/.omp/agent/tools/` is callable
+  immediately via `tool_call` in a running session, **but** Bun caches the ES
+  module by file URL per process—subsequent edits to that file will not take
+  effect inside `tool_call` until the omp session restarts.
+- While `extensions/zab-ai-tools` remains installed, its `host.hosted` map takes
+  precedence over `~/.omp/agent/tools/<name>` inside `tool_call({ address:
+  "omp/<name>" })` (even though `~/.omp/agent/tools/<name>` wins for direct
+  top-level calls). And any omp builtin or extension tool that is hidden from
+  the top-level allowlist without a corresponding entry in `~/.omp/agent/tools/`
+  or `host.hosted` fails inside `tool_call` with `omp hosts the tool "<name>"
+  itself and tool_call cannot run it`.
 
 ## 5. Write and validate model prompts only when needed
 
