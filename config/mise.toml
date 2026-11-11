@@ -157,9 +157,11 @@ recipients = ["age1qpl3tghy0660prmvz3x2dqjsn69m588e0j0v56ec0rswkujgyshs64dhtc"]
 "~/.config/git" = { mode = "track", encrypt = true }
 "~/.config/herdr/config.toml" = { mode = "track", encrypt = true }
 "~/.config/herdr/oneshot.sh" = { mode = "track", encrypt = true }
+"~/.config/herdr/oneshot-plugin" = { mode = "track", encrypt = true }
 "~/.config/herdr/plugins" = { mode = "track", encrypt = true }
 "~/.config/herdr/plugins.json" = { mode = "track", encrypt = true }
 "~/.config/herdr/session-tokens.py" = { mode = "track", encrypt = true }
+"~/.config/herdr/turn-recovery-plugin" = { mode = "track", encrypt = true }
 "~/.config/hk/config.pkl" = { source = "~/Developer/Personal/dev-profile/hk/hk.pkl" }
 "~/.config/htop" = { mode = "track", encrypt = true }
 "~/.config/kitty" = { mode = "track", encrypt = true, exclude = [
