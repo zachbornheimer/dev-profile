@@ -213,9 +213,7 @@ def push_writes_non_merge_to_integration(
         if destination == "HEAD":
             destination = branch
         destination = destination.removeprefix("refs/heads/")
-        if destination in INTEGRATION_BRANCHES and not _is_merge_commit(
-            repo, source
-        ):
+        if destination in INTEGRATION_BRANCHES and not _is_merge_commit(repo, source):
             return True
     return False
 

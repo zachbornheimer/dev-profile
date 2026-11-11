@@ -244,7 +244,16 @@ def test_git_reference_transaction_hook_blocks_non_upstream_main_mutation() -> N
 
     # Verify non-merge commit update on refs/heads/assembled is also rejected by reference-transaction.
     single_parent = subprocess.check_output(
-        ["git", "-C", str(omp_repo), "rev-list", "--max-parents=1", "-n", "1", "refs/remotes/origin/main"],
+        [
+            "git",
+            "-C",
+            str(omp_repo),
+            "rev-list",
+            "--max-parents=1",
+            "-n",
+            "1",
+            "refs/remotes/origin/main",
+        ],
         text=True,
     ).strip()
     proc_assembled = subprocess.run(
