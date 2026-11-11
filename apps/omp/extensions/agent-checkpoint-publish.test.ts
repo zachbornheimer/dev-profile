@@ -9,17 +9,7 @@
 // `mise dot bootstrap`, and never passes `--allow-plaintext-history`.
 import { beforeEach, describe, expect, setDefaultTimeout, test } from "bun:test";
 import { spawnSync } from "node:child_process";
-import {
-  chmodSync,
-  existsSync,
-  mkdirSync,
-  readdirSync,
-  readFileSync,
-  rmSync,
-  statSync,
-  utimesSync,
-  writeFileSync,
-} from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import * as acp from "./agent-checkpoint-publish.ts";
@@ -205,7 +195,7 @@ function makeSandbox(opts: SandboxOpts = {}): Sandbox {
     enrollmentPath: env.AGENT_CHECKPOINT_ENROLLMENT,
     env,
     miseRun(args, envOverride) {
-      return sh("mise", args, { ...env, ...(envOverride ?? {}) }, root);
+      return sh("mise", args, { ...env, ...envOverride }, root);
     },
     setMode(newMode) {
       const text = readFileSync(configPath, "utf8").replace(/sync = "(sync|fetch-only)"/, `sync = "${newMode}"`);
@@ -848,7 +838,7 @@ describe("repository outcome (ZYS-9037 rebuild)", () => {
       expect(ref.startsWith("refs/heads/agent-checkpoints/repo-a/main/t0001-")).toBe(true);
       // success proved by ls-remote read-back only (R2.5): no refs/remotes write
       expect(lsRemoteOf(dest, ref).shas).toEqual([sha]);
-      expect(readdirSync(path.join(repo, ".git", "refs", "remotes")).length).toBe(0);
+      expect(shOut("git", ["-C", repo, "for-each-ref", "refs/remotes"], process.env)).toBe("");
       // the hook fired exactly once: hooks on, no skip flags, one push
       expect(readFileSync(hookLog, "utf8").trim()).toBe("fired");
       // idempotent: a rerun on verified reports verified-present, pushes nothing (R8.1)
@@ -928,7 +918,7 @@ describe("repository outcome (ZYS-9037 rebuild)", () => {
     const dest = path.join(sb.root, "dest.git");
     sh("git", ["init", "--bare", "-b", "main", dest], process.env);
     const repo = makeGitRepo(path.join(sb.root, "repo"));
-    const sha = commitFile(repo, "work.txt", "collision\n", "collision commit");
+    commitFile(repo, "work.txt", "collision\n", "collision commit");
     enroll(sb, { repos: [{ slug: "repo-d", path: repo, canonical: dest }] });
     const report = buildReport(sb, repo, { spawnWorker: true });
     const key = report.repository!.jobKey!;
@@ -964,7 +954,7 @@ describe("repository outcome (ZYS-9037 rebuild)", () => {
     const dest = path.join(sb.root, "dest.git");
     sh("git", ["init", "--bare", "-b", "main", dest], process.env);
     const repo = makeGitRepo(path.join(sb.root, "repo"));
-    const sha = commitFile(repo, "work.txt", "df\n", "df commit");
+    commitFile(repo, "work.txt", "df\n", "df commit");
     // an existing ref that is a directory prefix of the checkpoint ref
     const blocker = makeGitRepo(path.join(sb.root, "blocker"));
     const blockerSha = commitFile(blocker, "b.txt", "b\n", "blocker commit");

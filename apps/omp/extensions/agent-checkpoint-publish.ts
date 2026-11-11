@@ -557,8 +557,6 @@ export function matchRepository(enrollment: Enrollment | null, repoCommonDir: st
 // Repository outcome at turn end (ADR sections 3, 5, 8)
 // ---------------------------------------------------------------------------
 
-const NON_TERMINAL: JobRecord["state"][] = ["queued", "pushing", "pushed"];
-
 function toIso(ms: number): string {
   return new Date(ms).toISOString();
 }
@@ -738,7 +736,7 @@ export function attemptBudgetMs(): number {
 }
 
 /** Push-destination derivation (ADR 7.1): dry-run -v, same URL for push and read-back. */
-export function resolvePushDestination(repoDir: string, canonical: string, timeoutMs: number):
+export function resolvePushDestination(repoDir: string, canonical: string, timeoutMs: number, refspec: string):
   | { kind: "resolved"; url: string; remote: string }
   | { kind: "hook-rejected"; stderr: string }
   | { kind: "unreachable"; stderr: string }
@@ -758,7 +756,7 @@ export function resolvePushDestination(repoDir: string, canonical: string, timeo
   }
   if (matching.length === 0) return { kind: "destination-changed" };
   const remote = matching[0];
-  const dry = runGit(["push", "--dry-run", "-v", remote.name], { cwd: repoDir, timeout: timeoutMs });
+  const dry = runGit(["push", "--dry-run", "-v", remote.name, refspec], { cwd: repoDir, timeout: timeoutMs });
   if (dry.code === null && dry.signal) return { kind: "timeout" };
   if (dry.code !== 0) {
     if (HOOK_REJECTION_RE.test(dry.stderr)) return { kind: "hook-rejected", stderr: dry.stderr };
@@ -834,7 +832,7 @@ export function runCheckpointWorker(key: string): RepoOutcome | null {
     setPushing();
     const startedAt = deps.now();
 
-    const destination = resolvePushDestination(repoDir, job.canonical, attemptBudgetMs());
+    const destination = resolvePushDestination(repoDir, job.canonical, attemptBudgetMs(), `${job.sha}:${job.ref}`);
     if (destination.kind === "destination-changed") return finish("blocked-destination-changed");
     if (destination.kind === "hook-rejected") {
       return finish("blocked-hook-rejected", "the pre-push hook rejected the checkpoint; local work is intact", {
@@ -877,9 +875,11 @@ export function runCheckpointWorker(key: string): RepoOutcome | null {
     const present = tips.filter((tip) =>
       runGit(["cat-file", "-e", `${tip}^{commit}`], { cwd: repoDir, timeout: 10000 }).code === 0
     );
-    if (present.length === 0) return finish("blocked-missing-baseline", "no advertised tip is present locally");
+    if (tips.length > 0 && present.length === 0) {
+      return finish("blocked-missing-baseline", "no advertised tip is present locally");
+    }
 
-    let related = false;
+    let related = present.length === 0; // an empty destination has nothing to share ancestry with
     for (const tip of present) {
       const base = runGit(["merge-base", job.sha, tip], { cwd: repoDir, timeout: 30000 });
       if (base.code === 0 && /^[0-9a-f]{40}/.test(base.stdout.trim())) {
@@ -1044,8 +1044,6 @@ export interface StampFacts {
 }
 
 export function manualSaveStampFacts(): StampFacts {
-  const everyS = parseInt(deps.env.MISE_HISTORY_MANUAL_SAVE_EVERY_S ?? "", 10);
-  const everyMs = (Number.isFinite(everyS) && everyS > 0 ? everyS : 86_400) * 1000;
   const logDir = resolveTilde(deps.env.MISE_HISTORY_LOG_DIR)
     ?? path.join(home(), ".local", "state", "mise-history-watchdog");
   const stamp = path.join(logDir, "manual-save.stamp");
