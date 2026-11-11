@@ -3,7 +3,9 @@ set -euo pipefail
 # The files on this branch are the source (mise.toml); mise run generate is
 # retired, so this wrapper is edited in place.
 
-profile_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+# The profile repo root, resolved through the installed bin symlink: the rc
+# files live at config/<tool>rc there (the installed dir holds no rc files).
+profile_repo="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd -P)"
 
 # Where dev-profile-perl-tools-install puts the CPAN tools. Hooks and GUI editors
 # may not have the shell's local::lib environment, so find them here.
@@ -26,11 +28,9 @@ perl_config() { # <tool> <dir>
 	if [[ -f "${repo_root}/.$1rc" ]]; then
 		echo "${repo_root}/.$1rc"
 	else
-		# Resolve through the installed bin symlink to the profile repo's tracked
-		# config/: ~/.local/share/dev-profile holds no <tool>rc, the tracked file
-		# is config/<tool>rc (dprint failed with "cannot find file ... perltidyrc").
-		local profile_repo
-		profile_repo="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd -P)"
+		# The tracked rc lives at config/<tool>rc in the profile repo
+		# (dprint failed with "cannot find file ... perltidyrc" when this
+		# resolved into the symlinked install dir instead).
 		echo "${profile_repo}/config/$1rc"
 	fi
 }
