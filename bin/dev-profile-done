@@ -261,7 +261,8 @@ prunable_worktree() {
 	esac
 	if marked "${branch}" "${state}/skipped"; then return 1; fi
 	if marked "${branch}" "${state}/unpushed"; then return 1; fi
-	[[ "${locked}" == locked ]] && return 1
+	# A lock only guards against pruning; --drop is explicit consent to remove the whole clone.
+	[[ "${locked}" == locked && "${do_drop}" != true ]] && return 1
 	tip="$(git -C "${path}" rev-parse HEAD)"
 	remote=""
 	if git rev-parse --verify --quiet "refs/remotes/origin/${branch}" >/dev/null; then
@@ -1048,7 +1049,8 @@ prune_worktree_one() {
 	prunable_worktree "${path}" "${branch}" "${locked}" || return 0
 	say prune "${path}"
 	[[ "${dry_run}" == false ]] || return 0
-	if ! git worktree remove --force "${path}" 2>/dev/null; then
+	# Git needs --force twice to remove a locked worktree.
+	if ! git worktree remove --force --force "${path}" 2>/dev/null; then
 		rm -rf "${path}"
 		with_lock config git worktree prune
 	fi

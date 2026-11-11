@@ -441,4 +441,24 @@ run_done "$repo" --drop >"${work}/submodule-work.out" 2>&1 &&
 	fail "done --drop must refuse a populated submodule with unpushed work"
 grep -q "nested repository" "${work}/submodule-work.out" || fail "the refusal must name the nested repository"
 test -d "$repo" || fail "done --drop must keep a clone holding submodule work"
+# --- A locked linked worktree: plain prune honors the lock; --drop is explicit consent to remove it.
+setup_clone locked
+for b in l1 l2; do
+	git -C "$repo" switch -q -c "feat/${b}" main
+	commit "$repo" "${b}.txt" "val-${b}"
+	git -C "$repo" switch -q main
+	git -C "$repo" worktree add -q "${work}/locked-${b}" "feat/${b}"
+	git -C "$repo" worktree lock --reason "claimed by a worker" "${work}/locked-${b}"
+done
+printf 'dirty\n' >"${work}/locked-l2/l1.txt"
+run_done "$repo" --no-pr >"${work}/locked-prune.out" 2>&1 ||
+	fail "done --prune must not fail on a locked worktree: $(cat "${work}/locked-prune.out")"
+test -d "${work}/locked-l1" || fail "done without --drop must keep a locked worktree"
+run_done "$repo" --no-pr --drop >"${work}/locked-drop.out" 2>&1 ||
+	fail "done --drop must remove locked worktrees: $(cat "${work}/locked-drop.out")"
+test ! -d "$repo" && test ! -d "${work}/locked-l1" && test ! -d "${work}/locked-l2" ||
+	fail "done --drop must remove locked worktrees and trash the primary clone"
+git -C "$origin" rev-parse --verify --quiet refs/heads/feat/l1 >/dev/null || fail "locked worktree branch must reach origin before the drop"
+git -C "$origin" rev-parse --verify --quiet refs/heads/feat/l2 >/dev/null || fail "locked dirty worktree must be parked on origin before the drop"
+
 echo "done fixture ok"
