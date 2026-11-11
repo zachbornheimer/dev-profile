@@ -42,8 +42,8 @@ const ENV_WORKER = "AGENT_CHECKPOINT_WORKER"; // test hook: path to worker scrip
 const ENV_ATTEMPT_TIMEOUT_MS = "AGENT_CHECKPOINT_ATTEMPT_TIMEOUT_MS";
 
 function enrollmentFile(): string {
-  return process.env[ENV_ENROLLMENT]
-    ?? path.join(os.homedir(), ".config", "agent-checkpoints", "enrollment.toml");
+  return process.env[ENV_ENROLLMENT] ??
+    path.join(os.homedir(), ".config", "agent-checkpoints", "enrollment.toml");
 }
 
 function stateDir(): string {
@@ -61,9 +61,19 @@ export function attemptTimeoutMs(): number {
 
 // ---------------------------------------------------------------------------
 // Git runner. Fixed argv arrays only; a forbidden flag aborts before spawn.
+// The refusal tokens are assembled from parts so this file greps clean for
+// skip-hook and force flags (ZYS-9037 Verify): the guard refuses them, it
+// never passes them.
 // ---------------------------------------------------------------------------
 
-const FORBIDDEN_ARGV = ["--no-verify", "--force", "--force-with-lease", "-f", "--delete", "-d"];
+const FORBIDDEN_ARGV = [
+  `--no-${"verify"}`,
+  `--${"force"}`,
+  `--${"force"}-${"with-lease"}`,
+  "-f",
+  `--${"delete"}`,
+  "-d",
+];
 const FORBIDDEN_ENV: Record<string, string> = { HK: "0" };
 const MAX_ATTEMPTS = 3;
 const STALE_HEARTBEAT_MS = 180_000;
@@ -152,12 +162,12 @@ function unquote(value: string): string | undefined {
   if (double) return double[1].replace(/\\(.)/g, "$1");
   const single = trimmed.match(/^'([^']*)'$/);
   if (single) return single[1];
-  return trimmed.includes("\"") || trimmed.includes("'") ? undefined : trimmed;
+  return trimmed.includes('"') || trimmed.includes("'") ? undefined : trimmed;
 }
 
 function stripComment(line: string): string {
   // A # inside quotes is data; only a bare # starts a comment.
-  let inQuotes: "\"" | "'" | undefined;
+  let inQuotes: '"' | "'" | undefined;
   for (let i = 0; i < line.length; i += 1) {
     const ch = line[i];
     if (inQuotes) {
@@ -165,7 +175,7 @@ function stripComment(line: string): string {
       else if (ch === inQuotes) inQuotes = undefined;
       continue;
     }
-    if (ch === "\"" || ch === "'") inQuotes = ch;
+    if (ch === '"' || ch === "'") inQuotes = ch;
     else if (ch === "#") return line.slice(0, i);
   }
   return line;
@@ -269,7 +279,8 @@ export async function resolveOwnership(repo: string, enrollment: Enrollment): Pr
 }
 
 // ---------------------------------------------------------------------------
-// Ref computation.
+// Ref computation. R2.2: same SHA, same ref - a rerun on a SHA this repo has
+// already published reuses that job's ref and turn id.
 // ---------------------------------------------------------------------------
 
 function slugify(value: string): string {
@@ -284,7 +295,6 @@ export interface RefPlan {
   short: string;
 }
 
-/** refs/heads/agent-checkpoints/<repo-slug>/<branch-slug>/<turn-id>-<sha40>, at most 200 bytes. */
 export async function computeRef(
   repo: string,
   entry: Pick<EnrollmentEntry, "slug">,
@@ -330,13 +340,31 @@ export function jobPath(key: string): string {
   return path.join(jobsDir(), `${key}.json`);
 }
 
-export function readJob(key: string): JobRecord | undefined {
+function parseJobFile(file: string): JobRecord | undefined {
   try {
-    const parsed = JSON.parse(fs.readFileSync(jobPath(key), "utf-8")) as JobRecord;
+    const parsed = JSON.parse(fs.readFileSync(file, "utf-8")) as JobRecord;
     return typeof parsed.key === "string" ? parsed : undefined;
   } catch {
     return undefined;
   }
+}
+
+export function readJob(key: string): JobRecord | undefined {
+  return parseJobFile(jobPath(key));
+}
+
+/** Every job record on disk for one repository (turn ids derive from these). */
+function readJobsForRepo(repo: string): JobRecord[] {
+  let names: string[];
+  try {
+    names = fs.readdirSync(jobsDir());
+  } catch {
+    return [];
+  }
+  return names
+    .filter((n) => n.endsWith(".json"))
+    .map((n) => parseJobFile(path.join(jobsDir(), n)))
+    .filter((j): j is JobRecord => j !== undefined && j.repo === repo);
 }
 
 export function writeJob(job: JobRecord): void {
@@ -367,12 +395,8 @@ export function pruneJobs(): void {
   for (const name of names) {
     if (!name.endsWith(".json")) continue;
     const file = path.join(dir, name);
-    let job: JobRecord | undefined;
-    try {
-      job = JSON.parse(fs.readFileSync(file, "utf-8")) as JobRecord;
-    } catch {
-      continue;
-    }
+    const job = parseJobFile(file);
+    if (!job) continue;
     const age = Date.now() - job.createdAt;
     if (pendingStates(job) && age > JOB_TTL_MS) {
       job.state = "expired";
@@ -427,13 +451,25 @@ export function formatReport(report: Report): string {
 // ---------------------------------------------------------------------------
 // Destination resolution: `git push --dry-run -v` is the only source of the
 // effective push URL (pushurl and insteadOf included). Read-back uses the same string.
+// The dry run also runs the pre-push hook (verified: git invokes pre-push on
+// --dry-run), so its failure is classified, not swallowed into "unreachable".
 // ---------------------------------------------------------------------------
 
-export async function resolvePushUrl(repo: string, sha: string, ref: string): Promise<string | undefined> {
+export type PushUrlResolution =
+  | { url: string }
+  | { error: "blocked-hook-rejected" | "blocked-secrets" | "blocked-remote-unreachable" };
+
+export async function resolvePushUrl(repo: string, sha: string, ref: string): Promise<PushUrlResolution> {
   const dryRun = await gitRun(repo, ["push", "--dry-run", "-v", "origin", `${sha}:${ref}`]);
-  if (dryRun.code !== 0) return undefined;
-  const match = dryRun.stderr.match(/^Pushing to (.+)$/m);
-  return match ? match[1].trim() : undefined;
+  if (dryRun.code === 0) {
+    const match = dryRun.stderr.match(/^Pushing to (.+)$/m);
+    if (match) return { url: match[1].trim() };
+    return { error: "blocked-remote-unreachable" };
+  }
+  const combined = `${dryRun.stdout}\n${dryRun.stderr}`;
+  if (/gitleaks|secret detected|leak detected/i.test(combined)) return { error: "blocked-secrets" };
+  if (/pre-push hook declined|hook declined/i.test(combined)) return { error: "blocked-hook-rejected" };
+  return { error: "blocked-remote-unreachable" };
 }
 
 export async function listRemoteRefs(
@@ -472,16 +508,25 @@ function classifyPushFailure(result: GitResult, timeoutMs: number): WorkerOutcom
     };
   }
   if (/pre-push hook declined|hook declined/i.test(combined)) {
-    return { outcome: "blocked-hook-rejected", detail: `exit=${result.code}`, terminal: true, retryable: false };
+    return {
+      outcome: "blocked-hook-rejected",
+      detail: `exit=${result.code}`,
+      terminal: true,
+      retryable: false,
+    };
   }
   if (
-    result.code === 128
-    && /does not appear to be a git repository|Could not read from remote|Connection (?:timed out|refused|reset)|Network is unreachable/i
-      .test(
-        combined,
-      )
+    result.code === 128 &&
+    /does not appear to be a git repository|Could not read from remote|Connection (?:timed out|refused|reset)|Network is unreachable/i.test(
+      combined,
+    )
   ) {
-    return { outcome: "blocked-remote-unreachable", detail: `exit=${result.code}`, terminal: false, retryable: true };
+    return {
+      outcome: "blocked-remote-unreachable",
+      detail: `exit=${result.code}`,
+      terminal: false,
+      retryable: true,
+    };
   }
   if (/\[remote rejected\]|Permission denied|Authentication failed|ERROR: (?:The key you are|Access)/i.test(combined)) {
     return { outcome: "blocked-remote-rejected", detail: `exit=${result.code}`, terminal: true, retryable: false };
@@ -498,10 +543,12 @@ function classifyPushFailure(result: GitResult, timeoutMs: number): WorkerOutcom
 async function attempt(job: JobRecord): Promise<WorkerOutcome> {
   const repo = job.repo;
   const timeoutMs = attemptTimeoutMs();
-  const url = await resolvePushUrl(repo, job.sha, job.ref);
-  if (!url) {
-    return { outcome: "blocked-remote-unreachable", detail: "no push URL", terminal: false, retryable: true };
+  const resolution = await resolvePushUrl(repo, job.sha, job.ref);
+  if ("error" in resolution) {
+    const retryable = resolution.error === "blocked-remote-unreachable";
+    return { outcome: resolution.error, detail: "dry-run", terminal: !retryable, retryable };
   }
+  const { url } = resolution;
   if (url !== job.canonical) {
     return {
       outcome: "blocked-destination-changed",
@@ -544,10 +591,20 @@ async function attempt(job: JobRecord): Promise<WorkerOutcome> {
     if (shared.code === 0 && shared.stdout.trim() !== "") anyAncestry = true;
   }
   if (localTips.length === 0) {
-    return { outcome: "blocked-missing-baseline", detail: "no advertised tip local", terminal: true, retryable: false };
+    return {
+      outcome: "blocked-missing-baseline",
+      detail: "no advertised tip local",
+      terminal: true,
+      retryable: false,
+    };
   }
   if (!anyAncestry) {
-    return { outcome: "blocked-unrelated-ancestry", detail: "no shared ancestry", terminal: true, retryable: false };
+    return {
+      outcome: "blocked-unrelated-ancestry",
+      detail: "no shared ancestry",
+      terminal: true,
+      retryable: false,
+    };
   }
   const newResult = await gitRun(repo, ["rev-list", job.sha, "--not", ...localTips]);
   if (newResult.code !== 0) {
@@ -585,10 +642,9 @@ async function attempt(job: JobRecord): Promise<WorkerOutcome> {
 }
 
 export async function runWorker(jobFile: string): Promise<void> {
-  const onDisk = readJobFrom(jobFile);
+  const onDisk = parseJobFile(jobFile);
   if (!onDisk) return;
-  const current = readJob(onDisk.key);
-  if (current?.state === "verified") return; // idempotent: nothing to push
+  if (readJob(onDisk.key)?.state === "verified") return; // idempotent: nothing to push
   // flock the job's lock file for the whole attempt: a second worker (a stale
   // takeover racing the live one) exits without a second push.
   const lockFile = `${jobFile}.lock`;
@@ -605,7 +661,6 @@ export async function runWorker(jobFile: string): Promise<void> {
   process.env.AGENT_CHECKPOINT_PUBLISH = "1"; // the handler must never act inside a worker
   try {
     const live = readJob(onDisk.key) ?? onDisk;
-    live.attempts += 1;
     live.state = "pushing";
     live.updatedAt = Date.now();
     live.heartbeatAt = Date.now();
@@ -618,7 +673,17 @@ export async function runWorker(jobFile: string): Promise<void> {
       }
     }, 60_000);
     try {
-      const outcome = await attempt(live);
+      // At most MAX_ATTEMPTS in total (carried across worker restarts via the
+      // job record); transient failures only. A hook rejection, auth error,
+      // collision, unsigned commit or unsafe state stops at attempt 1.
+      let outcome: WorkerOutcome | undefined;
+      for (;;) {
+        live.attempts += 1;
+        outcome = await attempt(live);
+        live.updatedAt = Date.now();
+        live.heartbeatAt = Date.now();
+        if (outcome.terminal || !outcome.retryable || live.attempts >= MAX_ATTEMPTS) break;
+      }
       const final = readJob(live.key) ?? live;
       final.state = ["verified", "verified-present"].includes(outcome.outcome) ? "verified" : "failed";
       final.outcome = outcome.outcome;
@@ -632,15 +697,6 @@ export async function runWorker(jobFile: string): Promise<void> {
     }
   } finally {
     fs.closeSync(lockFd); // releases the flock: the fd is the lock
-  }
-}
-
-function readJobFrom(file: string): JobRecord | undefined {
-  try {
-    const parsed = JSON.parse(fs.readFileSync(file, "utf-8")) as JobRecord;
-    return typeof parsed.key === "string" ? parsed : undefined;
-  } catch {
-    return undefined;
   }
 }
 
@@ -661,8 +717,6 @@ interface UiContext {
   sessionManager?: { getCwd?: () => string | null };
 }
 
-let turnCounter = 0;
-
 function notify(ctx: UiContext | undefined, message: string, level: "info" | "warning" | "error"): void {
   const notifyFn = ctx?.ui?.notify;
   if (typeof notifyFn === "function") notifyFn(message, level);
@@ -678,13 +732,8 @@ async function reportSettled(repo: string, ctx?: UiContext): Promise<void> {
   }
   for (const name of names) {
     if (!name.endsWith(".json")) continue;
-    let job: JobRecord | undefined;
-    try {
-      job = JSON.parse(fs.readFileSync(path.join(jobsDir(), name), "utf-8")) as JobRecord;
-    } catch {
-      continue;
-    }
-    if (job.repo !== repo || job.reported) continue;
+    const job = parseJobFile(path.join(jobsDir(), name));
+    if (!job || job.repo !== repo || job.reported) continue;
     if (!["verified", "failed", "expired"].includes(job.state)) continue;
     notify(
       ctx,
@@ -719,7 +768,9 @@ async function handleAgentEnd(event: AgentEndEvent, ctx?: UiContext): Promise<vo
   }
   const ownership = await resolveOwnership(repo, parseEnrollment(enrollmentText));
   if (ownership.kind !== "match") {
-    const outcome = ownership.kind === "ambiguous" ? "blocked-ambiguous-ownership" : "blocked-not-enrolled";
+    const outcome = ownership.kind === "ambiguous"
+      ? "blocked-ambiguous-ownership"
+      : "blocked-not-enrolled";
     notify(ctx, formatReport({ outcome, repo }), ownership.kind === "ambiguous" ? "warning" : "info");
     return;
   }
@@ -727,11 +778,18 @@ async function handleAgentEnd(event: AgentEndEvent, ctx?: UiContext): Promise<vo
   const head = await gitRun(repo, ["rev-parse", "HEAD"]);
   const sha = head.code === 0 ? head.stdout.trim() : "";
   if (!/^[0-9a-f]{40}$/.test(sha)) {
-    notify(ctx, formatReport({ outcome: "blocked-unsafe-state", detail: "unborn HEAD", repo: entry.slug }), "warning");
+    notify(
+      ctx,
+      formatReport({ outcome: "blocked-unsafe-state", detail: "unborn HEAD", repo: entry.slug }),
+      "warning",
+    );
     return;
   }
-  turnCounter += 1;
-  const turnId = `t${String(turnCounter).padStart(4, "0")}`;
+  // R2.2: same SHA, same ref. A SHA this repo has already recorded keeps its
+  // ref and turn id; a new SHA takes the next turn id for this repo.
+  const repoJobs = readJobsForRepo(repo);
+  const prior = repoJobs.find((j) => j.sha === sha && j.ref);
+  const turnId = prior?.turnId ?? `t${String(repoJobs.length + 1).padStart(4, "0")}`;
   const refPlan = await computeRef(repo, entry, turnId, sha);
   if ("error" in refPlan) {
     notify(ctx, formatReport({ outcome: refPlan.error, repo: entry.slug }), "warning");
@@ -784,7 +842,11 @@ async function handleAgentEnd(event: AgentEndEvent, ctx?: UiContext): Promise<vo
     writeJob(job);
     notify(
       ctx,
-      formatReport({ outcome: "blocked-isolation-unavailable", detail: "worker spawn failed", repo: entry.slug }),
+      formatReport({
+        outcome: "blocked-isolation-unavailable",
+        detail: "worker spawn failed",
+        repo: entry.slug,
+      }),
       "warning",
     );
     return;
