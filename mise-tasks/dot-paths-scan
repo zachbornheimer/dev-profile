@@ -1,0 +1,177 @@
+#!/usr/bin/env python3
+# MISE description="Find hardcoded current-user home paths in tracked dotfiles and start an omp session to fix them (--no-fix to report only)"
+"""Scan tracked dotfiles for the current user's hardcoded home path.
+
+Only /Users/<me> and /home/<me> count; other users (fixtures, examples) are
+ignored. Fix mode is the default: when hits exist, a headless omp session
+receives the hit list and the portability rules and edits the live files.
+--no-fix reports and exits 1 when anything is found. --print-prompt shows the
+prompt instead of starting a session.
+"""
+
+import argparse
+import getpass
+import os
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+HOME = Path.home()
+USER = getpass.getuser()
+HIT = re.compile(
+    rb"/(?:Users|home)/" + re.escape(USER.encode()) + rb"(?=[/\"'\s:,;)\]}]|$)"
+)
+
+SKIP_DIRS = {".git", "node_modules", "__pycache__", "target", "dist", ".cache"}
+SKIP_PARTS = ("/fixtures/", "/snapshots/", "/oneshot/", "/sessions/", "/.worktrees/")
+SKIP_SUFFIXES = (".jsonl", ".lock", ".log", ".sqlite", ".db", ".png", ".jpg", ".pdf")
+SKIP_NAMES = ("package-lock.json", ".netrwhist", ".viminfo", ".zsh_history")
+MAX_BYTES = 2_000_000
+MAX_PROMPT_HITS = 300
+
+SHELL_SUFFIXES = (".sh", ".zsh", ".bash")
+SHELL_NAMES = (".zshrc", ".zshenv", ".zprofile", ".bashrc", ".bash_profile", ".profile")
+TILDE_NAMES = (".gitconfig", ".tmux.conf", ".ssh/config")
+
+RULES = """\
+Replacement rules (apply only where the consuming program expands the form):
+- Shell files (.sh .zsh .bash, .zshrc, .profile): use $HOME.
+- mise config (*.toml under ~/.config/mise), ~/.gitconfig, ~/.tmux.conf, ssh config: use ~.
+- Tera templates: {{ env.HOME }}.
+- JSON, YAML, TOML or other configs read by a program that does not expand ~ or $HOME
+  (Claude Code, Codex, herdr, opencode settings and similar): leave the literal path. If
+  the file is per-machine, report that `mise dot track <path> --machine` fits instead.
+- Never touch another user's path, a fixture, a transcript, or a path inside quoted prose.
+- After each edit re-read the file and confirm it still parses (json/toml/yaml) or `bash -n`.
+- Run `mise dot save --description "dot:paths-scan: portable home paths"` once at the end.
+- Finish with one line per file: fixed, left literal (why), or needs a human.
+"""
+
+
+def tracked_roots() -> list[Path]:
+    out = subprocess.run(
+        ["mise", "dot", "paths"], capture_output=True, text=True, check=False
+    ).stdout
+    roots: list[Path] = []
+    for line in out.splitlines():
+        cols = line.split()
+        if len(cols) >= 2 and cols[1] == "track":
+            roots.append(Path(cols[0].replace("~", str(HOME), 1)))
+    return roots
+
+
+def walk(root: Path):
+    if root.is_file():
+        yield root
+        return
+    for base, dirs, files in os.walk(root):
+        dirs[:] = [d for d in dirs if d not in SKIP_DIRS]
+        for name in files:
+            yield Path(base) / name
+
+
+def skipped(path: Path) -> bool:
+    text = str(path)
+    return (
+        path.name in SKIP_NAMES
+        or text.endswith(SKIP_SUFFIXES)
+        or any(part in text for part in SKIP_PARTS)
+    )
+
+
+def kind(path: Path) -> str:
+    text = str(path)
+    if path.suffix in SHELL_SUFFIXES or path.name in SHELL_NAMES:
+        return "shell: $HOME"
+    if (
+        path.name in TILDE_NAMES
+        or text.endswith(TILDE_NAMES)
+        or "/.config/mise/" in text
+    ):
+        return "tilde: ~"
+    if path.suffix == ".tera":
+        return "template: {{ env.HOME }}"
+    return "literal: report only"
+
+
+def scan() -> list[tuple[Path, int, str]]:
+    seen: set[Path] = set()
+    hits: list[tuple[Path, int, str]] = []
+    for root in tracked_roots():
+        if not root.exists():
+            continue
+        for path in walk(root):
+            if path in seen or skipped(path) or not path.is_file():
+                continue
+            seen.add(path)
+            try:
+                if path.stat().st_size > MAX_BYTES:
+                    continue
+                data = path.read_bytes()
+            except OSError:
+                continue
+            if b"\0" in data[:4096] or not HIT.search(data):
+                continue
+            for number, line in enumerate(data.splitlines(), 1):
+                if HIT.search(line):
+                    hits.append(
+                        (path, number, line.decode(errors="replace").strip()[:160])
+                    )
+    return hits
+
+
+def render(hits: list[tuple[Path, int, str]]) -> str:
+    rows = []
+    for path, number, line in hits[:MAX_PROMPT_HITS]:
+        rows.append(
+            f"{str(path).replace(str(HOME), '~', 1)}:{number} [{kind(path)}] {line}"
+        )
+    more = len(hits) - MAX_PROMPT_HITS
+    tail = (
+        f"\n... {more} more hits; rerun the task after these are done."
+        if more > 0
+        else ""
+    )
+    return "\n".join(rows) + tail
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--no-fix", action="store_true", help="report only; exit 1 on hits"
+    )
+    parser.add_argument(
+        "--print-prompt",
+        action="store_true",
+        help="print the omp prompt, do not run it",
+    )
+    args = parser.parse_args()
+
+    hits = scan()
+    files = {path for path, _, _ in hits}
+    if not hits:
+        print(f"no hardcoded /Users/{USER} or /home/{USER} paths in tracked files")
+        return 0
+    report = render(hits)
+    print(f"{len(hits)} hits in {len(files)} files for user {USER}:\n{report}")
+    if args.no_fix:
+        return 1
+    if all(kind(path).startswith("literal") for path, _, _ in hits):
+        print(
+            "\nevery hit is in a file that cannot expand ~ or $HOME; nothing to fix automatically"
+        )
+        return 0
+
+    prompt = (
+        f"Make hardcoded home paths for user {USER} portable in these live tracked dotfiles.\n\n"
+        f"{RULES}\nHits (path:line [classification] text):\n{report}\n"
+    )
+    if args.print_prompt:
+        print("\n--- prompt ---\n" + prompt)
+        return 0
+    return subprocess.run(["omp", "-p", prompt], check=False).returncode
+
+
+if __name__ == "__main__":
+    sys.exit(main())
