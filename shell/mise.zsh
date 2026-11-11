@@ -125,7 +125,26 @@ _dev_profile_mise_refresh() {
 
 _dev_profile_mise_config_stamp
 _DEV_PROFILE_MISE_STAMP=$_DEV_PROFILE_MISE_NEW
-add-zsh-hook -D precmd _mise_hook_precmd 2>/dev/null
-add-zsh-hook -D chpwd _mise_hook_chpwd 2>/dev/null
+
+# `mise activate` registers two hooks that run `mise hook-env` in the
+# foreground (0.3-2.4s on a cd). Drop them. Installers (bun, mise) append a
+# second `eval "$(mise activate zsh)"` to ~/.zshrc after this file runs, which
+# registers them again, so the drop also runs once more before the first
+# prompt, then unhooks itself. The no-op bodies cover a hook array that was
+# already copied for the running precmd.
+_dev_profile_mise_drop_hooks() {
+	add-zsh-hook -D precmd _mise_hook_precmd 2>/dev/null
+	add-zsh-hook -D chpwd _mise_hook_chpwd 2>/dev/null
+	_mise_hook_precmd() { :; }
+	_mise_hook_chpwd() { :; }
+}
+
+_dev_profile_mise_drop_hooks_once() {
+	_dev_profile_mise_drop_hooks
+	add-zsh-hook -D precmd _dev_profile_mise_drop_hooks_once
+}
+
+_dev_profile_mise_drop_hooks
+add-zsh-hook precmd _dev_profile_mise_drop_hooks_once
 add-zsh-hook precmd _dev_profile_mise_refresh
 add-zsh-hook chpwd _dev_profile_mise_refresh
