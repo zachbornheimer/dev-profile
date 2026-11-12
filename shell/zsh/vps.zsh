@@ -6,10 +6,11 @@
 #   ompr -r <id> | <id>       move session <id> (or omp:<id>) to the remote box
 #   ompr -p "prompt..."       run a one-shot headless prompt on the remote box
 #
-#   omp -r <id> | -c          if the session was on the remote box (Neon newer than disk),
-#                             automatically takes it over on the Mac: syncs newer repo files
-#                             and Neon turns back, stops the remote omp for that session,
-#                             scales down the box in the background if idle, and resumes here.
+#   omp -r <id> | -c          if the session's latest entry in Neon was written on the
+#                             remote Linux compute arm, automatically takes it over on the
+#                             Mac: syncs newer repo files back, stops the remote omp for
+#                             that session, scales down the box in the background if idle,
+#                             and resumes directly against Neon.
 #
 #   vps {new|continue|takeback|run|sh|up|down|status} [args]
 vps() {
@@ -45,13 +46,12 @@ ompr() {
 
 	local -a raw_args=("$@")
 	local -a final_args=()
-	local sid="" mode=""
+	local sid=""
 	local i
 
 	for ((i = 1; i <= $#raw_args; i++)); do
 		case "${raw_args[i]}" in
 		--resume | -r)
-			mode="resume"
 			final_args+=("${raw_args[i]}")
 			if ((i < $#raw_args)) && [[ "${raw_args[i+1]}" != -* ]]; then
 				sid="${raw_args[i+1]#omp:}"
@@ -60,22 +60,18 @@ ompr() {
 			fi
 			;;
 		--resume=*)
-			mode="resume"
 			sid="${${raw_args[i]#--resume=}#omp:}"
 			final_args+=("--resume=$sid")
 			;;
 		--continue | -c)
-			mode="continue"
 			final_args+=("${raw_args[i]}")
 			;;
 		omp:*)
-			mode="resume"
 			sid="${raw_args[i]#omp:}"
 			final_args+=("--resume" "$sid")
 			;;
 		*)
 			if [[ -z $sid && ${raw_args[i]} =~ '^[0-9a-f]{8}-[0-9a-f]{4}-' ]]; then
-				mode="resume"
 				sid="${raw_args[i]}"
 				final_args+=("--resume" "$sid")
 			else
@@ -84,32 +80,6 @@ ompr() {
 			;;
 		esac
 	done
-
-	# If a session ID was passed, sync its session file to Neon so the remote box has it
-	if [[ -n $sid || $mode == "continue" ]]; then
-		local db_url_file="$HOME/.config/dev-env/runtime/omp-session-db-url"
-		if [[ -s $db_url_file ]]; then
-			SESSIONS_DB_URL="$(<$db_url_file)" bun -e '
-				import { statSync } from "node:fs";
-				import { Glob } from "bun";
-				const sid = process.argv[1] || "";
-				const sql = new Bun.SQL(process.env.SESSIONS_DB_URL);
-				const root = process.env.HOME + "/.omp/agent/sessions";
-				const pattern = sid ? `**/*${sid}*.jsonl` : "**/*.jsonl";
-				for (const rel of new Glob(pattern).scanSync({ cwd: root, absolute: true })) {
-					const st = statSync(rel);
-					const mtime = Math.trunc(st.mtimeMs);
-					const cur = await sql`SELECT mtime_ms FROM omp_session_files WHERE path = ${rel}`;
-					if (!cur.length || Number(cur[0].mtime_ms) < mtime) {
-						const content = await Bun.file(rel).text();
-						await sql`INSERT INTO omp_session_files (path, content, mtime_ms) VALUES (${rel}, ${content}, ${mtime})
-							ON CONFLICT (path) DO UPDATE SET content = EXCLUDED.content, mtime_ms = EXCLUDED.mtime_ms`;
-					}
-				}
-				await sql.close();
-			' "$sid" 2>/dev/null || true
-		fi
-	fi
 
 	local -a quoted_args=()
 	for arg in "${final_args[@]}"; do
@@ -150,16 +120,15 @@ _omp_probe_remote() {
 	return $rc
 }
 
-# On the Mac, `omp` stays local-first — but if you resume or continue a session whose
-# latest turns are in Neon (because it was running on the remote box), `omp` automatically
-# takes it over: pulls the Neon transcript to disk, rsyncs newer working-tree files from
-# the box, stops any remote omp holding that session, and scales down the box in the
-# background if no other session is active on it.
+# On the Mac, `omp` reads and writes directly to Neon (`omp_session_files_entries`).
+# When resuming or continuing a session whose latest entry was written on the remote
+# Linux compute arm, `omp` syncs newer working-tree files from the box, stops any
+# remote omp holding that session, and scales down the box in the background if idle.
 omp() {
 	emulate -L zsh
 	local db_url_file="$HOME/.config/dev-env/runtime/omp-session-db-url"
 	local -a args=("$@")
-	if [[ $OSTYPE == darwin* && -z ${SESSIONS_DB_URL:-} && -s $db_url_file ]]; then
+	if [[ $OSTYPE == darwin* && (-n ${SESSIONS_DB_URL:-} || -s $db_url_file) ]]; then
 		local i sid="" mode=""
 		for ((i = 1; i <= $#args; i++)); do
 			case "${args[i]}" in
@@ -191,40 +160,35 @@ omp() {
 			esac
 		done
 		if [[ -n $sid || $mode == "continue" ]]; then
-			local meta
-			meta="$(SESSIONS_DB_URL="$(<$db_url_file)" bun -e '
-				import { existsSync, mkdirSync, statSync } from "node:fs";
-				import { dirname } from "node:path";
+			local meta db_url="${SESSIONS_DB_URL:-$(<$db_url_file)}"
+			meta="$(SESSIONS_DB_URL="$db_url" bun -e '
 				const sid = process.argv[1] || "";
 				const cwd = process.argv[2] || "";
 				const bucket = "-" + cwd.replace(/^\/Users\/[^/]+\/?/, "").replace(/[\/_]/g, "-");
 				const sql = new Bun.SQL(process.env.SESSIONS_DB_URL);
-				let rows = [];
-				if (sid) {
-					rows = await sql`SELECT path, content, mtime_ms, left(content, 2048) AS head FROM omp_session_files WHERE path LIKE ${"%" + sid + "%"}`;
-				} else if (bucket.length > 1) {
-					rows = await sql`SELECT path, content, mtime_ms, left(content, 2048) AS head FROM omp_session_files WHERE path LIKE ${"%/" + bucket + "/%.jsonl"} ORDER BY mtime_ms DESC LIMIT 1`;
-				}
-				let tookOver = false;
-				let sessionId = sid;
-				let localDir = "";
-				for (const r of rows) {
-					if (!r.path.startsWith("/Users/zbornheimer/")) continue;
-					const diskMtime = existsSync(r.path) ? Math.trunc(statSync(r.path).mtimeMs) : -1;
-					if (diskMtime < Number(r.mtime_ms)) {
-						mkdirSync(dirname(r.path), { recursive: true });
-						await Bun.write(r.path, r.content);
-						tookOver = true;
-					}
-					if (r.path.endsWith(".jsonl") && !localDir) {
-						const m = String(r.head || "").match(/"cwd":"([^"]+)"/);
-						if (m) localDir = m[1].replace(/^\/home\/zbornheimer\b/, "/Users/zbornheimer");
-						const idMatch = r.path.match(/_([0-9a-f-]{36})\.jsonl$/);
-						if (!sessionId && idMatch) sessionId = idMatch[1];
-					}
-				}
+				const pattern = sid ? `%${sid}%.jsonl` : `%/${bucket}/%.jsonl`;
+				const rows = await sql`
+					SELECT f.path,
+					       COALESCE(
+					         (SELECT string_agg(e.line, ${""} ORDER BY e.seq ASC) FROM omp_session_files_entries e WHERE e.path = f.path AND e.seq <= 2),
+					         left(f.content, 2048)
+					       ) AS head,
+					       COALESCE(
+					         (SELECT e.line FROM omp_session_files_entries e WHERE e.path = f.path ORDER BY e.seq DESC LIMIT 1),
+					         right(f.content, 4096)
+					       ) AS tail_line
+					FROM omp_session_files f
+					WHERE f.path LIKE ${pattern}
+					ORDER BY f.mtime_ms DESC
+					LIMIT 1
+				`;
 				await sql.close();
-				if (tookOver) {
+				const r = rows[0];
+				if (r && String(r.tail_line || "").includes("\"platform\":\"linux\"")) {
+					const m = String(r.head || "").match(/"cwd":"([^"]+)"/);
+					const localDir = m ? m[1].replace(/^\/home\/zbornheimer\b/, "/Users/zbornheimer") : "";
+					const idMatch = String(r.path || "").match(/_([0-9a-f-]{36})\.jsonl$/);
+					const sessionId = sid || (idMatch ? idMatch[1] : "");
 					console.log(JSON.stringify({ tookOver: true, sessionId, localDir }));
 				}
 						' "$sid" "$PWD" 2>/dev/null)" || meta=""
@@ -242,9 +206,6 @@ omp() {
 					;;
 				esac
 				print -u2 "[omp] taking over session ${tk_sid:-latest} from remote compute arm..."
-				# Tailscale SSH can block on a browser "check" re-auth that ConnectTimeout does not
-				# cover. The probe opens that check page for you and waits for approval (bounded);
-				# every later remote call is hard-bounded too, so a failed probe skips takeover.
 				local -a rssh=(timeout 6 ssh -o BatchMode=yes -o ConnectTimeout=2)
 				if _omp_probe_remote backend.ai.lan.zachandaj.com; then
 					if [[ -n $tk_sid ]]; then
@@ -254,7 +215,6 @@ omp() {
 						timeout 120 rsync -azu -e "ssh -o BatchMode=yes -o ConnectTimeout=2" --exclude='.worktrees' --exclude='node_modules' --exclude='.venv' --exclude='target' --exclude='__pycache__' \
 							"backend.ai.lan.zachandaj.com:${remote_dir}/" "${tk_dir}/" >/dev/null 2>&1 || true
 					fi
-					# Scale down only on an explicit "idle" answer, never on a timeout or ssh failure.
 					if [[ "$("${rssh[@]}" backend.ai.lan.zachandaj.com "if pgrep -u zbornheimer -f '(^|/)(omp|atask)([[:space:]]|$)' >/dev/null || [ \"\$(who | grep -c 'pts/')\" -gt 0 ]; then echo busy; else echo idle; fi" 2>/dev/null)" == idle ]]; then
 						print -u2 "[omp] no other active sessions on remote box; scaling down in background..."
 						(nohup mise -C "$HOME/Developer/Personal/dev-env" run vps:down >/dev/null 2>&1 </dev/null &)

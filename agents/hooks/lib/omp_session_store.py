@@ -1,8 +1,8 @@
 """The freshest copy of an omp transcript, on disk or in the session database.
 
-omp with ``SESSIONS_DB_URL`` set writes each session to the ``omp_session_files``
-table (``path``, ``content``, ``mtime_ms``) and nothing to the ``transcript_path``
-it reports. That path may hold no file, or a file an earlier run left behind,
+omp with ``SESSIONS_DB_URL`` set writes each session to ``omp_session_files`` /
+``omp_session_files_entries`` and nothing to the ``transcript_path`` it reports.
+That path may hold no file, or a file an earlier run left behind,
 which stops at whatever was asked then. Hooks that read transcripts call
 ``readable_transcript(path)``: it returns the newest local copy (that file, or the
 copy kept in the hook state dir), brought up to date from the database when the
@@ -40,14 +40,22 @@ from hook_common.settings import HookSettings
 #                  TAIL_CHARS whose sha256 is :'tail_hash' (the end of the copy);
 #   "=<content>"   otherwise: the whole row, capped as the module docstring says.
 TRANSCRIPT_SQL = (
-    "select mtime_ms || E'\\n' || length(content) || E'\\n' || case "
+    "with full_row as ("
+    "select f.mtime_ms, "
+    "case when f.mtime_ms <= :'since'::bigint then '' "
+    "else coalesce((select string_agg(e.line, '' order by e.seq asc) "
+    "from omp_session_files_entries e where e.path = f.path), '') || f.content end as content, "
+    "case when f.mtime_ms <= :'since'::bigint then f.byte_len::int + length(f.content) else null end as cached_len "
+    "from omp_session_files f where f.path = :'key'"
+    ") "
+    "select mtime_ms || E'\\n' || coalesce(cached_len, length(content)) || E'\\n' || case "
     "when mtime_ms <= :'since'::bigint then '' "
     "when length(content) > :'length'::int and encode(sha256(convert_to("
     "substr(content, :'length'::int - 4095, 4096), 'UTF8')), 'hex') = :'tail_hash' "
     "then '+' || substr(content, :'length'::int + 1) "
     "when length(content) <= 8065536 then '=' || content "
     "else '=' || left(content, 65536) || E'\\n' || right(content, 8000000) end "
-    "from omp_session_files where path = :'key';\n"
+    "from full_row;\n"
 )
 TAIL_CHARS = 4096  # the 4096 in TRANSCRIPT_SQL
 SESSION_PATH_SQL = "select path from omp_session_files where path like :'key' order by mtime_ms desc limit 1;\n"
