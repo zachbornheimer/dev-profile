@@ -32,6 +32,27 @@ Events that carry the assistant message: `message_update`, `message_end`. Use th
 
 `bun test` the pure file from the extension directory. Confirm the omp repo diff does not contain the feature. Do not claim the running omp has the command until `/reload-plugins`, `tools.hotReloadExtensions`, or a new process has loaded the extension.
 
+## Extension standard (the shape to copy)
+
+Exemplar: `~/.omp/agent/extensions/onUserPromptSubmit.ts` (~70 lines) over `hooks/log.ts` (`hook()`), `prompts/*.ts` and `prompts/*.yaml`. Design record: `extensions/prompts/DESIGN.md`. Host-test rules: `extensions/hooks/TESTING.md`. Small rule-based exemplar: `extensions/fallback-shake/{index,rule}.ts`.
+
+Every new or reworked extension follows these rules.
+
+1. **One responsibility, stated in the header comment.** The first block comment says what the file does and names where each other concern lives (logging, guards, prompts, retrieval). If the comment needs "and" twice, split the file.
+2. **`install(pi)` declares; it does not plumb.** It lists inputs (events, questions, thresholds) and one `run` body that receives already-resolved values. Guards (nested run, extension-authored event, empty input, slash command), input freezing, lifecycle bridging (`input` to `before_agent_start`), error capture, and the fire log belong in shared middleware (`hook()` in `hooks/log.ts`), never in the extension. Need a new guard or log field? Extend the middleware once.
+3. **Typed values, not raw comparisons.** Model answers are probabilities clamped to [0, 1]; compare with a helper (`meetsThreshold(answers.frustration, FRUSTRATION_THRESHOLD)`), never `answers.x >= 0.7`. Thresholds are named exported constants.
+4. **Prompts are data.** Model prompts live in `prompts/*.yaml` (ai-question-schema), loaded and executed by `prompts/*.ts`. No prompt text inline in the extension.
+5. **Failures are collected, not thrown.** Push to `errors` and continue. A broken log write, helper, or model call never breaks the user's turn. Hooks on stop or pre-tool events run under `withDeadline` (below omp's 10 s handler limit) and honor `event.signal`.
+6. **Never mutate host objects.** `ctx` has getter-only properties and private fields. Extend it with a non-mutating `Proxy` (`withInquiry`) that forwards with `Reflect.get(target, prop, target)`. Wrap `pi.getAllTools()` and `pi.getActiveTools()` in try/catch (an uninitialized runtime throws).
+7. **Pure rule beside the wiring.** Decision logic sits in a sibling file (`rule.ts`, `prompts/*.ts`) with no omp imports; `index.ts` only binds events to it.
+8. **No hook-name branching in shared code.** `if (name === "onUserPromptSubmit")` inside middleware is debt (it exists today in `hooks/log.ts`). A new hook supplies behavior through the spec, not through a name check.
+9. **No duplicate install bodies.** `hooks/install.ts` (`installHook`) is the one place that wires a stage to `hook()` plus `withDeadline`; do not paste that body into another file (`onStop.ts` does today; that is debt).
+10. **Tests run against the real host contract.** Each extension has a sibling `*.test.ts`. Hook extensions call `runExtensionHostContractSuite` from `hooks/harness.ts` (initialized, uninitialized, staged-reload) and, for prompt hooks, `simulateInteractiveTurn` and `simulateHeadlessTurn`. Assert behavior and structure, not exact wording.
+11. **Self-contained.** No imports from `@zab-ai/*`, `@mastra/*` or `capability-replicas` (deprecated).
+12. **Prove the load.** `bun test` the sibling files, then `/reload-plugins` or a new process before claiming the running omp has the behavior. For hooks, read the fire log (`~/.local/state/omp-hooks/<hook>.jsonl`) from a real turn.
+
+Checklist before calling an extension done: header comment names one responsibility; `install` has no guard, log or lifecycle code; thresholds go through typed helpers; prompts are YAML; no host mutation; pure rule file plus test; host-contract suite passes; load proven.
+
 ## Not this skill's job
 
 A Pi extension is a different harness: do not build that here. Do not replace omp's working row.
