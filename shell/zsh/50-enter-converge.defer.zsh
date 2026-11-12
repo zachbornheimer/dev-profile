@@ -1,9 +1,10 @@
 # 50-enter-converge.defer.zsh — on cd, hand the directory to a background worker.
 #
-# The interactive path does exactly one thing: fork `dev-profile-enter` and
+# The interactive path does exactly one thing: queue `dev-profile-enter` to be
+# forked once the prompt is up (_p_after_prompt_defer, 30-prompt.zsh), then
 # return. Everything slow or surprising — mise deps, node_modules, the portless
 # proxy — happens in that worker, which serialises one run per checkout and
-# never prompts. `cd` costs a file test plus a fork. It never starts the dev
+# never prompts. `cd` costs a file test. It never starts the dev
 # stack; `mise run dev` does that, on request only.
 #
 # Disable: DEV_PROFILE_ENTER_DISABLE=1 (the old MISE_ENTER_CONVERGE=0 too).
@@ -29,15 +30,24 @@ _enter_converge_has_marker() {
 		-f $d/Gemfile || -f $d/aube-lock.yaml || -f $d/uv.lock ]]
 }
 
-_enter_converge_chpwd() {
-	_enter_converge_enabled || return 0
-	if _enter_converge_has_marker "$PWD"; then
-		dev-profile-enter "$PWD" >/dev/null 2>&1 </dev/null &!
-	elif [[ -f $PWD/.gitmodules ]]; then
+_enter_converge_start() {
+	local d=$_enter_converge_dir
+	_enter_converge_dir=
+	[[ -n $d && -d $d ]] || return 0
+	if _enter_converge_has_marker "$d"; then
+		dev-profile-enter "$d" >/dev/null 2>&1 </dev/null &!
+	elif [[ -f $d/.gitmodules ]]; then
 		(
-			git rev-parse --is-inside-work-tree >/dev/null 2>&1 && exec dev-profile-enter "$PWD"
+			cd "$d" && git rev-parse --is-inside-work-tree >/dev/null 2>&1 && exec dev-profile-enter "$d"
 		) >/dev/null 2>&1 </dev/null &!
 	fi
+}
+
+typeset -g _enter_converge_dir=
+_enter_converge_chpwd() {
+	_enter_converge_enabled || return 0
+	_enter_converge_dir=$PWD
+	_p_after_prompt_defer _enter_converge_start
 }
 
 add-zsh-hook -D chpwd _enter_converge_chpwd 2>/dev/null

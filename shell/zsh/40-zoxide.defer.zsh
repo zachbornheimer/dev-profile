@@ -3,11 +3,22 @@
 [[ -x /opt/homebrew/bin/zoxide || -x $HOME/.local/bin/zoxide ]] &&
 	_zsh_eval_cached zoxide -- zoxide init zsh --cmd cd
 
-# `zoxide add` is bookkeeping, not part of cd: run it detached through the
-# normal PATH (the mise shim, ~0.5-0.9s) so cd never waits on it.
+# `zoxide add` is bookkeeping, not part of cd: it forks (a fork of this shell is
+# ~1ms idle and 30ms+ when busy) and execs the mise shim (~0.5-0.9s). Both wait
+# until the prompt is up (_p_after_prompt_defer, 30-prompt.zsh), and the exec
+# is detached.
+typeset -ga _zoxide_pending=()
+_zoxide_add_pending() {
+	local d
+	for d in "${_zoxide_pending[@]}"; do
+		\command zoxide add -- "$d" >/dev/null 2>&1 &!
+	done
+	_zoxide_pending=()
+}
 if ((${+functions[__zoxide_hook]})); then
 	__zoxide_hook() {
-		\command zoxide add -- "$PWD" >/dev/null 2>&1 &!
+		_zoxide_pending+=("$PWD")
+		_p_after_prompt_defer _zoxide_add_pending
 	}
 fi
 

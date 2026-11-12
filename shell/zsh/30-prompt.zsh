@@ -144,6 +144,41 @@ _p_render_fast() {
 		"$_p_starship_bin" prompt --profile fast "${args[@]}"
 }
 
+# Bookkeeping a cd owes but the prompt does not need (`zoxide add`,
+# `dev-profile-enter`, `atuin history end`, the starship render). Each is a fork
+# of this large shell: ~1ms idle, 15-110ms when the machine is busy, so none may
+# run before the prompt is painted. A hook calls `_p_after_prompt_defer FN`; FN
+# runs once, from a `zle -F` handler on an always-readable fd, which zle only
+# services after it has drawn the prompt. Outside an interactive tty (scripts,
+# tests) FN runs at once.
+typeset -ga _p_after_prompt_fns=()
+typeset -gi _p_after_prompt_fd=0
+
+_p_after_prompt_defer() {
+	if [[ ! -o zle || ! -t 0 ]]; then
+		((${+functions[$1]})) && "$1"
+		return 0
+	fi
+	((${_p_after_prompt_fns[(Ie)$1]})) || _p_after_prompt_fns+=("$1")
+	((_p_after_prompt_fd)) && return 0
+	exec {_p_after_prompt_fd}</dev/null || return 0
+	zle -F $_p_after_prompt_fd _p_after_prompt_run
+}
+
+_p_after_prompt_run() {
+	local -i fd=$1
+	local fn
+	local -a fns=("${_p_after_prompt_fns[@]}")
+	zle -F $fd 2>/dev/null
+	exec {fd}<&-
+	_p_after_prompt_fd=0
+	_p_after_prompt_fns=()
+	for fn in "${fns[@]}"; do
+		((${+functions[$fn]})) && "$fn"
+	done
+	return 0
+}
+
 # Paint now, finish the render in the background. A directory change never
 # waits on starship: the prompt shows a header built in pure zsh (no fork) and
 # the full render, git modules included, repaints it through _p_prompt_ready.
@@ -163,12 +198,12 @@ _p_prompt_request() {
 		[[ -n $out ]] && _p_prompt_text=$out
 		return 0
 	fi
-	exec {_p_prompt_fd}< <(_p_render_full 2>/dev/null)
 	if ((moved)); then
 		_p_prompt_text="${_p_c[cyan]}%B%~%b${_p_c[rst]}"$'\n'"${_p_c[green]}❯${_p_c[rst]} "
-		((_p_prompt_fd)) && zle -F "$_p_prompt_fd" _p_prompt_ready
+		_p_after_prompt_defer _p_prompt_render_start
 		return 0
 	fi
+	exec {_p_prompt_fd}< <(_p_render_full 2>/dev/null)
 	# zselect -t is in hundredths of a second: 80ms -> 8.
 	if ((wait >= 10)) &&
 		zselect -t $((wait / 10)) -r "$_p_prompt_fd" 2>/dev/null; then
@@ -183,6 +218,14 @@ _p_prompt_request() {
 	# lands later through _p_prompt_ready when it finishes on its own.
 	out=$(_p_render_fast 2>/dev/null)
 	[[ -n $out ]] && _p_prompt_text=$out
+	((_p_prompt_fd)) && zle -F "$_p_prompt_fd" _p_prompt_ready
+}
+
+# Started after the prompt is up: the full render for a directory just entered.
+_p_prompt_render_start() {
+	_p_prompt_cancel
+	_p_prompt_dir=$PWD
+	exec {_p_prompt_fd}< <(_p_render_full 2>/dev/null)
 	((_p_prompt_fd)) && zle -F "$_p_prompt_fd" _p_prompt_ready
 }
 
