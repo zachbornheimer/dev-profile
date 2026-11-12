@@ -10,7 +10,7 @@
 #
 # The base is fork/main, the same commit CI assembles onto. fork/main is
 # upstream main plus one carry commit. Commits it holds that upstream lacks
-# may touch only .omp-build/ and .github/workflows/omp-build.yml.
+# may touch only .omp-build/ and .github/workflows/{omp-build,protect-main}.yml.
 #
 # Usage: probe-build.sh [--base REF]... [--add BRANCH]... [--drop BRANCH]... [--repo PATH]
 #   --base REF     assemble onto REF instead of fork/main (a 40-hex SHA or any
@@ -140,7 +140,7 @@ else
 		while IFS= read -r f; do
 			[ -n "$f" ] || continue
 			case "$f" in
-			.omp-build/* | .github/workflows/omp-build.yml) ;;
+			.omp-build/* | .github/workflows/omp-build.yml | .github/workflows/protect-main.yml) ;;
 			*)
 				echo "fork/main holds a commit upstream main lacks outside the carry: ${c:0:10} $f" >&2
 				bad=1
