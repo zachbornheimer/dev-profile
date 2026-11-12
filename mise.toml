@@ -15,7 +15,9 @@ description = "Seed the global mise config, apply the dotfiles, install the upst
 # Upstream skills are not committed; aubx-skills installs them from agents/available-skills/.skill-lock.json.
 run = [
   "mkdir -p ~/.config/mise && [ -f ~/.config/mise/config.toml ] || cp config/mise.toml ~/.config/mise/config.toml",
-  "mise dot apply --yes",
+  # A first apply has no fragment yet, so the clone is named once; after that profile/mise.toml carries the root.
+  # A worktree run on a machine that is already set up leaves the live links on the main checkout.
+  '[ -e ~/.config/mise/conf.d/dev-profile ] || export MISE_DOTFILES_ROOT="{{config_root}}"; mise dot apply --yes',
   "~/.agents/bin/aubx-skills sync",
   # Installs the stable omp entrypoint (~/.local/bin/omp -> the mise shim) and
   # the reference-transaction hook keeping oh-my-pi's main a read-only upstream mirror.
@@ -42,6 +44,9 @@ run = "mise run doctor"
 description = "Check the installed files"
 run = "mise run doctor"
 
+[tasks."test:adoption"]
+description = "Deploy a clone at an arbitrary path into a scratch HOME with the real mise; the personal overlay stays opt-in"
+run = "bash tests/adoption-fixture.sh"
 [tasks."test:pre-push-upstream-merge"]
 description = "Check wrapper and direct hk attribution of inherited merge files"
 run = "bash tests/pre-push-upstream-merge.sh"
