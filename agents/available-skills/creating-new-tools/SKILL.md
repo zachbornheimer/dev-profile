@@ -457,7 +457,9 @@ export default factory;
   may send as `null`. Check any other Zod method against
   `packages/omptype/src/zod.ts` in the fork before using it.
 - **Return `details`** as the typed output object and put the model-facing text
-  in `content`. Throw to fail; never return a failure as success.
+  in `content`. Return a typed `denied` result for refusals the caller can fix,
+  throw for unexpected failures (Tool standard rule 4); never return a failure
+  as success.
 - **No MCP time limit.** `execute()` has none, so a long workflow is fine if it
   sends `onUpdate` heartbeats (see `~/.omp/agent/tools/ask_mastra.ts`), passes
   `signal` to `pi.exec` and every await, and clears its timers in `finally`.
@@ -470,7 +472,7 @@ export default factory;
 1. Open with a header comment stating its one responsibility and naming where each other concern lives.
 2. Keep `index.ts` a thin factory: name, description, schema, and an `execute()` that validates, calls the pure core, and renders. Decisions, parsing, and policy live in sibling modules with no omp imports.
 3. Put per-variant and cross-field validation in a `validateInput`-style function with a clear error, not in an inflated wire schema (§2.2 budget).
-4. Throw to fail. Collect non-fatal problems in the result instead of swallowing them; never report a failure as success.
+4. Report failure truthfully, in one of two ways. A refusal the caller can act on (bad input, policy, scope) is a typed result: `details: { status: "denied", reason }` with the same text in `content`, as `run_command` does through `denied()`. An unexpected failure (bug, I/O error, abort via `signal?.throwIfAborted()`) throws. Never return a failure as success, and put non-fatal problems in the result instead of swallowing them.
 5. Take every side effect (process, filesystem, clock, network) through a parameter or port so tests can fake it.
 6. Ship `*.test.ts` files beside the pure modules in `tools/<name>/`, covering behavior, boundaries and errors; run them with `bun test`.
 7. Be hidden and discoverable unless it belongs in the startup core, with a routing description (§2.1) and required fields non-optional.
