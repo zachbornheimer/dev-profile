@@ -51,6 +51,8 @@ Every new or reworked extension follows these rules.
 11. **Self-contained.** No imports from `@zab-ai/*`, `@mastra/*` or `capability-replicas` (deprecated).
 12. **Prove the load.** `bun test` the sibling files, then `/reload-plugins` or a new process before claiming the running omp has the behavior. For hooks, read the fire log (`~/.local/state/omp-hooks/<hook>.jsonl`) from a real turn.
 
+Automated enforcement: run `bun test hooks/self_contained.test.ts` from `~/.omp/agent/extensions`. The suite rejects symlinks, relative imports outside an extension's folder, and static or dynamic `@zab-ai/*` and `@mastra/*` module specifiers. It also requires each extension entry file to open with a comment or document its default export. That last check proves a comment exists; whether it states one responsibility remains a review check. The suite does not enforce every rule above.
+
 Checklist before calling an extension done: header comment names one responsibility; `install` has no guard, log or lifecycle code; thresholds go through typed helpers; prompts are YAML; no host mutation; pure rule file plus test; host-contract suite passes; load proven.
 
 ## Not this skill's job
