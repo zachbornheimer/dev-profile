@@ -30,6 +30,9 @@ idiomatic_version_file_enable_tools = ["go", "node", "python", "ruby", "npm", "p
 # there) and stopped reading go.mod's `go` directive: go.mod is a version source only
 # for its `toolchain` line, and Go otherwise comes from [tools] above or the repo's
 # mise.toml. So do not re-add that setting, and do not chase the directive's warning.
+# The clone is wherever this folder fragment is linked from: the root the deploy map in
+# config/mise.toml resolves its relative sources against.
+dotfiles.root = "{{ config_root | canonicalize | dirname }}"
 trusted_config_paths = ["~/Zysys", "~/Developer"]
 
 [settings.status]

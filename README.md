@@ -4,11 +4,31 @@ The files in this repo are the source. mise dot apply links them into place. The
 
 Pins are in languages/<lang>/tools.toml, one file per language, merged by profile/mise.toml through `include`. Hook steps are in hk/hk.pkl. CI installs the pins and runs mise run test.
 
-## Fresh machine
+## Adopt it
 
-After mise is installed, clone this repo to ~/Developer/Personal/dev-profile, then run mise trust and mise run setup in that directory.
+Clone this repo anywhere. The path does not matter: after the first apply the profile finds itself from where `~/.config/mise/conf.d/dev-profile` links.
 
-setup runs mise dot apply --yes. The shell file linked at ~/.local/share/dev-profile/shell.zsh is what a new shell should source.
+```sh
+git clone <this repo> ~/src/dev-profile
+cd ~/src/dev-profile
+mise trust
+mise run setup
+```
+
+`setup` seeds `~/.config/mise/config.toml` if it is missing, then runs `mise dot apply --yes` with `MISE_DOTFILES_ROOT` set to the clone. That variable is only needed on that first apply, because every source in the deploy map is relative to `dotfiles.root`, and `profile/mise.toml` sets `dotfiles.root` to the clone once the fragment is linked. To apply by hand on a fresh machine: `MISE_DOTFILES_ROOT=<clone> mise dot apply`.
+
+A `mise run` task started from a git worktree of an already set-up machine leaves the live links on the main checkout.
+
+The core deploys nothing under `~/Developer/Personal`. Machines whose repositories live there add the code-root files (`.editorconfig`, `.golangci.yml`, `deny.toml`, `dprint.jsonc`, `mise.toml`) by linking the overlay:
+
+```sh
+ln -s "$PWD/config/personal.toml" ~/.config/mise/conf.d/personal.toml
+mise dot apply
+```
+
+`mise run test:adoption` proves all of this with the real mise in a scratch HOME. The shell file linked at ~/.local/share/dev-profile/shell.zsh is what a new shell should source.
+
+Licensed under the MIT License (see `LICENSE`).
 
 Login zsh loads the `org.zysys.op-service-account` Keychain entry for the current
 username in `shell/zsh/05-env.zsh`, before the eager AI environment can call
