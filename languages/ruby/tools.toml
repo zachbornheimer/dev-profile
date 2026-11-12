@@ -1,3 +1,5 @@
+# The gems are built with macOS's system ruby. A Linux box has no ruby, and mise's gem backend then fails the whole
+# `mise bootstrap` tools step ("`gem` not found", Relay E2B box, 2026-11-12), so Linux skips them.
 [tools]
-"gem:brakeman" = "8.1.0"
-"gem:bundler-audit" = "0.9.3"
+"gem:brakeman" = { version = "8.1.0", os = ["macos"] }
+"gem:bundler-audit" = { version = "0.9.3", os = ["macos"] }

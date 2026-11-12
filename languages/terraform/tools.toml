@@ -1,4 +1,6 @@
 [tools]
 tflint = "0.64.0"
 buf = "1.73.0"
-opentofu = "1.13"
+# Exact: a prefix ("1.13") needs the release list, and when GitHub's list times out mise falls back to the literal
+# tag, which 404s (Relay E2B box, 2026-11-12). An exact version resolves without the list.
+opentofu = "1.13.9"
