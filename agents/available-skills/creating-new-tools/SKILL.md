@@ -465,6 +465,17 @@ export default factory;
   `capability-replicas`. Put helper modules and unit tests inside
   `~/.omp/agent/tools/<name>/` (with `index.ts` as the entry point).
 
+**Tool standard (same bar as the extension standard).** The exemplar for extension shape is `~/.omp/agent/extensions/onUserPromptSubmit.ts` (see `updating-oh-my-pi` `references/extensions.md`, "Extension standard"); the exemplar for a tool is `~/.omp/agent/tools/run_command/`. A new tool MUST:
+
+1. Open with a header comment stating its one responsibility and naming where each other concern lives.
+2. Keep `index.ts` a thin factory: name, description, schema, and an `execute()` that validates, calls the pure core, and renders. Decisions, parsing, and policy live in sibling modules with no omp imports.
+3. Put per-variant and cross-field validation in a `validateInput`-style function with a clear error, not in an inflated wire schema (§2.2 budget).
+4. Throw to fail. Collect non-fatal problems in the result instead of swallowing them; never report a failure as success.
+5. Take every side effect (process, filesystem, clock, network) through a parameter or port so tests can fake it.
+6. Ship `*.test.ts` files beside the pure modules in `tools/<name>/`, covering behavior, boundaries and errors; run them with `bun test`.
+7. Be hidden and discoverable unless it belongs in the startup core, with a routing description (§2.1) and required fields non-optional.
+8. Stay self-contained (no `@zab-ai/*`, `@mastra/*`, or `capability-replicas`) and never mutate host objects it did not create.
+
 **Workflow steps.** Keep steps as plain functions in the same module (or sibling
 files in `~/.omp/agent/tools/<name>/`), called in order by `execute()`. For a
 judgment step, spawn `omp -p` or `--mode rpc` with a schema through `pi.exec`,
