@@ -267,10 +267,14 @@ export MISE_HISTORY_WATCHDOG_HEAL="$work/bin/heal-ok"
 
 # --- a healthy service stays silent and clears the ledger --------------------
 healthy
+# A worker's rescued copies live beside the ledger and must outlive a healthy tick.
+mkdir -p "$work/state/rescued/20260101-000000/home"
+printf 'kept\n' >"$work/state/rescued/20260101-000000/home/f.local"
 tick 'healthy'
 [ "$(spawns)" = 1 ] || fail 'a healthy status spawned a run'
 [ "$(notifications)" = 0 ] || fail 'a healthy status notified the user'
-[ ! -e "$work/state" ] || fail 'a healthy tick left the attempt ledger behind'
+if compgen -G "$work/state/repair-*" >/dev/null; then fail 'a healthy tick left the attempt ledger behind'; fi
+[ -f "$work/state/rescued/20260101-000000/home/f.local" ] || fail 'a healthy tick deleted a worker rescue copy'
 
 # --- the entry points the watchdog uses directly -----------------------------
 bash "$repair" --class publishing-blocked --detail 'x' --dry-run >"$work/plan" || fail 'the dry run failed'
@@ -278,7 +282,7 @@ grep -q '^title=Restore mise dot history publishing$' "$work/plan" || fail "the 
 grep -q '^proof=run: ' "$work/plan" || fail "the plan has no proof: $(cat "$work/plan")"
 bash "$repair" --class apply-failed --detail 'x' --dry-run >"$work/apply-plan" || fail 'the apply-failed dry run failed'
 grep -q '^title=Reconcile mise dot apply failure$' "$work/apply-plan" || fail "the apply-failed dry run did not print the plan: $(cat "$work/apply-plan")"
-[ ! -e "$work/state" ] || fail 'the dry run wrote state'
+if compgen -G "$work/state/repair-*" >/dev/null; then fail 'the dry run wrote state'; fi
 [ "$(spawns)" = 1 ] || fail 'the dry run spawned a run'
 if bash "$repair" --class nonsense --detail x >/dev/null 2>&1; then
 	fail 'an unknown failure class was accepted'
@@ -287,9 +291,10 @@ if MISE_HISTORY_REPAIR_STATE=/ bash "$repair" --clear >/dev/null 2>&1; then
 	fail 'a state dir outside the tool was accepted'
 fi
 
-mkdir -p "$work/state" && : >"$work/state/repair-publishing-blocked"
+mkdir -p "$work/state/rescued/t" && : >"$work/state/repair-publishing-blocked" && : >"$work/state/rescued/t/x.local"
 MISE_HISTORY_REPAIR_STATE="$work/state" bash "$repair" --clear || fail 'the clear failed'
-[ ! -e "$work/state" ] || fail 'the clear left the ledger behind'
+[ ! -e "$work/state/repair-publishing-blocked" ] || fail 'the clear left the ledger behind'
+[ -f "$work/state/rescued/t/x.local" ] || fail 'the clear deleted a worker rescue copy'
 
 # --- a stale history lock goes, a fresh one stays (on either OS's date) ------
 reset

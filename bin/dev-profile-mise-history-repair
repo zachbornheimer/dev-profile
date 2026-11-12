@@ -117,8 +117,9 @@ if [ "$MODE" != clear ] && { [ -z "$CLASS" ] || [ -z "$DETAIL" ]; }; then
 	usage
 fi
 
-# `--clear` removes this directory, so only a path several levels below the root
-# is ever taken, which no override of /, $HOME or a bare top-level directory is.
+# `--clear` deletes files in this directory, so only a path several levels below
+# the root is ever taken, which no override of /, $HOME or a bare top-level
+# directory is.
 case "$STATE_DIR" in
 /*/*/*) ;;
 *)
@@ -130,8 +131,10 @@ esac
 if [ "$MODE" = clear ]; then
 	# The watchdog calls this on a tick with nothing to escalate, so a failure
 	# that returns later starts a fresh attempt budget instead of inheriting an
-	# exhausted one.
-	rm -rf "$STATE_DIR"
+	# exhausted one. Only the ledger files go: a worker keeps the copies of both
+	# sides of every conflict it reconciled under rescued/ in this same directory,
+	# and a healthy status is the moment someone needs them to undo from.
+	rm -f "$STATE_DIR"/repair-*
 	exit 0
 fi
 
