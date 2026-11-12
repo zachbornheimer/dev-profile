@@ -197,9 +197,11 @@ local fixers = new Mapping<String, Step> {
     glob = List("**/uv.lock", "**/pyproject.toml")
     stage = List("**/uv.lock")
   }
+  // A Keep-a-Changelog file repeats its Added/Changed/Fixed headings under every release, which MD024
+  // rejects by design; linting it blocked every commit touching a third-party repo's CHANGELOG.md.
   ["markdownlint-fix"] = (Builtins.markdown_lint) {
     glob = mdGlobs
-    exclude = List("agents/learnings/**")
+    exclude = List("agents/learnings/**", "**/CHANGELOG.md")
   }
   // hk runs a glob-less step even for an empty commit; a glob lets hk skip it.
   ["newlines"] = (Builtins.newlines) { glob = List("**/*") }
@@ -305,7 +307,7 @@ local gates = new Mapping<String, Step> {
   ["kubeconform"] = (Builtins.kubeconform) { glob = k8sGlobs; exclude = k8sExclude }
   ["markdownlint"] = (Builtins.markdown_lint) {
     glob = mdGlobs
-    exclude = List("agents/learnings/**")
+    exclude = List("agents/learnings/**", "**/CHANGELOG.md")
   }
   ["ruff"] = (Builtins.ruff) { glob = pyGlobs }
   // betterleaks' builtin filters its candidates to `types = ["text"]`, and hk types a
