@@ -1,0 +1,16 @@
+# The code-root targets under ~/Developer/Personal. Not part of the adoptable core: link this file
+# into ~/.config/mise/conf.d (`ln -s <clone>/config/personal.toml ~/.config/mise/conf.d/personal.toml`)
+# on a machine whose repositories live under ~/Developer/Personal. The group's root is config/ under
+# dotfiles.root (the same clone the core deploy map uses) and its target is the code root, so it
+# never overlaps the core group, which deploys into ~.
+[dotfile_groups.personal]
+root = "config"
+target = "~/Developer/Personal"
+exclude = ["**"]
+
+[dotfile_groups.personal.entries]
+"~/Developer/Personal/.editorconfig" = { source = "editorconfig", mode = "symlink" }
+"~/Developer/Personal/.golangci.yml" = { source = "golangci.yml", mode = "symlink" }
+"~/Developer/Personal/deny.toml" = { source = "deny.toml", mode = "symlink" }
+"~/Developer/Personal/dprint.jsonc" = { source = "dprint.jsonc", mode = "symlink" }
+"~/Developer/Personal/mise.toml" = { source = "personal-overlay.toml", mode = "symlink" }

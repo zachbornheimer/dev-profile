@@ -3,6 +3,7 @@
 *
 !/.gitignore
 !/README.md
+!/LICENSE
 !/mise.toml
 !/action.yml
 !/.gitleaks.toml
