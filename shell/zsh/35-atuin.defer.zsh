@@ -16,6 +16,7 @@ if [[ -x /opt/homebrew/bin/atuin || -x $HOME/.local/bin/atuin ]]; then
 	if [[ -z ${ATUIN_PTY_PROXY_ACTIVE-} ]]; then
 		zmodload zsh/zselect 2>/dev/null
 		typeset -g __atuin_id_file=""
+		typeset -g __atuin_end_file="" __atuin_end_exit="" __atuin_end_duration=""
 
 		_atuin_preexec() {
 			emulate -L zsh
@@ -27,15 +28,26 @@ if [[ -x /opt/homebrew/bin/atuin || -x $HOME/.local/bin/atuin ]]; then
 			) >/dev/null 2>&1 </dev/null &!
 		}
 
+		# The end-of-command fork waits (below) for the id file; it too starts only
+		# once the prompt is up, with the exit status and duration captured here.
 		_atuin_precmd() {
 			local EXIT="$?" __atuin_precmd_time=${EPOCHREALTIME-}
 			[[ -n $__atuin_id_file ]] || return 0
-			local file=$__atuin_id_file duration=""
-			__atuin_id_file=""
+			local duration=""
 			if [[ -n $__atuin_preexec_time && -n $__atuin_precmd_time ]]; then
 				printf -v duration %.0f $(((__atuin_precmd_time - __atuin_preexec_time) * 1000000000))
 				((duration < 0)) && duration=0
 			fi
+			__atuin_end_file=$__atuin_id_file __atuin_end_exit=$EXIT __atuin_end_duration=$duration
+			__atuin_id_file=""
+			_p_after_prompt_defer _atuin_history_end
+			return 0
+		}
+
+		_atuin_history_end() {
+			local file=$__atuin_end_file EXIT=$__atuin_end_exit duration=$__atuin_end_duration
+			[[ -n $file ]] || return 0
+			__atuin_end_file=
 			(
 				local -i tries=0
 				while [[ ! -s $file ]] && ((tries++ < 300)); do zselect -t 10; done
@@ -44,7 +56,6 @@ if [[ -x /opt/homebrew/bin/atuin || -x $HOME/.local/bin/atuin ]]; then
 				fi
 				command rm -f -- "$file" "$file.tmp"
 			) >/dev/null 2>&1 </dev/null &!
-			return 0
 		}
 	fi
 fi
