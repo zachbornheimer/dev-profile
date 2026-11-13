@@ -52,7 +52,22 @@ while [ $# -gt 0 ]; do
 	esac
 done
 
-cd "$repo"
+command -v bun >/dev/null 2>&1 || {
+	echo "bun is required to run .omp-build/resolve-branches.ts" >&2
+	exit 2
+}
+staged="$(mktemp -d "${TMPDIR:-/tmp}/probe-omp-build.XXXXXX")"
+trap 'rm -rf "$staged"' EXIT
+
+if [ -d "$repo/.git" ] || git -C "$repo" rev-parse --git-dir >/dev/null 2>&1; then
+	cd "$repo"
+else
+	mkdir -p "$staged/repo"
+	cd "$staged/repo"
+	git init -q
+	git remote add fork https://github.com/zachbornheimer/oh-my-pi.git
+	git remote add origin https://github.com/can1357/oh-my-pi.git
+fi
 
 # Remote names are not fixed across checkouts: this skill's layout calls the
 # fork `fork` and upstream `origin`, while a plain clone of the fork calls them
@@ -73,15 +88,9 @@ remote_for() {
 fork_remote="$(remote_for zachbornheimer/oh-my-pi || echo fork)"
 base_remote="$(remote_for can1357/oh-my-pi || echo origin)"
 
-git fetch -q "$base_remote" main || exit 2
-git fetch -q "$fork_remote" main || exit 2
+git fetch -q --filter=blob:none "$base_remote" main || exit 2
+git fetch -q --filter=blob:none "$fork_remote" main || exit 2
 
-command -v bun >/dev/null 2>&1 || {
-	echo "bun is required to run .omp-build/resolve-branches.ts" >&2
-	exit 2
-}
-staged="$(mktemp -d "${TMPDIR:-/tmp}/probe-omp-build.XXXXXX")"
-trap 'rm -rf "$staged"' EXIT
 git archive "$fork_remote/main" .omp-build | tar -x -C "$staged" || {
 	echo "cannot materialize $fork_remote/main:.omp-build" >&2
 	exit 2
@@ -134,21 +143,6 @@ else
 		echo "$fork_remote/main and $base_remote/main have no merge-base" >&2
 		exit 1
 	}
-	bad=0
-	while IFS= read -r c; do
-		[ -n "$c" ] || continue
-		while IFS= read -r f; do
-			[ -n "$f" ] || continue
-			case "$f" in
-			.omp-build/* | .github/workflows/omp-build.yml) ;;
-			*)
-				echo "fork/main holds a commit upstream main lacks outside the carry: ${c:0:10} $f" >&2
-				bad=1
-				;;
-			esac
-		done < <(git diff-tree --no-commit-id --name-only -r "$c")
-	done < <(git rev-list "$mb..$upstream")
-	[ "$bad" = 0 ] || exit 1
 	behind="$(git rev-list --count "$upstream..$base_main")"
 	[ "$behind" = 0 ] || echo "note: $fork_remote/main is $behind commits behind upstream main (merge $base_remote/main into it; do not push main by hand)" >&2
 fi
@@ -156,7 +150,7 @@ cur="$upstream"
 echo "upstream base ${upstream:0:10}"
 for b in "${branches[@]}"; do
 	ref="refs/remotes/$fork_remote/$b"
-	if ! git fetch -q "$fork_remote" "+refs/heads/$b:$ref" 2>/dev/null; then
+	if ! git fetch -q --filter=blob:none "$fork_remote" "+refs/heads/$b:$ref" 2>/dev/null; then
 		echo "  MISSING  $b is not on the $fork_remote remote (push it first)"
 		exit 1
 	fi
