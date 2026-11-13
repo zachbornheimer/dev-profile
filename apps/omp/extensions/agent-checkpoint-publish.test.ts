@@ -385,7 +385,14 @@ test.skipIf(!hasOmp)("deployed extension loads in a clean HOME without a load er
   const ext = path.join(home, ".omp/agent/extensions/agent-checkpoint-publish.ts");
   fs.mkdirSync(path.dirname(ext), { recursive: true });
   fs.symlinkSync(source, ext);
-  const run = spawnSync("omp", ["--no-session", "--no-tools", "--model", process.env.OMP_MODEL ?? "", "-p", "Reply exactly OK."], {
+  const run = spawnSync("omp", [
+    "--no-session",
+    "--no-tools",
+    "--model",
+    process.env.OMP_MODEL ?? "",
+    "-p",
+    "Reply exactly OK.",
+  ], {
     cwd: root,
     env: { ...process.env, HOME: home, PI_CODING_AGENT_DIR: path.join(home, ".omp/agent") },
     encoding: "utf8",
