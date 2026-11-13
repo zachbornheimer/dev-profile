@@ -46,7 +46,12 @@ buf = "1.75.0"
 "go:golang.org/x/tools/cmd/goimports" = "0.52.0"
 "go:golang.org/x/vuln/cmd/govulncheck" = "1.9.0"
 golangci-lint = "2.15.0"
-"npm:@agentclientprotocol/claude-agent-acp" = "0.100.0"
+# encodeurl@2.0.2 is a transitive dep resolved inside claude-agent-acp's tarball
+# install. npmjs.org shows encodeurl 3.0.0 published later with staged approval and
+# 2.0.2 without provenance (2026-11-13, ZYS-9134): a normal backport from before the
+# provenance workflow, not a tampered release. Narrowest aube trust-policy exception,
+# per https://aube.jdx.dev/security#trust-policy.
+"npm:@agentclientprotocol/claude-agent-acp" = { version = "0.100.0", trust_policy_excludes = ["encodeurl@2.0.2"] }
 "npm:@agentclientprotocol/codex-acp" = "2.5.0"
 "npm:markdownlint-cli" = "0.50.0"
 "npm:oxlint" = "1.91.0"
