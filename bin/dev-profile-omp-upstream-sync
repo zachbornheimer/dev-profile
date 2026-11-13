@@ -1,19 +1,23 @@
 #!/usr/bin/env bash
-# Merge can1357/oh-my-pi:main into the fork's `main` through a pull request.
+# Merge can1357/oh-my-pi:main into the fork's `main` (and `assembled`) nightly.
 #
 # The fork's `main` is upstream plus one carry commit, and the `main-protected`
 # ruleset (no bypass actors) only accepts changes by pull request with the
 # `protect-main` check green. Nothing else advances the base, so without this job
 # `omp-build` keeps assembling onto an ever older upstream.
 #
-# Steps: ephemeral blobless clone -> merge upstream/main into a sync branch off
-# origin/main -> push -> open a PR -> wait for every PR check (protect-main and
-# verify-assembly, which dry-runs the whole branch list) -> merge commit.
-# Merging pushes `main`, which starts `omp-build` at once; dev-profile-omp-sync
-# installs the result.
+# Steps:
+# 1. Ephemeral blobless clone of the fork + fetch `upstream/main`.
+# 2. If `origin/assembled` does not yet contain `upstream/main`, merge
+#    `upstream/main` into `assembled` (--no-ff) and push `origin/assembled`
+#    first so the PR's `Verify .omp-build assembly` check sees the synced stack.
+# 3. Merge `upstream/main` into a sync branch off `origin/main` (keeping any
+#    non-carry file on `main` at `upstream/main`'s blob so `protect-main`'s
+#    clean-sync invariant holds), push, open a PR, wait for every PR check, and
+#    merge. Merging pushes `main`, which starts `omp-build` at once;
+#    `dev-profile-omp-sync` installs the resulting release at 05:00.
 #
-# A conflict, a failed check, or a timeout leaves the PR open and exits 1. Nothing
-# is forced, and `main` only moves through the merge button.
+# A conflict, a failed check, or a timeout leaves the PR open and exits 1.
 # Exit: 0 main contains upstream main afterwards; 1 conflict, failed check or
 # timeout; 2 usage or tool error.
 set -euo pipefail
@@ -41,14 +45,35 @@ git "${git_auth[@]}" clone -q --filter=blob:none "https://github.com/$fork.git" 
 cd "$work/repo"
 git remote add upstream "https://github.com/$upstream.git"
 git "${git_auth[@]}" fetch -q upstream main
+git "${git_auth[@]}" fetch -q origin assembled
 
 if git merge-base --is-ancestor upstream/main origin/main; then
-	echo "omp upstream sync: main already contains upstream ${upstream:+$(git rev-parse --short upstream/main)}"
+	up_short="$(git rev-parse --short upstream/main)"
+	echo "omp upstream sync: main already contains upstream $up_short"
 	exit 0
 fi
 
 behind="$(git rev-list --count origin/main..upstream/main)"
 up7="$(git rev-parse --short=7 upstream/main)"
+
+# Advance `assembled` first when it lags upstream so `Verify .omp-build assembly`
+# on the sync PR merges `assembled` cleanly onto the new base.
+if ! git merge-base --is-ancestor upstream/main origin/assembled; then
+	git config rerere.enabled true
+	git config rerere.autoupdate true
+	if [ -d .omp-build/rr-cache ]; then
+		mkdir -p .git/rr-cache
+		cp -R .omp-build/rr-cache/. .git/rr-cache/
+	fi
+	git switch -q --detach origin/assembled
+	if ! git merge --no-ff --no-edit -m "chore(assembled): merge upstream main ($up7)" upstream/main; then
+		echo "omp upstream sync: merging upstream/main into assembled conflicts:" >&2
+		git diff --name-only --diff-filter=U >&2
+		exit 1
+	fi
+	git "${git_auth[@]}" push -q origin "HEAD:refs/heads/assembled"
+	echo "omp upstream sync: merged upstream $up7 into origin/assembled"
+fi
 
 # One open sync PR at a time: a PR a previous night left open is the one to finish.
 pr="$(gh pr list --repo "$fork" --base main --state open --limit 50 \
@@ -57,12 +82,28 @@ pr="$(gh pr list --repo "$fork" --base main --state open --limit 50 \
 if [ -z "$pr" ]; then
 	branch="chore/sync-upstream-$(date -u +%Y%m%d)-$up7"
 	git switch -q --detach origin/main
-	if ! git merge --no-ff --no-edit -m "chore(omp-build): sync upstream main ($up7, $behind commits)" upstream/main; then
+	if ! git merge --no-ff --no-commit upstream/main; then
 		echo "omp upstream sync: merging upstream/main into main conflicts:" >&2
 		git diff --name-only --diff-filter=U >&2
 		echo "Resolve by hand on a worktree (updating-oh-my-pi skill, section 3)." >&2
 		exit 1
 	fi
+	# protect-main requires every file outside the carry paths in an upstream sync
+	# merge commit to match either origin/main or upstream/main verbatim (no 3-way
+	# blend from legacy commits on main; those changes live on `assembled`).
+	while IFS= read -r f; do
+		[ -z "$f" ] && continue
+		case "$f" in
+		.omp-build/* | .github/workflows/omp-build.yml | .github/workflows/protect-main.yml) continue ;;
+		esac
+		head_blob="$(git rev-parse -q --verify ":0:$f" 2>/dev/null || true)"
+		p1_blob="$(git rev-parse -q --verify "origin/main:$f" 2>/dev/null || true)"
+		up_blob="$(git rev-parse -q --verify "upstream/main:$f" 2>/dev/null || true)"
+		if [ "$head_blob" != "$p1_blob" ] && [ "$head_blob" != "$up_blob" ] && [ -n "$up_blob" ]; then
+			git checkout -q upstream/main -- "$f"
+		fi
+	done < <(git diff --cached --name-only origin/main)
+	git commit -q -m "chore(omp-build): sync upstream main ($up7, $behind commits)"
 	git "${git_auth[@]}" push -q origin "HEAD:refs/heads/$branch"
 	title="chore(omp-build): sync upstream main ($up7)"
 	body="Nightly merge of \`$upstream:main\` ($behind commits) into \`main\`. Opened by dev-profile-omp-upstream-sync; merged only after every PR check passes."
