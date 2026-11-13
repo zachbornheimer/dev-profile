@@ -54,7 +54,7 @@ ASKS_LOG = "scope-asks-{session}.jsonl"
 TASK_ATTRIBUTIONS = frozenset({"user", "agent"})
 PROMPTS_KEPT = 8
 RUNS_KEPT = 8
-TASK_CHARS = 1200
+TASK_CHARS = 4000
 CANDIDATE_CHARS = 2400
 CONTEXT_CHARS = 400
 LOG_CHARS = 400
@@ -511,6 +511,33 @@ def _agent_asked(facts: Any, asks: tuple[Ask, ...]) -> str:
     return str(history[-1].reply.strip() if history else "")
 
 
+def _task_text(text: str) -> str:
+    """Keep a Relay ticket's acceptance, not just its repeated operator wrapper."""
+    marker = "<user-input>"
+    if marker not in text or "The ticket:" not in text:
+        return text
+    operator, payload = text.rsplit(marker, 1)
+    ticket = payload.split("Comments, oldest first:", 1)[0]
+    instruction = payload.rsplit("This turn's instruction:", 1)
+    sections = []
+    for heading, budget in (("## Deliverable", 900), ("## Acceptance criteria", 1800)):
+        if heading in ticket:
+            section = ticket.split(heading, 1)[1].split("\n## ", 1)[0]
+            sections.append(heading + _clip(section, budget))
+    if not sections:
+        sections.append(_clip(ticket, 2200))
+    return "\n".join(
+        [
+            _clip(operator, 400),
+            _clip(ticket.split("\n\n", 1)[0], 200),
+            *sections,
+            "This turn's instruction:" + _clip(instruction[-1], 600)
+            if len(instruction) == 2
+            else "",
+        ]
+    )
+
+
 def _task_of(asks: tuple[Ask, ...], agent_message: str = "") -> str:
     """The recent asks, oldest first, so a bare path still carries its request.
 
@@ -526,7 +553,7 @@ def _task_of(asks: tuple[Ask, ...], agent_message: str = "") -> str:
     agent message it answers: a reply that short names no work, while a longer
     ask is self-contained and must never be judged against the agent's words.
     """
-    texts = [ask.text for ask in asks[-TASK_PROMPTS:]]
+    texts = [_task_text(ask.text) for ask in asks[-TASK_PROMPTS:]]
     if not texts:
         return ""
     if agent_message and len(asks[-1].text) < SHORT_REPLY_CHARS:
