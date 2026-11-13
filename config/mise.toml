@@ -228,6 +228,8 @@ root = "."
 exclude = ["**"]
 
 [dotfile_groups.dev-profile.entries]
+"~/.config/agent-checkpoints/enrollment.toml" = { source = "config/agent-checkpoints/enrollment.toml", mode = "symlink" }
+"~/.omp/agent/extensions/agent-checkpoint-publish.ts" = { source = "apps/omp/extensions/agent-checkpoint-publish.ts", mode = "symlink" }
 "~/.agents" = { source = "agents", mode = "symlink" }
 "~/.config/dprint/dprint.jsonc" = { source = "config/dprint.jsonc", mode = "symlink" }
 "~/.config/hk/config.pkl" = { source = "hk/hk.pkl", mode = "symlink" }

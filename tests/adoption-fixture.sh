@@ -33,7 +33,7 @@ cd "${HOME}"
 
 # 1. The seed deploys from the clone wherever it lives. Only the first apply needs the root named.
 applied="$(MISE_DOTFILES_ROOT="${clone}" mise dot apply --yes 2>&1 | grep -v 'WARN' || true)"
-for target in .agents .config/hk/config.pkl .config/dprint/dprint.jsonc .local/share/dev-profile/bin .stylelintrc.json; do
+for target in .agents .config/hk/config.pkl .config/dprint/dprint.jsonc .local/share/dev-profile/bin .stylelintrc.json .omp/agent/extensions/agent-checkpoint-publish.ts .config/agent-checkpoints/enrollment.toml; do
 	[ -L "${HOME}/${target}" ] || fail "${target} was not linked. apply said: ${applied}"
 	case "$(realpath "${HOME}/${target}")" in
 	"${clone}"/*) ;;
