@@ -43,6 +43,7 @@ bash "$root/tests/uv-lock-cooldown-fixture.sh" "$root" >/dev/null || fail "uv-lo
 bash "$root/tests/tools-install-fixture.sh" "$root" >/dev/null || fail "tools install fixture"
 bash "$root/tests/herdr-plugins-fixture.sh" >/dev/null || fail "herdr plugins fixture"
 bash "$root/tests/adoption-fixture.sh" >/dev/null || fail "adoption fixture"
+bash "$root/tests/owners-fixture.sh" >/dev/null || fail "owners fixture"
 # Validate that every installed omp custom tool and extension loads. Its own
 # script so it is also runnable directly: `mise run test:omp` (ZYS-9134).
 bash "$root/tests/omp-tools-fixture.sh" >/dev/null || fail "omp tools validation fixture"

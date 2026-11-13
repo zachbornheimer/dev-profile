@@ -32,16 +32,7 @@ github_slug() { # <remote-url> -> owner/repo on github.com, or empty
 }
 
 is_owned_owner() { # <owner>
-	local lower
-	lower="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
-	case "${lower}" in
-	zachbornheimer | zysys | software-automation-holdings-llc | zab-ai-llc)
-		return 0
-		;;
-	*)
-		return 1
-		;;
-	esac
+	"$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/dev-profile-owners" "$1"
 }
 
 upstream_url="$(git config --get remote.upstream.url 2>/dev/null || true)"
