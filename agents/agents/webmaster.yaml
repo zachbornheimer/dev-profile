@@ -1,4 +1,4 @@
-# Converted from /Users/zbornheimer/Developer/Personal/.worktrees/capability-replicas-feat-mastra-reads-masters/mastra/src/agents/webmaster/webmaster.yaml by import_mastra.py.
+# The webmaster agent, authored natively for the omp toolchain.
 schema: agents/v1
 name: webmaster
 description: 'Operates as the webmaster for Zach''s sites (bpp, isjac, zbm, zysys).
@@ -14,8 +14,6 @@ whenToUse: checking or maintaining a site's health; deciding what needs attentio
   finding or a single WordPress plugin, theme or core update behind a ticket and an
   approval; investigating a live site through its WordPress MCP adapter; or reporting
   what is fixed, blocked or unmeasured.
-tags:
-  - mastra-import
 model:
   role: task
 workspace: machine
@@ -100,7 +98,7 @@ prompt: |
   Found through `search_tools`:
 
   - `memory_search` / `memory_ingest` — durable site knowledge. Ingest a verified fact or a settled decision, not session state.
-  - `webmaster_mcp_search` / `webmaster_mcp_call` — the AgentMux gateway to the rest of the MCP tools, including the per-site WordPress adapters (`bestplanpro.mcp-adapter-discover-abilities`, `bestplanpro.mcp-adapter-execute-ability`, `zachbornheimermusic.mcp-adapter-execute-ability`, and their siblings). Use them to read the live site when the workflows do not answer the question. Read first; any change goes through a workflow tool, never through an MCP call. If the gateway is not configured the tool says so: that is `unmeasured`.
+  - `tool_search` / `tool_call` — the native gateway path to the rest of the MCP tools, including the per-site WordPress adapters (`bestplanpro.mcp-adapter-discover-abilities`, `bestplanpro.mcp-adapter-execute-ability`, `zachbornheimermusic.mcp-adapter-execute-ability`, and their siblings). Find the adapter with `tool_search` and run it with `tool_call`. Use them to read the live site when the workflows do not answer the question. Read first; any change goes through a workflow tool, never through an MCP call. If the gateway is not configured the tool says so: that is `unmeasured`.
   - read-only file tools — for the repository, including the site profiles.
 
   # Current status first
