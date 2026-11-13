@@ -116,9 +116,9 @@ async function worker(job: Job) {
   await promise;
   return readJob(jobPath(job.key));
 }
-async function settled() {
+async function settled(timeoutMs = 15_000) {
   const dir = path.join(process.env.AGENT_CHECKPOINT_STATE_DIR!, "jobs");
-  const end = Date.now() + 15_000;
+  const end = Date.now() + timeoutMs;
   while (Date.now() < end) {
     const files = fs.existsSync(dir) ? fs.readdirSync(dir).filter(f => f.endsWith(".json")) : [];
     if (files.length) {
@@ -343,3 +343,60 @@ test.skipIf(!hasOmp)("real omp session publishes one verified ref and reports it
   expect(second.status).toBe(0);
   expect(readJob(jobPath(job.key)).reported).toBe(true); // surfaced at the next turn start (print mode shows no notices)
 }, 200000);
+
+test("slow pre-push: handler returns pending first, the detached worker verifies later", async () => {
+  const f = fixture();
+  await f.event("agent_start");
+  f.commit();
+  fs.writeFileSync(path.join(f.repo, ".git/hooks/pre-push"), "#!/bin/sh\nsleep 3\n", { mode: 0o755 });
+  const before = f.refs(), started = Date.now();
+  await f.event("agent_end");
+  expect(Date.now() - started).toBeLessThan(5000);
+  expect(f.notices.join("\n")).toContain("agent-checkpoint: pending");
+  expect(f.refs()).toBe(before);
+  const job = await settled(30_000);
+  expect(job.outcome).toBe("verified");
+  expect(f.refs()).not.toBe(before);
+}, 40000);
+
+test("worker killed mid-push then restarted yields one push", async () => {
+  const f = fixture(), sha = f.commit(), job = f.makeJob(sha);
+  fs.writeFileSync(path.join(f.repo, ".git/hooks/pre-push"), "#!/bin/sh\nsleep 2\n", { mode: 0o755 });
+  writeJob(job);
+  const before = f.refs(), jobFile = jobPath(job.key);
+  const child = spawn("bun", [source, "--worker", jobFile], { env: process.env, stdio: "ignore", detached: true });
+  const { promise, resolve } = Promise.withResolvers<void>();
+  const watcher = fs.watch(path.dirname(jobFile), () => {
+    if (readJob(jobFile).state === "pushing") resolve();
+  });
+  await promise;
+  watcher.close();
+  process.kill(-child.pid!, "SIGKILL");
+  expect(readJob(jobFile).state).not.toBe("verified");
+  const result = await worker(readJob(jobFile));
+  expect(result.state).toBe("verified");
+  expect(f.refs().split("\n").filter(l => !before.split("\n").includes(l))).toHaveLength(1);
+}, 40000);
+
+test.skipIf(!hasOmp)("deployed extension loads in a clean HOME without a load error", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "checkpoint-home-"));
+  dirs.push(root);
+  const home = path.join(root, "home");
+  const ext = path.join(home, ".omp/agent/extensions/agent-checkpoint-publish.ts");
+  fs.mkdirSync(path.dirname(ext), { recursive: true });
+  fs.symlinkSync(source, ext);
+  const run = spawnSync("omp", [
+    "--no-session",
+    "--no-tools",
+    "--model",
+    process.env.OMP_MODEL ?? "",
+    "-p",
+    "Reply exactly OK.",
+  ], {
+    cwd: root,
+    env: { ...process.env, HOME: home, PI_CODING_AGENT_DIR: path.join(home, ".omp/agent") },
+    encoding: "utf8",
+    timeout: 90_000,
+  });
+  expect(run.stdout + run.stderr).not.toContain("Failed to load extension");
+}, 100000);
