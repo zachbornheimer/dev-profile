@@ -270,42 +270,47 @@ A rejection report (`blocked-hook-rejected`) MUST contain: the exit code, the la
 
 ## 10. Dotfiles propagation (mise dot)
 
-| Id    | Rule                                                                                                                                                                                         | Test |
-| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
-| R10.1 | The publisher never edits `~/.local/state/mise/history/` by hand. It does not run `mise dot recover` or `mise dot bootstrap`.                                                                | F16  |
-| R10.2 | `mise dot pull` is report-only: the publisher runs it, reports the result, and does not resolve conflicts on its own.                                                                        | F17  |
-| R10.3 | On a conflict, the report names each path. The owner runs `mise dot conflicts <path>`, then `mise dot pull --take-remote <path>` or `mise dot pull --keep-local <path>`, one path at a time. | F17  |
-| R10.4 | A `~/.gitconfig` manual-save divergence younger than 24 h is `scheduled`. The cadence follows `bin/dev-profile-mise-history-watchdog` lines 224-243.                                         | F17  |
-| R10.5 | If the dotfiles origin is declared fetch-only, the outcome is `not-propagated`.                                                                                                              | F18  |
-| R10.6 | If the dotfiles origin differs from the declared canonical, the outcome is `blocked-destination-changed`.                                                                                    | F16  |
-| R10.7 | Re-check these rules on mise 2026.11.5.                                                                                                                                                      | n/a  |
+The turn-end report carries one **mise outcome**, separate from and never collapsed into the repository outcome. It is computed read-only from `mise dot status --json`, `mise dot history show --json` and `git ls-remote`, plus at most one `mise dot sync`. Precedence is `blocked` > `pending` > `scheduled` > `verified`; exactly one state is reported, with path and reason for every blocked condition.
 
-Dotfile outcomes: `mise-in-sync`, `scheduled`, `mise-conflict`, `not-propagated`, `mise-offline`.
+| Id    | Rule                                                                                                                                                                                                                                                           | Fixtures |
+| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| R10.1 | The extension never edits `~/.local/state/mise/history/` by hand. It never runs `mise dot recover`, `mise dot bootstrap` or `mise dot save`, and never touches the watchdog stamp.                                                                             | F16      |
+| R10.2 | `mise dot pull` is **report-only**: the extension never runs it, because `pull` rewrites live files mid-session. On a conflict the report prints the commands for the owner; nothing is resolved.                                                              | F17      |
+| R10.3 | On a conflict the report names each path with `mise dot conflicts <path>`, then `mise dot pull --take-remote <path>` or `--keep-local <path>`, one path at a time. `pull` checkpoints first, so both sides stay recoverable via `mise dot undo`.               | F17      |
+| R10.4 | A manual-save path (`~/.gitconfig`) unsaved while the watchdog stamp is younger than 24 h is `scheduled`. With the stamp missing or at least 24 h old it is `blocked` (`manual-save-overdue`). Cadence: `bin/dev-profile-mise-history-watchdog` lines 224-243. | F17      |
+| R10.5 | `history.sync.mode` of `fetch-only` (or any mode that does not push) is `blocked` with reason `fetch-only`: the configured adopt state on Relay boxes, reported honestly each turn, never `verified`.                                                          | F18      |
+| R10.6 | An origin that differs from `[destinations."mise-history"].canonical` in the enrollment file, or a missing declaration, is `blocked` with reason `destination-changed`.                                                                                        | F16      |
+| R10.7 | Re-check these rules on mise 2026.11.5. Intake verified 2026.11.4.                                                                                                                                                                                             | n/a      |
+| R10.8 | `verified` requires evidence: after `mise dot sync` there are no conflicts, no failure, no pending operations, and `git ls-remote <origin> refs/heads/<branch>` equals the local history head. A sync exit of 0 or a `--best-effort` warning is not evidence.  | F2       |
+
+Outcomes: `verified`, `scheduled`, `pending`, `blocked`. `blocked` carries a reason: `conflict`, `failing`, `offline`, `fetch-only`, `unsaved` (an autosave path), `manual-save-overdue`, `destination-changed`. `pending` means pending operations or applications, or a sync that outran its budget. The outcome is omitted when `mise` is not on PATH or `history.enabled` is not true.
+
+Mapping from the earlier five names: `mise-in-sync` → `verified`; `scheduled` → `scheduled`; `mise-conflict` → `blocked`/`conflict`; `not-propagated` → `blocked`/`fetch-only`; `mise-offline` → `blocked`/`offline`.
 
 ## 11. Fixtures
 
-| Id  | Scenario                                                            | Expected outcome                                                                             |
-| --- | ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| F1  | Repository not in the enrollment file; and two matching entries     | `blocked-not-enrolled`; `blocked-ambiguous-ownership`                                        |
-| F2  | Happy path: enrolled, signed, hooks pass                            | `verified`; no `refs/remotes/*` written                                                      |
-| F3  | Remote has a `pushurl` different from the fetch URL                 | Push and read-back both use the push URL                                                     |
-| F4  | `pushInsteadOf` rewrites the URL                                    | Dry-run URL is used for push and read-back                                                   |
-| F5  | Computed ref outside `refs/heads/agent-checkpoints/`                | `blocked-namespace`                                                                          |
-| F6  | Ref exists at same SHA; ref exists at a different SHA               | `verified-present`; `blocked-collision` (`different-sha`)                                    |
-| F7  | Directory/file conflict with an existing ref                        | `blocked-collision` (`df-conflict`)                                                          |
-| F8  | Destination, or its visibility, changed or unreadable               | `blocked-destination-changed`, `blocked-visibility-changed`, `blocked-visibility-unverified` |
-| F9  | Scan the worker's git invocations                                   | No skip-hooks flag, no hook-disable variable, no force flag                                  |
-| F10 | hk `pre-push` fails; gitleaks hits                                  | `blocked-hook-rejected` with report; `blocked-secrets`                                       |
-| F11 | Commit outside the provenance list; no baseline; unrelated ancestry | `blocked-provenance`; `blocked-missing-baseline`; `blocked-unrelated-ancestry`               |
-| F12 | Worker killed mid-push, then restarted                              | Stale heartbeat taken over; one push                                                         |
-| F13 | Job in `queued`, `pushing`, `pushed`                                | Reported as pending, never published                                                         |
-| F14 | `willContinue === true`; handler inside a worker; slow push         | Handler returns at once; no recursion; handler under 30 s                                    |
-| F15 | Unsigned commit                                                     | `blocked-unsigned`; no retry with signing off                                                |
-| F16 | Dotfiles origin differs from declared canonical                     | `blocked-destination-changed`                                                                |
-| F17 | Per-path conflict; `~/.gitconfig` divergence under 24 h             | `mise-conflict` with per-path commands; `scheduled`                                          |
-| F18 | Dotfiles origin is fetch-only                                       | `not-propagated`                                                                             |
-| F19 | Destination offline                                                 | `blocked-remote-unreachable` or `mise-offline`                                               |
-| F20 | Retry exhaustion and 24 h expiry                                    | `failed` after 3 attempts; `expired` after 24 h                                              |
+| Id  | Scenario                                                                                                  | Expected outcome                                                                                                                         |
+| --- | --------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| F1  | Repository not in the enrollment file; and two matching entries                                           | `blocked-not-enrolled`; `blocked-ambiguous-ownership`                                                                                    |
+| F2  | Happy path: enrolled, signed, hooks pass                                                                  | `verified`; no `refs/remotes/*` written                                                                                                  |
+| F3  | Remote has a `pushurl` different from the fetch URL                                                       | Push and read-back both use the push URL                                                                                                 |
+| F4  | `pushInsteadOf` rewrites the URL                                                                          | Dry-run URL is used for push and read-back                                                                                               |
+| F5  | Computed ref outside `refs/heads/agent-checkpoints/`                                                      | `blocked-namespace`                                                                                                                      |
+| F6  | Ref exists at same SHA; ref exists at a different SHA                                                     | `verified-present`; `blocked-collision` (`different-sha`)                                                                                |
+| F7  | Directory/file conflict with an existing ref                                                              | `blocked-collision` (`df-conflict`)                                                                                                      |
+| F8  | Destination, or its visibility, changed or unreadable                                                     | `blocked-destination-changed`, `blocked-visibility-changed`, `blocked-visibility-unverified`                                             |
+| F9  | Scan the worker's git invocations                                                                         | No skip-hooks flag, no hook-disable variable, no force flag                                                                              |
+| F10 | hk `pre-push` fails; gitleaks hits                                                                        | `blocked-hook-rejected` with report; `blocked-secrets`                                                                                   |
+| F11 | Commit outside the provenance list; no baseline; unrelated ancestry                                       | `blocked-provenance`; `blocked-missing-baseline`; `blocked-unrelated-ancestry`                                                           |
+| F12 | Worker killed mid-push, then restarted                                                                    | Stale heartbeat taken over; one push                                                                                                     |
+| F13 | Job in `queued`, `pushing`, `pushed`                                                                      | Reported as pending, never published                                                                                                     |
+| F14 | `willContinue === true`; handler inside a worker; slow push                                               | Handler returns at once; no recursion; handler under 30 s                                                                                |
+| F15 | Unsigned commit                                                                                           | `blocked-unsigned`; no retry with signing off                                                                                            |
+| F16 | Dotfiles origin differs from the declared canonical, or no `[destinations."mise-history"]` declaration    | `blocked` with reason `destination-changed`                                                                                              |
+| F17 | Per-path conflict; unsaved manual-save path with a young watchdog stamp; with a missing or 24 h old stamp | `blocked`/`conflict` with per-path commands, both versions recoverable via `mise dot undo`; `scheduled`; `blocked`/`manual-save-overdue` |
+| F18 | Dotfiles origin is fetch-only (`history.sync.mode` is not `sync`)                                         | `blocked`/`fetch-only`; never `verified`                                                                                                 |
+| F19 | Dotfiles origin offline                                                                                   | `blocked`/`offline`                                                                                                                      |
+| F20 | Retry exhaustion and 24 h expiry                                                                          | `failed` after 3 attempts; `expired` after 24 h                                                                                          |
 
 ## 12. Acceptance map
 
