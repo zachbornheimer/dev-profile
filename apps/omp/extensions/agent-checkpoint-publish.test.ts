@@ -400,3 +400,227 @@ test.skipIf(!hasOmp)("deployed extension loads in a clean HOME without a load er
   });
   expect(run.stdout + run.stderr).not.toContain("Failed to load extension");
 }, 100000);
+
+// ---- mise dotfile reconciliation (ZYS-9038) --------------------------------------------------
+// Every fixture: temp HOME, MISE_* dirs, bare-repo dotfiles origin; a PATH shim records mise argv.
+// Resolved once, before any fixture puts its argv-recording shim first on PATH.
+const realMise = Bun.which("mise") ?? "mise";
+function miseBox(opts: { mode?: string; origin?: "dead"; every?: number; declare?: string | false } = {}) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "mise-outcome-"));
+  dirs.push(root);
+  const home = path.join(root, "home"), bin = path.join(root, "bin"), logs = path.join(root, "logs");
+  const origin = path.join(root, "origin.git"), argv = path.join(root, "argv.log");
+  for (const d of [home, path.join(home, ".config/mise"), bin, logs]) fs.mkdirSync(d, { recursive: true });
+  const gitconfig = path.join(root, "gitconfig");
+  fs.writeFileSync(gitconfig, "[user]\n\tname = t\n\temail = t@example.test\n[init]\n\tdefaultBranch = main\n");
+  fs.writeFileSync(
+    path.join(bin, "mise"),
+    `#!/usr/bin/env bash\nprintf '%s\\n' "$*" >> "${argv}"\nexec "${realMise}" "$@"\n`,
+    {
+      mode: 0o755,
+    },
+  );
+  const config = path.join(home, ".config/mise/config.toml");
+  const originUrl = opts.origin === "dead" ? path.join(root, "gone.git") : origin;
+  const write = (mode = opts.mode ?? "sync", url = originUrl) =>
+    fs.writeFileSync(
+      config,
+      `[dotfiles]\n"~/.dot-a" = { mode = "track" }\n"~/.gitconfig" = { mode = "track", autosave = false }\n\n`
+        + `[history]\ngit_email = "t@example.test"\n[history.origin]\nurl = "${url}"\nbranch = "history"\n\n[settings.history]\nsync = "${mode}"\n`,
+    );
+  write();
+  if (opts.origin !== "dead") {
+    spawnSync("git", ["init", "--bare", "-b", "history", origin], {
+      env: { ...process.env, GIT_CONFIG_GLOBAL: gitconfig },
+    });
+  }
+  fs.writeFileSync(path.join(home, ".gitconfig"), "[user]\n\tname = fixture\n");
+  fs.writeFileSync(path.join(home, ".dot-a"), "v1\n");
+  const env = {
+    ...process.env,
+    HOME: home,
+    XDG_CONFIG_HOME: path.join(home, ".config"),
+    XDG_STATE_HOME: path.join(home, ".local/state"),
+    XDG_DATA_HOME: path.join(home, ".local/share"),
+    GIT_CONFIG_GLOBAL: gitconfig,
+    GIT_CONFIG_NOSYSTEM: "1",
+    MISE_GLOBAL_CONFIG_FILE: config,
+    MISE_TRUSTED_CONFIG_PATHS: config,
+    MISE_CONFIG_DIR: path.join(home, ".config/mise"),
+    MISE_STATE_DIR: path.join(root, "state"),
+    MISE_DATA_DIR: path.join(root, "data"),
+    MISE_CACHE_DIR: path.join(root, "cache"),
+    MISE_HISTORY_LOG_DIR: logs,
+    AGENT_CHECKPOINT_STATE_DIR: path.join(root, "agent-state"),
+    AGENT_CHECKPOINT_ENROLLMENT_FILE: path.join(root, "enrollment.toml"),
+    PATH: `${bin}:${process.env.PATH}`,
+  } as Record<string, string>;
+  delete env.MISE_HISTORY_MANUAL_SAVE_EVERY_S;
+  if (opts.every) env.MISE_HISTORY_MANUAL_SAVE_EVERY_S = String(opts.every);
+  process.env = env;
+  const declare = (canonical: string | false) =>
+    fs.writeFileSync(
+      env.AGENT_CHECKPOINT_ENROLLMENT_FILE,
+      `schema_version = 1\n${
+        canonical === false
+          ? ""
+          : `[destinations."mise-history"]\nkind = "mise-dot"\ncanonical = ${
+            JSON.stringify(canonical)
+          }\nbranch = "history"\nmode = "sync"\n`
+      }`,
+    );
+  declare(opts.declare === false ? false : opts.declare ?? originUrl);
+  const mise = (...args: string[]) => spawnSync("mise", args, { env, cwd: root, encoding: "utf8" });
+  const stamp = path.join(logs, "manual-save.stamp");
+  const touchStamp = (ageS: number) => {
+    fs.writeFileSync(stamp, "");
+    const at = new Date(Date.now() - ageS * 1000);
+    fs.utimesSync(stamp, at, at);
+  };
+  const lines = () => fs.existsSync(argv) ? fs.readFileSync(argv, "utf8").split("\n").filter(Boolean) : [];
+  const report = async () => {
+    fs.writeFileSync(argv, "");
+    const notices: string[] = [];
+    const handlers = new Map<string, Function>();
+    install({ on: (n, fn) => void handlers.set(n, fn) });
+    await handlers.get("agent_end")!({}, { cwd: home, ui: { notify: (t: string) => void notices.push(t) } });
+    return { notices, mise: notices.filter(n => n.startsWith("mise-dotfiles:")), argv: lines() };
+  };
+  return { root, home, origin, config, mise, write, declare, touchStamp, stamp, report };
+}
+const neverMutates = (argv: string[]) => {
+  expect(
+    argv.some(l => /^dot(files)? (pull|save|recover|bootstrap)\b/.test(l) || l.includes("--allow-plaintext-history")),
+  )
+    .toBe(false);
+};
+
+test("mise: saved and synced tracked file is verified, with one sync and matching heads", async () => {
+  const b = miseBox();
+  expect(b.mise("dot", "save").status).toBe(0);
+  expect(b.mise("dot", "sync").status).toBe(0);
+  const configBefore = fs.readFileSync(b.config, "utf8");
+  const r = await b.report();
+  expect(r.mise).toHaveLength(1);
+  expect(r.mise[0]).toStartWith("mise-dotfiles: verified");
+  const head = git(b.origin, "rev-parse", "refs/heads/history");
+  expect(r.mise[0]).toContain(`head=${head}`);
+  expect(r.argv.filter(l => l === "dot sync")).toHaveLength(1);
+  neverMutates(r.argv);
+  expect(fs.readFileSync(b.config, "utf8")).toBe(configBefore);
+}, 90_000);
+
+test("mise: repeated agent_end is idempotent", async () => {
+  const b = miseBox();
+  b.mise("dot", "save");
+  b.mise("dot", "sync");
+  const first = (await b.report()).mise[0];
+  const second = (await b.report()).mise[0];
+  expect(second).toBe(first);
+}, 90_000);
+
+test("mise: changed ~/.gitconfig with a young stamp is scheduled and the stamp mtime is untouched", async () => {
+  const b = miseBox();
+  b.mise("dot", "save");
+  b.mise("dot", "sync");
+  fs.writeFileSync(path.join(b.home, ".gitconfig"), "[user]\n\tname = changed\n");
+  b.touchStamp(60);
+  const before = fs.statSync(b.stamp).mtimeMs;
+  const r = await b.report();
+  expect(r.mise[0]).toStartWith("mise-dotfiles: scheduled");
+  expect(r.mise[0]).toContain("~/.gitconfig");
+  expect(fs.statSync(b.stamp).mtimeMs).toBe(before);
+  expect(r.argv).not.toContain("dot sync");
+  neverMutates(r.argv);
+}, 90_000);
+
+test("mise: unsaved manual-save path with a missing or 24 h old stamp is blocked manual-save-overdue", async () => {
+  const b = miseBox();
+  b.mise("dot", "save");
+  fs.writeFileSync(path.join(b.home, ".gitconfig"), "[user]\n\tname = changed\n");
+  expect((await b.report()).mise[0]).toMatch(/^mise-dotfiles: blocked.*manual-save-overdue/);
+  b.touchStamp(25 * 3600);
+  expect((await b.report()).mise[0]).toMatch(/^mise-dotfiles: blocked.*manual-save-overdue/);
+}, 90_000);
+
+test("mise: an unsaved autosave path is blocked unsaved, never scheduled", async () => {
+  const b = miseBox();
+  b.mise("dot", "save");
+  fs.writeFileSync(path.join(b.home, ".dot-a"), "v2\n");
+  b.touchStamp(60);
+  const r = await b.report();
+  expect(r.mise[0]).toMatch(/^mise-dotfiles: blocked.*unsaved paths=~\/\.dot-a/);
+  expect(r.mise[0]).not.toContain("scheduled");
+}, 90_000);
+
+test("mise: fetch-only is blocked fetch-only and never syncs", async () => {
+  const b = miseBox({ mode: "fetch-only" });
+  b.mise("dot", "save");
+  const r = await b.report();
+  expect(r.mise[0]).toMatch(/^mise-dotfiles: blocked.*fetch-only/);
+  expect(r.argv).not.toContain("dot sync");
+  neverMutates(r.argv);
+}, 90_000);
+
+test("mise: offline origin is blocked offline", async () => {
+  const b = miseBox({ origin: "dead" });
+  b.mise("dot", "save");
+  expect((await b.report()).mise[0]).toMatch(/^mise-dotfiles: blocked.*offline/);
+}, 90_000);
+
+test(
+  "mise: origin differing from the declared canonical, or no declaration, is blocked destination-changed",
+  async () => {
+    const b = miseBox({ declare: "/nowhere/else.git" });
+    b.mise("dot", "save");
+    expect((await b.report()).mise[0]).toMatch(/^mise-dotfiles: blocked.*destination-changed/);
+    b.declare(false);
+    expect((await b.report()).mise[0]).toMatch(/^mise-dotfiles: blocked.*destination-changed/);
+  },
+  90_000,
+);
+
+test(
+  "mise: a path edited on both sides is blocked conflict with per-path commands; both sides stay recoverable",
+  async () => {
+    const a = miseBox();
+    expect(a.mise("dot", "save").status).toBe(0);
+    expect(a.mise("dot", "sync").status).toBe(0);
+    const savedA = { ...process.env };
+    const bBox = miseBox();
+    fs.rmSync(bBox.origin, { recursive: true });
+    fs.cpSync(a.origin, bBox.origin, { recursive: true });
+    const adopt = bBox.mise("bootstrap", "--adopt", a.origin, "--replace-history", "--yes");
+    expect(adopt.status).toBe(0);
+    fs.writeFileSync(path.join(bBox.home, ".dot-a"), "v2-B\n");
+    bBox.mise("dot", "save");
+    expect(bBox.mise("dot", "sync").status).toBe(0);
+    fs.cpSync(bBox.origin, a.origin, { recursive: true, force: true });
+    process.env = savedA;
+    fs.writeFileSync(path.join(a.home, ".dot-a"), "v3-A\n");
+    a.mise("dot", "save");
+    a.mise("dot", "sync");
+    const r = await a.report();
+    expect(r.mise[0]).toMatch(/^mise-dotfiles: blocked.*conflict paths=~\/\.dot-a/);
+    expect(r.mise[0]).toContain("mise dot conflicts ~/.dot-a");
+    expect(r.mise[0]).toContain("mise dot pull --take-remote ~/.dot-a");
+    expect(r.mise[0]).toContain("mise dot pull --keep-local ~/.dot-a");
+    neverMutates(r.argv);
+    expect(fs.readFileSync(path.join(a.home, ".dot-a"), "utf8")).toBe("v3-A\n");
+    expect(a.mise("dot", "pull", "--take-remote", "~/.dot-a").status).toBe(0);
+    expect(fs.readFileSync(path.join(a.home, ".dot-a"), "utf8")).toBe("v2-B\n");
+    expect(a.mise("dot", "undo", "-y").status).toBe(0);
+    expect(fs.readFileSync(path.join(a.home, ".dot-a"), "utf8")).toBe("v3-A\n");
+  },
+  180_000,
+);
+
+test("mise: absent from PATH omits the outcome entirely", async () => {
+  const b = miseBox();
+  process.env.PATH = "/nonexistent";
+  const notices: string[] = [];
+  const handlers = new Map<string, Function>();
+  install({ on: (n, fn) => void handlers.set(n, fn) });
+  await handlers.get("agent_end")!({}, { cwd: b.home, ui: { notify: (t: string) => void notices.push(t) } });
+  expect(notices.filter(n => n.startsWith("mise-dotfiles:"))).toEqual([]);
+});

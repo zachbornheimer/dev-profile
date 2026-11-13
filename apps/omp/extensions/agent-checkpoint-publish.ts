@@ -333,6 +333,240 @@ function jobs(): Job[] {
     return [];
   }
 }
+// ---- mise dotfile reconciliation (ADR 0001 section 10) ----------------------------------------
+// Report-only. Reads `mise dot status --json` and `mise dot history show --json`, probes the origin with
+// `git ls-remote`, and runs at most one `mise dot sync`. It never runs `pull`, `save`, `recover` or
+// `bootstrap`, never touches the watchdog stamp or `~/.local/state/mise/history/`, and never passes
+// `--allow-plaintext-history`. Conflict resolution stays with the owner.
+export type MiseReason =
+  | "conflict"
+  | "failing"
+  | "offline"
+  | "fetch-only"
+  | "unsaved"
+  | "manual-save-overdue"
+  | "destination-changed";
+export type MiseCondition = {
+  reason: MiseReason | "pending" | "scheduled";
+  detail: string;
+  paths?: string[];
+  commands?: string[];
+};
+export type MiseReport = {
+  outcome: "verified" | "scheduled" | "pending" | "blocked";
+  conditions: MiseCondition[];
+  syncRan: boolean;
+  localHead?: string;
+  remoteHead?: string;
+};
+const homeDir = () => process.env.HOME || os.homedir();
+type Run = { code: number | null; out: string };
+function exec(exe: string, args: string[], timeoutMs: number): Promise<Run> {
+  const { promise, resolve } = Promise.withResolvers<Run>();
+  // mise dot state is machine-global; run from HOME so a project's own mise.toml is never loaded or trust-checked.
+  const child = spawn(exe, args, {
+    cwd: homeDir(),
+    env: process.env,
+    stdio: ["ignore", "pipe", "ignore"],
+    detached: true,
+  });
+  let out = "", timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    try {
+      if (child.pid) process.kill(-child.pid, "SIGKILL");
+    } catch { /* already exited */ }
+  }, timeoutMs);
+  child.stdout.on("data", d => {
+    out += d;
+  });
+  child.once("error", () => {
+    clearTimeout(timer);
+    resolve({ code: 127, out });
+  });
+  child.once("close", code => {
+    clearTimeout(timer);
+    resolve({ code: timedOut ? null : code ?? 1, out });
+  });
+  return promise;
+}
+const positive = (v: string | undefined, fallback: number) => Number(v) > 0 ? Number(v) : fallback;
+const manualSaveStamp = () => {
+  const dir = process.env.MISE_HISTORY_LOG_DIR
+    ?? (process.platform === "darwin"
+      ? path.join(homeDir(), "Library/Logs")
+      : path.join(process.env.XDG_STATE_HOME ?? path.join(homeDir(), ".local/state"), "mise-history-watchdog"));
+  return path.join(dir, "manual-save.stamp");
+};
+const miseEntryPath = (item: any): string =>
+  typeof item === "string" ? item : Array.isArray(item) ? String(item[0]) : String(item?.path ?? item?.target ?? item);
+const shellWord = (p: string) => /^[\w@%+=:,./~-]+$/.test(p) ? p : `'${p.replaceAll("'", "'\\''")}'`;
+function declaredMiseCanonical(): string | undefined {
+  try {
+    const d = Bun.TOML.parse(fs.readFileSync(enrollmentPath(), "utf8")).destinations?.["mise-history"];
+    return d?.kind === "mise-dot" && typeof d.canonical === "string" ? d.canonical : undefined;
+  } catch {
+    return undefined;
+  }
+}
+async function headOf(origin: string, branch: string) {
+  const r = await exec(
+    "git",
+    ["ls-remote", "--", origin, `refs/heads/${branch}`],
+    positive(process.env.AGENT_CHECKPOINT_MISE_LSREMOTE_MS, 8_000),
+  );
+  const sha = r.out.split(/\s/)[0] ?? "";
+  return { reachable: r.code === 0, sha: /^[0-9a-f]{40}$/.test(sha) ? sha : undefined };
+}
+const miseJson = async (args: string[]) => {
+  const r = await exec("mise", args, 20_000);
+  if (r.code !== 0) return undefined;
+  try {
+    return JSON.parse(r.out);
+  } catch {
+    return undefined;
+  }
+};
+const pendingWork = (h: any) => h.pending_operations > 0 || (h.sync?.pending_applications ?? []).length > 0;
+// Precedence: blocked > pending > scheduled > verified. Exactly one outcome.
+export async function reconcileMise(): Promise<MiseReport | undefined> {
+  if (!Bun.which("mise", { PATH: process.env.PATH })) return undefined;
+  const history = (await miseJson(["dot", "status", "--json"]))?.history;
+  if (!history || history.enabled !== true) return undefined;
+  const sync = history.sync ?? {}, origin: string | undefined = sync.origin, branch = String(sync.branch ?? "history");
+  const blocked: MiseCondition[] = [];
+  const conflicts: string[] = (sync.conflicts ?? []).map(miseEntryPath);
+  if (conflicts.length) {
+    blocked.push({
+      reason: "conflict",
+      detail:
+        "changed on both sides; the owner resolves one path at a time, and `mise dot undo` keeps both sides recoverable",
+      paths: conflicts,
+      commands: conflicts.flatMap(p => [
+        `mise dot conflicts ${shellWord(p)}`,
+        `mise dot pull --take-remote ${shellWord(p)}`,
+        `mise dot pull --keep-local ${shellWord(p)}`,
+      ]),
+    });
+  }
+  if (sync.last_error != null || sync.failing_since != null) {
+    blocked.push({ reason: "failing", detail: String(sync.last_error ?? `failing since ${sync.failing_since}`) });
+  }
+  if (!origin || !(await headOf(origin, branch)).reachable) {
+    blocked.push({ reason: "offline", detail: `origin ${origin ?? "(none)"} is unreachable` });
+  }
+  if (sync.mode !== "sync") {
+    blocked.push({
+      reason: "fetch-only",
+      detail: `history.sync.mode=${sync.mode}; saved changes are never pushed from this machine`,
+    });
+  }
+  const unsaved: string[] = (history.unsaved ?? []).map(miseEntryPath);
+  let scheduled: string[] = [];
+  if (unsaved.length) {
+    const show = await miseJson(["dot", "history", "show", "--json"]);
+    const entries: any[] = show?.tree?.coverage?.entries ?? show?.coverage?.entries ?? [];
+    const manual = new Set(entries.filter(e => e.autosave === false).map(e => e.path));
+    const autosave = unsaved.filter(p => !manual.has(p)), manualSave = unsaved.filter(p => manual.has(p));
+    if (autosave.length) {
+      blocked.push({
+        reason: "unsaved",
+        detail: "autosave paths have unsaved edits; the watcher or `mise dot save` captures them, never this extension",
+        paths: autosave,
+      });
+    }
+    let age = Infinity;
+    try {
+      age = now() - fs.statSync(manualSaveStamp()).mtimeMs;
+    } catch { /* a missing stamp counts as overdue */ }
+    if (manualSave.length && age >= positive(process.env.MISE_HISTORY_MANUAL_SAVE_EVERY_S, 86_400) * 1000) {
+      blocked.push({
+        reason: "manual-save-overdue",
+        detail: "the watchdog stamp is missing or past the manual-save cadence",
+        paths: manualSave,
+      });
+    } else scheduled = manualSave;
+  }
+  if (origin !== declaredMiseCanonical()) {
+    blocked.push({
+      reason: "destination-changed",
+      detail: `origin ${origin ?? "(none)"} differs from the declared [destinations."mise-history"] canonical`,
+    });
+  }
+  if (blocked.length) return { outcome: "blocked", conditions: blocked, syncRan: false };
+  if (pendingWork(history)) {
+    return {
+      outcome: "pending",
+      conditions: [{ reason: "pending", detail: "mise reports pending operations or applications" }],
+      syncRan: false,
+    };
+  }
+  if (scheduled.length) {
+    return {
+      outcome: "scheduled",
+      conditions: [{
+        reason: "scheduled",
+        detail: "manual-save paths wait for the watchdog cadence",
+        paths: scheduled,
+      }],
+      syncRan: false,
+    };
+  }
+  const ran = await exec("mise", ["dot", "sync"], positive(process.env.AGENT_CHECKPOINT_MISE_SYNC_MS, 20_000));
+  if (ran.code === null) {
+    return {
+      outcome: "pending",
+      conditions: [{ reason: "pending", detail: "mise dot sync exceeded its budget; the next turn retries" }],
+      syncRan: true,
+    };
+  }
+  // Exit 0 or a --best-effort warning is not evidence: read the heads back.
+  const after = (await miseJson(["dot", "status", "--json"]))?.history ?? history;
+  const post = after.sync ?? sync, bad: MiseCondition[] = [];
+  const postConflicts: string[] = (post.conflicts ?? []).map(miseEntryPath);
+  if (postConflicts.length) bad.push({ reason: "conflict", detail: "sync recorded conflicts", paths: postConflicts });
+  if (post.last_error != null || post.failing_since != null) {
+    bad.push({ reason: "failing", detail: String(post.last_error ?? `failing since ${post.failing_since}`) });
+  }
+  const repo = String(after.history_repo ?? history.history_repo ?? "").replace(/^~(?=\/)/, homeDir());
+  const head = spawnSync("git", ["-C", repo, "rev-parse", "HEAD"], {
+    encoding: "utf8",
+    timeout: 5_000,
+    env: process.env,
+  });
+  const localHead = head.status === 0 ? head.stdout.trim() : undefined;
+  const remote = await headOf(origin!, branch);
+  if (!remote.reachable) bad.push({ reason: "offline", detail: "origin unreachable after sync" });
+  if (!bad.length && pendingWork(after)) {
+    return {
+      outcome: "pending",
+      conditions: [{ reason: "pending", detail: "operations still pending after sync" }],
+      syncRan: true,
+      localHead,
+      remoteHead: remote.sha,
+    };
+  }
+  if (!bad.length && (!localHead || localHead !== remote.sha)) {
+    bad.push({ reason: "failing", detail: "origin head does not equal the local history head after sync" });
+  }
+  return {
+    outcome: bad.length ? "blocked" : "verified",
+    conditions: bad,
+    syncRan: true,
+    localHead,
+    remoteHead: remote.sha,
+  };
+}
+export function reportMise(r: MiseReport) {
+  const parts = r.conditions.map(c =>
+    `${c.reason}${c.paths ? ` paths=${c.paths.join(",")}` : ""}: ${c.detail}${
+      c.commands ? ` | run: ${c.commands.join("; ")}` : ""
+    }`
+  );
+  return `mise-dotfiles: ${r.outcome} sync=${r.syncRan}${r.localHead ? ` head=${r.localHead}` : ""}${
+    parts.length ? ` ${parts.join(" ; ")}` : ""
+  }`;
+}
 export default function install(pi: { on(name: string, handler: (event: any, ctx: Context) => unknown): void }) {
   let start: string | undefined, turn = randomUUID();
   const cwd = (ctx: Context) => ctx.cwd ?? ctx.sessionManager?.getCwd?.() ?? process.cwd();
@@ -360,8 +594,18 @@ export default function install(pi: { on(name: string, handler: (event: any, ctx
       start = undefined;
     }
   });
+  // Two independent outcomes in one `agent_end` report: the repository checkpoint and the mise dotfiles.
   pi.on("agent_end", async (event, ctx) => {
     if (event.willContinue === true || process.env.AGENT_CHECKPOINT_PUBLISH === "1") return;
+    await checkpoint(ctx);
+    try {
+      const mise = await reconcileMise();
+      if (mise) ctx.ui?.notify?.(reportMise(mise), mise.outcome === "verified" ? "info" : "warning");
+    } catch (e) {
+      ctx.ui?.notify?.(`mise-dotfiles: blocked failing: ${e instanceof Error ? e.message : e}`, "warning");
+    }
+  });
+  const checkpoint = async (ctx: Context) => {
     const repo = cwd(ctx);
     try {
       const entry = ownership(repo);
@@ -407,7 +651,7 @@ export default function install(pi: { on(name: string, handler: (event: any, ctx
         "warning",
       );
     }
-  });
+  };
 }
 if (import.meta.main) {
   const [mode, file] = process.argv.slice(2);
