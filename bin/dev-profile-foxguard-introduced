@@ -102,7 +102,18 @@ current_json="${work}/current.json"
 # A scan's own findings are its verdict's input, so exit 1 here is success;
 # anything beyond it means the scan itself failed.
 base_status=0
-(cd "${base}" && foxguard --rules "${rules}" --changed-files-from "${list}" --format json --quiet .) >"${base_json}" 2>"${work}/base.err" || base_status=$?
+base_list="${work}/base-files"
+: >"${base_list}"
+while IFS= read -r file; do
+	[ ! -f "${base}/${file}" ] || printf '%s\n' "${file}" >>"${base_list}"
+done <"${list}"
+if [ -s "${base_list}" ]; then
+	(cd "${base}" && foxguard --rules "${rules}" --changed-files-from "${base_list}" --format json .) >"${base_json}" 2>"${work}/base.err" || base_status=$?
+else
+	# There is no target-side input when every listed file is new on the branch.
+	printf '{"findings":[]}\n' >"${base_json}"
+	: >"${work}/base.err"
+fi
 require_fully_scanned "${work}/base.err" "the scan of ${target}"
 case "${base_status}" in
 0 | 1) ;;
@@ -114,7 +125,7 @@ case "${base_status}" in
 esac
 
 current_status=0
-(cd "${root}" && foxguard --rules "${rules}" --changed-files-from "${list}" --format json --quiet .) >"${current_json}" 2>"${work}/current.err" || current_status=$?
+(cd "${root}" && foxguard --rules "${rules}" --changed-files-from "${list}" --format json .) >"${current_json}" 2>"${work}/current.err" || current_status=$?
 require_fully_scanned "${work}/current.err" "the scan of the branch"
 case "${current_status}" in
 0 | 1) ;;

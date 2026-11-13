@@ -60,6 +60,7 @@ for f in "$root"/bin/*; do
 	fi
 done
 node --check "$root/dev-relay.mjs" || fail dev-relay.mjs
+bun test "$root/apps/omp/extensions/agent-checkpoint-publish.test.ts" || fail "agent-checkpoint publisher fixtures"
 [ -f "$root/config/personal-overlay.toml" ] || fail config/personal-overlay.toml
 if [ "${#failed[@]}" -gt 0 ]; then
 	echo "FAIL: ${#failed[@]} check(s) failed" >&2
