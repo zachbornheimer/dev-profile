@@ -1,0 +1,16 @@
+# Enrollment for turn-stop checkpoint publication (apps/omp/extensions/agent-checkpoint-publish.ts).
+# The owner edits this file; no agent, hook or script does. Nothing is published unless an enabled
+# [repos.*] table below matches the repository AND its effective push URL equals `canonical`.
+# A remote name, a credential, a URL substring or an org membership never enrolls a repository.
+schema_version = 1
+
+# One table per repository. The table name becomes <repo-slug> in the published ref:
+#   refs/heads/agent-checkpoints/<repo-slug>/<branch-slug>/<turn-id>-<sha40>
+#
+# [repos."example-repo"]
+# enabled = true
+# path = "~/Developer/Personal/example-repo"          # any checkout or worktree of the repository
+# canonical = "https://github.com/example/example-repo.git"  # the exact effective push URL
+# visibility = "private"                                # "private" or "public"; recorded, not verified
+# namespace = "refs/heads/agent-checkpoints/"
+# remote = "origin"                                     # selector only; never authorization

@@ -42,6 +42,8 @@
 !/hk/*
 !/config/
 !/config/*
+!/config/agent-checkpoints/
+!/config/agent-checkpoints/*
 !/languages/
 !/languages/**
 !/profile/
