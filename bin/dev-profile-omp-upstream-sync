@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+# Merge can1357/oh-my-pi:main into the fork's `main` through a pull request.
+#
+# The fork's `main` is upstream plus one carry commit, and the `main-protected`
+# ruleset (no bypass actors) only accepts changes by pull request with the
+# `protect-main` check green. Nothing else advances the base, so without this job
+# `omp-build` keeps assembling onto an ever older upstream.
+#
+# Steps: ephemeral blobless clone -> merge upstream/main into a sync branch off
+# origin/main -> push -> open a PR -> wait for every PR check (protect-main and
+# verify-assembly, which dry-runs the whole branch list) -> merge commit.
+# Merging pushes `main`, which starts `omp-build` at once; dev-profile-omp-sync
+# installs the result.
+#
+# A conflict, a failed check, or a timeout leaves the PR open and exits 1. Nothing
+# is forced, and `main` only moves through the merge button.
+# Exit: 0 main contains upstream main afterwards; 1 conflict, failed check or
+# timeout; 2 usage or tool error.
+set -euo pipefail
+
+PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:/opt/homebrew/bin:$PATH"
+export PATH
+
+fork="${OMP_FORK:-zachbornheimer/oh-my-pi}"
+upstream="${OMP_UPSTREAM:-can1357/oh-my-pi}"
+check_budget="${OMP_SYNC_CHECK_SECONDS:-2400}"
+
+for tool in gh git timeout; do
+	command -v "$tool" >/dev/null 2>&1 || {
+		echo "omp upstream sync: $tool is required" >&2
+		exit 2
+	}
+done
+
+work="$(mktemp -d "${TMPDIR:-/tmp}/omp-upstream-sync.XXXXXX")"
+trap 'rm -rf "$work"' EXIT
+
+git_auth=(-c "credential.helper=" -c "credential.helper=!gh auth git-credential")
+
+git "${git_auth[@]}" clone -q --filter=blob:none "https://github.com/$fork.git" "$work/repo"
+cd "$work/repo"
+git remote add upstream "https://github.com/$upstream.git"
+git "${git_auth[@]}" fetch -q upstream main
+
+if git merge-base --is-ancestor upstream/main origin/main; then
+	echo "omp upstream sync: main already contains upstream ${upstream:+$(git rev-parse --short upstream/main)}"
+	exit 0
+fi
+
+behind="$(git rev-list --count origin/main..upstream/main)"
+up7="$(git rev-parse --short=7 upstream/main)"
+
+# One open sync PR at a time: a PR a previous night left open is the one to finish.
+pr="$(gh pr list --repo "$fork" --base main --state open --limit 50 \
+	--json number,headRefName --jq '[.[] | select(.headRefName | startswith("chore/sync-upstream-"))][0].number // empty')"
+
+if [ -z "$pr" ]; then
+	branch="chore/sync-upstream-$(date -u +%Y%m%d)-$up7"
+	git switch -q --detach origin/main
+	if ! git merge --no-ff --no-edit -m "chore(omp-build): sync upstream main ($up7, $behind commits)" upstream/main; then
+		echo "omp upstream sync: merging upstream/main into main conflicts:" >&2
+		git diff --name-only --diff-filter=U >&2
+		echo "Resolve by hand on a worktree (updating-oh-my-pi skill, section 3)." >&2
+		exit 1
+	fi
+	git "${git_auth[@]}" push -q origin "HEAD:refs/heads/$branch"
+	title="chore(omp-build): sync upstream main ($up7)"
+	body="Nightly merge of \`$upstream:main\` ($behind commits) into \`main\`. Opened by dev-profile-omp-upstream-sync; merged only after every PR check passes."
+	pr_url="$(gh pr create --repo "$fork" --base main --head "$branch" --title "$title" --body "$body")"
+	pr="${pr_url##*/}"
+	echo "omp upstream sync: opened $pr_url"
+else
+	echo "omp upstream sync: finishing open sync PR #$pr"
+fi
+
+# Checks register a few seconds after the PR opens; watching before then reports none.
+sleep 30
+if ! timeout "$check_budget" gh pr checks "$pr" --repo "$fork" --watch --fail-fast >/dev/null; then
+	echo "omp upstream sync: checks on PR #$pr failed or timed out; left open for review" >&2
+	gh pr checks "$pr" --repo "$fork" >&2 || true
+	exit 1
+fi
+
+gh pr merge "$pr" --repo "$fork" --merge --delete-branch
+echo "omp upstream sync: merged PR #$pr; omp-build starts from the push to main"
