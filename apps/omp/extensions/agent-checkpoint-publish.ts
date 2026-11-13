@@ -85,7 +85,8 @@ async function command(repo: string, exe: "git" | "gitleaks", args: string[]): P
   hooksEnabled();
   if (exe === "git") record(args);
   const { promise, resolve } = Promise.withResolvers<Result>();
-  const child = spawn(exe, args, { cwd: repo, stdio: ["ignore", "pipe", "pipe"], detached: true });
+  const options = { cwd: repo, stdio: ["ignore", "pipe", "pipe"] as ["ignore", "pipe", "pipe"], detached: true };
+  const child = exe === "git" ? spawn("git", args, options) : spawn("gitleaks", args, options);
   let out = "", err = "", timeout = false;
   const timer = setTimeout(() => {
     timeout = true;
@@ -187,7 +188,7 @@ function collision(job: Job, listing: { sha: string; ref: string }[]) {
 }
 async function attempt(job: Job) {
   const entry = ownership(job.repo);
-  if (identity(job.repo) !== job.identity || JSON.stringify(entry) !== JSON.stringify(job.entry)) {
+  if (identity(job.repo) !== job.identity || (["slug", "path", "canonical", "remote", "visibility", "namespace"] as const).some(key => entry[key] !== job.entry[key])) {
     block("blocked-destination-changed", "enrollment changed");
   }
   if (!job.ref.startsWith(namespace) || !job.ref.endsWith(job.sha)) block("blocked-namespace");
@@ -293,7 +294,7 @@ export async function runWorker(file: string) {
   if (process.env.AGENT_CHECKPOINT_PUBLISH === "1") return;
   const bun = Bun.which("bun"), flock = Bun.which("flock");
   if (!bun || !flock) block("blocked-isolation-unavailable");
-  const child = spawn(flock, ["-n", "-F", `${file}.lock`, bun, workerFile, "--execute-job", file], {
+  const child = spawn("flock", ["-n", "-F", `${file}.lock`, bun, workerFile, "--execute-job", file], {
     stdio: "inherit",
     env: { ...process.env, AGENT_CHECKPOINT_PUBLISH: "1" },
   });
@@ -305,7 +306,7 @@ export async function runWorker(file: string) {
 function launch(job: Job) {
   const bun = Bun.which("bun"), setsid = Bun.which("setsid");
   if (!bun || !setsid || !Bun.which("flock")) block("blocked-isolation-unavailable");
-  const child = spawn(setsid, [bun, workerFile, "--worker", jobPath(job.key)], {
+  const child = spawn("setsid", [bun, workerFile, "--worker", jobPath(job.key)], {
     detached: true,
     stdio: "ignore",
     env: process.env,
@@ -321,7 +322,7 @@ function launch(job: Job) {
 function jobs(): Job[] {
   try {
     return fs.readdirSync(path.join(stateRoot(), "jobs")).filter(n => /^[a-f0-9]{64}\.json$/.test(n)).map(n =>
-      readJob(path.join(stateRoot(), "jobs", n))
+      readJob(jobPath(n.slice(0, -5)))
     );
   } catch {
     return [];

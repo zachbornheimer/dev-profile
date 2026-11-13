@@ -6,6 +6,7 @@ import install, { type Job, jobPath, readJob, writeJob } from "./agent-checkpoin
 
 const source = path.resolve(import.meta.dir, "agent-checkpoint-publish.ts");
 const dirs: string[] = [];
+// Real detached subprocesses cannot share fake timers; await their durable state.
 let saved = { ...process.env };
 afterEach(() => {
   process.env = { ...saved };
@@ -141,3 +142,109 @@ test("signed checkpoint publishes exactly one ref with remote read-back", async 
   expect((await worker(job)).state).toBe("verified");
   expect(f.refs().split("\n").filter(line => !before.split("\n").includes(line))).toHaveLength(1);
 }, 20000);
+
+test("default enrollment and continuation/worker guards never publish", async () => {
+  const f = fixture(), before = f.refs();
+  fs.writeFileSync(process.env.AGENT_CHECKPOINT_ENROLLMENT_FILE!, "schema_version = 1\n");
+  await f.event("agent_end"); expect(f.notices.join("\n")).toContain("blocked-not-enrolled");
+  f.enroll(); await f.event("agent_end", { willContinue: true });
+  process.env.AGENT_CHECKPOINT_PUBLISH = "1"; await f.event("agent_start"); await f.event("agent_end");
+  expect(f.refs()).toBe(before); expect(fs.existsSync(path.join(process.env.AGENT_CHECKPOINT_STATE_DIR!, "jobs"))).toBe(false);
+});
+
+test("ambiguous ownership never queues work", async () => {
+  const f = fixture(), before = f.refs();
+  const text = fs.readFileSync(process.env.AGENT_CHECKPOINT_ENROLLMENT_FILE!, "utf8");
+  fs.writeFileSync(process.env.AGENT_CHECKPOINT_ENROLLMENT_FILE!, text + text.slice(text.indexOf("[repos.")).replace("repos.scratch", "repos.other"));
+  await f.event("agent_end"); expect(f.notices.join("\n")).toContain("blocked-ambiguous-ownership"); expect(f.refs()).toBe(before);
+});
+
+for (const kind of ["different-sha", "df-conflict", "verified-present"] as const) {
+  test(`remote collision ${kind} is read back without mutation`, async () => {
+    const f = fixture(), sha = f.commit(), job = f.makeJob(sha);
+    const ref = kind === "df-conflict" ? job.ref.slice(0, job.ref.lastIndexOf("/")) : job.ref;
+    git(f.repo, "push", f.remote, `${kind === "verified-present" ? sha : f.base}:${ref}`);
+    const before = f.refs(), result = await worker(job);
+    expect(result.outcome).toBe(kind === "verified-present" ? kind : "blocked-collision");
+    if (kind !== "verified-present") expect(result.detail).toBe(kind);
+    expect(f.refs()).toBe(before);
+  });
+}
+
+for (const kind of ["blocked-unsigned", "blocked-provenance", "blocked-secrets", "blocked-hook-rejected"] as const) {
+  test(`${kind} stops on attempt one and leaves local and remote state intact`, async () => {
+    const f = fixture();
+    if (kind === "blocked-secrets") { fs.writeFileSync(path.join(f.repo, "secret"), "github_token = ghp_" + "0123456789abcdefABCDEF9876543210abcdef" + "\n"); git(f.repo, "add", "secret"); }
+    const sha = f.commit("checkpoint", kind !== "blocked-unsigned"), job = f.makeJob(sha);
+    if (kind === "blocked-provenance") job.provenance = [];
+    if (kind === "blocked-hook-rejected") { const hook = path.join(f.repo, ".git/hooks/pre-push"); fs.writeFileSync(hook, "#!/bin/sh\necho policy-rejected >&2\nexit 1\n", { mode: 0o755 }); }
+    const before = f.refs(), status = git(f.repo, "status", "--porcelain"), result = await worker(job);
+    expect(result.outcome).toBe(kind); expect(result.attempts).toBe(1); expect(f.refs()).toBe(before);
+    expect(git(f.repo, "rev-parse", "HEAD")).toBe(sha); expect(git(f.repo, "status", "--porcelain")).toBe(status);
+    if (kind === "blocked-hook-rejected") expect(result.detail).toContain("local work intact");
+  });
+}
+
+for (const rewrite of ["pushurl", "pushInsteadOf"] as const) {
+  test(`${rewrite} destination drift is blocked before push`, async () => {
+    const f = fixture(), sha = f.commit(), before = f.refs(), other = path.join(f.root, "other.git");
+    git(f.root, "init", "--bare", other);
+    if (rewrite === "pushurl") git(f.repo, "remote", "set-url", "--push", "origin", other);
+    else git(f.repo, "config", `url.${other}.pushInsteadOf`, f.remote);
+    expect((await worker(f.makeJob(sha))).outcome).toBe("blocked-destination-changed"); expect(f.refs()).toBe(before);
+    expect(git(f.root, "--git-dir", other, "for-each-ref")).toBe("");
+  });
+}
+
+for (const present of [false, true]) {
+  test(`disconnected advertised ancestry with local object=${present} is blocked`, async () => {
+    const f = fixture(), sha = f.commit(), job = f.makeJob(sha);
+    git(f.repo, "checkout", "--orphan", "other"); git(f.repo, "commit", "--allow-empty", "-m", "unrelated");
+    const orphan = git(f.repo, "rev-parse", "HEAD");
+    git(f.root, "--git-dir", f.remote, "fetch", f.repo, `${orphan}:refs/heads/unrelated`);
+    git(f.root, "--git-dir", f.remote, "update-ref", "-d", "refs/heads/main");
+    git(f.repo, "checkout", "main");
+    if (!present) { git(f.repo, "branch", "-D", "other"); git(f.repo, "reflog", "expire", "--expire=now", "--all"); git(f.repo, "gc", "--prune=now"); }
+    const before = f.refs(), result = await worker(job);
+    expect(result.outcome).toBe(present ? "blocked-unrelated-ancestry" : "blocked-missing-baseline"); expect(f.refs()).toBe(before);
+  });
+}
+
+test("transient transport failure gets exactly three attempts", async () => {
+  const f = fixture(), job = f.makeJob(f.commit()), before = f.refs();
+  f.entry.canonical = path.join(f.root, "missing.git"); f.enroll(); git(f.repo, "remote", "set-url", "origin", f.entry.canonical);
+  const result = await worker(job); expect(result.outcome).toBe("blocked-remote-unreachable"); expect(result.attempts).toBe(3); expect(f.refs()).toBe(before);
+});
+
+test("expired queued jobs cannot publish", async () => {
+  const f = fixture(), job = f.makeJob(f.commit()), before = f.refs(); job.createdAt -= 86_400_001;
+  expect((await worker(job)).state).toBe("expired"); expect(f.refs()).toBe(before);
+});
+
+test("duplicate agent_end creates one job and preserves dirty files and stash", async () => {
+  const f = fixture(); await f.event("agent_start"); f.commit();
+  fs.writeFileSync(path.join(f.repo, "dirty"), "untouched\n");
+  const status = git(f.repo, "status", "--porcelain"), stash = git(f.repo, "stash", "list");
+  await f.event("agent_end"); await f.event("agent_end"); const job = await settled();
+  expect(job.outcome).toBe("verified"); expect(job.dirty).toBe(true);
+  expect(fs.readdirSync(path.dirname(jobPath(job.key))).filter(n => n.endsWith(".json"))).toHaveLength(1);
+  expect(git(f.repo, "status", "--porcelain")).toBe(status); expect(git(f.repo, "stash", "list")).toBe(stash);
+}, 20000);
+
+test("lost response is read back without another push", async () => {
+  const f = fixture(), sha = f.commit(), job = f.makeJob(sha); git(f.repo, "push", f.remote, `${sha}:${job.ref}`);
+  job.state = "pushed"; job.attempts = 1; job.heartbeatAt -= 180_001;
+  process.env.AGENT_CHECKPOINT_GIT_LOG = path.join(f.root, "argv");
+  const before = f.refs(), result = await worker(job);
+  expect(result.outcome).toBe("verified-present"); expect(f.refs()).toBe(before);
+  const calls = fs.readFileSync(process.env.AGENT_CHECKPOINT_GIT_LOG, "utf8").trim().split("\n").map(s => JSON.parse(s));
+  expect(calls.filter(c => c.argv[0] === "push" && !c.argv.includes("--dry-run"))).toHaveLength(0);
+});
+
+test("worker argv never bypasses hooks or changes protected refs", async () => {
+  const f = fixture(), job = f.makeJob(f.commit()); process.env.AGENT_CHECKPOINT_GIT_LOG = path.join(f.root, "argv");
+  expect((await worker(job)).outcome).toBe("verified");
+  const calls = fs.readFileSync(process.env.AGENT_CHECKPOINT_GIT_LOG, "utf8").trim().split("\n").map(s => JSON.parse(s));
+  for (const call of calls) { expect(call.HK).not.toBe("0"); for (const flag of ["--no-verify", "--force", "--force-with-lease", "--delete", "commit.gpgsign=false"]) expect(call.argv.join(" ")).not.toContain(flag); }
+  expect(fs.readFileSync(source, "utf8")).not.toMatch(/--no-verify|--force|force-with-lease|HK=0|gpgsign=false/);
+});

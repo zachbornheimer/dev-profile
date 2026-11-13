@@ -86,6 +86,12 @@ gate
 [[ ${status} -eq 0 ]] || fail "no file must pass, got ${status}"
 [[ ! -s "${work}/out" && ! -s "${work}/err" ]] || fail "no file must run nothing"
 
+# A target with none of the new files has zero findings, not empty invalid JSON.
+printf 'export const addedOnly = () => dangerouslyRun("new-only");\n' >new-only.ts
+gate new-only.ts
+[[ ${status} -eq 1 ]] || fail "an all-new input must be compared, got ${status}: $(cat "${work}/err")"
+grep -q new-only "${work}/out" || fail "the all-new finding was not reported"
+
 # A target the repository does not have, and a call without one, fail closed.
 gate --target origin/nope legacy.ts
 [[ ${status} -eq 2 ]] || fail "an unknown target must fail closed, got ${status}"
