@@ -22,6 +22,30 @@ if ((${+functions[__zoxide_hook]})); then
 	}
 fi
 
+# Upstream probes an ordinary path with `(builtin cd -q ...)` before doing the
+# real cd. Even that subshell costs tens to hundreds of ms under load. File
+# tests cover explicit paths and CDPATH without a fork; fuzzy jumps stay upstream.
+if ((${+functions[__zoxide_z]})); then
+	cd() {
+		if (($# == 1)); then
+			local base
+			if [[ -d $1 ]]; then
+				__zoxide_cd "$1"
+				return $?
+			fi
+			if [[ $1 != /* ]]; then
+				for base in "${cdpath[@]}"; do
+					if [[ -d $base/$1 ]]; then
+						__zoxide_cd "$1"
+						return $?
+					fi
+				done
+			fi
+		fi
+		__zoxide_z "$@"
+	}
+fi
+
 # --cmd cd replaces `cd`; keep `z`/`zi` names the rest of the config expects.
 (($+functions[z])) || function z { __zoxide_z "$@"; }
 (($+functions[zi])) || function zi { __zoxide_zi "$@"; }
