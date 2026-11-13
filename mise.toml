@@ -60,6 +60,17 @@ run = "kitty +runpy \"import runpy; runpy.run_path('tests/kitty_tabs.py', run_na
 [tasks."test:scope-guard"]
 description = "Run the scope-guard hook tests"
 run = "pytest agents/hooks/tests/test_scope_guard.py"
+
+# Check tool import graphs and real extension registration without a model call.
+# CI also exercises the validator against isolated healthy and broken modules.
+[tasks."test:omp"]
+description = "Check installed tool imports and host extension registration without model calls"
+run = "bash tests/omp-tools-validate.sh"
+
+[tasks."test:omp-fixture"]
+description = "Exercise OMP health-check success and failure cases"
+run = "bash tests/omp-tools-fixture.sh"
+
 [tasks."list:skills:unmanaged"]
 alias = ["list:skills:unamanaged", "skills:unmanaged"]
 description = "List skills in ~/.agents/available-skills not tracked in .skill-lock.json"
