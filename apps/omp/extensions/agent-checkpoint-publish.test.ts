@@ -313,3 +313,32 @@ function readCalls(): { argv: string[]; HK?: string }[] {
   }
   return calls;
 }
+
+test("real omp session publishes one verified ref and reports it next turn", async () => {
+  const f = fixture();
+  f.commit();
+  const env = { ...process.env, PI_CODING_AGENT_DIR: path.join(f.root, "agent") };
+  const turn = (text: string) =>
+    spawnSync("omp", [
+      "--no-extensions",
+      "--no-session",
+      "--no-tools",
+      "-e",
+      source,
+      "--model",
+      process.env.OMP_MODEL ?? "",
+      "-p",
+      text,
+    ], { cwd: f.repo, env, encoding: "utf8", timeout: 90_000 });
+  const before = f.refs();
+  const first = turn("Reply exactly OK1.");
+  expect(first.status).toBe(0);
+  expect(first.stdout + first.stderr).not.toContain("Failed to load extension");
+  const job = await settled();
+  expect(job.outcome).toBe("verified");
+  const delta = f.refs().split("\n").filter(l => !before.split("\n").includes(l));
+  expect(delta).toEqual([`${job.ref} ${git(f.repo, "rev-parse", "HEAD")}`]);
+  const second = turn("Reply exactly OK2.");
+  expect(second.status).toBe(0);
+  expect(readJob(jobPath(job.key)).reported).toBe(true); // surfaced at the next turn start (print mode shows no notices)
+}, 200000);
