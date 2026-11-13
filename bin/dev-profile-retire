@@ -23,7 +23,7 @@ esac
 # 0: all on GitHub. 3: only conflicts remain, each already backed up.
 # DEV_PROFILE_RETIRE_SYNC swaps the backup step; the fixture uses it to prove
 # the check below stands on its own.
-sync_cmd="${DEV_PROFILE_RETIRE_SYNC:-/Users/zbornheimer/.local/share/dev-profile/bin/dev-profile-sync}"
+sync_cmd="${DEV_PROFILE_RETIRE_SYNC:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/dev-profile-sync}"
 code=0
 if [[ "${dry_run}" == true ]]; then
 	"${sync_cmd}" --dry-run || code=$?
@@ -173,7 +173,7 @@ done <"${ignored_list}"
 nested_unique() {
 	local plan
 	git -C "$1" remote get-url origin >/dev/null 2>&1 || { echo "it has no origin" && return; }
-	plan="$(cd "$1" && "/Users/zbornheimer/.local/share/dev-profile/bin/dev-profile-sync" --dry-run 2>&1)" || { echo "wt sync cannot check it" && return; }
+	plan="$(cd "$1" && "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/dev-profile-sync" --dry-run 2>&1)" || { echo "wt sync cannot check it" && return; }
 	if grep -qE '^  (would push|would back up|diverged|skipped|nested) ' <<<"${plan}"; then
 		echo "work its own GitHub lacks"
 	fi

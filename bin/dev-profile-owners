@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Print the GitHub owners this profile treats as its own, one lowercase login per line.
+#   dev-profile-owners            list them
+#   dev-profile-owners <owner>    exit 0 when <owner> is one of them (case-insensitive)
+# The list is config/owners in this checkout; DEV_PROFILE_OWNERS names a file that replaces it.
+set -euo pipefail
+
+file="${DEV_PROFILE_OWNERS:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)/config/owners}"
+[[ -r "${file}" ]] || {
+	echo "dev-profile-owners: cannot read ${file}" >&2
+	exit 2
+}
+
+owners="$(sed -e 's/#.*//' -e 's/[[:space:]]//g' -e '/^$/d' "${file}" | tr '[:upper:]' '[:lower:]')"
+
+if [[ $# -eq 0 ]]; then
+	printf '%s\n' "${owners}"
+	exit 0
+fi
+
+want="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
+grep -qxF -- "${want}" <<<"${owners}"

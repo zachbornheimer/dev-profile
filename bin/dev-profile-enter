@@ -28,15 +28,13 @@ printf '== %s %s\n' "$(date '+%F %T')" "${root}"
 
 # Trust without ever prompting: only repos this profile owns, and only once.
 if ! command mise trust --show 2>/dev/null | command grep -q ': trusted'; then
-	case "$(command git remote get-url origin 2>/dev/null)" in
-	*github.com/zysys/* | *github.com/zachbornheimer/* | *github.com/software-automation-holdings/* | *github.com:zysys/* | *github.com:zachbornheimer/* | *github.com:software-automation-holdings/*)
+	owner="$(command git remote get-url origin 2>/dev/null | command sed -nE 's#^(https?://github\.com/|git@github\.com:|ssh://git@github\.com/)([^/]+)/.*#\2#p')"
+	if [[ -n "${owner}" ]] && "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/dev-profile-owners" "${owner}"; then
 		command mise trust --yes >/dev/null 2>&1 || true
-		;;
-	*)
+	else
 		printf 'skip untrusted: %s\n' "${root}"
 		exit 0
-		;;
-	esac
+	fi
 fi
 
 # No `mise install` here: auto_install installs a missing tool the first time

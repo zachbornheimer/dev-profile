@@ -28,6 +28,11 @@ mise dot apply
 
 `mise run test:adoption` proves all of this with the real mise in a scratch HOME. The shell file linked at ~/.local/share/dev-profile/shell.zsh is what a new shell should source.
 
+## Make it yours
+
+- **Owners.** `config/owners` lists the GitHub logins whose repositories the profile treats as its own (trusted mise config, its formatters and hooks apply). Set `DEV_PROFILE_OWNERS` to another file to replace the list without editing a script. `mise run test:owners` covers it.
+- **Agent stack.** `mise run setup:personal` adds the author's upstream skills and omp setup on top of `setup`. A plain `mise run setup` skips both.
+
 Licensed under the MIT License (see `LICENSE`).
 
 Login zsh loads the `org.zysys.op-service-account` Keychain entry for the current
