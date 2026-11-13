@@ -188,7 +188,12 @@ function collision(job: Job, listing: { sha: string; ref: string }[]) {
 }
 async function attempt(job: Job) {
   const entry = ownership(job.repo);
-  if (identity(job.repo) !== job.identity || (["slug", "path", "canonical", "remote", "visibility", "namespace"] as const).some(key => entry[key] !== job.entry[key])) {
+  if (
+    identity(job.repo) !== job.identity
+    || (["slug", "path", "canonical", "remote", "visibility", "namespace"] as const).some(key =>
+      entry[key] !== job.entry[key]
+    )
+  ) {
     block("blocked-destination-changed", "enrollment changed");
   }
   if (!job.ref.startsWith(namespace) || !job.ref.endsWith(job.sha)) block("blocked-namespace");

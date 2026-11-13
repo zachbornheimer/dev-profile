@@ -314,7 +314,8 @@ function readCalls(): { argv: string[]; HK?: string }[] {
   return calls;
 }
 
-test("real omp session publishes one verified ref and reports it next turn", async () => {
+const hasOmp = !!process.env.OMP_MODEL && !!Bun.which("omp"); // runners without omp and a model skip it
+test.skipIf(!hasOmp)("real omp session publishes one verified ref and reports it next turn", async () => {
   const f = fixture();
   f.commit();
   const env = { ...process.env, PI_CODING_AGENT_DIR: path.join(f.root, "agent") };
