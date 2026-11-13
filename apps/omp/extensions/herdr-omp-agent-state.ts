@@ -96,8 +96,8 @@ export function isAbsoluteSessionPath(file: unknown): file is string {
   );
 }
 
-function rewriteAliasedSessionPath(file: string): string {
-  const raw = process.env.OMP_SESSION_PATH_PREFIX_ALIAS?.trim();
+function rewriteAliasedSessionPath(file: string, alias: string | undefined): string {
+  const raw = alias?.trim();
   if (!raw) return file;
   const sep = raw.indexOf("=");
   if (sep <= 0) return file;
@@ -108,10 +108,26 @@ function rewriteAliasedSessionPath(file: string): string {
   return file.startsWith(local + "/") ? storage + file.slice(local.length) : file;
 }
 
+/**
+ * The session path Herdr records for this pane. Herdr's built-in restore runs
+ * `omp --resume <path>` on the machine whose Herdr owns the pane, so a pane in
+ * this machine's own Herdr reports the path omp opens here. Only a pane forwarded
+ * to the Mac's Herdr reports the shared store's key, the one name both sides share.
+ */
+export function reportedSessionPath(
+  reportSource: string,
+  file: string,
+  alias: string | undefined,
+): string {
+  return reportSource === FORWARDED_PANE_SOURCE ? rewriteAliasedSessionPath(file, alias) : file;
+}
+
 function updateSessionRef(ctx?: { sessionManager?: { getSessionFile?: () => unknown; getSessionId?: () => unknown } }): void {
   try {
     const file = ctx?.sessionManager?.getSessionFile?.();
-    currentAgentSessionPath = isAbsoluteSessionPath(file) ? rewriteAliasedSessionPath(file) : undefined;
+    currentAgentSessionPath = isAbsoluteSessionPath(file)
+      ? reportedSessionPath(source, file, process.env.OMP_SESSION_PATH_PREFIX_ALIAS)
+      : undefined;
   } catch {
     currentAgentSessionPath = undefined;
   }
