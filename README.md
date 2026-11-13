@@ -55,6 +55,16 @@ Protections enforced on self-saving history:
 
 Run mise run doctor. Run mise dot apply --dry-run before changing live links.
 
+`mise run test:omp` checks the installed `~/.omp/agent/tools` import graphs and
+callable default exports, then loads installed extensions through OMP's real RPC
+startup and registration path. It sends no model prompt and executes no tool.
+Missing dependencies (including native addons), syntax errors, registration
+failures, and startup timeouts fail the command. It does not execute custom-tool
+factories or test external services. `OMP_AGENT_DIR=/path/to/agent` selects another
+installation. An installation with no entry modules reports `SKIP`, not verified
+health. `mise run test` includes this check and isolated regression fixtures;
+`mise run test:omp-fixture` runs those fixtures directly.
+
 `mise run test:pre-push-upstream-merge` checks both Git pushes and direct
 `hk run pre-push --from-ref <base> --to-ref HEAD` runs. Both judge files authored
 by the branch, not unchanged files inherited from published merge parents;

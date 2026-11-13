@@ -46,11 +46,10 @@ buf = "1.75.0"
 "go:golang.org/x/tools/cmd/goimports" = "0.52.0"
 "go:golang.org/x/vuln/cmd/govulncheck" = "1.9.0"
 golangci-lint = "2.15.0"
-# encodeurl@2.0.2 is a transitive dep resolved inside claude-agent-acp's tarball
-# install. npmjs.org shows encodeurl 3.0.0 published later with staged approval and
-# 2.0.2 without provenance (2026-11-13, ZYS-9134): a normal backport from before the
-# provenance workflow, not a tampered release. Narrowest aube trust-policy exception,
-# per https://aube.jdx.dev/security#trust-policy.
+# Reviewed 2026-11-13: encodeurl v2.0.2's four tarball files match upstream tag
+# v2.0.2 (f805c3e1440c76eaace85c4384048d43e6c76d4d). Registry publisher:
+# blakeembrey, an upstream maintainer. This backport lacks the provenance carried
+# by 3.0.0; retain a version-only exception, not a package-wide trust bypass.
 "npm:@agentclientprotocol/claude-agent-acp" = { version = "0.100.0", trust_policy_excludes = ["encodeurl@2.0.2"] }
 "npm:@agentclientprotocol/codex-acp" = "2.5.0"
 "npm:markdownlint-cli" = "0.50.0"

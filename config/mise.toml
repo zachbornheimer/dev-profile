@@ -194,6 +194,15 @@ recipients = ["age1qpl3tghy0660prmvz3x2dqjsn69m588e0j0v56ec0rswkujgyshs64dhtc"]
 "~/.omp/agent/extensions/herdr-omp-agent-state.ts" = { mode = "track", encrypt = true }
 "~/.omp/agent/extensions/learn-command.ts" = { mode = "track", encrypt = true }
 "~/.omp/agent/extensions/machine-host-context.ts" = { mode = "track", encrypt = true }
+# Event adapters import this runtime; publish their complete dependency closure.
+"~/.omp/agent/extensions/hook-runtime" = { mode = "track", encrypt = true }
+"~/.omp/agent/extensions/onPostCompact.ts" = { mode = "track", encrypt = true }
+"~/.omp/agent/extensions/onPostToolUse.ts" = { mode = "track", encrypt = true }
+"~/.omp/agent/extensions/onPostToolUseFailure.ts" = { mode = "track", encrypt = true }
+"~/.omp/agent/extensions/onPreCompact.ts" = { mode = "track", encrypt = true }
+"~/.omp/agent/extensions/onSessionEnd.ts" = { mode = "track", encrypt = true }
+"~/.omp/agent/extensions/onSessionStart.ts" = { mode = "track", encrypt = true }
+"~/.omp/agent/extensions/onSubagentStart.ts" = { mode = "track", encrypt = true }
 "~/.omp/agent/extensions/pending-decisions.ts" = { mode = "track", encrypt = true }
 "~/.omp/agent/extensions/run-agent-hooks.ts" = { mode = "track", encrypt = true }
 "~/.omp/agent/extensions/superset-hooks.ts" = { mode = "track", encrypt = true }

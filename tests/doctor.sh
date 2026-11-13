@@ -45,6 +45,7 @@ bash "$root/tests/herdr-plugins-fixture.sh" >/dev/null || fail "herdr plugins fi
 bash "$root/tests/adoption-fixture.sh" >/dev/null || fail "adoption fixture"
 # Validate that every installed omp custom tool and extension loads. Its own
 # script so it is also runnable directly: `mise run test:omp` (ZYS-9134).
+bash "$root/tests/omp-tools-fixture.sh" >/dev/null || fail "omp tools validation fixture"
 bash "$root/tests/omp-tools-validate.sh" || fail "omp tools validate"
 for f in "$root"/bin/*; do
 	# A directory that a previous run left behind (a stray __pycache__, say) is not

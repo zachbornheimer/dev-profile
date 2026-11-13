@@ -61,12 +61,15 @@ run = "kitty +runpy \"import runpy; runpy.run_path('tests/kitty_tabs.py', run_na
 description = "Run the scope-guard hook tests"
 run = "pytest agents/hooks/tests/test_scope_guard.py"
 
-# Validates that every installed omp custom tool and extension loads through bun
-# the way the omp host loads it (ZYS-9134). Skips cleanly where the dirs are absent
-# (a fresh CI runner), so `mise run test` stays green everywhere.
+# Check tool import graphs and real extension registration without a model call.
+# CI also exercises the validator against isolated healthy and broken modules.
 [tasks."test:omp"]
-description = "Import every installed omp tool and extension module"
+description = "Check installed tool imports and host extension registration without model calls"
 run = "bash tests/omp-tools-validate.sh"
+
+[tasks."test:omp-fixture"]
+description = "Exercise OMP health-check success and failure cases"
+run = "bash tests/omp-tools-fixture.sh"
 
 [tasks."list:skills:unmanaged"]
 alias = ["list:skills:unamanaged", "skills:unmanaged"]
