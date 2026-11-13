@@ -272,26 +272,13 @@ _p_sync_aws() {
 	fi
 }
 
+# The preview URL is looked up by _p_url_async_start, off the prompt path. The
+# lookup reads pidfiles and forks (sed, kill, jq, lsof): 20-150ms of every
+# prompt in a repo when it ran here. A cd already cleared the old URL in
+# _p_dir_update, so all this owes the prompt is the unset outside a repo.
 _p_sync_preview() {
 	if [[ -z $_p_repo_root || ${ZSH_PROMPT_STYLE:-colorful} == classic ]]; then
 		unset HYBRID_PREVIEW_URL
-		return 0
-	fi
-	if ((${+functions[preview::dev-url]})); then
-		local own
-		own=$(preview::dev-url "$_p_repo_root")
-		if [[ -n $own ]]; then
-			export HYBRID_PREVIEW_URL="${own//$'\n'/ · }"
-			return 0
-		fi
-	fi
-	if [[ -n ${PORTLESS_STATE_DIR:-} ]] && ((${+functions[preview::selected-urls]})); then
-		local urls
-		urls=$(preview::selected-urls "$_p_repo_root")
-		if [[ -n $urls ]]; then
-			export HYBRID_PREVIEW_URL="${urls//$'\n'/ · }"
-			return 0
-		fi
 	fi
 }
 
