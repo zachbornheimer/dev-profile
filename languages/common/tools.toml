@@ -26,6 +26,8 @@ shellcheck = "0.11.0"
 # pre-push hooks the Mac runs. It is a new release, so the age gate is open.
 # Move back to github:0sec-labs/foxguard once upstream ships the fix.
 "github:zachbornheimer/foxguard" = { version = "0.14.1-fork.1", os = ["macos"], minimum_release_age = "0" }
+# Linux runs the same push gates; the upstream release supplies its Linux binary.
+"github:0sec-labs/foxguard" = { version = "0.14.1", os = ["linux"] }
 # The task tracker. bin/dev-profile-mise-history-watchdog hands a failure it cannot
 # heal to one atask objective, and the doctor fixture drives that path; the asset
 # is named atask-<ver>, not ai-task-<ver>, so the pin carries the matching pattern.
