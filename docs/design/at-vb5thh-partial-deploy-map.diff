@@ -1,0 +1,96 @@
+diff --git a/config/mise.toml b/config/mise.toml
+index fdb8ffb..07b5bcf 100644
+--- a/config/mise.toml
++++ b/config/mise.toml
+@@ -144,7 +144,6 @@ recipients = ["age1qpl3tghy0660prmvz3x2dqjsn69m588e0j0v56ec0rswkujgyshs64dhtc"]
+ "~/.config/mise/config.toml" = "mise install --yes"
+
+ [dotfiles]
+-"~/.agents" = { source = "~/Developer/Personal/dev-profile/agents" }
+ "~/.config/1Password" = { mode = "track", encrypt = true }
+ "~/.config/agent-hooks" = { mode = "track", encrypt = true, exclude = ["*.bak*"] }
+ "~/.config/ai" = { mode = "track", encrypt = true }
+@@ -153,7 +152,6 @@ recipients = ["age1qpl3tghy0660prmvz3x2dqjsn69m588e0j0v56ec0rswkujgyshs64dhtc"]
+ "~/.config/bat" = { mode = "track", encrypt = true }
+ "~/.config/btop" = { mode = "track", encrypt = true }
+ "~/.config/direnv" = { mode = "track", encrypt = true }
+-"~/.config/dprint/dprint.jsonc" = { source = "~/Developer/Personal/dev-profile/config/dprint.jsonc" }
+ "~/.config/git" = { mode = "track", encrypt = true }
+ "~/.config/herdr/config.toml" = { mode = "track", encrypt = true }
+ "~/.config/herdr/oneshot.sh" = { mode = "track", encrypt = true }
+@@ -162,7 +160,6 @@ recipients = ["age1qpl3tghy0660prmvz3x2dqjsn69m588e0j0v56ec0rswkujgyshs64dhtc"]
+ "~/.config/herdr/plugins.json" = { mode = "track", encrypt = true }
+ "~/.config/herdr/session-tokens.py" = { mode = "track", encrypt = true }
+ "~/.config/herdr/turn-recovery-plugin" = { mode = "track", encrypt = true }
+-"~/.config/hk/config.pkl" = { source = "~/Developer/Personal/dev-profile/hk/hk.pkl" }
+ "~/.config/htop" = { mode = "track", encrypt = true }
+ "~/.config/kitty" = { mode = "track", encrypt = true, exclude = [
+   "gattino/.venv/**",
+@@ -170,7 +167,6 @@ recipients = ["age1qpl3tghy0660prmvz3x2dqjsn69m588e0j0v56ec0rswkujgyshs64dhtc"]
+   "*.bak*",
+ ] }
+ "~/.config/lazygit" = { mode = "track", encrypt = true }
+-"~/.config/mise/conf.d/dev-profile" = { source = "~/Developer/Personal/dev-profile/profile" }
+ "~/.config/mise/config.toml" = { mode = "track", encrypt = false }
+ "~/.config/nvim" = { mode = "track", encrypt = true, exclude = [".git/**"] }
+ "~/.config/omp/fallback-shake" = { mode = "track", encrypt = true }
+@@ -182,18 +178,12 @@ recipients = ["age1qpl3tghy0660prmvz3x2dqjsn69m588e0j0v56ec0rswkujgyshs64dhtc"]
+ "~/.config/starship-dark.toml" = { mode = "track", encrypt = true }
+ "~/.config/starship.toml" = { mode = "track", encrypt = true }
+ "~/.config/worktrunk/config.toml" = { mode = "track", encrypt = false }
+-"~/.config/worktrunk/config.toml/dev-profile" = { source = "~/Developer/Personal/dev-profile/config/worktrunk.toml", merge = true }
+-"~/.config/yamllint/config" = { source = "~/Developer/Personal/dev-profile/config/yamllint.yaml" }
+ "~/.config/zab_ai" = { mode = "track", encrypt = true, exclude = ["sign_state.json", "*.log"] }
+ "~/.config/zed" = { mode = "track", encrypt = true }
+ "~/.config/zsh" = { mode = "track", encrypt = true }
+ "~/.config/zsh-preview" = { mode = "track", encrypt = true }
+ "~/.editorconfig" = { mode = "track", encrypt = true }
+ "~/.gitconfig" = { mode = "track", encrypt = true }
+-"~/.local/share/dev-profile/bin" = { source = "~/Developer/Personal/dev-profile/bin" }
+-"~/.local/share/dev-profile/mise.zsh" = { source = "~/Developer/Personal/dev-profile/shell/mise.zsh" }
+-"~/.local/share/dev-profile/shell.zsh" = { source = "~/Developer/Personal/dev-profile/shell/shell.zsh" }
+-"~/.local/share/dev-profile/xdg" = { source = "~/Developer/Personal/dev-profile/xdg" }
+ "~/.markdownlintrc" = { mode = "track", encrypt = true }
+ "~/.omp/agent/extensions/advisor-style.ts" = { mode = "track", encrypt = true }
+ "~/.omp/agent/extensions/capability-completion.ts" = { mode = "track", encrypt = true }
+@@ -209,7 +199,6 @@ recipients = ["age1qpl3tghy0660prmvz3x2dqjsn69m588e0j0v56ec0rswkujgyshs64dhtc"]
+ "~/.omp/agent/extensions/superset-hooks.ts" = { mode = "track", encrypt = true }
+ "~/.omp/agent/extensions/undo-clear.ts" = { mode = "track", encrypt = true }
+ "~/.profile" = { mode = "track", encrypt = true }
+-"~/.stylelintrc.json" = { source = "~/Developer/Personal/dev-profile/config/stylelintrc.json" }
+ "~/.tmux.conf" = { mode = "track", encrypt = true }
+ "~/.vim" = { mode = "track", encrypt = true, exclude = ["bundle/**", "bundle2/**", ".netrwhist"] }
+ "~/.vimrc" = { mode = "track", encrypt = true }
+@@ -219,11 +208,27 @@ recipients = ["age1qpl3tghy0660prmvz3x2dqjsn69m588e0j0v56ec0rswkujgyshs64dhtc"]
+ "~/.zshenv.d" = { mode = "track", encrypt = true }
+ "~/.zshrc" = { mode = "track", encrypt = true }
+ "~/.zshrc.local" = { mode = "track", encrypt = true }
+-"~/Developer/Personal/.editorconfig" = { source = "~/Developer/Personal/dev-profile/config/editorconfig" }
+-"~/Developer/Personal/.golangci.yml" = { source = "~/Developer/Personal/dev-profile/config/golangci.yml" }
+-"~/Developer/Personal/deny.toml" = { source = "~/Developer/Personal/dev-profile/config/deny.toml" }
+-"~/Developer/Personal/dprint.jsonc" = { source = "~/Developer/Personal/dev-profile/config/dprint.jsonc" }
+-"~/Developer/Personal/mise.toml" = { source = "~/Developer/Personal/dev-profile/config/personal-overlay.toml" }
++
++# Deploy map. dotfiles.root is the clone: it comes from MISE_DOTFILES_ROOT, else the
++# [settings.dotfiles] default above. Group entries resolve relative sources against that
++# root, so the clone can live anywhere and no source names a path. exclude = ["**"] stops
++# the group walking the rest of the repo into $HOME; only the entries below deploy.
++[dotfile_groups.dev-profile]
++root = "."
++exclude = ["**"]
++
++[dotfile_groups.dev-profile.entries]
++"~/.agents" = { source = "agents", mode = "symlink" }
++"~/.config/dprint/dprint.jsonc" = { source = "config/dprint.jsonc", mode = "symlink" }
++"~/.config/hk/config.pkl" = { source = "hk/hk.pkl", mode = "symlink" }
++"~/.config/mise/conf.d/dev-profile" = { source = "profile", mode = "symlink" }
++"~/.config/worktrunk/config.toml/dev-profile" = { source = "config/worktrunk.toml", merge = true }
++"~/.config/yamllint/config" = { source = "config/yamllint.yaml", mode = "symlink" }
++"~/.local/share/dev-profile/bin" = { source = "bin", mode = "symlink" }
++"~/.local/share/dev-profile/mise.zsh" = { source = "shell/mise.zsh", mode = "symlink" }
++"~/.local/share/dev-profile/shell.zsh" = { source = "shell/shell.zsh", mode = "symlink" }
++"~/.local/share/dev-profile/xdg" = { source = "xdg", mode = "symlink" }
++"~/.stylelintrc.json" = { source = "config/stylelintrc.json", mode = "symlink" }
+
+ # Self-heal and automatic omp fallback for the mise history watcher: kills
+ # duplicate `mise dot watch` processes, clears stale history locks, restarts a

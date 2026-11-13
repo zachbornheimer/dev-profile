@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+mise_bin="$(command -v mise)"
+scratch="$(mktemp -d)"
+trap 'rm -rf "$scratch"' EXIT
+mkdir -p "$scratch/home/.config/mise/conf.d" "$scratch/arbitrary clone/profile"
+cat >"$scratch/arbitrary clone/profile/mise.toml" <<'EOF'
+[settings.dotfiles]
+root = "{{ config_root | canonicalize | dirname }}"
+EOF
+ln -s "$scratch/arbitrary clone/profile" "$scratch/home/.config/mise/conf.d/dev-profile"
+printf '[dotfile_groups.test]\nroot = "."\nexclude = ["**"]\n[dotfile_groups.test.entries]\n"~/.example" = { source = "example", mode = "symlink" }\n' >"$scratch/home/.config/mise/config.toml"
+printf 'example\n' >"$scratch/arbitrary clone/example"
+(cd "$scratch/home" && env -i HOME="$scratch/home" PATH="/usr/bin:/bin:/opt/homebrew/bin" XDG_CONFIG_HOME="$scratch/home/.config" XDG_STATE_HOME="$scratch/state" XDG_DATA_HOME="$scratch/data" XDG_CACHE_HOME="$scratch/cache" MISE_DATA_DIR="$scratch/data/mise" MISE_STATE_DIR="$scratch/state/mise" MISE_CACHE_DIR="$scratch/cache/mise" MISE_SYSTEM_CONFIG_DIR="$scratch/system" MISE_OFFLINE=true MISE_AUTO_INSTALL=false MISE_TRUSTED_CONFIG_PATHS="$scratch" "$mise_bin" dot status --json)
