@@ -50,14 +50,15 @@ golangci-lint = "2.15.0"
 # v2.0.2 (f805c3e1440c76eaace85c4384048d43e6c76d4d). Registry publisher:
 # blakeembrey, an upstream maintainer. This backport lacks the provenance carried
 # by 3.0.0; retain a version-only exception, not a package-wide trust bypass.
-"npm:@agentclientprotocol/claude-agent-acp" = { version = "0.100.0", trust_policy_excludes = ["encodeurl@2.0.2"] }
-"npm:@agentclientprotocol/codex-acp" = "2.5.0"
+"npm:@agentclientprotocol/claude-agent-acp" = { version = "0.106.0", trust_policy_excludes = ["encodeurl@2.0.2"] }
+"npm:@agentclientprotocol/codex-acp" = "2.6.0"
 "npm:markdownlint-cli" = "0.50.0"
-"npm:oxlint" = "1.91.0"
+"npm:oxlint" = "1.93.0"
 "npm:stylelint" = "18.0.0"
 pinact = "5.0.2"
-pkl = "0.32.2"
-ruff = "0.17.3"
+pkl = "0.33.0"
+ruff = "0.17.5"
 stylua = "2.6.0"
-tflint = "0.65.0"
+tflint = "0.66.0"
 zizmor = "1.32.0"
+betterleaks = "1.10.1"
