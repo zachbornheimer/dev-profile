@@ -363,6 +363,14 @@ local gates = new Mapping<String, Step> {
           "**/zed/**/*.json",
         )
   }
+  // An absolute path into a user's home directory is one machine's: a symlink target merged in from a box named a
+  // Linux home and the Mac's omp extension stopped loading (2026-11-14). Only lines and symlinks the push adds are
+  // judged (tests/foreign-home-paths-fixture.sh); `portable-home-ok` marks a deliberate literal.
+  ["foreign-home-paths"] {
+    check = "dev-profile-foreign-home-paths {{files}}"
+    glob = List("**/*")
+    exclude = lockfiles
+  }
   // Brakeman takes one application path, never the changed files, and bundle-audit takes
   // a project directory, never a lockfile: both wrappers scan each file from the root that
   // holds it, so an app below the repo root is scanned as its own project. Both read a

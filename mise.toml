@@ -48,6 +48,9 @@ run = "mise run doctor"
 description = "Exercise fail-closed checkpoint publication against signed scratch repositories"
 run = "bun test apps/omp/extensions/agent-checkpoint-publish.test.ts"
 
+[tasks."test:foreign-home-paths"]
+description = "Check the push gate rejects an added absolute home path or symlink target and passes a relative one"
+run = 'bash tests/foreign-home-paths-fixture.sh "$PWD"'
 [tasks."test:cd-latency"]
 description = "Keep held renderers and deferred hooks off the interactive prompt path"
 run = "zsh -f tests/cd-latency-fixture.zsh"

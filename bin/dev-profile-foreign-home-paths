@@ -1,0 +1,165 @@
+#!/usr/bin/env python3
+"""Pre-push judge: a push must not add an absolute home-directory path.
+
+An absolute path into a user's home directory is one machine's. The profile deploys to a Mac, Linux boxes and
+sandboxes whose homes differ, so such a literal works on one machine and dangles on the rest (2026-11-14: a
+symlink target merged in from a box named a Linux home and the Mac's omp extension never loaded). Use ~, $HOME,
+{{ env.HOME }}, or a path relative to the file.
+
+Judged, for the files given: every line the push adds (not lines already in the file, so a file that still
+holds an old literal can be edited), and every symlink the push adds or retargets (an absolute target into a
+home directory fails; a relative target passes). Prose, tests, fixtures and transcripts are exempt, and a
+line carrying `portable-home-ok` is exempt on purpose.
+
+A push is judged against SAH_PUSH_REFS (the saved pre-push stdin) when set; otherwise against the merge-base
+of HEAD with the default branch.
+Usage: dev-profile-foreign-home-paths <file>...
+"""
+
+import os
+import re
+import subprocess
+import sys
+from fnmatch import fnmatch
+
+MAC_HOME, LINUX_HOME, ROOT_HOME = "Users", "home", "root"
+HOME_PATH = re.compile(
+    rf"/(?:{MAC_HOME}|{LINUX_HOME}|{ROOT_HOME})(?:/[A-Za-z0-9_.][A-Za-z0-9_.-]*)?/|/{ROOT_HOME}\b"
+)
+# Placeholders and shared directories that name no machine's home.
+NOT_A_HOME = re.compile(
+    rf"/(?:{MAC_HOME}/(?:Shared|Guest)|{LINUX_HOME}/(?:linuxbrew|runner))\b|/(?:{MAC_HOME}|{LINUX_HOME})/(?:<|\$|\{{|\*|\.\.\.)"
+)
+EXEMPT_MARK = "portable-home-ok"
+EXEMPT_FILES = (
+    "*.md",
+    "*.mdx",
+    "*.rst",
+    "*.txt",
+    "*.jsonl",
+    "*.lock",
+    "package-lock.json",
+    "*.netrwhist",
+    "tests/*",
+    "*/tests/*",
+    "*/test/*",
+    "*/fixtures/*",
+    "*/testdata/*",
+    "*.test.*",
+    "*.spec.*",
+    "docs/*",
+    "agents/learnings/*",
+    "more/*",
+)
+ZEROS = re.compile(r"^0+$")
+
+
+def git(*args: str) -> str:
+    done = subprocess.run(["git", *args], capture_output=True, text=True, check=False)
+    return done.stdout if done.returncode == 0 else ""
+
+
+def default_base(tip: str) -> str:
+    for ref in ("origin/HEAD", "origin/main", "origin/master"):
+        if git("rev-parse", "-q", "--verify", f"{ref}^{{commit}}").strip():
+            base = git("merge-base", tip, ref).strip()
+            if base:
+                return base
+    return git("hash-object", "-t", "tree", "/dev/null").strip()
+
+
+def ranges() -> list[tuple[str, str]]:
+    refs = os.environ.get("SAH_PUSH_REFS", "")
+    if not refs or not os.access(refs, os.R_OK):
+        return [(default_base("HEAD"), "HEAD")]
+    out: list[tuple[str, str]] = []
+    for line in open(refs, encoding="utf-8"):
+        parts = line.split()
+        if len(parts) < 4 or ZEROS.match(parts[1]):
+            continue
+        local_sha, remote_sha = parts[1], parts[3]
+        known = not ZEROS.match(remote_sha) and bool(
+            git("cat-file", "-t", f"{remote_sha}^{{commit}}").strip()
+        )
+        out.append((remote_sha if known else default_base(local_sha), local_sha))
+    return out
+
+
+def exempt(path: str) -> bool:
+    return any(fnmatch(path, pattern) for pattern in EXEMPT_FILES)
+
+
+def foreign(text: str) -> bool:
+    return bool(HOME_PATH.search(NOT_A_HOME.sub("", text)))
+
+
+def symlink_targets(base: str, tip: str, files: list[str]) -> list[tuple[str, str]]:
+    raw = git("diff", "--raw", "-z", "--no-renames", base, tip, "--", *files).split(
+        "\0"
+    )
+    bad = []
+    for meta, path in zip(raw[0::2], raw[1::2]):
+        fields = meta.lstrip(":").split()
+        if len(fields) < 5 or fields[1] != "120000":
+            continue
+        target = git("cat-file", "-p", fields[3]).rstrip("\n")
+        if foreign(target) and EXEMPT_MARK not in target:
+            bad.append((path, target))
+    return bad
+
+
+def added_lines(
+    base: str, tip: str, files: list[str], skip: set[str]
+) -> list[tuple[str, int, str]]:
+    """Lines the push adds to `files`, except in `skip` (a symlink's one line is its target, reported as a symlink)."""
+    diff = git(
+        "diff",
+        "-U0",
+        "--no-color",
+        "--no-ext-diff",
+        "--no-renames",
+        base,
+        tip,
+        "--",
+        *files,
+    )
+    hits, path, line = [], "", 0
+    for row in diff.splitlines():
+        if row.startswith("+++ "):
+            path = row[6:] if row.startswith("+++ b/") else ""
+        elif row.startswith("@@"):
+            line = int(row.split()[2].split(",")[0].lstrip("+"))
+        elif row.startswith("+") and path:
+            if path not in skip and foreign(row[1:]) and EXEMPT_MARK not in row:
+                hits.append((path, line, row[1:].strip()[:160]))
+            line += 1
+    return hits
+
+
+def main() -> int:
+    files = [f for f in sys.argv[1:] if not exempt(f)]
+    if not files:
+        return 0
+    status = 0
+    for base, tip in ranges():
+        links = symlink_targets(base, tip, files)
+        for path, line, text in added_lines(
+            base, tip, files, {path for path, _ in links}
+        ):
+            print(f"{path}:{line}: {text}", file=sys.stderr)
+            status = 1
+        for path, target in links:
+            print(f"{path}: symlink to {target}", file=sys.stderr)
+            status = 1
+    if status:
+        print(
+            "home path: an absolute path into a user's home directory is one machine's. Use ~, $HOME, "
+            "{{ env.HOME }}, or a path relative to the file (a symlink target is relative to its link). "
+            f"A deliberate literal carries `{EXEMPT_MARK}`.",
+            file=sys.stderr,
+        )
+    return status
+
+
+if __name__ == "__main__":
+    sys.exit(main())
