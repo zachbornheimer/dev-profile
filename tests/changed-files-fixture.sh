@@ -96,6 +96,28 @@ if [ -s "${work}/passed" ]; then
 	fail "an unborn remote with a published tip must run no tool: $(cat "${work}/passed")"
 fi
 
+# A branch stacked on a published branch of another name, first pushed under
+# its own name, is measured from the nearest published commit: two commits
+# above origin/topic introduce only the files they add, not topic.txt. The tip's
+# parent is unpublished, so only the boundary of the unpublished history finds
+# the base.
+stack_tip="${topic_tip}"
+for name in stacked-one stacked-two; do
+	GIT_INDEX_FILE="${work}/stack-index" git read-tree "${stack_tip}"
+	blob="$(printf '%s\n' "${name}" | git hash-object -w --stdin)"
+	GIT_INDEX_FILE="${work}/stack-index" git update-index --add --cacheinfo "100644,${blob},${name}.md"
+	tree="$(GIT_INDEX_FILE="${work}/stack-index" git write-tree)"
+	stack_tip="$(git commit-tree -p "${stack_tip}" -m "${name}" "${tree}")"
+done
+printf 'refs/heads/stacked %s refs/heads/stacked %s\n' \
+	"${stack_tip}" 0000000000000000000000000000000000000000 >"${work}/refs"
+DEV_PROFILE_PUSH_REFS="${work}/refs" gate topic.txt stacked-one.md stacked-two.md
+printf 'stacked-one.md\nstacked-two.md\n' >"${work}/want"
+sort "${work}/passed" >"${work}/got"
+if ! diff -q "${work}/want" "${work}/got" >/dev/null; then
+	fail "a branch stacked on a published branch must judge only its own files: $(cat "${work}/passed")"
+fi
+
 # A commit authored on top of the merge is the push's own work. The merge is
 # not published anywhere yet, so the upstream file it carried in is judged as
 # introduced too; files only the older history touched stay inherited.
