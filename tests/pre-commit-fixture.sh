@@ -21,7 +21,7 @@ fail() {
 }
 
 # Config-based hooks need the profile's pinned git; the system git ignores them.
-git_bin="$(mise which git)"
+git_bin="$(mise which git 2>/dev/null || command -v git)"
 work="${scratch}/work"
 
 # The profile's hk config, active the way bootstrap links it.

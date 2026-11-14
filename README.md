@@ -54,6 +54,8 @@ Protections enforced on self-saving history:
 ## Checks
 
 Run mise run doctor. Run mise dot apply --dry-run before changing live links.
+Hook fixtures use Git from mise when configured, otherwise the installed Git
+on PATH (Homebrew on macOS).
 
 Interactive prompts paint a cached or pure-zsh header before starting Starship,
 mise and direnv refreshes, or detached command-log writes. Slow background work

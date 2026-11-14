@@ -13,7 +13,7 @@ fail() {
 	exit 1
 }
 
-git_bin="$(mise which git)"
+git_bin="$(mise which git 2>/dev/null || command -v git)"
 export PATH="${repo}/bin:${PATH}"
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
 export GIT_AUTHOR_NAME=fixture GIT_AUTHOR_EMAIL=fixture@example.invalid
