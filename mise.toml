@@ -59,6 +59,10 @@ run = "bash tests/adoption-fixture.sh"
 description = "Check wrapper and direct hk attribution of inherited merge files"
 run = "bash tests/pre-push-upstream-merge.sh"
 
+[tasks."test:foxguard-introduced"]
+description = "Check the push gate reports only branch-introduced foxguard findings, with real foxguard"
+run = 'bash tests/foxguard-introduced-fixture.sh "$(mktemp -d)"'
+
 [tasks."test:kitty-tabs"]
 description = "Render custom tab labels with the installed Kitty engine (no UI)"
 run = "kitty +runpy \"import runpy; runpy.run_path('tests/kitty_tabs.py', run_name='__main__')\""

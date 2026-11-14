@@ -77,6 +77,12 @@ authored lint findings still fail, and the history secret scan stays range-wide.
 Direct attribution measures the current checkout at `HEAD`; use `--to-ref HEAD`
 for this mode. The hook's tools lint checkout files, not another ref's tree.
 
+`mise run test:foxguard-introduced` runs real foxguard through
+`bin/dev-profile-foxguard-introduced`. A target file foxguard cannot parse
+contributes no findings, while findings from the target's other files stay
+suppressed. A branch file foxguard cannot parse, a scanner failure, or an invalid
+comparison fails closed with exit 2.
+
 Failed hooks restore tracked content and staged entries, including edits that
 preserve file size and timestamps. Snapshot indexes discard Git's stat cache
 before hashing files; pre-existing tracked deletions remain deleted.

@@ -84,14 +84,14 @@ if ! git -C "${root}" worktree add --detach --quiet "${base}" "${target}" 2>"${w
 	exit 2
 fi
 
-# A listed file foxguard skipped — a parse error, unreadable or non-UTF-8
+# A branch file foxguard skipped — a parse error, unreadable or non-UTF-8
 # content — was never scanned, and a pass would be silence about it: the
 # pack's readiness warnings on stderr start with "Warning", the per-file skip
 # notices with "warning", so the lowercase anchor never matches the report.
-require_fully_scanned() { # require_fully_scanned <err-file> <scan-name>
+require_fully_scanned() { # require_fully_scanned <err-file>
 	if grep -q '^warning: skipping' "$1"; then
 		cat "$1" >&2
-		echo "dev-profile-foxguard-introduced: a listed file could not be scanned ($2)" >&2
+		echo "dev-profile-foxguard-introduced: a listed file could not be scanned (the scan of the branch)" >&2
 		exit 2
 	fi
 }
@@ -114,7 +114,8 @@ else
 	printf '{"findings":[]}\n' >"${base_json}"
 	: >"${work}/base.err"
 fi
-require_fully_scanned "${work}/base.err" "the scan of ${target}"
+# A target file foxguard skipped contributes no findings, so it suppresses
+# nothing; every other target file still suppresses what it carries.
 case "${base_status}" in
 0 | 1) ;;
 *)
@@ -126,7 +127,7 @@ esac
 
 current_status=0
 (cd "${root}" && foxguard --rules "${rules}" --changed-files-from "${list}" --format json .) >"${current_json}" 2>"${work}/current.err" || current_status=$?
-require_fully_scanned "${work}/current.err" "the scan of the branch"
+require_fully_scanned "${work}/current.err"
 case "${current_status}" in
 0 | 1) ;;
 *)
