@@ -4,7 +4,7 @@
 # forked once the prompt is up (_p_after_prompt_defer, 30-prompt.zsh), then
 # return. Everything slow or surprising — mise deps, node_modules, the portless
 # proxy — happens in that worker, which serialises one run per checkout and
-# never prompts. `cd` costs a file test. It never starts the dev
+# never prompts. `cd` only records PWD; even PATH and marker checks are detached. It never starts the dev
 # stack; `mise run dev` does that, on request only.
 #
 # Disable: DEV_PROFILE_ENTER_DISABLE=1 (the old MISE_ENTER_CONVERGE=0 too).
@@ -33,19 +33,22 @@ _enter_converge_has_marker() {
 _enter_converge_start() {
 	local d=$_enter_converge_dir
 	_enter_converge_dir=
+	_enter_converge_worker "$d" >/dev/null 2>&1 </dev/null &!
+}
+
+_enter_converge_worker() {
+	local d=$1
+	_enter_converge_enabled || return 0
 	[[ -n $d && -d $d ]] || return 0
 	if _enter_converge_has_marker "$d"; then
-		dev-profile-enter "$d" >/dev/null 2>&1 </dev/null &!
+		exec dev-profile-enter "$d"
 	elif [[ -f $d/.gitmodules ]]; then
-		(
-			cd "$d" && git rev-parse --is-inside-work-tree >/dev/null 2>&1 && exec dev-profile-enter "$d"
-		) >/dev/null 2>&1 </dev/null &!
+		builtin cd -q -- "$d" && git rev-parse --is-inside-work-tree >/dev/null 2>&1 && exec dev-profile-enter "$d"
 	fi
 }
 
 typeset -g _enter_converge_dir=
 _enter_converge_chpwd() {
-	_enter_converge_enabled || return 0
 	_enter_converge_dir=$PWD
 	_p_after_prompt_defer _enter_converge_start
 }
