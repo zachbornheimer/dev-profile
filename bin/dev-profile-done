@@ -83,6 +83,43 @@ git remote get-url origin >/dev/null 2>&1 || {
 	echo "origin is required" >&2
 	exit 1
 }
+
+# A git directory with no work tree (a Grok clone whose checkout is gone) has no
+# primary clone to restack. Its work is safe once every local tip is on origin;
+# then --drop trashes the directory. Anything else is refused untouched.
+if [[ "$(git rev-parse --is-inside-git-dir 2>/dev/null)" == true &&
+	"$(git rev-parse --is-bare-repository 2>/dev/null)" == false ]]; then
+	stray="$(pwd -P)"
+	git fetch --prune --quiet origin '+refs/heads/*:refs/remotes/origin/*' || {
+		echo "fetch of origin failed" >&2
+		exit 1
+	}
+	unpushed="$(git log --oneline --branches HEAD --not --remotes | head -5)"
+	if [[ -n "${unpushed}" ]]; then
+		echo "refuse: ${stray} has commits not on origin:" >&2
+		printf '%s\n' "${unpushed}" >&2
+		exit 1
+	fi
+	if [[ "${do_drop}" != true ]]; then
+		echo "  stray-gitdir     ${stray}: no work tree, every tip is on origin; rerun with --drop to trash it"
+		exit 0
+	fi
+	command -v trash >/dev/null 2>&1 || {
+		echo "trash is not installed; nothing was deleted" >&2
+		exit 1
+	}
+	if [[ "${dry_run}" == true ]]; then
+		echo "  would-drop       ${stray}"
+		exit 0
+	fi
+	if [[ -n "${WORKTRUNK_DIRECTIVE_CD_FILE:-}" ]]; then
+		dirname "${stray}" >"${WORKTRUNK_DIRECTIVE_CD_FILE}"
+	fi
+	cd "$(dirname "${stray}")" || exit 1
+	trash "${stray}"
+	echo "  drop             ${stray}"
+	exit 0
+fi
 common="$(git rev-parse --path-format=absolute --git-common-dir)"
 primary="$(cd "$(dirname "${common}")" && pwd -P)"
 cd "${primary}" || exit 1
