@@ -114,8 +114,13 @@ elif [[ "${DEV_PROFILE_PUSH_DIRECT:-}" == "1" ]]; then
 		fi
 	done
 	[[ -n "${mainline}" ]] || run_all "direct pre-push has no published mainline"
-	base="$(git merge-base HEAD "${mainline}")" || run_all "direct pre-push has no merge base"
-	printf '%s %s %s %s\n' "$(git symbolic-ref -q HEAD || echo HEAD)" "$(git rev-parse HEAD)" "${mainline}" "${base}" >"${tmp}/advanced"
+	git merge-base HEAD "${mainline}" >/dev/null || run_all "direct pre-push has no merge base"
+	# The remote ref is unborn, as in a first push: dev-profile-push-introduced then
+	# bounds the push by the commits already published on any remote-tracking ref
+	# and still adds the merge base with the mainline. Passing the merge base as the
+	# remote tip instead made it the only base and hid the published commits a
+	# stacked branch sits on, so every file back to the mainline counted as new.
+	printf '%s %s %s %s\n' "$(git symbolic-ref -q HEAD || echo HEAD)" "$(git rev-parse HEAD)" "${mainline}" 0000000000000000000000000000000000000000 >"${tmp}/advanced"
 	options=()
 	[[ "${added_only}" -eq 0 ]] || options+=(--added)
 	# bash 3.2 (macOS /bin/bash) treats an empty array as unset under `set -u`.
