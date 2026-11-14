@@ -118,6 +118,19 @@ if ! diff -q "${work}/want" "${work}/got" >/dev/null; then
 	fail "a branch stacked on a published branch must judge only its own files: $(cat "${work}/passed")"
 fi
 
+# A direct pre-push step has no Git hook stdin, so it builds the push refs from
+# HEAD. The branch is not on its remote yet, so that ref must say so: a merge
+# base standing in for the remote tip hides the published commits the stack sits
+# on, and a 2-commit push judged every file between it and origin/main.
+git switch -q --detach "${stack_tip}"
+unset DEV_PROFILE_PUSH_REFS DEV_PROFILE_PUSH_INTRODUCED
+DEV_PROFILE_PUSH_DIRECT=1 gate topic.txt stacked-one.md stacked-two.md
+sort "${work}/passed" >"${work}/got"
+if ! diff -q "${work}/want" "${work}/got" >/dev/null; then
+	fail "a direct push of a stacked branch must judge only its own files: $(cat "${work}/passed")"
+fi
+git switch -q topic
+
 # A commit authored on top of the merge is the push's own work. The merge is
 # not published anywhere yet, so the upstream file it carried in is judged as
 # introduced too; files only the older history touched stay inherited.
