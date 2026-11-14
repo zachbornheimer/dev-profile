@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
-# The generated mise shell init: environment follows the directory, and an
-# in-place mise.toml edit refreshes on the next prompt without a cd.
+# The mise shell init (shell/mise.zsh): environment follows the directory, an
+# in-place mise.toml edit refreshes on the next prompt without a cd, and a shell
+# started in a deleted directory (PWD is ".") still finishes startup.
 set -euo pipefail
 
-out="${1:?usage: shell-init-fixture.sh <generated-dir>}"
+# The generated-dir argument predates sourcing shell/mise.zsh directly; accepted
+# so existing callers keep working, never read.
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+init="${root}/shell/mise.zsh"
 work="$(cd "$(mktemp -d)" && pwd -P)"
 trap 'rm -rf "${work}"' EXIT
 
@@ -18,10 +22,10 @@ fail() {
 
 output="$(
 cd "${project}" &&
-	DEV_PROFILE_OUT="${out}" TEST_PROJECT="${project}" \
+	DEV_PROFILE_INIT="${init}" TEST_PROJECT="${project}" \
 		MISE_TRUSTED_CONFIG_PATHS="${project}" \
 		zsh -f -i -c '
-				source "${DEV_PROFILE_OUT}/mise.zsh"
+				source "${DEV_PROFILE_INIT}"
 				print -r -- "start=${SHELL_INIT_TEST:-missing}"
 				builtin cd /tmp
 				print -r -- "cd-returned=${SHELL_INIT_TEST:-missing}"
@@ -45,4 +49,40 @@ expect "cd-returned=one"
 expect "away=missing"
 expect "back=one"
 expect "edited=two"
+
+# A deleted cwd leaves PWD as ".", where ${dir:h} never reaches "/". Startup must
+# finish; a bounded watchdog kills a spinning shell so no busy child leaks.
+gone="${work}/gone"
+mkdir -p "${gone}"
+(
+	cd "${gone}" && rmdir "${gone}"
+	DEV_PROFILE_INIT="${init}" zsh -f -i -c '
+		source "${DEV_PROFILE_INIT}"
+		print -r -- "deleted-cwd=finished"
+	' >"${work}/deleted.out" 2>&1 </dev/null &
+	pid=$!
+	for _ in $(seq 1 100); do
+		kill -0 "${pid}" 2>/dev/null || break
+		sleep 0.1
+	done
+	if kill -0 "${pid}" 2>/dev/null; then
+		kill -9 "${pid}" 2>/dev/null || true
+		wait "${pid}" 2>/dev/null || true
+		exit 3
+	fi
+	wait "${pid}"
+) || fail "shell started in a deleted directory did not finish startup within 10s: $(cat "${work}/deleted.out" 2>/dev/null)"
+grep -qxF "deleted-cwd=finished" "${work}/deleted.out" || fail "deleted-cwd startup output: $(cat "${work}/deleted.out")"
+
+# Ancestor configuration must still count: a nested directory sees the parent's
+# mise.toml mtime (set far in the future so no home config can outrank it).
+nested="${project}/a/b"
+mkdir -p "${nested}"
+touch -t 203501010000 "${project}/mise.toml"
+stamp="$(cd "${nested}" && HOME="${work}/home" DEV_PROFILE_INIT="${init}" zsh -f -i -c '
+	source "${DEV_PROFILE_INIT}"
+	print -r -- "${_DEV_PROFILE_MISE_NEW}"
+' 2>/dev/null </dev/null | tail -n 1)"
+expected="$(zsh -f -c 'zmodload zsh/stat; zstat +mtime -- "$1"' _ "${project}/mise.toml")"
+[[ "${stamp}" == "${expected}" ]] || fail "ancestor mise.toml mtime not detected: got '${stamp}', want '${expected}'"
 echo "shell-init fixture ok"

@@ -82,7 +82,7 @@ typeset -g _DEV_PROFILE_MISE_STAMP=0
 typeset -g _DEV_PROFILE_MISE_REASON=precmd
 
 _dev_profile_mise_config_stamp() {
-	local dir=$PWD file newest=0
+	local dir=$PWD file newest=0 parent
 	local -a statbuf
 	while :; do
 		for file in "$dir"/mise.toml "$dir"/.mise.toml "$dir"/mise.local.toml; do
@@ -90,8 +90,11 @@ _dev_profile_mise_config_stamp() {
 			zstat -A statbuf +mtime -- "$file" 2>/dev/null || continue
 			((statbuf[1] > newest)) && newest=$statbuf[1]
 		done
-		[[ $dir == / ]] && break
-		dir=${dir:h}
+		# A deleted cwd leaves PWD as ".", whose parent is itself: stop when the
+		# walk stops moving, not only at "/".
+		parent=${dir:h}
+		[[ $dir == / || $parent == $dir ]] && break
+		dir=$parent
 	done
 	for file in "$HOME"/.config/mise/config.toml "$HOME"/.config/mise/conf.d/*.toml(N); do
 		[[ -f $file ]] || continue
