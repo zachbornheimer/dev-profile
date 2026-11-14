@@ -35,6 +35,10 @@ Classes:
     duplicate_call     the same tool with the same arguments, again
     repeat_text        the same agent message sent again (escalation loop)
     refetch            the same URL fetched more than once
+    wrong_tool         a bash call whose first word is grep, rg, cat, head, tail, ls, find or fd:
+                       a native tool does that job and returns edit tags
+    failure_to_bash    a non-bash tool failed and the next call was bash: the error's own
+                       recovery hint went unread
     rule_abort         a rule violation interrupting output, discarding the partial answer
     user_recovery      the user supplying the diagnosis the agent did not reach
 
@@ -329,6 +333,25 @@ def _target_of(arguments: str) -> str:
     return parsed.get("path", "") if isinstance(parsed, dict) else ""
 
 
+def _is_shell(name: str) -> bool:
+    """Any harness spelling of the shell tool: bash, run_command, mcp__..._run_command."""
+    return name == "bash" or name.endswith("run_command")
+
+
+SHELL_SEARCH = re.compile(
+    r"\s*(?:cd\s+\S+\s*(?:&&|;)\s*)?(?:grep|rg|cat|head|tail|ls|find|fd)\b"
+)
+
+
+def _command_of(arguments: str) -> str:
+    """The shell command string of a bash call, else empty."""
+    try:
+        parsed = json.loads(arguments)
+    except ValueError:
+        return ""
+    return str(parsed.get("command", "")) if isinstance(parsed, dict) else ""
+
+
 def census(items: list[dict[str, Any]]) -> tuple[dict[str, list[str]], int]:
     findings: dict[str, list[str]] = defaultdict(list)
     # Total tokens the harness reported shaken out of context: a census that
@@ -340,6 +363,7 @@ def census(items: list[dict[str, Any]]) -> tuple[dict[str, list[str]], int]:
     seen_text: Counter[str] = Counter()
     seen_urls: Counter[str] = Counter()
     denied_tools: set[str] = set()
+    failed_tool: str | None = None
 
     for item in items:
         item_id = item.get("id")
@@ -368,7 +392,8 @@ def census(items: list[dict[str, Any]]) -> tuple[dict[str, list[str]], int]:
                 else "<tool_use_error>" in body or body.lower().startswith("error")
             )
             if failed:
-                findings["tool_error"].append(f"{ref} ({item.get('tool_name') or '?'})")
+                failed_tool = item.get("tool_name") or "?"
+                findings["tool_error"].append(f"{ref} ({failed_tool})")
                 # Track denied tools. omp names the missing device ("No such tool: xd://x") and
                 # serves every device through one shared tool (`write`), so key on the device.
                 tool_name = item.get("tool_name") or ""
@@ -387,6 +412,14 @@ def census(items: list[dict[str, Any]]) -> tuple[dict[str, list[str]], int]:
             continue
 
         for name, arguments in calls_of(item):
+            if _is_shell(name):
+                if failed_tool is not None and not _is_shell(failed_tool):
+                    findings["failure_to_bash"].append(f"{ref} (after {failed_tool})")
+                if SHELL_SEARCH.match(_command_of(arguments)):
+                    findings["wrong_tool"].append(
+                        f"{ref} ({_command_of(arguments)[:50]!r})"
+                    )
+            failed_tool = None
             # Check if calling a tool that was previously denied
             if name in denied_tools or _target_of(arguments) in denied_tools:
                 findings["repeat_denied_tool"].append(f"{ref} ({name})")
@@ -818,6 +851,8 @@ def main(argv: list[str]) -> int:
         "duplicate_call",
         "repeat_text",
         "refetch",
+        "wrong_tool",
+        "failure_to_bash",
         "rule_abort",
         "user_recovery",
     ):
