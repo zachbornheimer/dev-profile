@@ -66,6 +66,9 @@ markers only inside its detached worker (`&!`), never in `chpwd`.
 `mise run test:cd-latency` exercises held renderers, environment refreshes, and
 blocked worker discovery in an interactive terminal.
 
+The mise config-stamp ancestry walk stops at the filesystem root or an unchanged
+parent, so shells started in deleted directories finish startup.
+
 `mise run test:omp` checks the installed `~/.omp/agent/tools` import graphs and
 callable default exports, then loads installed extensions through OMP's real RPC
 startup and registration path. It sends no model prompt and executes no tool.

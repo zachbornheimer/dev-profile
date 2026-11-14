@@ -4,8 +4,6 @@
 # started in a deleted directory (PWD is ".") still finishes startup.
 set -euo pipefail
 
-# The generated-dir argument predates sourcing shell/mise.zsh directly; accepted
-# so existing callers keep working, never read.
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 init="${root}/shell/mise.zsh"
 work="$(cd "$(mktemp -d)" && pwd -P)"
