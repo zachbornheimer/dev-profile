@@ -1,7 +1,7 @@
 # 30-prompt.zsh — Starship prompt renderer with live macOS light/dark switching,
 # transient timestamp prompt, on-demand AWS context, and project preview URLs.
 
-zmodload zsh/datetime zsh/zselect 2>/dev/null
+zmodload zsh/datetime 2>/dev/null
 zmodload -F zsh/stat b:zstat 2>/dev/null
 autoload -Uz add-zsh-hook
 
@@ -13,7 +13,6 @@ typeset -g _p_prompt_text=""
 typeset -g _p_starship_prompt=""
 typeset -g _p_prompt_fd=0
 typeset -g _p_prompt_dir=""
-typeset -gi _p_prompt_wait=${_p_prompt_wait:-80}
 typeset -gi _p_prompt_cap=${_p_prompt_cap:-2}
 typeset -g _p_url_fd=0
 
@@ -131,21 +130,8 @@ _p_render_full() {
 	"${command[@]}" "$_p_starship_bin" prompt "${args[@]}"
 }
 
-# The same header without git. PATH carries no git, so starship's git probes
-# cannot start, and $GIT_DIR cannot point it at a repository either.
-_p_render_fast() {
-	local -a args
-	_p_starship_args
-	args=("$@")
-	[[ -n $_p_starship_bin ]] || return 1
-	# PATH is an argument to env, not a prefix: `PATH=... env` makes zsh resolve
-	# env against the empty PATH first, which costs ~100ms on this machine.
-	env -u GIT_DIR -u GIT_WORK_TREE PATH=/var/empty \
-		"$_p_starship_bin" prompt --profile fast "${args[@]}"
-}
-
-# Bookkeeping a cd owes but the prompt does not need (`zoxide add`,
-# `dev-profile-enter`, `atuin history end`, the starship render). Each is a fork
+# Bookkeeping the prompt does not need (`zoxide add`, `dev-profile-enter`,
+# `atuin history end`, and every starship render). Each is a fork
 # of this large shell: ~1ms idle, 15-110ms when the machine is busy, so none may
 # run before the prompt is painted. A hook calls `_p_after_prompt_defer FN`; FN
 # runs once, from a `zle -F` handler on an always-readable fd, which zle only
@@ -182,46 +168,26 @@ _p_after_prompt_run() {
 # Paint now, finish the render in the background. A directory change never
 # waits on starship: the prompt shows a header built in pure zsh (no fork) and
 # the full render, git modules included, repaints it through _p_prompt_ready.
-# A prompt in the same directory keeps a short wait (`_p_prompt_wait`ms) so the
-# exit status and duration of the command that just ran are right at first
-# paint; if starship is slower than that, the git-free header is painted.
+# Same-directory prompts keep the cached header until the new render arrives.
 _p_prompt_request() {
 	[[ -n $_p_starship_bin ]] || return 0
-	local -i wait=${1:-$_p_prompt_wait} moved=0
 	local out dir=$PWD
-	[[ $dir == "$_p_prompt_dir" ]] || moved=1
 	_p_prompt_cancel
-	_p_prompt_dir=$dir
 	if [[ ! -o zle || ! -t 0 ]]; then
 		out=$(_p_render_full)
-		[[ -n $out ]] || out=$(_p_render_fast 2>/dev/null)
 		[[ -n $out ]] && _p_prompt_text=$out
+		_p_prompt_dir=$dir
 		return 0
 	fi
-	if ((moved)); then
+	if [[ $dir != "$_p_prompt_dir" || -z $_p_prompt_text ]]; then
 		_p_prompt_text="${_p_c[cyan]}%B%~%b${_p_c[rst]}"$'\n'"${_p_c[green]}❯${_p_c[rst]} "
-		_p_after_prompt_defer _p_prompt_render_start
-		return 0
 	fi
-	exec {_p_prompt_fd}< <(_p_render_full 2>/dev/null)
-	# zselect -t is in hundredths of a second: 80ms -> 8.
-	if ((wait >= 10)) &&
-		zselect -t $((wait / 10)) -r "$_p_prompt_fd" 2>/dev/null; then
-		out=$(_p_prompt_collect "$_p_prompt_fd")
-		_p_prompt_cancel
-	fi
-	if [[ -n $out ]]; then
-		_p_prompt_text=$out
-		return 0
-	fi
-	# Not ready within the wait: paint the git-free header now; the render
-	# lands later through _p_prompt_ready when it finishes on its own.
-	out=$(_p_render_fast 2>/dev/null)
-	[[ -n $out ]] && _p_prompt_text=$out
-	((_p_prompt_fd)) && zle -F "$_p_prompt_fd" _p_prompt_ready
+	_p_prompt_dir=$dir
+	_p_after_prompt_defer _p_prompt_render_start
+	return 0
 }
 
-# Started after the prompt is up: the full render for a directory just entered.
+# Started after the prompt is up, on both cd and same-directory prompts.
 _p_prompt_render_start() {
 	_p_prompt_cancel
 	_p_prompt_dir=$PWD

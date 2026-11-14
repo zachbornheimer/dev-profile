@@ -1,6 +1,5 @@
-# mise activation with a directory/config-change guard in front of the prompt
-# hook: unchanged prompts cost only a few zstat calls, and an edited mise.toml
-# applies on the next prompt without a cd.
+# mise activation with directory/config checks deferred until after the prompt.
+# An edited mise.toml applies on the next prompt without a cd.
 #
 # Nothing here forks on the cd or the prompt path. `mise hook-env` (and direnv's
 # `export`, see 40-direnv.defer.zsh) runs in the background and its output is
@@ -107,10 +106,16 @@ _dev_profile_mise_run() {
 		--reason $_DEV_PROFILE_MISE_REASON 2>/dev/null
 }
 
-# Precmd and chpwd both land here: the stamp guard makes an unchanged prompt a
-# few zstat calls, and a changed directory or edited mise.toml starts one
-# background hook-env.
+# Precmd and chpwd queue the same work once, after the prompt is painted.
 _dev_profile_mise_refresh() {
+	if [[ -o zle && -t 0 ]] && ((${+functions[_p_after_prompt_defer]})); then
+		_p_after_prompt_defer _dev_profile_mise_refresh_start
+	else
+		_dev_profile_mise_refresh_start
+	fi
+}
+
+_dev_profile_mise_refresh_start() {
 	_dev_profile_mise_config_stamp
 	[[ $PWD == $_DEV_PROFILE_MISE_PWD && $_DEV_PROFILE_MISE_NEW == $_DEV_PROFILE_MISE_STAMP ]] && return
 	if [[ $PWD == $_DEV_PROFILE_MISE_PWD ]]; then

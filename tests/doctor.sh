@@ -16,6 +16,7 @@ for f in "$root"/shell/zsh/*.zsh; do
 	zsh -n "$f" || fail "shell/zsh/${f##*/}"
 done
 bash "$root/tests/output-fixture.sh" >/dev/null || fail "output fixture"
+zsh -f "$root/tests/cd-latency-fixture.zsh" >/dev/null || fail "cd latency fixture"
 bash "$root/tests/hook-path-free.sh" >/dev/null || fail "hook path fixture"
 bash "$root/tests/ban-trunk-prettier-fixture.sh" >/dev/null || fail "ban-trunk-prettier fixture"
 bash "$root/tests/dprint-ts-js-fixture.sh" >/dev/null || fail "dprint-ts-js fixture"
