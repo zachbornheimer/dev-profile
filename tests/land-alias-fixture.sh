@@ -70,7 +70,8 @@ init_repo "${work}/personal-ssh" feature "git@github.com:zachbornheimer/example.
 init_repo "${work}/other" feature "https://github.com/ZAB-AI-LLC/example.git"
 init_repo "${work}/other-ssh" feature "git@github.com:ZAB-AI-LLC/example.git"
 
-has "default branch" "wt tree-for-changes -- wt land --landing=merge" "${work}/default" land
+has "default branch" "wt tree-for-changes -- wt land" "${work}/default" land
+lacks "default branch follow-up uses the default" "wt land --landing" "${work}/default" land
 lacks "default branch ignores --landing" "wt pr-auto" "${work}/default" land -- --landing=pr
 has "force merge" "wt merge" "${work}/other" land -- --landing=merge
 has "force merge skips a clean commit" "git diff --quiet" "${work}/other" land -- --landing=merge
@@ -78,9 +79,13 @@ lacks "force merge" "wt pr-auto" "${work}/other" land -- --landing=merge
 has "force pr" "wt pr-auto" "${work}/personal" land -- --landing=pr
 lacks "force pr" "wt merge" "${work}/personal" land -- --landing=pr
 has "bad landing" "wt land: --landing must be merge or pr" "${work}/personal" land -- --landing=nope
-has "https personal" "wt merge" "${work}/personal" land
-lacks "https personal" "wt pr-auto" "${work}/personal" land
-has "ssh personal" "wt merge" "${work}/personal-ssh" land
+has "https personal defaults to pr-auto" "wt pr-auto" "${work}/personal" land
+lacks "https personal defaults to pr-auto" "wt merge" "${work}/personal" land
+has "ssh personal defaults to pr-auto" "wt pr-auto" "${work}/personal-ssh" land
+lacks "ssh personal defaults to pr-auto" "wt merge" "${work}/personal-ssh" land
+# pr-auto is an alias for `wt switch ... -x dev-profile-pr`; a flag like --stage is rejected by wt switch.
+lacks "pr-auto takes no flags" "wt pr-auto --" "${work}/personal" land
+lacks "pr-auto takes no flags (force pr)" "wt pr-auto --" "${work}/other" land -- --landing=pr
 has "https other" "wt pr-auto" "${work}/other" land
 lacks "https other" "wt merge" "${work}/other" land
 has "ssh other" "wt pr-auto" "${work}/other-ssh" land
