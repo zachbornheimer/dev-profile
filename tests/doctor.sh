@@ -22,6 +22,7 @@ bash "$root/tests/dprint-ts-js-fixture.sh" >/dev/null || fail "dprint-ts-js fixt
 bash "$root/tests/retire-legacy-hooks-fixture.sh" "$root" >/dev/null || fail "retire-legacy-hooks fixture"
 bash "$root/tests/pre-push-empty-file-list-fixture.sh" >/dev/null || fail "pre-push empty file list fixture"
 bash "$root/tests/pre-push-refs-fixture.sh" >/dev/null || fail "pre-push refs fixture"
+bash "$root/tests/pr-push-fixture.sh" >/dev/null || fail "pr push fixture"
 bash "$root/tests/ruby-security-steps-fixture.sh" >/dev/null || fail "ruby security steps fixture"
 bash "$root/tests/brakeman-fixture.sh" >/dev/null || fail "brakeman introduced-only fixture"
 bash "$root/tests/oxlint-all-ignored-fixture.sh" >/dev/null || fail "oxlint all ignored fixture"

@@ -138,7 +138,17 @@ if [[ -z "${url}" ]]; then
 	[[ "$(git rev-list --count "origin/${base}..HEAD")" -gt 0 ]] || skip "no commits ahead of ${base}"
 fi
 
-git push --set-upstream origin "HEAD:refs/heads/${branch}"
+# A branch whose remote already holds HEAD pushes nothing: git still runs the
+# pre-push hook for an up-to-date push and hands it zero ref lines, which
+# dev-profile-pre-push refuses as unreadable. Publish only what is new, and
+# set the tracking the skipped push would have set.
+remote_tip="$(git rev-parse --quiet --verify "refs/remotes/origin/${branch}" || :)"
+if [[ -n "${remote_tip}" && "${remote_tip}" == "$(git rev-parse HEAD)" ]]; then
+	[[ "${upstream}" == "origin/${branch}" ]] ||
+		git branch --set-upstream-to="origin/${branch}" "${branch}"
+else
+	git push --set-upstream origin "HEAD:refs/heads/${branch}"
+fi
 
 if [[ -n "${url}" ]]; then
 	echo "PR: ${url}"
