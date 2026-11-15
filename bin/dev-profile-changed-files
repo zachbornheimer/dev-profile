@@ -114,7 +114,8 @@ elif [[ "${DEV_PROFILE_PUSH_DIRECT:-}" == "1" ]]; then
 		fi
 	done
 	[[ -n "${mainline}" ]] || run_all "direct pre-push has no published mainline"
-	git merge-base HEAD "${mainline}" >/dev/null || run_all "direct pre-push has no merge base"
+	# A shallow clone has no merge base with the mainline; dev-profile-push-introduced
+	# then measures from the published boundary alone instead of judging everything.
 	# The remote ref is unborn, as in a first push: dev-profile-push-introduced then
 	# bounds the push by the commits already published on any remote-tracking ref
 	# and still adds the merge base with the mainline. Passing the merge base as the
