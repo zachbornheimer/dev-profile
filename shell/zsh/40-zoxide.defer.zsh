@@ -1,7 +1,8 @@
 # 40-zoxide.defer.zsh — smarter cd.
 
-[[ -x /opt/homebrew/bin/zoxide || -x $HOME/.local/bin/zoxide ]] &&
-	_zsh_eval_cached zoxide -- zoxide init zsh --cmd cd
+typeset -g _zoxide_bin
+_zoxide_bin="$(_zsh_binpath zoxide)" || return 0
+_zsh_eval_cached zoxide -- "$_zoxide_bin" init zsh --cmd cd
 
 # `zoxide add` is bookkeeping, not part of cd: it forks (a fork of this shell is
 # ~1ms idle and 30ms+ when busy) and execs the mise shim (~0.5-0.9s). Both wait
@@ -22,12 +23,25 @@ if ((${+functions[__zoxide_hook]})); then
 	}
 fi
 
-# Upstream probes an ordinary path with `(builtin cd -q ...)` before doing the
-# real cd. Even that subshell costs tens to hundreds of ms under load. File
-# tests cover explicit paths and CDPATH without a fork; fuzzy jumps stay upstream.
+# Target lookup must finish before cd can change this shell's PWD. Resolve it
+# with the native binary, never the mise shim; PATH and detached adds stay intact.
+# Ordinary paths and directory-stack jumps need no query or probe subshell.
 if ((${+functions[__zoxide_z]})); then
-	cd() {
-		if (($# == 1)); then
+	__zoxide_z() {
+		__zoxide_doctor
+		if (($# == 0)); then
+			__zoxide_cd ~
+			return $?
+		elif (($# == 1)) && [[ $1 == - ]]; then
+			__zoxide_cd "$OLDPWD"
+			return $?
+		elif (($# == 1)) && [[ $1 == [-+]<-> ]]; then
+			__zoxide_cd "$1"
+			return $?
+		elif (($# == 2)) && [[ $1 == -- ]]; then
+			__zoxide_cd "$2"
+			return $?
+		elif (($# == 1)); then
 			local base
 			if [[ -d $1 ]]; then
 				__zoxide_cd "$1"
@@ -42,10 +56,10 @@ if ((${+functions[__zoxide_z]})); then
 				done
 			fi
 		fi
-		__zoxide_z "$@"
+		local result
+		result="$("$_zoxide_bin" query --exclude "$(__zoxide_pwd)" -- "$@")" && __zoxide_cd "$result"
 	}
+	cd() { __zoxide_z "$@"; }
+	z() { __zoxide_z "$@"; }
+	(($+functions[zi])) || function zi { __zoxide_zi "$@"; }
 fi
-
-# --cmd cd replaces `cd`; keep `z`/`zi` names the rest of the config expects.
-(($+functions[z])) || function z { __zoxide_z "$@"; }
-(($+functions[zi])) || function zi { __zoxide_zi "$@"; }

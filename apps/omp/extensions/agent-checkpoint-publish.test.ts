@@ -151,7 +151,7 @@ test("default enrollment and continuation/worker guards never publish", async ()
   const f = fixture(), before = f.refs();
   fs.writeFileSync(process.env.AGENT_CHECKPOINT_ENROLLMENT_FILE!, "schema_version = 1\n");
   await f.event("agent_end");
-  expect(f.notices.join("\n")).toContain("blocked-not-enrolled");
+  expect(f.notices.join("\n")).not.toContain("agent-checkpoint");
   f.enroll();
   await f.event("agent_end", { willContinue: true });
   process.env.AGENT_CHECKPOINT_PUBLISH = "1";
@@ -159,6 +159,15 @@ test("default enrollment and continuation/worker guards never publish", async ()
   await f.event("agent_end");
   expect(f.refs()).toBe(before);
   expect(fs.existsSync(path.join(process.env.AGENT_CHECKPOINT_STATE_DIR!, "jobs"))).toBe(false);
+});
+
+test("an enrollment entry with an invalid policy still warns and never publishes", async () => {
+  const f = fixture(), before = f.refs();
+  const text = fs.readFileSync(process.env.AGENT_CHECKPOINT_ENROLLMENT_FILE!, "utf8");
+  fs.writeFileSync(process.env.AGENT_CHECKPOINT_ENROLLMENT_FILE!, text.replace(/visibility = "[a-z]+"/, 'visibility = "secret"'));
+  await f.event("agent_end");
+  expect(f.notices.join("\n")).toContain("blocked-not-enrolled invalid enrollment policy");
+  expect(f.refs()).toBe(before);
 });
 
 test("ambiguous ownership never queues work", async () => {

@@ -400,6 +400,10 @@ export default function install(pi: { on(name: string, handler: (event: any, ctx
       launch(job);
       ctx.ui?.notify?.(report(job), "info");
     } catch (e) {
+      // A repo with no enrollment entry is the normal case, not a fault: checkpoints are opt-in, and "in sync with
+      // origin" is enforced by the Stop landed gate. Skip it quietly. A present but invalid or ambiguous enrollment
+      // still warns, since that is a policy the owner wrote and got wrong.
+      if (e instanceof Block && e.outcome === "blocked-not-enrolled" && !e.message) return;
       ctx.ui?.notify?.(
         `agent-checkpoint: ${e instanceof Block ? e.outcome : "blocked-unsafe-state"} ${
           e instanceof Error ? e.message : e
