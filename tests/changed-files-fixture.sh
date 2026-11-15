@@ -131,6 +131,33 @@ if ! diff -q "${work}/want" "${work}/got" >/dev/null; then
 fi
 git switch -q topic
 
+# A shallow clone has no merge base with origin/main, yet the branch still sits
+# on a published commit. The direct step must measure from that commit instead
+# of judging every candidate: a 2-commit push in a shallow clone ran a 2-minute
+# secret scan over 1286 files.
+root_tree="$(git rev-parse "${topic_tip}^{tree}")"
+shallow_root="$(git commit-tree -m shallow-root "${root_tree}")"
+git update-ref refs/remotes/origin/shallow "${shallow_root}"
+shallow_tip="${shallow_root}"
+for name in shallow-one shallow-two; do
+	GIT_INDEX_FILE="${work}/shallow-index" git read-tree "${shallow_tip}"
+	blob="$(printf '%s\n' "${name}" | git hash-object -w --stdin)"
+	GIT_INDEX_FILE="${work}/shallow-index" git update-index --add --cacheinfo "100644,${blob},${name}.md"
+	tree="$(GIT_INDEX_FILE="${work}/shallow-index" git write-tree)"
+	shallow_tip="$(git commit-tree -p "${shallow_tip}" -m "${name}" "${tree}")"
+done
+git switch -q --detach "${shallow_tip}"
+if git merge-base HEAD refs/remotes/origin/main >/dev/null 2>&1; then
+	fail "the shallow fixture must have no merge base with origin/main"
+fi
+DEV_PROFILE_PUSH_DIRECT=1 gate topic.txt shallow-one.md shallow-two.md
+printf 'shallow-one.md\nshallow-two.md\n' >"${work}/want"
+sort "${work}/passed" >"${work}/got"
+if ! diff -q "${work}/want" "${work}/got" >/dev/null; then
+	fail "a direct push with no merge base must judge only its own files: $(cat "${work}/passed")"
+fi
+git switch -q topic
+
 # A commit authored on top of the merge is the push's own work. The merge is
 # not published anywhere yet, so the upstream file it carried in is judged as
 # introduced too; files only the older history touched stay inherited.
