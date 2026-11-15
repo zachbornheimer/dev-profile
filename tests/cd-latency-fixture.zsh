@@ -85,4 +85,16 @@ exec {direnv_fd}<>"$work/direnv"
 print -u $direnv_fd -r -- release
 expect 'appliedREADY> '
 exec {direnv_fd}>&-
+# A worker availability check can scan PATH after mise changes it. It must
+# run in the detached worker, not chpwd or the ZLE callback.
+mkfifo "$work/enter"
+zpty -w prompttest 'builtin source "$CD_TEST_ROOT/shell/zsh/50-enter-converge.defer.zsh"; _enter_converge_enabled() { read -r < "$CD_TEST_WORK/enter"; return 1; }; _enter_converge_chpwd; print -r -- ENTERQUEUED'
+expect $'\r\nENTERQUEUED\r\n'
+expect 'appliedREADY> ' 1
+zpty -w prompttest 'print -r -- ENTERRESPONSIVE'
+expect $'\r\nENTERRESPONSIVE\r\n'
+expect 'appliedREADY> ' 1
+exec {enter_fd}<>"$work/enter"
+print -u $enter_fd -r -- release
+exec {enter_fd}>&-
 print -r -- 'cd-latency fixture ok'

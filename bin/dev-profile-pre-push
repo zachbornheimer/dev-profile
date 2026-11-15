@@ -127,6 +127,23 @@ if [[ -z "${GITHUB_TOKEN:-}" && -z "${GH_TOKEN:-}" ]] && command -v gh >/dev/nul
 	unset gh_token
 fi
 
+# The omp-build fork assembles every branch under .omp-build/branches/ in CI and
+# rejects a conflicting or direct-commit push minutes later. Run the same checks
+# locally (probe-build.sh, which executes the base's own CI scripts) for each
+# pushed branch that has a manifest. A bypass is the user's: set nothing here.
+probe="${DEV_PROFILE_PROBE_BUILD:-${HOME}/.agents/available-skills/updating-oh-my-pi/scripts/probe-build.sh}"
+if [[ -d .omp-build/branches && -x "${probe}" ]]; then
+	while read -r _local_ref local_sha remote_ref _remote_sha; do
+		branch="${remote_ref#refs/heads/}"
+		[[ "${branch}" != "${remote_ref}" && "${local_sha}" =~ [1-9a-f] ]] || continue
+		[[ -e ".omp-build/branches/${branch}.toml" ]] || continue
+		if ! OMP_REPO="$(pwd)" "${probe}" --no-build --pin "${branch}=${local_sha}"; then
+			printf 'pre-push: refusing the push: CI would reject %s (probe output above). Fix: git fetch origin && git merge origin/main into %s, resolve, and push again; re-check with %s --no-build --pin %s=<sha>\n' "${branch}" "${branch}" "${probe}" "${branch}" >&2
+			exit 1
+		fi
+	done <"${refs}"
+fi
+
 # When one step fails hk cancels the steps still running, and the error it
 # prints can be a cancelled sibling ("command was cancelled") instead of the
 # step that failed (five different steps were named on oh-my-pi-ci,

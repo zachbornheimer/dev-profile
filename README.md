@@ -54,11 +54,20 @@ Protections enforced on self-saving history:
 ## Checks
 
 Run mise run doctor. Run mise dot apply --dry-run before changing live links.
+Hook fixtures use Git from mise when configured, otherwise the installed Git
+on PATH (Homebrew on macOS).
 
 Interactive prompts paint a cached or pure-zsh header before starting Starship,
 mise and direnv refreshes, or detached command-log writes. Slow background work
 can delay status and environment updates, but never blocks the initial prompt.
-`mise run test:cd-latency` exercises held renderers in an interactive terminal.
+The scheduler retains its notification fd between prompts to avoid synchronous
+process-substitution cleanup. Directory convergence checks PATH and project
+markers only inside its detached worker (`&!`), never in `chpwd`.
+`mise run test:cd-latency` exercises held renderers, environment refreshes, and
+blocked worker discovery in an interactive terminal.
+
+The mise config-stamp ancestry walk stops at the filesystem root or an unchanged
+parent, so shells started in deleted directories finish startup.
 
 `mise run test:omp` checks the installed `~/.omp/agent/tools` import graphs and
 callable default exports, then loads installed extensions through OMP's real RPC

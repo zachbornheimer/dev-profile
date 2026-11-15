@@ -141,7 +141,18 @@ fi
 # mise prints the age as 13s, 54m or 2h; a frozen watcher reads in minutes, so every unit becomes seconds.
 health=$("$MISE_BIN" dot status 2>/dev/null | sed -n 's/.*watcher health (updated \([0-9]*[smhd]\) ago).*/\1/p' | head -1 |
 	awk '{ n = $0 + 0; u = substr($0, length($0)); print n * (u == "m" ? 60 : u == "h" ? 3600 : u == "d" ? 86400 : 1) }')
-if [ -n "${health:-}" ] && [ "$health" -ge 600 ] 2>/dev/null; then
+# A long operation (a bootstrap, a first sync) keeps the health line and the lock
+# stale while it works; `operation.json` names it and is written when it starts.
+# Inside the grace window it is live work, and killing it only restarts it
+# (2026-11-15: a restart every six minutes from 04:48 to 08:11, no sync finished).
+OP_GRACE_S="${MISE_HISTORY_WATCHDOG_OP_GRACE_S:-3600}"
+op_record="$HIST_DIR/operation.json"
+op_live=0
+if [ -e "$op_record" ]; then
+	op_age=$(($(date +%s) - $(date -r "$op_record" +%s)))
+	[ "$op_age" -lt "$OP_GRACE_S" ] && op_live=1
+fi
+if [ "$op_live" = 0 ] && [ -n "${health:-}" ] && [ "$health" -ge 600 ] 2>/dev/null; then
 	restart_service
 	log "watcher health frozen ${health}s; restarted $SERVICE"
 fi
@@ -155,7 +166,7 @@ for lock in operation sync.lock; do
 	[ -e "$f" ] || continue
 	# `date -r FILE` prints the file's mtime on both BSD and GNU date; `stat` does not agree across them.
 	lock_age=$(($(date +%s) - $(date -r "$f" +%s)))
-	if [ "$lock_age" -ge 600 ]; then
+	if [ "$lock_age" -ge 600 ] && [ "$op_live" = 0 ]; then
 		rm -f "$f"
 		log "removed stale $lock (${lock_age}s old)"
 	fi

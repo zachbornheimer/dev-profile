@@ -135,7 +135,8 @@ _p_render_full() {
 # of this large shell: ~1ms idle, 15-110ms when the machine is busy, so none may
 # run before the prompt is painted. A hook calls `_p_after_prompt_defer FN`; FN
 # runs once, from a `zle -F` handler on an always-readable fd, which zle only
-# services after it has drawn the prompt. Outside an interactive tty (scripts,
+# services after it has drawn the prompt. Keep this fd open between prompts:
+# reopening it can synchronously run process-substitution cleanup. Outside an interactive tty (scripts,
 # tests) FN runs at once.
 typeset -ga _p_after_prompt_fns=()
 typeset -gi _p_after_prompt_fd=0
@@ -146,8 +147,9 @@ _p_after_prompt_defer() {
 		return 0
 	fi
 	((${_p_after_prompt_fns[(Ie)$1]})) || _p_after_prompt_fns+=("$1")
-	((_p_after_prompt_fd)) && return 0
-	exec {_p_after_prompt_fd}</dev/null || return 0
+	if ((!_p_after_prompt_fd)); then
+		exec {_p_after_prompt_fd}</dev/null || return 0
+	fi
 	zle -F $_p_after_prompt_fd _p_after_prompt_run
 }
 
@@ -156,8 +158,6 @@ _p_after_prompt_run() {
 	local fn
 	local -a fns=("${_p_after_prompt_fns[@]}")
 	zle -F $fd 2>/dev/null
-	exec {fd}<&-
-	_p_after_prompt_fd=0
 	_p_after_prompt_fns=()
 	for fn in "${fns[@]}"; do
 		((${+functions[$fn]})) && "$fn"
