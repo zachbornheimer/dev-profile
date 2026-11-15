@@ -97,4 +97,16 @@ expect 'appliedREADY> ' 1
 exec {enter_fd}<>"$work/enter"
 print -u $enter_fd -r -- release
 exec {enter_fd}>&-
+# Fuzzy cd must resolve its target without running the mise shim on PATH.
+mkdir -p "$work/shims" "$work/places/fuzzy-target" "$work/database"
+printf '#!/bin/sh\nexit 97\n' >"$work/shims/zoxide"
+chmod +x "$work/shims/zoxide"
+zpty -w prompttest 'XDG_CACHE_HOME="$CD_TEST_WORK/cache"; builtin source "$CD_TEST_ROOT/shell/zsh/10-init-cache.zsh"; _ZO_DATA_DIR="$CD_TEST_WORK/database"; export _ZO_DATA_DIR; native=$(_zsh_binpath zoxide); "$native" add -- "$CD_TEST_WORK/places/fuzzy-target"; "$native" init zsh --cmd cd >| "$_ZSH_INIT_CACHE/zoxide.zsh"; path=("$CD_TEST_WORK/shims" $path); builtin source "$CD_TEST_ROOT/shell/zsh/40-zoxide.defer.zsh"; cd fuzzy-target && print -r -- "JUMPED:$PWD"; [[ $path[1] == "$CD_TEST_WORK/shims" ]] && print -r -- PATHPRESERVED'
+expect $'\r\nJUMPED:'"$work/places/fuzzy-target"$'\r\n'
+expect $'PATHPRESERVED\r\n'
+zpty -w prompttest 'builtin cd -q /; z fuzzy-target && print -r -- "ZJUMPED:$PWD"'
+expect $'\r\nZJUMPED:'"$work/places/fuzzy-target"$'\r\n'
+zpty -w prompttest 'cd -- "$CD_TEST_WORK/places" && cd ./fuzzy-target && print -r -- "LITERAL:$PWD"; old=$PWD; cd no-such-fixture-destination >/dev/null 2>&1; rc=$?; [[ $rc != 0 && $PWD == "$old" ]] && print -r -- FAILEDUNCHANGED'
+expect $'\r\nLITERAL:'"$work/places/fuzzy-target"$'\r\n'
+expect $'FAILEDUNCHANGED\r\n'
 print -r -- 'cd-latency fixture ok'

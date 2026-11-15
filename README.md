@@ -66,6 +66,11 @@ markers only inside its detached worker (`&!`), never in `chpwd`.
 `mise run test:cd-latency` exercises held renderers, environment refreshes, and
 blocked worker discovery in an interactive terminal.
 
+Fuzzy `cd` and `z` resolve their target with the native zoxide binary selected
+by `_zsh_binpath`, without changing PATH or running the mise shim. This lookup
+must complete before changing PWD; `zoxide add` remains detached (`&!`).
+The cd fixture uses an isolated database and a failing shim to guard this path.
+
 The mise config-stamp ancestry walk stops at the filesystem root or an unchanged
 parent, so shells started in deleted directories finish startup.
 
