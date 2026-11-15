@@ -314,11 +314,32 @@ function readCalls(): { argv: string[]; HK?: string }[] {
   return calls;
 }
 
-const hasOmp = !!process.env.OMP_MODEL && !!Bun.which("omp"); // runners without omp and a model skip it
+const hasOmp = !!Bun.which("omp"); // runners without omp skip it
+// omp runs on its own default model: a fresh agent dir gets the host's roles and providers, never a --model.
+const hostAgentDir = process.env.PI_CODING_AGENT_DIR ?? path.join(os.homedir(), ".omp/agent");
+// The fixture swaps HOME, so omp would not find the host's auth-broker token under ~/.omp.
+const hostBrokerToken = path.join(os.homedir(), ".omp/auth-broker.token");
+const hostAuth = process.env.OMP_AUTH_BROKER_TOKEN || !fs.existsSync(hostBrokerToken)
+  ? {}
+  : { OMP_AUTH_BROKER_TOKEN: fs.readFileSync(hostBrokerToken, "utf8").trim() };
+function adoptHostModels(agentDir: string) {
+  fs.mkdirSync(agentDir, { recursive: true });
+  // Only the roles block: the rest of the host config (extensions, hooks) would leak into the clean HOME.
+  const config = path.join(hostAgentDir, "config.yml");
+  const roles = fs.existsSync(config)
+    ? fs.readFileSync(config, "utf8").match(/^modelRoles:\n(?:[ \t]+.*\n)*/m)?.[0]
+    : undefined;
+  if (roles) fs.writeFileSync(path.join(agentDir, "config.yml"), roles);
+  for (const file of ["models.yml"]) {
+    const from = path.join(hostAgentDir, file);
+    if (fs.existsSync(from)) fs.symlinkSync(from, path.join(agentDir, file));
+  }
+}
 test.skipIf(!hasOmp)("real omp session publishes one verified ref and reports it next turn", async () => {
   const f = fixture();
   f.commit();
-  const env = { ...process.env, PI_CODING_AGENT_DIR: path.join(f.root, "agent") };
+  adoptHostModels(path.join(f.root, "agent"));
+  const env = { ...process.env, ...hostAuth, PI_CODING_AGENT_DIR: path.join(f.root, "agent") };
   const turn = (text: string) =>
     spawnSync("omp", [
       "--no-extensions",
@@ -326,8 +347,6 @@ test.skipIf(!hasOmp)("real omp session publishes one verified ref and reports it
       "--no-tools",
       "-e",
       source,
-      "--model",
-      process.env.OMP_MODEL ?? "",
       "-p",
       text,
     ], { cwd: f.repo, env, encoding: "utf8", timeout: 90_000 });
@@ -385,16 +404,15 @@ test.skipIf(!hasOmp)("deployed extension loads in a clean HOME without a load er
   const ext = path.join(home, ".omp/agent/extensions/agent-checkpoint-publish.ts");
   fs.mkdirSync(path.dirname(ext), { recursive: true });
   fs.symlinkSync(source, ext);
+  adoptHostModels(path.join(home, ".omp/agent"));
   const run = spawnSync("omp", [
     "--no-session",
     "--no-tools",
-    "--model",
-    process.env.OMP_MODEL ?? "",
     "-p",
     "Reply exactly OK.",
   ], {
     cwd: root,
-    env: { ...process.env, HOME: home, PI_CODING_AGENT_DIR: path.join(home, ".omp/agent") },
+    env: { ...process.env, ...hostAuth, HOME: home, PI_CODING_AGENT_DIR: path.join(home, ".omp/agent") },
     encoding: "utf8",
     timeout: 90_000,
   });
