@@ -363,12 +363,12 @@ omp_args+=(-p "$prompt")
 
 if [ "$OS" = Darwin ]; then
 	run_pid="$(
-		python3 - "$SPAWN" "$SPAWN_LOG" "${omp_args[@]}" <<'PY' 2>>"$SPAWN_LOG"
+		python3 - "$SPAWN" "$SPAWN_LOG" "$STARTUP_GRACE_S" "${omp_args[@]}" <<'PY' 2>>"$SPAWN_LOG"
 import subprocess
 import sys
 
-spawn, log = sys.argv[1], sys.argv[2]
-args = sys.argv[3:]
+spawn, log, grace = sys.argv[1:4]
+args = sys.argv[4:]
 handle = open(log, "ab", buffering=0)
 # Its own session, so the watchdog's LaunchAgent does not kill it with the rest
 # of the tick's process group; it stays for the worker and the landing.
@@ -379,12 +379,16 @@ process = subprocess.Popen(
     stderr=subprocess.STDOUT,
     start_new_session=True,
 )
-print(process.pid)
+# Keep ownership through the grace period: kill -0 also accepts unreaped exits.
+try:
+    status = process.wait(timeout=float(grace))
+except subprocess.TimeoutExpired:
+    print(process.pid)
+else:
+    sys.exit(f"the run exited within {grace}s (exit {status})")
 PY
 	)" || run_pid=""
 	[ -n "$run_pid" ] || blocked "could not start $SPAWN (see $SPAWN_LOG)"
-	sleep "$STARTUP_GRACE_S"
-	kill -0 "$run_pid" 2>/dev/null || blocked "the run exited within ${STARTUP_GRACE_S}s: $(tail -2 "$SPAWN_LOG" | tr '\n' ' ')"
 else
 	# systemd kills every process left in a oneshot unit's cgroup when the tick ends, and a new
 	# session does not leave the cgroup. A transient unit does, so the run outlives the tick.

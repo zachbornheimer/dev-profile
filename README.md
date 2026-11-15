@@ -51,6 +51,11 @@ Protections enforced on self-saving history:
 - **Tripwire**: `agents/hooks/gate-bypass-tripwire.py` blocks `--allow-plaintext-history`, `MISE_HISTORY_ALLOW_PLAINTEXT_HISTORY`, and `allow_plaintext_history = true`.
 - **`main` branch isolation**: History sync connects to a dedicated `--branch history` (or dedicated private setup repository), never a repository's protected `main` code branch.
 
+On macOS, the repair launcher keeps ownership of its worker through the startup
+grace period. A worker that exits during that period is reaped and logged as a
+startup failure, so the watchdog notifies the user instead of entering cooldown.
+Surviving workers keep their own session and outlive the watchdog tick.
+
 ## Checks
 
 Run mise run doctor. Run mise dot apply --dry-run before changing live links.
