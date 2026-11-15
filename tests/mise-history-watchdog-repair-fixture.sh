@@ -76,7 +76,9 @@ printf '%s\n' '#!/usr/bin/env bash' 'exit 1' >"$work/bin/pgrep"
 printf '%s\n' '#!/usr/bin/env bash' 'exit 0' >"$work/bin/heal-ok"
 printf '%s\n' '#!/usr/bin/env bash' 'echo "heal: multi-line entry needs a hand edit: ~/.config/x.toml" >&2' 'exit 1' >"$work/bin/heal-fail"
 printf '%s\n' '#!/usr/bin/env bash' 'printf "%s\\n" "$*" >>"$SPAWN_CALLS"' 'exec sleep 30' >"$work/bin/capability-ok"
-printf '%s\n' '#!/usr/bin/env bash' 'printf "%s\\n" "$*" >>"$SPAWN_CALLS"' 'echo "omp: failed to start"' 'exit 3' >"$work/bin/capability-fail"
+# A real binary that exits at once: a bash stub's interpreter startup can outlast
+# the startup grace, which would turn this immediate failure into a slow one.
+cp /usr/bin/false "$work/bin/capability-fail"
 cat >"$work/bin/systemctl" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$SYSTEMCTL_CALLS"
