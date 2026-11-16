@@ -177,27 +177,7 @@ if ! git rev-parse --verify -q HEAD >/dev/null 2>&1; then
   exec wt step commit
 fi
 wt tree-for-changes -- wt land
-{% elif landing | default(\"\") == \"merge\" %}
-if ! git diff --quiet || ! git diff --cached --quiet; then
-  wt step commit --stage=tracked || exit 1
-fi
-untracked=$(git ls-files --others --exclude-standard)
-if [ -n \"$untracked\" ]; then
-  echo 'wt land: left these untracked files uncommitted (git add the ones you mean to keep):' >&2
-  echo \"$untracked\" >&2
-fi
-wt merge --stage=tracked
-{% elif landing | default(\"\") == \"pr\" %}
-if ! git diff --quiet || ! git diff --cached --quiet; then
-  wt step commit --stage=tracked || exit 1
-fi
-untracked=$(git ls-files --others --exclude-standard)
-if [ -n \"$untracked\" ]; then
-  echo 'wt land: left these untracked files uncommitted (git add the ones you mean to keep):' >&2
-  echo \"$untracked\" >&2
-fi
-wt pr-auto
-{% elif landing | default(\"\") != \"\" %}
+{% elif landing | default(\"\") != \"\" and landing != \"merge\" and landing != \"pr\" %}
 echo \"wt land: --landing must be merge or pr\" >&2
 exit 1
 {% else %}
@@ -209,7 +189,11 @@ if [ -n \"$untracked\" ]; then
   echo 'wt land: left these untracked files uncommitted (git add the ones you mean to keep):' >&2
   echo \"$untracked\" >&2
 fi
+{% if landing | default(\"\") == \"merge\" %}
+wt merge --stage=tracked
+{% else %}
 wt pr-auto
+{% endif %}
 {% endif %}"""
 commit-unstaged = """
 if ! git rev-parse --verify -q HEAD >/dev/null 2>&1; then
