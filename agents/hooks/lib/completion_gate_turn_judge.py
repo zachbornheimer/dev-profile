@@ -163,7 +163,10 @@ class TurnJudge:
         if verdict.get("source") != SOURCE_TYPESAFE:
             hops = verdict.get("detail")
             suffix = f" [{hops}]" if hops else ""
-            return f"typesafe-unavailable:{verdict.get('reason') or 'unknown'}{suffix}", verdict
+            return (
+                f"typesafe-unavailable:{verdict.get('reason') or 'unknown'}{suffix}",
+                verdict,
+            )
         return "", verdict
 
 
@@ -255,7 +258,11 @@ def block_reason(
         return _deferred_reason(judgment.signals, signals, closing_line(message))
     if kind == BLOCK_INVALID_EVIDENCE_BLOCK:
         return invalid_evidence_block_reason(evidence_problem)
-    return UNPROVEN_CLAIM_REASON.format(**signals) + EVIDENCE_TEMPLATE
+    return (
+        f'You closed with: "{closing_line(message)}"\n'
+        + UNPROVEN_CLAIM_REASON.format(**signals)
+        + EVIDENCE_TEMPLATE
+    )
 
 
 def _deferred_reason(
