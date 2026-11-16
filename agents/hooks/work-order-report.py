@@ -8,7 +8,7 @@ work-order-verify.py (SubagentStop) already recorded to the ORCHESTRATOR.
 
 Why this exists as its own hook on its own event: SubagentStop
 hookSpecificOutput.additionalContext resumes the SUBAGENT, not the parent —
-per the Claude Code hooks reference, "SubagentStop hooks ... keep the
+per the hooks reference of Claude Code (removed here; cited as the protocol source), "SubagentStop hooks ... keep the
 subagent running ... To inject context into the parent session after a
 subagent returns, use a PostToolUse hook on the Agent tool instead." This
 hook is that PostToolUse-on-Agent hook. work-order-verify.py no longer
@@ -119,7 +119,10 @@ def decide(event: HookEvent) -> Decision | None:
         return None
 
     tool_response = event.payload.get("tool_response")
-    if not isinstance(tool_response, dict) or tool_response.get("status") != COMPLETED_STATUS:
+    if (
+        not isinstance(tool_response, dict)
+        or tool_response.get("status") != COMPLETED_STATUS
+    ):
         return None
 
     agent_id = tool_response.get("agentId")
@@ -143,7 +146,9 @@ def decide(event: HookEvent) -> Decision | None:
         return None
 
     if result.get("applicable") is not True:
-        return Decision.no_objection(f"agent_id={agent_id} {result.get('reason', NOT_APPLICABLE)}")
+        return Decision.no_objection(
+            f"agent_id={agent_id} {result.get('reason', NOT_APPLICABLE)}"
+        )
 
     order_id = result.get("order_id", "<absent>")
     if "error" in result:
@@ -151,7 +156,9 @@ def decide(event: HookEvent) -> Decision | None:
 
     undeclared_count = len(result.get("undeclared_writes") or [])
     failed_count = sum(
-        1 for item in result.get("acceptance_results", []) if item.get("passed") is False
+        1
+        for item in result.get("acceptance_results", [])
+        if item.get("passed") is False
     )
     detail = f"order_id={order_id} agent_id={agent_id} undeclared={undeclared_count} acceptance_failed={failed_count}"
     return Decision.context(

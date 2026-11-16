@@ -32,7 +32,7 @@ gone.
 ```
 
 The cloud routine runs even when your laptop is closed. Per-run output appears in
-Claude Code notifications when you next open a session.
+the scheduler's notifications when you next open a session (Claude Code, which this note once named, is removed).
 
 ## The human-approval gate
 

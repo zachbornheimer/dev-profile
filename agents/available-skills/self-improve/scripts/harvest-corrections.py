@@ -3,7 +3,9 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Stream AI-tool session corrections as NDJSON to stdout.
+"""LEGACY: reads old session histories of removed, unsupported harnesses (Claude Code,
+Cursor, OpenCode; the Codex desktop app is supported). Has no omp reader.
+Stream AI-tool session corrections as NDJSON to stdout.
 Usage: uv run harvest-corrections.py [--days N] [--tool claude|codex|cursor|opencode|all]"""
 
 from __future__ import annotations

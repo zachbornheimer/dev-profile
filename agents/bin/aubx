@@ -4,7 +4,8 @@
 # Installed skills have exactly one durable home on this machine:
 #   ~/.agents/available-skills
 # `aubx skills add -g` normally writes a copy under ~/.agents/skills, a link or
-# copy into every detected harness (~/.claude/skills, ~/.grok/skills, ...), and
+# copy into every detected harness root (~/.codex/skills; leftover ~/.claude/skills and
+# ~/.grok/skills from removed, unsupported harnesses are only cleaned), and
 # ~/.agents/.skill-lock.json.
 #
 # The installer also picks a scope by itself when no flag is given: with -y

@@ -16,8 +16,8 @@ Correlation: PreToolUse fires before the subagent (and its agent_id) exist,
 so the order_id can't be pre-mapped to agent_id at spawn time.
 work-order-gate.py's compiled header embeds the order_id as a
 transcript-visible marker instead; lib/work-order-verify.py reads it from
-`agent_transcript_path` (present on SubagentStop input since Claude Code
-2.0.42) — see that script's docstring for the full citation trail.
+`agent_transcript_path` (present on SubagentStop input since Claude Code 2.0.42; Claude Code is removed,
+cited as the protocol source) — see that script's docstring for the full citation trail.
 
 This hook NEVER returns SubagentStop hookSpecificOutput.additionalContext
 (nor `decision: block`) — both "keep the subagent running" per the Claude
@@ -102,7 +102,9 @@ def decide(event: HookEvent) -> Decision | None:
 
     undeclared_count = len(result.get("undeclared_writes") or [])
     failed_count = sum(
-        1 for item in result.get("acceptance_results", []) if item.get("passed") is False
+        1
+        for item in result.get("acceptance_results", [])
+        if item.get("passed") is False
     )
     already = "true" if result.get("already_verified", False) else "false"
     detail = f"order_id={order_id} undeclared={undeclared_count} acceptance_failed={failed_count} already_verified={already}"
