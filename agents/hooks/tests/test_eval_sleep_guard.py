@@ -8,7 +8,7 @@ from hook_harness import HookRunner
 HOOK = "eval-sleep-guard.py"
 EXPECTED_DENY_REASON = (
     "Time-driven wait refused: `sleep` wakes on a clock, not on the thing you are waiting for. "
-    "Use an event-driven wakeup instead: run the work with run_command `background` and `wait` "
+    "Use an event-driven wakeup instead: run the work as its own `bash` call (it auto-backgrounds and wakes you) and `wait` "
     "on its job_id, or arm a `wait` on `job_exit`, `job_output` (log grows), `path_changed` or "
     "`process_exit`."
 )

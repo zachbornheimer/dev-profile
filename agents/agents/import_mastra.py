@@ -39,7 +39,7 @@ UNKNOWN_TOOL = re.compile(r"\b(mastra_[a-z_]+|omp_[a-z_]+)\b")
 
 ALWAYS = ["read", "write", "edit", "glob", "grep", "list", "stat"]
 SEARCHABLE = [
-    "run_command",
+    "bash",
     "run_tests",
     "search_tools",
     "worktrunk",

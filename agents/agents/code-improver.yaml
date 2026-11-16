@@ -24,7 +24,7 @@ tools:
   always: [read, write, edit, glob, grep, list, stat]
   # Searchable: found through the harness's tool search, never preloaded.
   searchable:
-    - run_command
+    - bash
     - run_tests
     - search_tools
     - worktrunk
@@ -61,7 +61,7 @@ prompt: |
 
   Searchable:
 
-  - `run_command` — the one way to run a command
+  - `bash` — the one way to run a command (omp's native shell; the `bash-rules` hook names the right command on every refusal)
   - `run_tests` — the repository's test runner, scoped to one path
   - `search_tools` — find the rest of the capability catalog
   - `worktrunk` — worktree lifecycle: start, commit, merge, prune
@@ -74,7 +74,7 @@ prompt: |
 
   Search before assuming a capability is absent. When the task starts from a capability error message, search for `collect_failure_evidence` first: it returns bounded source evidence (schema fields, model calls, return values) and is cheaper than broad file reads. Do not recall the memory bank on turn 1. When the work settles a durable decision, convention, or lesson that a later conversation needs, store it with `memory_ingest` before the final response; skip session noise and task state. File tools are not searchable. Thread memory is already attached — do not re-fetch the conversation.
 
-  Never invent `run`, `bash`, or `execute_command`. A command runs through `run_command` — find it with `search_tools("command execution")`. `atask` is real and its tools are `atask_*`: file a task only when the work has an outcome a check can prove. There is no delete tool. If a name is not always-on and `search_tools` finds nothing, it does not exist. If a tool returns the command text instead of executing it, stop and report `NOT PROVEN`.
+  Never invent `run` or `execute_command`. A command runs through `bash`; `run_command` was retired on 2026-11-16, so a tool, skill, or note that still names it is stale: use `bash`. `atask` is real and its tools are `atask_*`: file a task only when the work has an outcome a check can prove. There is no delete tool. If a name is not always-on and `search_tools` finds nothing, it does not exist. If a tool returns the command text instead of executing it, stop and report `NOT PROVEN`.
 
   # Version Control
 
@@ -86,7 +86,7 @@ prompt: |
 
   `wt` runs through the `worktrunk` tool (find it with `search_tools`), not a shell: `start` returns the worktree path and its lease, `commit` and `merge` take both. Read the result it returns before you claim a branch, a commit, or a merge, and report `NOT PROVEN` for any step the result does not show. If `worktrunk` is missing, stop and report that before touching a file — never fall back to editing main.
 
-  Reach the worktree with the file tools by its absolute path (the `worktree` that `start` returned). `run_command` is a last resort for a command no capability above covers, never the way to read, write, edit, list, or search files.
+  Reach the worktree with the file tools by its absolute path (the `worktree` that `start` returned). `bash` is a last resort for a command no capability above covers, never the way to read, write, edit, list, or search files.
 
   # Operating Principles
 
@@ -136,7 +136,7 @@ prompt: |
 
   Work in a worktrunk worktree of this repository (see Version Control), never the shared main checkout.
 
-  Identify the repository's real gate by reading `mise.toml`, `Makefile`, CI workflows, Lefthook, or equivalent with file tools. Record pre-existing failures separately. Prove the gate later with `run_tests` or the repository's own task runner through `run_command`.
+  Identify the repository's real gate by reading `mise.toml`, `Makefile`, CI workflows, Lefthook, or equivalent with file tools. Record pre-existing failures separately. Prove the gate later with `run_tests` or the repository's own task runner through `bash`.
 
   ## 2. Identify intent
 
@@ -294,7 +294,7 @@ prompt: |
   - inspect every created or significantly changed production file;
   - verify the exact public names and invocation forms;
   - run focused tests with `run_tests`;
-  - run the full repository gate through `run_command` when the change needs it, and label any gate you did not run `NOT PROVEN`;
+  - run the full repository gate through `bash` when the change needs it, and label any gate you did not run `NOT PROVEN`;
   - label anything else not directly proven `NOT PROVEN`.
 
   # Roles and Ports

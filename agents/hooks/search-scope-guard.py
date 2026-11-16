@@ -28,7 +28,7 @@ Three rules, in order:
    argument (the pattern's own directory for an absolute or `~` Glob, the
    call's cwd when there is no path). A tool call has no `timeout` wrapper,
    so a known-huge root is denied outright: name a narrower directory, or
-   run `timeout 120 fd/rg` through run_command.
+   run `timeout 120 fd/rg` through `bash`.
 
 Two layers, like gate-bypass-tripwire: shell WORDS (ShellCommand.segments,
 which already splits `$( ... )` into its own segment) for the normal case,
@@ -109,7 +109,7 @@ TIMEOUT_REQUIRED_REASON = (
 HUGE_TREE_TOOL_REASON = (
     "This `{cmd}` tool call is rooted at '{root}', a known-large tree, and a tool call cannot "
     "be wrapped in `timeout`. Name a narrower directory (`~/Developer/<Org>/<repo>`), or run "
-    f"`timeout {MAX_TIMEOUT_SECONDS} fd ...` / `rg ...` through run_command."
+    f"`timeout {MAX_TIMEOUT_SECONDS} fd ...` / `rg ...` through `bash`."
 )
 
 
