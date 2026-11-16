@@ -90,7 +90,7 @@ def push(hooks: HookSession, transcript: Path) -> HookRun:
             "hook_event_name": "PreToolUse",
             "session_id": "s1",
             "transcript_path": str(transcript),
-            "tool_name": "mcp__capability_agentmux_capability_run_command",
+            "tool_name": "mcp__capability_omp_capability_run_command",
             "tool_input": {"command": APPROVED_PUSH},
         },
     )

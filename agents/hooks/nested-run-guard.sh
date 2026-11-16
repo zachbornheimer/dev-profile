@@ -1,18 +1,18 @@
 #!/bin/sh
 # Exit 0 when this hook runs for a person's own harness session; exit 1 when it runs inside a
-# non-interactive model call that a hook itself started (agentmux's identify_intent once called `grok -p` (removed),
-# which started a full session whose own prompt-submit hook would call agentmux again: an unbounded
+# non-interactive model call that a hook itself started (an earlier identify_intent once called `grok -p` (removed),
+# which started a full session whose own prompt-submit hook would call it again: an unbounded
 # loop that spawned thousands of MCP gateways on 2026-10-14/15). Nesting is read from the environment
-# marker first, then from the ancestry: any ancestor that is a single-turn harness call or an agentmux hook.
+# marker first, then from the ancestry: any ancestor that is a single-turn harness call or a hook.
 #
 # Usage in a hook command:  if ~/.agents/hooks/nested-run-guard.sh; then <hook command>; fi
 set -u
 
-if [ -n "${AGENTMUX_NESTED_RUN:-}" ]; then
+if [ -n "${OMP_NESTED_RUN:-}" ]; then
 	exit 1
 fi
 
-NESTED_PATTERN='(^| )(grok -p|grok --single|claude -p|claude --print|codex exec|agentmux hooks run|agentmux capability run)( |$)'
+NESTED_PATTERN='(^| )(grok -p|grok --single|claude -p|claude --print|codex exec|omp hooks run)( |$)'
 MAX_DEPTH=12
 
 pid=$$

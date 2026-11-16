@@ -6,8 +6,8 @@ Agent-Session trailer half (decision 4, not part of this landing).
 
 Raw shapes, from the Mac evidence:
 - Claude-format PreToolUse for MCP run_command: tool_name
-  `mcp__capability__agentmux_capability_run_command`, tool_input {command}.
-- omp direct MCP call: toolName/tool_name `mcp__capability_agentmux_capability_run_command`
+  `mcp__capability__omp_capability_run_command`, tool_input {command}.
+- omp direct MCP call: toolName/tool_name `mcp__capability_omp_capability_run_command`
   (one underscore), tool_input {command, cwd, purpose, timeout_seconds}.
 - omp eval (ManagerialBooby): language "py", a `sh(c, cwd=...)` helper that runs
   subprocess.run(c, shell=True), then `print(sh('git ...'))`.
@@ -50,14 +50,14 @@ def claude_mcp(command: str) -> dict[str, Any]:
         "permission_mode": "bypassPermissions",
         "session_id": SID,
         "tool_input": {"command": command},
-        "tool_name": "mcp__capability__agentmux_capability_run_command",
+        "tool_name": "mcp__capability__omp_capability_run_command",
         "tool_use_id": "toolu_01JAx3Ty44fAT3uWiD38nWG9",
         "transcript_path": f"/Users/x/.claude/projects/-tmp/{SID}.jsonl",
     }
 
 
 def omp_mcp(
-    command: str, server: str = "mcp__capability_agentmux_capability_run_command"
+    command: str, server: str = "mcp__capability_omp_capability_run_command"
 ) -> dict[str, Any]:
     tool_input = {
         "command": command,
@@ -99,12 +99,12 @@ for _name, _cmd in INCIDENTS.items():
     GUARD_CASES[f"claude-mcp-{_name}"] = (claude_mcp(_cmd), "deny")
     GUARD_CASES[f"omp-mcp-{_name}"] = (omp_mcp(_cmd), "deny")
     GUARD_CASES[f"omp-mcp-always-on-{_name}"] = (
-        omp_mcp(_cmd, "mcp__capability_always_on_agentmux_capability_run_command"),
+        omp_mcp(_cmd, "mcp__capability_always_on_omp_capability_run_command"),
         "deny",
     )
     GUARD_CASES[f"omp-eval-sh-{_name}"] = (eval_sh(_cmd), "deny")
     GUARD_CASES[f"native-brief-double-{_name}"] = (
-        omp_mcp(_cmd, "mcp__capability_agentmux__capability_run_command"),
+        omp_mcp(_cmd, "mcp__capability_omp__capability_run_command"),
         "deny",
     )
 GUARD_CASES.update(
@@ -171,13 +171,13 @@ def _matcher(row: str) -> set[str]:
 
 def test_rows_match_every_raw_run_command_name() -> None:
     names = {
-        "mcp__capability__agentmux_capability_run_command",
-        "mcp__capability_agentmux_capability_run_command",
-        "mcp__capability_always_on_agentmux_capability_run_command",
-        # The brief's spelling (double underscore after agentmux): absent from the
+        "mcp__capability__omp_capability_run_command",
+        "mcp__capability_omp_capability_run_command",
+        "mcp__capability_always_on_omp_capability_run_command",
+        # The brief's spelling (double underscore after the server name): absent from the
         # evidence, but a native tool name of that form reached no tripwire row on
         # the Mac (level-1 containment payloads 11-12, 2026-10-27).
-        "mcp__capability_agentmux__capability_run_command",
+        "mcp__capability_omp__capability_run_command",
         "eval",
     }
     assert names <= _matcher("pretooluse-gate-bypass-tripwire")

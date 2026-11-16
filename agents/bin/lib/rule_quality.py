@@ -16,7 +16,7 @@ from dataclasses import dataclass
 MAX_RULES = 3
 RETIRED_TOOLS = tuple(
     t.strip()
-    for t in os.environ.get("MEMORY_LEARN_RETIRED_TOOLS", "agentmux").split(",")
+    for t in os.environ.get("MEMORY_LEARN_RETIRED_TOOLS", "omp-board").split(",")
     if t.strip()
 )
 ELISION = re.compile(r"\.\.\.|…")

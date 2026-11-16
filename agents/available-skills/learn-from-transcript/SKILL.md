@@ -61,7 +61,7 @@ including No slop and ADHD shape. Off for ADHD shape only: \"stop adhd mode\" or
 <!-- requires: run_command -->
 
 **Command execution is `run_command`, always — every command, including the first of the session.**
-`run_command` (`agentmux_capability_run_command`; harnesses that prefix it show `mcp__capability__agentmux_capability_run_command`) is the sole shell runner, with no exceptions
+`run_command` (`omp_capability_run_command`; harnesses that prefix it show `mcp__capability__omp_capability_run_command`) is the sole shell runner, with no exceptions
 and no fallbacks. Never use the Bash tool or any other shell/executor tool, even for a one-liner
 or a bare `ls`/`cd`; never ask permission to use run_command; never test whether Bash works. A
 Bash denial or a disabled Bash is a routing signal, not a question for me — switch to
@@ -614,32 +614,32 @@ Never invent a callable tool name.
 
 ### Command execution
 
-`agentmux_capability_run_command` executes `/bin/bash -lc` with a deadline and returns status, exit code, and bounded output.
+`omp_capability_run_command` executes `/bin/bash -lc` with a deadline and returns status, exit code, and bounded output.
 
 Use it only for authorized, read-only investigation: querying stores, inspecting records, checking files, and measuring historical evidence.
 
 Do not edit the repository, repair the diagnosed problem, run the proposed experiment, or bypass an intentional execution restriction.
 
-Use `agentmux_capability_summarize` when it can prevent an unnecessarily large command result from entering context. Preserve access to original evidence for important claims.
+Use `omp_capability_summarize` when it can prevent an unnecessarily large command result from entering context. Preserve access to original evidence for important claims.
 
 ### Execution records
 
-When the request carries the execution's trace inline, that trace is the complete record. Do not run `recent-turns` or read the transcript again; call `agentmux_capability_run_command` only for a follow-up the trace cannot answer, such as a full tool result.
+When the request carries the execution's trace inline, that trace is the complete record. Do not run `recent-turns` or read the transcript again; call `omp_capability_run_command` only for a follow-up the trace cannot answer, such as a full tool result.
 
 Otherwise, for an execution identifier such as `omp:01a1c0b2`:
 
-Supported harnesses: `omp` and `codex`. Old transcripts of removed harnesses (`grok`, `claude`, `cursor`, `hermes`, `opencode`, `copilot`, `pi`, `agentmux`) can still be read, legacy only.
+Supported harnesses: `omp` and `codex`. Old transcripts of removed harnesses (`grok`, `claude`, `cursor`, `hermes`, `opencode`, `copilot`, `pi`) can still be read, legacy only.
 
 1. From `mastra/`, `aube run recent-turns -- <harness>:<id>` locates the execution and returns recent conversational context. It omits tool calls, results, reasoning, and usage. Read its `source.path` and `dropped` metadata.
 2. Use the source path with an authorized read-only command to retrieve the underlying tool calls, arguments, results, timestamps, and usage. This is the principal evidence for forensic reconstruction.
-3. Use `agentmux_capability_derive_workflow` when investigating a potentially reusable workflow. It is not a substitute for the complete event record.
+3. Use `omp_capability_derive_workflow` when investigating a potentially reusable workflow. It is not a substitute for the complete event record.
 
 Other relevant capabilities:
 
-- `agentmux_capability_host_bottlenecks`: host contention evidence. Current host conditions do not independently prove historical conditions.
-- `agentmux_capability_create_experiment`: prepares a frozen fixture, executable oracle, dataset, and experiment configuration when supported by the scenario. It does not execute the experiment.
-- `agentmux_capability_classify_failure` and `agentmux_capability_collect_failure_evidence`: bounded failure diagnosis.
-- `agentmux_capability_assess_change_quality` and `agentmux_capability_verify_contract`: implementation and contract evidence.
+- `omp_capability_host_bottlenecks`: host contention evidence. Current host conditions do not independently prove historical conditions.
+- `omp_capability_create_experiment`: prepares a frozen fixture, executable oracle, dataset, and experiment configuration when supported by the scenario. It does not execute the experiment.
+- `omp_capability_classify_failure` and `omp_capability_collect_failure_evidence`: bounded failure diagnosis.
+- `omp_capability_assess_change_quality` and `omp_capability_verify_contract`: implementation and contract evidence.
 - `memory_search` and `memory_ingest`: historical diagnoses and durable conclusions.
 - `web_search` and `web_fetch`: authoritative external technical evidence.
 
@@ -916,7 +916,7 @@ Specify:
 
 **Readiness:** Whether it can be run now, requires instrumentation, or requires a fixture not yet available.
 
-Where applicable, use `agentmux_capability_create_experiment` to prepare the Mastra experiment artifacts.
+Where applicable, use `omp_capability_create_experiment` to prepare the Mastra experiment artifacts.
 
 Do not imply that an experiment has run when it has only been designed.
 

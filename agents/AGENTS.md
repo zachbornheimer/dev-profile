@@ -42,10 +42,8 @@ skipping the command. A `Bash` tool in your tool list is dead surface copied fro
 the channel. Reach a live agent with the write tool: path `agent://<id>` (or
 `agent://all` to broadcast) with the message as `content` — it lands in that agent's
 running session mid-turn; reading `agent://<id>` returns its latest output and
-`history://<id>` its transcript. The agentmux message boards are the fallback for a peer
-that is not omp or not currently running (none are supported now): one `general` board
-per project plus a global one, subscribe as you begin, and prefer the intercom for
-anything live.
+`history://<id>` its transcript. There is no fallback channel for a peer that is not
+omp or not currently running.
 
 <!-- requires: atask -->
 
@@ -437,7 +435,7 @@ work_order:
   fails, say so and stop. Verified 2026-10-29: agent shells doing exactly that were
   the only thing launching Docker Desktop, three times in one afternoon.
 - **Webmaster work uses the native omp tools, not the `webmaster` CLI.** The `webmaster_*` tools in `~/.omp/agent/tools` are self-contained (each with its own tests) and are the only path: run, extend and add webmaster tools there. The CLI (`~/Developer/Zysys/webmaster`, `src/cli.ts`) is being eliminated; never add commands to it or design new work around `webmaster <cmd>`. No one-off scripts: reusable work is a tested, named omp tool.
-- **The Mastra capability gateway and `agentmux` are deprecated.** The centralized `agentgateway` at `http://mcp-gateway.tail158749.ts.net:4600/mcp` replaces them. Point every harness MCP config at that URL by hostname, never a raw IP or `127.0.0.1:4600`, and do not add `agentmux` MCP entries or the local `capability-gateway`/`agentmux` LaunchAgents. The LAN alias `mcp.ai.lan.zachandaj.com` is declared in `homelab/desired-state/network-dns.cue` but only resolves once AdGuard is back up; until then the tailnet hostname is the only working form.
+- **The Mastra capability gateway and the old message-board relay are deprecated.** The centralized `agentgateway` at `http://mcp-gateway.tail158749.ts.net:4600/mcp` replaces them. Point every harness MCP config at that URL by hostname, never a raw IP or `127.0.0.1:4600`, and do not add MCP entries or LaunchAgents for the old gateway or relay. The LAN alias `mcp.ai.lan.zachandaj.com` is declared in `homelab/desired-state/network-dns.cue` but only resolves once AdGuard is back up; until then the tailnet hostname is the only working form.
 - **atask is the tracker.** `atask list` is the board; `atask add` files an
   objective with a required `--proof` and `--regression`; `atask claim` / `atask log` / `atask verify complete`
   run it. A second `atask add` of the same open title returns the existing id. <!-- requires: atask -->

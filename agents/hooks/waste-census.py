@@ -491,8 +491,8 @@ _COMMAND_TOOL_NAMES = frozenset(
     {
         "bash",
         "run_command",
-        "mcp__capability_agentmux_capability_bash",
-        "mcp__capability_agentmux_capability_run_command",
+        "mcp__capability_omp_capability_bash",
+        "mcp__capability_omp_capability_run_command",
     }
 )
 

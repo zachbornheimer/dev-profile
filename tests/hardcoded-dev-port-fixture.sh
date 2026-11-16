@@ -98,8 +98,8 @@ expect_pass mastra/src/runtime/adapters/local-proxy-language.ts "a proxy address
 expect_pass mastra/src/runtime/adapters/ollama-system-one.ts "an Ollama address"
 
 # A literal that is the fallback of an env read on the same line is configurable.
-add_file scripts/eval/propose_capabilities.sh 'LOCAL_PROXY_URL="${AGENTMUX_LOCAL_PROXY_URL:-http://127.0.0.1:8787/v1}"'
-add_file scripts/smoke/propose_capabilities.sh 'LOCAL_PROXY_URL="${AGENTMUX_LOCAL_PROXY_URL:-http://127.0.0.1:8787/v1}"'
+add_file scripts/eval/propose_capabilities.sh 'LOCAL_PROXY_URL="${OMP_LOCAL_PROXY_URL:-http://127.0.0.1:8787/v1}"'
+add_file scripts/smoke/propose_capabilities.sh 'LOCAL_PROXY_URL="${OMP_LOCAL_PROXY_URL:-http://127.0.0.1:8787/v1}"'
 expect_pass scripts/eval/propose_capabilities.sh "a shell \${VAR:-default} fallback"
 expect_pass scripts/smoke/propose_capabilities.sh "a shell \${VAR:-default} fallback"
 # Same shapes on a conventional dev port, so only the fallback can excuse them.

@@ -222,9 +222,9 @@ observe_hook() {
 	local dir="$1" payload="$2" output="$3" statusfile="$4" pid started guard=--skip-guard
 	shift 4
 	# The nested-run marker is what the guard reads, so that case runs with the guard on.
-	[[ " $* " == *" AGENTMUX_NESTED_RUN=1 "* ]] && guard=
+	[[ " $* " == *" OMP_NESTED_RUN=1 "* ]] && guard=
 	(
-		env -u AGENTMUX_NESTED_RUN -u SESSIONS_DB_URL PATH="$dir:$PATH" \
+		env -u OMP_NESTED_RUN -u SESSIONS_DB_URL PATH="$dir:$PATH" \
 			SESSIONS_DB_URL="postgresql://stub:stub@stub.invalid/stub" \
 			SESSION_RECALL_DSN_FILE="$dir/no-such-dsn-file" "$@" \
 			"$SELF" ${guard:+"$guard"} <<<"$payload" >"$output" 2>"$output.err"
@@ -340,7 +340,7 @@ self_test() {
 	run_case "$dir" nodsn rows "$payload" SESSIONS_DB_URL=
 	run_case "$dir" malformed rows 'this is not json'
 	run_case "$dir" nocwd rows '{"session_id": "selftest-session"}'
-	run_case "$dir" nested rows "$payload" AGENTMUX_NESTED_RUN=1
+	run_case "$dir" nested rows "$payload" OMP_NESTED_RUN=1
 	if [[ -s "$dir/called" || -s "$dir/forbidden" ]]; then
 		echo "self-test: a harness or MCP process ran under the hook:" >&2
 		cat "$dir/called" "$dir/forbidden" >&2 2>/dev/null
@@ -374,7 +374,7 @@ main() {
 	fi
 	case "${1:-}" in
 	--skip-guard) ;;
-	*) [[ -z "${AGENTMUX_NESTED_RUN:-}" ]] && "$NESTED_RUN_GUARD" || return 0 ;;
+	*) [[ -z "${OMP_NESTED_RUN:-}" ]] && "$NESTED_RUN_GUARD" || return 0 ;;
 	esac
 	run_hook
 }

@@ -14,8 +14,8 @@ RUN_COMMAND_TOOL = re.compile(r"^mcp__[\w-]*run_command$")
 TOOL_NAME_ALIASES = {
     # run_command is the only shell runner the instructions allow, so the
     # prefix harnesses use for the capability must normalize like Bash.
-    "mcp__capability__agentmux_capability_run_command": "Bash",
-    "agentmux_capability_run_command": "Bash",
+    "mcp__capability__omp_capability_run_command": "Bash",
+    "omp_capability_run_command": "Bash",
     "run_terminal_command": "Bash",
     "search_replace": "Edit",
     "write": "Write",
@@ -85,7 +85,7 @@ class HookEvent:
         name = self.field("tool_name", "toolName")
         if name in TOOL_NAME_ALIASES:
             return TOOL_NAME_ALIASES[name]
-        # Every MCP server's run_command (omp: mcp__capability_agentmux_capability_run_command,
+        # Every MCP server's run_command (omp: mcp__capability_omp_capability_run_command,
         # mcp__capability_always_on_…; ZYS-1758) is a shell runner too.
         return "Bash" if RUN_COMMAND_TOOL.match(name) else name
 

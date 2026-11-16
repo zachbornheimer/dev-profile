@@ -36,8 +36,8 @@ SCALAR_CONSTRAINTS = frozenset(
         "multipleOf",
     }
 )
-CANONICAL_DIR = Path(
-    "/Users/zbornheimer/Developer/Personal/agentmux/internal/capabilities/questions"
+CANONICAL_DIR = (
+    Path.home() / "Developer/Personal/oh-my-pi/internal/capabilities/questions"
 )
 BROKEN_DIR = (
     Path.home() / "Developer/Personal/mastra/src/workflows/learn-from-transcript"

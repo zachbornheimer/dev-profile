@@ -28,7 +28,7 @@ def _run_command(hooks: HookRunner, command: str, cwd: str = "/tmp"):
         HOOK,
         {
             "hook_event_name": "PreToolUse",
-            "tool_name": "agentmux_capability_run_command",
+            "tool_name": "omp_capability_run_command",
             "tool_input": {"command": command},
             "cwd": cwd,
         },
@@ -70,7 +70,7 @@ def test_denies_push_to_main_through_the_write_bridge(
             "hook_event_name": "PreToolUse",
             "tool_name": "write",
             "tool_input": {
-                "path": "xd://mcp__capability_agentmux_capability_run_command",
+                "path": "xd://mcp__capability_omp_capability_run_command",
                 "content": json.dumps({"command": f"git -C {repo} push origin main"}),
             },
         },

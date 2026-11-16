@@ -18,7 +18,7 @@ Accepted 2026-10-30. Replaces the single-agent Mastra `learn-from-transcript` ti
 ## Stage 1: Forensic Assessor (`omp --model @slow`)
 
 - **Model:** `@slow` (`google-antigravity/gemini-4-argon:auto` with fallback chain)
-- **Environment:** `LEARNER=1`, `AGENTMUX_NESTED_RUN=1`
+- **Environment:** `LEARNER=1`, `OMP_NESTED_RUN=1`
 - **Pass 1 Prompt:** `@<handoff-dir>/<timestamp>-omp-<session_id>-slow.prompt.md` (`src/workflows/learn-from-transcript/analyze.yaml` with `{path}` replaced by `~/.local/share/omp/transcripts/annotated/<conversation>.annotated.json`).
 - **Pass 2 Queued Follow-Up (`/queue`):**
   ```text
@@ -29,7 +29,7 @@ Accepted 2026-10-30. Replaces the single-agent Mastra `learn-from-transcript` ti
 ## Stage 2: Forensic PM Agent (`omp --model @slow --advisor`)
 
 - **Model & Flags:** `omp --model @slow --advisor` (`Gemini 4 Argon` + Advisor runtime enabled)
-- **Environment:** `LEARNER=1`, `AGENTMUX_NESTED_RUN=1`, MCP access (`capability` + `linear-personal`)
+- **Environment:** `LEARNER=1`, `OMP_NESTED_RUN=1`, MCP access (`capability` + `linear-personal`)
 - **Pass 1 Prompt (Single-Prefill Inline Injection):**
   `@<handoff-dir>/<timestamp>-pm-<session_id>.prompt.md` containing:
   1. `/Users/zbornheimer/.agents/learnings/pm-agent-prompt.md`

@@ -22,11 +22,11 @@ No removed-harness package, SDK or ACP entry remains in any manifest or lockfile
 - `agents/hooks/worktree-provision.py`, `worktree-cleanup.py` and
   `lib/worktree_{provision_git,provision_tools,provision_worktrunk,cleanup_git,cleanup_worktrunk}.py`,
   with their tests: Claude Code `WorktreeCreate` and `WorktreeRemove` events.
-- `agents/hooks/tip-verify-rm-deny.py`, `lib/tip_verify_rm_deny.py`: agentmux
-  tip locks (agentmux is deprecated).
+- `agents/hooks/tip-verify-rm-deny.py`, `lib/tip_verify_rm_deny.py`: tip
+  locks of the retired message-board tool.
 - `apps/agent-hooks/hooks.toml` rows and events: `Notification`,
   `WorktreeCreate`, `WorktreeRemove`, `ElicitationResult`, `StopFailure`,
-  `PermissionDenied`, the Claude-skills lint row and the agentmux tip-lock row:
+  `PermissionDenied`, the Claude-skills lint row and the tip-lock row:
   Claude Code. `[defaults] agents` is now `codex`, `mastra`.
 - `agents/hooks/shared-checkout-guard.py`, `subagent-model-guard.py`,
   `relocate-synced-skills.py`, `prompt-submit-capabilities.sh`,

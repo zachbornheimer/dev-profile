@@ -251,7 +251,7 @@ def launch_quota_review(env: dict[str, str]) -> None:
         **env,
         "PATH": f"{extra_path}:{env.get('PATH', '/usr/bin:/bin')}",
         "LEARNER": "1",
-        "AGENTMUX_NESTED_RUN": "1",
+        "OMP_NESTED_RUN": "1",
         "OMP_REMOTE": env.get("OMP_REMOTE") or "auto",
     }
     argv = launch_argv(env.get("QUOTA_REVIEW_LAUNCH_CMD", "").strip())

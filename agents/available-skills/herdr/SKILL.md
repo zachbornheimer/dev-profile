@@ -14,7 +14,7 @@ test "${HERDR_ENV:-}" = 1
 ```
 
 If the check fails, say that you are not running inside Herdr and stop. Do not inspect or control the focused Herdr session from outside Herdr.
-Exception — callers executing through an MCP/agentmux kernel (for example `run_command` subagents): the pane-injected `HERDR_*` variables are NOT inherited by the command's shell even though the calling agent occupies a Herdr pane. Do not refuse on the missing env var alone. If `herdr status` shows a running local server and the user explicitly asked for Herdr control, proceed against the live session, reading IDs from CLI JSON output rather than env context.
+Exception — callers executing through an MCP kernel (for example `run_command` subagents): the pane-injected `HERDR_*` variables are NOT inherited by the command's shell even though the calling agent occupies a Herdr pane. Do not refuse on the missing env var alone. If `herdr status` shows a running local server and the user explicitly asked for Herdr control, proceed against the live session, reading IDs from CLI JSON output rather than env context.
 
 When the check passes, the `herdr` binary in `PATH` talks to the current session. Use it to inspect neighboring work, create terminal layout, start agents and commands, read output, and wait for state changes.
 

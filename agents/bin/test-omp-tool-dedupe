@@ -3,7 +3,7 @@
 
 omp mounts ~/.omp/agent/mcp.json and also discovers ~/.claude.json, so the full
 `capability` stdio server and the standalone `capability-always-on` http server
-both served the same eight `agentmux_capability_*` tools. This check:
+both served the same eight `omp_capability_*` tools. This check:
 
 1. runs the chezmoi modify script on a fixture and asserts it drops only
    `capability-always-on`, keeps every other entry byte-for-byte, and is idempotent;
@@ -11,7 +11,7 @@ both served the same eight `agentmux_capability_*` tools. This check:
    and still mounts `capability-meta`, and that the modify script is a fixed point on it;
 3. starts the full `capability` server from ~/.claude.json, asserts it serves every
    always-on tool name (and the live standalone server's names when it is up), and
-   executes `agentmux_capability_run_command` end to end through it.
+   executes `omp_capability_run_command` end to end through it.
 
 The standalone always-on service and other harness configs are only read.
 """
@@ -40,16 +40,16 @@ ALWAYS_ON_HOST = "127.0.0.1"
 ALWAYS_ON_PORT = 4503
 ALWAYS_ON_PATH = "/mcp"
 ALWAYS_ON_TOOLS = {
-    "agentmux_capability_bash",
-    "agentmux_capability_bash_kill",
-    "agentmux_capability_bash_status",
-    "agentmux_capability_glob",
-    "agentmux_capability_grep",
-    "agentmux_capability_run_command",
-    "agentmux_capability_summarize",
-    "agentmux_capability_web_search",
+    "omp_capability_bash",
+    "omp_capability_bash_kill",
+    "omp_capability_bash_status",
+    "omp_capability_glob",
+    "omp_capability_grep",
+    "omp_capability_run_command",
+    "omp_capability_summarize",
+    "omp_capability_web_search",
 }
-EXEC_TOOL = "agentmux_capability_run_command"
+EXEC_TOOL = "omp_capability_run_command"
 EXEC_MARKER = "omp-tool-dedupe-ok"
 RPC_TIMEOUT_SECONDS = 60
 PROTOCOL_VERSION = "2025-03-26"
