@@ -30,10 +30,10 @@ python3 ~/.agents/available-skills/find-session/scripts/find-session.py <identif
 4. a case-insensitive substring of a session `name`
 5. a `jobId`
 6. a `pid`
-7. `<harness>:<uuid>` for `grok`, `codex`, or `cursor` (agentmux's own
-   cross-harness index — `claude-code:<uuid>` is accepted too and just
-   strips the prefix before rule 1)
-8. a bare uuid none of rules 1-6 match, when agentmux's own link records
+7. (legacy) `<harness>:<uuid>` for old `grok`, `codex`, or `cursor` transcripts via
+   agentmux's index; `claude-code:<uuid>` just strips the prefix before rule 1.
+   Those harnesses, except the Codex desktop app, are removed.
+8. (legacy) a bare uuid none of rules 1-6 match, when agentmux's own link records
    know it anyway
 
 The script tries rules 1-6 in order and stops at the first one that produces

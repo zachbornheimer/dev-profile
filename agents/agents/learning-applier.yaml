@@ -102,12 +102,10 @@ prompt: |
   - Hook wiring: `~/.config/agent-hooks/hooks.toml` OWNS which hook runs on which event and tool matcher; a new hook
     is a script under `~/.agents/hooks/` plus a row there. Check with `chezmoi managed ~/.config/agent-hooks/hooks.toml`
     whether it is chezmoi-managed; if so, commit it the same way.
-  - Claude Code's MCP tool catalog is OWNED by `~/.claude.json` (`mcpServers`, Claude Code's own state file: no
-    repository owns it; the capability server is the entry whose command runs `capability mcp`). Nothing about the
-    catalog is hardcoded in the binary: `"alwaysLoad": true` on a server entry exempts its tools from deferred tool
-    search, and `permissions.deny`/`allow` in `~/.claude/settings.json` (chezmoi-managed) removes or admits tools;
-    `ENABLE_TOOL_SEARCH` in that file's `env` tunes deferral. Open `~/.claude.json` with `jq .mcpServers` FIRST for any
-    catalog suggestion, before deciding anything cannot be configured. Per-project `.mcp.json` adds servers for one repo.
+  - The MCP tool catalog is OWNED by the config of omp or the Codex desktop app, not by any repository; the capability
+    server is the entry whose command runs `capability mcp`. Nothing about the catalog is hardcoded in the binary.
+    Open that config FIRST for any catalog suggestion, before deciding anything cannot be configured. Claude Code is
+    removed and unsupported, so `~/.claude.json` and `~/.claude/settings.json` are not edited.
   - A file no repository owns: edit it in place, smoke it, and say in your answer that it is live but uncommitted.
     That is a landed change, not a skipped one.
   - Code of a git repository (this one is `capability-replicas`): never edit its main checkout. Start a worktree

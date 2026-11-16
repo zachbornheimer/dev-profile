@@ -497,12 +497,6 @@ command = ["$HOME/.agents/hooks/shell-denial-steer.py"]
 timeout = "5s"
 matcher = "Bash|sh|zsh|exec|shell|terminal|run_terminal_command"
 
-[[hooks]]
-name = "stop-agentmux-board-wake"
-events = ["turn.stop", "session.start"]
-command = ["$HOME/.agents/hooks/board-wake.sh"]
-timeout = "75s"
-
 # Weekly quota at <= 10% left -> one detached `capability run quota-burn-review` per
 # provider:account:limit:reset window (ledger: ~/.agents/learnings/quota-reviews.jsonl).
 [[hooks]]

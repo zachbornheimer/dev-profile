@@ -1,5 +1,7 @@
 # Known issues (dated snapshot, 2026-10-22)
 
+> Only omp and the Codex desktop app are supported. Issues below that name Claude Code, Grok, OpenCode, Copilot, Gemini or Hermes describe adapters in the `agent-hooks` code for removed harnesses; they are kept as history, not as support.
+
 These rot. Re-verify before acting; each line says how. Repo HEAD was `9d1855e`; the installed
 `~/.cargo/bin/agent-hooks` was built Oct 18 from `fdab1b9`.
 

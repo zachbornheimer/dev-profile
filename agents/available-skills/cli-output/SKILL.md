@@ -27,7 +27,7 @@ when available; stay useful when it is not.
 | **This skill in-repo**   | `skills/cli-output/SKILL.md`                                                                               |
 | **MCP install (module)** | `GOBIN=$HOME/.local/bin go install github.com/zachbornheimer/evident-output/cmd/evident-output-mcp@v1.0.0` |
 
-Host-specific wiring (Grok, Claude Code, Codex, …) lives under `integrations/<host>/` in the repo — not in this skill.
+Host-specific wiring lives under `integrations/<host>/` in the repo, not in this skill. Only omp and the Codex desktop app are supported hosts.
 
 ## Capability fallback
 
