@@ -13,12 +13,12 @@ Run locally (Python 3.12, uv, mise; no API key):
 
 ```sh
 mise run -C ~/.agents/available-skills/learnings setup
-mise run -C ~/.agents/available-skills/learnings extract -- claude:769b80aa \
+mise run -C ~/.agents/available-skills/learnings extract -- /path/to/exported-session.jsonl \
   --start-line 4300 --end-line 4335 \
   --out ~/.local/state/learnings/dev-profile-new
 ```
 
-Native omp or Codex JSONL paths (Claude Code and Hermes are removed; legacy files still parse) and normalized JSON also work. `--timeout`,
+Native omp or Codex JSONL paths and normalized JSON work. `--timeout`,
 `--window-chars`, `--overlap-chars`, `--max-tokens` bound resources; calls are SERIAL.
 Generation enforces <=3 observations, exact quotes <=160 characters, and category-valid
 ratings. `--max-attempts` (1-3; default 3), `--token-step` (default 700), and

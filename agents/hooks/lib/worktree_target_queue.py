@@ -1,8 +1,7 @@
 """Python side of hook-common.sh's worktree target queue.
 
 work-order-gate enqueues one record per isolation:worktree spawn, keyed by
-session id; worktree-provision claims the oldest live record. See
-hc_worktree_target_claim in hook-common.sh for the correlation contract.
+session id. Records can be claimed in oldest-live-first order.
 """
 
 from __future__ import annotations
@@ -31,7 +30,9 @@ def _ttl_secs() -> int:
     return int(raw) if raw.isdigit() else TTL_SECS_DEFAULT
 
 
-def enqueue(state_dir: Path, session_id: str, record: str, now_epoch: float) -> Path | None:
+def enqueue(
+    state_dir: Path, session_id: str, record: str, now_epoch: float
+) -> Path | None:
     """Queue ``record`` atomically (write, then rename); its path, or None if nothing was queued."""
     directory = queue_dir(state_dir, session_id)
     if directory is None:
@@ -54,7 +55,9 @@ def claim(state_dir: Path, session_id: str, now_epoch: float) -> str | None:
     directory = queue_dir(state_dir, session_id)
     if directory is None or not directory.is_dir():
         return None
-    records = sorted(directory.glob(f"*{RECORD_SUFFIX}"), key=lambda p: p.stat().st_mtime_ns)
+    records = sorted(
+        directory.glob(f"*{RECORD_SUFFIX}"), key=lambda p: p.stat().st_mtime_ns
+    )
     for record in records:
         if now_epoch - (file_mtime(record) or 0) > _ttl_secs():
             with contextlib.suppress(OSError):

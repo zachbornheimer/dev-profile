@@ -12,23 +12,9 @@ timeout = "30s"
 
 [[hooks]]
 name = "elicitationresult-aoe-status-sh"
-events = ["ElicitationResult", "prompt.submit"]
+events = ["prompt.submit"]
 command = ["$HOME/.agents/hooks/aoe-status.sh running"]
 timeout = "2s"
-
-[[hooks]]
-name = "notification-aoe-status-sh"
-events = ["Notification"]
-command = ["$HOME/.agents/hooks/aoe-status.sh waiting"]
-timeout = "2s"
-matcher = "permission_prompt|elicitation_dialog|agent_needs_input"
-
-[[hooks]]
-name = "notification-aoe-status-sh-2"
-events = ["Notification"]
-command = ["$HOME/.agents/hooks/aoe-status.sh idle"]
-timeout = "2s"
-matcher = "idle_prompt|agent_completed"
 
 [[hooks]]
 name = "posttooluse-bash-signature-record"
@@ -270,14 +256,6 @@ matcher = "Bash"
 on_failure = "block"
 
 [[hooks]]
-name = "pretooluse-tip-verify-rm-deny"
-events = ["tool.before"]
-policy = "tip-verify-rm-deny"
-timeout = "5s"
-matcher = "Bash"
-on_failure = "block"
-
-[[hooks]]
 name = "pretooluse-aoe-status-sh"
 events = ["tool.before"]
 command = ["$HOME/.agents/hooks/aoe-status.sh running from-stdin"]
@@ -375,14 +353,6 @@ command = [
 timeout = "5s"
 
 [[hooks]]
-name = "stop-find"
-events = ["turn.stop"]
-command = [
-  "find -L $HOME/.claude/skills \\( -name \"*.py\" -o -name \"*.sh\" \\) -newer /tmp/.claude_lint_sentinel 2>/dev/null | grep -q . && { touch /tmp/.claude_lint_sentinel; (cd $HOME/.claude && mise run lint || true); }; touch /tmp/.claude_lint_sentinel",
-]
-timeout = "15s"
-
-[[hooks]]
 name = "stop-completion-gate-py"
 events = ["turn.stop"]
 command = ["$HOME/.agents/hooks/completion-gate.py"]
@@ -407,7 +377,7 @@ timeout = "15s"
 
 [[hooks]]
 name = "stop-aoe-status-sh"
-events = ["turn.stop", "StopFailure", "session.end"]
+events = ["turn.stop", "session.end"]
 command = ["$HOME/.agents/hooks/aoe-status.sh idle"]
 timeout = "2s"
 
@@ -416,19 +386,6 @@ name = "subagentstop-work-order-verify-py"
 events = ["subagent.stop"]
 command = ["$HOME/.agents/hooks/work-order-verify.py"]
 timeout = "300s"
-
-[[hooks]]
-name = "worktreecreate-worktree-provision-py"
-events = ["worktree.create"]
-command = ["$HOME/.agents/hooks/worktree-provision.py"]
-timeout = "300s"
-provides = ["worktree_path"]
-
-[[hooks]]
-name = "worktreeremove-wt-step-prune"
-events = ["worktree.remove"]
-command = ["wt step prune --yes --min-age=0s"]
-timeout = "15s"
 
 [[hooks]]
 name = "sessionstart-atask-contract"
@@ -491,7 +448,7 @@ timeout = "45s"
 # that gets the agent back to a working command runner.
 [[hooks]]
 name = "permissiondenied-shell-denial-steer-py"
-events = ["PermissionDenied", "PostToolUseFailure"]
+events = ["PostToolUseFailure"]
 command = ["$HOME/.agents/hooks/shell-denial-steer.py"]
 timeout = "5s"
 matcher = "Bash|sh|zsh|exec|shell|terminal|run_terminal_command"

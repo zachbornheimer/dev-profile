@@ -26,7 +26,6 @@ PAYLOAD_CASES: dict[str, dict] = {
     "untyped-general-purpose-injects-sonnet": _agent(
         subagent_type="general-purpose", prompt="x"
     ),
-    "untyped-claude-injects-sonnet": _agent(subagent_type="claude", prompt="x"),
     "explicit-model-passthrough": _agent(
         subagent_type="general-purpose", model="opus", prompt="x"
     ),
@@ -40,7 +39,6 @@ INJECTS_SONNET = frozenset(
     {
         "untyped-absent-injects-sonnet",
         "untyped-general-purpose-injects-sonnet",
-        "untyped-claude-injects-sonnet",
     }
 )
 

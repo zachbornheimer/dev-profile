@@ -23,7 +23,7 @@ def arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "source",
-        help="Native JSONL path, normalized JSON, or <harness>:id (omp or codex)",
+        help="Native omp or Codex JSONL path, or normalized JSON path",
     )
     parser.add_argument(
         "--out", type=Path, required=True, help="New private artifact directory"
@@ -53,7 +53,7 @@ async def execute(args: argparse.Namespace, files: Files) -> int:
     reports: list[dict[str, object]] = []
     calls: Calls | None = None
     try:
-        path = resolve(args.source, files, Path.home())
+        path = resolve(args.source)
         all_messages = load(path, files)
         messages = [
             m

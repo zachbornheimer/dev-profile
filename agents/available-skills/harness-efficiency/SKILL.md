@@ -12,15 +12,15 @@ argument-hint: "discover|index|analyze|research|audit|eval|worst|scorecard [--da
 
 # Harness efficiency
 
-> Only omp and the Codex desktop app are supported. The scripts here still parse Claude Code, Grok, Cursor, OpenCode and Hermes session files so old transcripts stay auditable. Those harnesses are removed; the parsers are legacy and are not extended.
+Only omp and the Codex desktop app are supported. Only Codex sessions are indexed;
+there is no omp parser.
 
-Audit local coding-agent sessions across harnesses. Scripts find recurring waste
-and map it to the smallest durable primitive. Original session files are
-**read-only** — never load raw transcripts into this conversation.
+Audit local Codex desktop sessions for recurring waste and map it to the smallest
+durable primitive. Original session files are **read-only** — never load raw
+transcripts into this conversation.
 
-For any harness's transcripts, spawn `explore` with the eight-section brief plus
-python streaming of that harness's files (never load the transcript). The old
-`session-forensics` agent for Claude JSONL went away with Claude Code, which is removed.
+Spawn `explore` with the eight-section brief and stream the session file with
+Python; never load the transcript into the parent.
 
 ## Run
 
@@ -33,7 +33,7 @@ python3 ~/.agents/available-skills/harness-efficiency/scripts/harness_efficiency
 ```
 
 Default window is `--days 14`. `--since-last` uses the previous audit. `--harness NAME`
-limits one vendor. `--json` prints machine output on discover/research/worst.
+selects `codex`, the only indexed harness. `--json` prints machine output on discover/research/worst.
 
 `research --stamp` refreshes the overlay `checked_at`. `audit --refresh-research`
 is the audit-time alias. `--refresh-research` is not a top-level flag.
@@ -42,7 +42,7 @@ After `audit`, read `<run_dir>/report.md` then `<run_dir>/patterns.json`. Then:
 
 1. Run `worst --limit 8 --json`.
 2. Spawn one forensics investigator per expensive session (cap 8, parallel):
-   `session-forensics` if harness is claude, else `explore` with
+   `explore` with
    [references/scorecard.md](references/scorecard.md). Each writes
    `$HE_STATE/forensics/<id>.md`. Never load transcripts into the parent.
 3. Read those reports (not JSONL). Load `typesafe-ai`; run

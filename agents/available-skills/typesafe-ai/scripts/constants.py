@@ -101,7 +101,6 @@ SELECTOR_GROUPS = (
         ("skill-design-principles",),
     ),
     ("pr-review", ("review",), ()),
-    ("assume-session", ("find-session",), ("find-session",)),
     ("api", ("api-docs",), ("api-docs",)),
     ("diagnose", ("debug-protocol",), ("debug-protocol",)),
 )

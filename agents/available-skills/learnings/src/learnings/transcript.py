@@ -1,6 +1,5 @@
 """Source-preserving native parsers, bounded overlapping windows."""
 
-import re
 from pathlib import Path
 from typing import Literal
 
@@ -98,16 +97,8 @@ def native_messages(raw: str, path: Path) -> list[Message]:
     return result
 
 
-def resolve(source: str, files: Files, home: Path) -> Path:
-    if ":" not in source:
-        return Path(source).expanduser().resolve()
-    harness, identifier = source.split(":", 1)
-    if harness != "claude" or not re.fullmatch(r"[0-9a-f-]{8,36}", identifier):
-        raise ValueError(f"unsupported harness or malformed session identifier: {source}")
-    matches = files.locate(home / ".claude/projects", f"*/{identifier}*.jsonl")
-    if len(matches) != 1:
-        raise ValueError(f"resolve {source}: expected one transcript, found {len(matches)}")
-    return matches[0]
+def resolve(source: str) -> Path:
+    return Path(source).expanduser().resolve()
 
 
 def load(path: Path, files: Files) -> list[Message]:
@@ -127,7 +118,11 @@ def windows(messages: list[Message], limit: int, overlap: int) -> list[list[Mess
         if message.synthetic or message.role == "system":
             continue
         for offset in range(0, len(message.text), limit):
-            parts.append(message.model_copy(update={"text": message.text[offset : offset + limit]}))
+            parts.append(
+                message.model_copy(
+                    update={"text": message.text[offset : offset + limit]}
+                )
+            )
     result: list[list[Message]] = []
     start = 0
     while start < len(parts):
@@ -141,7 +136,10 @@ def windows(messages: list[Message], limit: int, overlap: int) -> list[list[Mess
             break
         next_start = end
         carried = 0
-        while next_start > start + 1 and carried + len(parts[next_start - 1].text) <= overlap:
+        while (
+            next_start > start + 1
+            and carried + len(parts[next_start - 1].text) <= overlap
+        ):
             next_start -= 1
             carried += len(parts[next_start].text)
         start = next_start

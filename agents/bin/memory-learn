@@ -5,8 +5,8 @@
 # ///
 """memory-learn — turn finished agent sessions into cass-memory playbook rules.
 
-Pipeline per session: capability `get_recent_turns` (any harness) -> `_llm` (cheap
-model, any installed CLI) -> `cm add --file -`. A ledger skips sessions already learned
+Pipeline per session: capability `get_recent_turns` (Codex desktop) -> headless omp
+model -> `cm add --file -`. A ledger skips sessions already learned
 at the same size, so the nightly sweep is idempotent.
 
     memory-learn --since -1d            # sweep sessions cass indexed recently
@@ -23,7 +23,6 @@ import json
 import os
 import subprocess
 import sys
-import time
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -38,14 +37,11 @@ from rule_quality import (
     with_better_practice,
 )
 from sessions import (
-    CURSOR_PROJECTS,
     Session,
     Shell,
     raw_session_text,
-    recent_cursor_sessions,
     recent_sessions,
     session_for_path,
-    since_cutoff,
     transcript_text,
 )
 
@@ -221,9 +217,7 @@ def main(argv: Sequence[str] | None = None, shell: Shell | None = None) -> int:
     shell = shell or Shell()
     sessions = [session_for_path(p) for p in args.paths]
     if args.since:
-        cutoff = since_cutoff(args.since, time.time())
         sessions += recent_sessions(shell, args.since)
-        sessions += recent_cursor_sessions(CURSOR_PROJECTS, cutoff)
     instructions = shell.run(["cm", "onboard", "prompt"])
     ledger = Ledger(LEDGER)
     failures, batch = 0, []

@@ -25,7 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
 from hook_common import Decision, HookEvent, run_hook
 
 HOOK_NAME = "subagent-model-guard"
-UNTYPED_SUBAGENT_TYPES = frozenset({"general-purpose", "claude", ""})
+UNTYPED_SUBAGENT_TYPES = frozenset({"general-purpose", ""})
 INJECTED_MODEL = "sonnet"
 INJECT_REASON = (
     f"subagent-model-guard: injecting model={INJECTED_MODEL} for untyped agent spawn"

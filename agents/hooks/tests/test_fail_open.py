@@ -74,11 +74,6 @@ CONTRACTS = {
     "chezmoi-guard.py": Contract(
         frozenset({0, 1}), "non-hook stdin runs the --check CLI"
     ),
-    # WorktreeCreate has no open state: without a path on stdout there is
-    # no worktree. Every failure is fail()'s one-line reason and exit 1.
-    "worktree-provision.py": Contract(
-        frozenset({1}), "WorktreeCreate fails closed with a reason"
-    ),
     # A launcher: it execs the quality-guard binary, whose own exit status
     # (1 on an unparseable payload; non-blocking) is the hook's.
     "quality-guard-run.py": Contract(

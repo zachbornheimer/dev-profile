@@ -920,8 +920,6 @@ cask "calibre"
 cask "chatgpt"
 # Automated testing of webapps for Google Chrome
 cask "chromedriver"
-# Anthropic's official Claude AI desktop app
-cask "claude"
 # AI code review CLI
 cask "coderabbit"
 # OpenAI's Codex desktop app for managing coding agents

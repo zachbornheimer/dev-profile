@@ -13,7 +13,7 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "harness_efficiency.py"
 REQUIRED_CASES = (
-    "discover_multi_harness",
+    "discover_codex",
     "repeated_workflow_to_command",
     "skill_vs_command_vs_subagent",
     "instruction_bloat",
@@ -39,7 +39,7 @@ def _sessions(count: int, **kwargs) -> list:
     parse = load_mod().parse
     return [
         parse.Session(
-            harness=kwargs.get("harness", "grok"),
+            harness=kwargs.get("harness", "codex"),
             session_id=f"s{index}",
             path=f"/tmp/s{index}",
             model=kwargs.get("model"),
@@ -56,43 +56,43 @@ class NoiseFilterTests(unittest.TestCase):
         cls.parse = cls.mod.parse
 
     def test_spawn_subagent_counts_as_subagent(self) -> None:
-        session = self.parse.Session(harness="grok", session_id="g1", path="p")
+        session = self.parse.Session(harness="codex", session_id="g1", path="p")
         track = self.parse._ToolTrack()
         self.parse.apply_tool(session, track, "spawn_subagent", {})
         self.parse.apply_tool(session, track, "task", {})
         self.assertEqual(session.subagents, 2)
 
-    def test_grok_default_is_not_an_expensive_tiny_session(self) -> None:
-        grok = _sessions(3, model="grok-4.6", user_turns=1)
-        self.assertEqual(self.mod.cluster_model_routing(grok), [])
-        opus = _sessions(3, harness="claude", model="claude-opus-4", user_turns=1)
-        hits = self.mod.cluster_model_routing(opus)
+    def test_model_routing_flags_only_expensive_tiny_sessions(self) -> None:
+        standard = _sessions(3, model="gpt-5", user_turns=1)
+        self.assertEqual(self.mod.cluster_model_routing(standard), [])
+        expensive = _sessions(3, model="gpt-5-pro", user_turns=1)
+        hits = self.mod.cluster_model_routing(expensive)
         self.assertTrue(hits)
         self.assertEqual(hits[0]["kind"], "model_routing")
+        self.assertEqual(
+            self.mod.cluster_model_routing(
+                _sessions(3, model="gpt-5-pro", user_turns=3)
+            ),
+            [],
+        )
 
     def test_is_correction_ignores_injected_context(self) -> None:
         parse = self.parse
-        self.assertFalse(
-            parse.is_correction("user-info\nOS: macos\ndon't do that")
-        )
-        self.assertFalse(
-            parse.is_correction("OS Version: macos\nyou missed a file")
-        )
+        self.assertFalse(parse.is_correction("user-info\nOS: macos\ndon't do that"))
+        self.assertFalse(parse.is_correction("OS Version: macos\nyou missed a file"))
         self.assertFalse(parse.is_correction("<role>system</role>\nyou forgot"))
-        self.assertFalse(
-            parse.is_correction("You are a helpful assistant. don't do X")
-        )
+        self.assertFalse(parse.is_correction("You are a helpful assistant. don't do X"))
         self.assertTrue(parse.is_correction("No, that's wrong — use mise"))
 
     def test_stored_user_info_corrections_do_not_produce_a_finding(self) -> None:
         sessions = _sessions(3)
         injected = [
-            ("grok", f"s{i}", "correction", "user-info\nOS: macos\ndon't do that")
+            ("codex", f"s{i}", "correction", "user-info\nOS: macos\ndon't do that")
             for i in range(3)
         ]
         self.assertEqual(self.mod.cluster_corrections(sessions, injected), [])
         real = [
-            ("grok", f"s{i}", "correction", "No, that's wrong — use mise")
+            ("codex", f"s{i}", "correction", "No, that's wrong — use mise")
             for i in range(3)
         ]
         hits = self.mod.cluster_corrections(sessions, real)
@@ -103,24 +103,18 @@ class NoiseFilterTests(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory()
         try:
             skill = Path(tmp.name) / "SKILL.md"
-            claude = Path(tmp.name) / "CLAUDE.md"
+            agents = Path(tmp.name) / "AGENTS.md"
             skill.write_text("\n".join(f"# rule {i}" for i in range(210)) + "\n")
-            claude.write_text("\n".join(f"# rule {i}" for i in range(210)) + "\n")
+            agents.write_text("\n".join(f"# rule {i}" for i in range(210)) + "\n")
             sessions = _sessions(3)
-            skill_events = [
-                ("grok", f"s{i}", "read", str(skill)) for i in range(3)
-            ]
-            claude_events = [
-                ("grok", f"s{i}", "read", str(claude)) for i in range(3)
-            ]
+            skill_events = [("codex", f"s{i}", "read", str(skill)) for i in range(3)]
+            agents_events = [("codex", f"s{i}", "read", str(agents)) for i in range(3)]
             self.assertEqual(
                 self.mod.cluster_instruction_bloat(sessions, skill_events), []
             )
-            claude_hits = self.mod.cluster_instruction_bloat(
-                sessions, claude_events
-            )
-            self.assertTrue(claude_hits)
-            self.assertEqual(claude_hits[0]["kind"], "instruction_bloat")
+            agents_hits = self.mod.cluster_instruction_bloat(sessions, agents_events)
+            self.assertTrue(agents_hits)
+            self.assertEqual(agents_hits[0]["kind"], "instruction_bloat")
         finally:
             tmp.cleanup()
 
@@ -154,35 +148,31 @@ class NoiseFilterTests(unittest.TestCase):
             sid = f"s{index}"
             explore.extend(
                 [
-                    ("grok", sid, "tool", "read"),
-                    ("grok", sid, "tool", "search"),
-                    ("grok", sid, "tool", "list-dir"),
+                    ("codex", sid, "tool", "read"),
+                    ("codex", sid, "tool", "search"),
+                    ("codex", sid, "tool", "list-dir"),
                 ]
             )
             same.extend(
                 [
-                    ("grok", sid, "tool", "read"),
-                    ("grok", sid, "tool", "read"),
-                    ("grok", sid, "tool", "read"),
+                    ("codex", sid, "tool", "read"),
+                    ("codex", sid, "tool", "read"),
+                    ("codex", sid, "tool", "read"),
                 ]
             )
             mixed.extend(
                 [
-                    ("grok", sid, "tool", "shell"),
-                    ("grok", sid, "tool", "shell"),
-                    ("grok", sid, "tool", "read"),
+                    ("codex", sid, "tool", "shell"),
+                    ("codex", sid, "tool", "shell"),
+                    ("codex", sid, "tool", "read"),
                 ]
             )
         self.assertEqual(
-            self.mod.cluster_events(
-                sessions, explore, "tool", "repeated_tool_seq", 3
-            ),
+            self.mod.cluster_events(sessions, explore, "tool", "repeated_tool_seq", 3),
             [],
         )
         self.assertEqual(
-            self.mod.cluster_events(
-                sessions, same, "tool", "repeated_tool_seq", 3
-            ),
+            self.mod.cluster_events(sessions, same, "tool", "repeated_tool_seq", 3),
             [],
         )
         mixed_hits = self.mod.cluster_events(
@@ -195,8 +185,8 @@ class NoiseFilterTests(unittest.TestCase):
         sessions = _sessions(3)
         long = "git status " + ("x" * 80)
         short = "git status --short"
-        long_events = [("grok", f"s{i}", "shell", long) for i in range(3)]
-        short_events = [("grok", f"s{i}", "shell", short) for i in range(3)]
+        long_events = [("codex", f"s{i}", "shell", long) for i in range(3)]
+        short_events = [("codex", f"s{i}", "shell", short) for i in range(3)]
         self.assertEqual(
             self.mod.cluster_events(
                 sessions, long_events, "shell", "repeated_shell", 1
@@ -265,7 +255,7 @@ class EvalCasesTests(unittest.TestCase):
                 os.environ[key] = value
         self.tmp.cleanup()
 
-    def test_discover_multi_harness(self) -> None:
+    def test_discover_codex(self) -> None:
         disc = self.mod.discover(self.ctx)
         result = self.mod.eval_discover(disc)
         self.assertTrue(result["ok"], result["detail"])
@@ -322,7 +312,7 @@ class WorstAndScorecardTests(unittest.TestCase):
 
     def test_cost_score_formula(self) -> None:
         session = self.parse.Session(
-            harness="claude",
+            harness="codex",
             session_id="s1",
             path="/tmp/s1",
             duration_s=3600,
@@ -337,7 +327,7 @@ class WorstAndScorecardTests(unittest.TestCase):
 
     def test_worst_ranks_long_session_first(self) -> None:
         long = self.parse.Session(
-            harness="claude",
+            harness="codex",
             session_id="long",
             path="/tmp/long",
             duration_s=10 * 3600,
@@ -347,7 +337,7 @@ class WorstAndScorecardTests(unittest.TestCase):
             agent_turns=40,
         )
         short = self.parse.Session(
-            harness="grok",
+            harness="codex",
             session_id="short",
             path="/tmp/short",
             duration_s=60,
@@ -374,7 +364,7 @@ class WorstAndScorecardTests(unittest.TestCase):
             },
         )
         self.assertEqual(ranked[0]["turns"], 80)
-        self.assertEqual(ranked[0]["harness"], "claude")
+        self.assertEqual(ranked[0]["harness"], "codex")
 
     def test_scorecard_returns_identity_fields_from_index(self) -> None:
         tmp = tempfile.TemporaryDirectory()
@@ -390,11 +380,11 @@ class WorstAndScorecardTests(unittest.TestCase):
             conn = self.mod.connect_index(ctx)
             try:
                 session = self.parse.Session(
-                    harness="claude",
+                    harness="codex",
                     session_id="abc-123",
                     path="/tmp/abc.jsonl",
                     workspace="/repo",
-                    model="sonnet",
+                    model="gpt-5",
                     started_at="2026-09-18T12:00:00Z",
                     ended_at="2026-09-18T14:00:00Z",
                     user_turns=10,
@@ -412,11 +402,11 @@ class WorstAndScorecardTests(unittest.TestCase):
             self.assertEqual(
                 card,
                 {
-                    "harness": "claude",
+                    "harness": "codex",
                     "session_id": "abc-123",
                     "path": "/tmp/abc.jsonl",
                     "workspace": "/repo",
-                    "model": "sonnet",
+                    "model": "gpt-5",
                     "started_at": "2026-09-18T12:00:00Z",
                     "ended_at": "2026-09-18T14:00:00Z",
                 },
@@ -570,7 +560,9 @@ class TypesafeClassifyTests(unittest.TestCase):
             report = (run_dir / "report.md").read_text()
             self.assertIn("| typesafe |", report)
             table_rows = [
-                line for line in report.splitlines() if line.startswith("| repeated_tool_seq:")
+                line
+                for line in report.splitlines()
+                if line.startswith("| repeated_tool_seq:")
             ]
             self.assertEqual(len(table_rows), 1)
             self.assertIn("| subagent | subagent | new |", table_rows[0])

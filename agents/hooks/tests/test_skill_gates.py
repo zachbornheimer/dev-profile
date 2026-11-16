@@ -72,11 +72,6 @@ def test_assume_session_lookup_mode_needs_no_then(assume: str) -> None:
     assert "(takeover mode only; lookup mode skips them)" in assume
 
 
-def test_find_session_defers_content_analysis_to_assume_session() -> None:
-    text = skill_text("find-session").lower()
-    assert "assume-session lookup mode" in text
-
-
 def test_assume_session_lookup_uses_get_transcript(assume: str) -> None:
     assert "`get_transcript` is the primary tool" in assume
     assert "get_annotated_transcript" not in assume

@@ -6,13 +6,7 @@
 # If that session already has a title, it is passed as `aoe add --title`.
 # Options are validated before any session is created, so bad input never leaves an orphan.
 
-typeset -g AOE_DEFAULT_EFFORT=medium
-# Only omp and the Codex desktop app are supported; the others are removed.
-typeset -ga AOE_EFFORT_AGENTS=()
 typeset -ga AOE_ACP_AGENTS=(omp codex)
-typeset -g AOE_FIND_SESSION="$HOME/.agents/available-skills/find-session/scripts/find-session.py"
-typeset -g AOE_FIND_TRANSCRIPT="$HOME/.agents/available-skills/assume-session/scripts/find-transcript.sh"
-typeset -g AOE_EXTRACT_CONTEXT="$HOME/.agents/available-skills/assume-session/scripts/extract-context.py"
 typeset -g AOE_SESSION_FACTS="${${(%):-%x}:h}/aoe-session-facts.py"
 
 # The daemon spawns the worker after `aoe add` returns; a prompt sent before then
@@ -35,7 +29,7 @@ usage: agent <harness|harness:id|--resume harness:id> [--model <m>] [--effort <e
               restores the original native conversation and creates the AoE view in that cwd.
               an existing title on that session is passed as $(aoe add --title).
   --model     forwarded to the agent.
-  --effort    explicit ACP effort on resume; fresh Claude sessions default to ${AOE_DEFAULT_EFFORT}.
+  --effort    forwarded as ACP effort on resume only.
   --resume    accepts harness:id first, or a native id after the harness.
   prompt      sent after successful native restore, or as the first fresh-session message.
 
@@ -50,7 +44,7 @@ agent::is-session-ref() {
 
 # Sets reply=(harness model effort resume_ref prompt). Returns 2 before any session exists.
 # A harness:id or --resume sets resume_ref. A bare resume id is prefixed with the harness
-# unless the harness is auto. Effort is the default only for effort agents.
+# unless the harness is auto. Effort is forwarded only on resume.
 agent::parse-args() {
 	local harness model effort resume_ref prompt requested_effort
 	if (($# == 0)); then
@@ -104,10 +98,8 @@ agent::parse-args() {
 			return 2
 		fi
 		effort=$requested_effort
-	elif ((${AOE_EFFORT_AGENTS[(Ie)$harness]})); then
-		effort=${requested_effort:-$AOE_DEFAULT_EFFORT}
 	elif [[ -n $requested_effort ]]; then
-		__ -t failed 'agent: fresh-session --effort is supported for Claude only'
+		__ -t failed 'agent: --effort requires --resume'
 		return 2
 	fi
 	prompt=${(j: :)*}
@@ -118,7 +110,7 @@ agent::parse-args() {
 agent::session-facts() {
 	local ref=$1 out cwd title
 	reply=("" "")
-	out=$(python3 "$AOE_SESSION_FACTS" "$ref" "$AOE_FIND_SESSION" "$AOE_FIND_TRANSCRIPT" "$AOE_EXTRACT_CONTEXT") || return $?
+	out=$(python3 "$AOE_SESSION_FACTS" "$ref") || return $?
 	cwd=$out
 	if [[ $out == *$'\n'* ]]; then
 		cwd=${out%%$'\n'*}
@@ -220,11 +212,10 @@ sys.exit(2)
 	return 1
 }
 
-# Sets reply to the prompts launch sends, skipping empty effort, resume, and text.
+# Sets reply to the optional prompt launch sends.
 agent::startup-prompts() {
-	local effort=$1 resume_ref=$2 prompt=$3
+	local prompt=$1
 	reply=()
-	[[ -n $effort && -z $resume_ref ]] && reply+=("/effort $effort")
 	[[ -n $prompt ]] && reply+=("$prompt")
 }
 
@@ -262,7 +253,7 @@ agent::launch() {
 		if [[ -n $resume_ref ]]; then
 			agent::wait-resume "$session_id" "${resume_ref#*:}" || failed=1
 		fi
-		agent::startup-prompts "$effort" "$resume_ref" "$prompt"
+		agent::startup-prompts "$prompt"
 		messages=("${reply[@]}")
 		((failed != 0)) && messages=()
 		for message in "${messages[@]}"; do

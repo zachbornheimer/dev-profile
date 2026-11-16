@@ -3,10 +3,9 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""LEGACY: reads old session histories of removed, unsupported harnesses (Claude Code,
-Cursor, OpenCode; the Codex desktop app is supported). Has no omp reader.
-Stream AI-tool session corrections as NDJSON to stdout.
-Usage: uv run harvest-corrections.py [--days N] [--tool claude|codex|cursor|opencode|all]"""
+"""Stream corrections from Codex desktop session histories as NDJSON to stdout.
+Only Codex sessions are harvested; there is no omp reader.
+Usage: uv run harvest-corrections.py [--days N] [--tool codex|all]"""
 
 from __future__ import annotations
 
@@ -15,7 +14,6 @@ import contextlib
 import hashlib
 import json
 import re
-import sqlite3
 import sys
 from collections.abc import Iterator
 from dataclasses import asdict, dataclass
@@ -32,7 +30,6 @@ _CORRECTION_RE = re.compile(
     r"|\bstill (?:doing|using|making|not)\b|\byou keep\b|\bplease don'?t\b"
 )
 
-_CURSOR_QUERY_RE = re.compile(r"<user_query>(.*?)</user_query>", re.DOTALL)
 _MIN_TEXT, _MAX_TEXT, _CTX_LEN = 10, 2_000, 200  # floor, ceiling, context window
 
 # Harness-injected user-role events (task notifications, slash-command echoes,
@@ -60,7 +57,7 @@ class _SystemEnv:
 class Correction:
     text: str  # full correction text (capped at _MAX_TEXT)
     context: str  # first _CTX_LEN chars, newlines collapsed
-    tool: str  # claude-code | codex | cursor | opencode
+    tool: str  # codex
     repo_or_project: str  # best available project path or identifier
     approx_date: str  # YYYY-MM-DD or "unknown"
 
@@ -72,7 +69,7 @@ def _is_correction(text: str) -> bool:
 
 
 def _normalize(content: str | list) -> str:
-    """Flatten content blocks (Anthropic API format or plain string) to text."""
+    """Flatten content blocks (input text blocks or plain string) to text."""
     if isinstance(content, str):
         return content.strip()
     if isinstance(content, list):
@@ -113,36 +110,6 @@ def _jsonl(path: Path) -> Iterator[dict]:
                     yield json.loads(raw)
 
 
-def harvest_claude(env: _Env, cutoff: datetime) -> Iterator[Correction]:
-    root = env.home() / ".claude" / "projects"
-    if not root.is_dir():
-        _skip("claude-code: ~/.claude/projects not found")
-        return
-    for proj in root.iterdir():
-        if not proj.is_dir():
-            continue
-        repo = proj.name.lstrip("-").replace("-", "/")
-        for jsonl in proj.glob("*.jsonl"):
-            if _mtime(jsonl) < cutoff:
-                continue
-            try:
-                for obj in _jsonl(jsonl):
-                    if obj.get("type") != "user":
-                        continue
-                    msg = obj.get("message") or {}
-                    text = _normalize(
-                        msg.get("content", "") if isinstance(msg, dict) else ""
-                    )
-                    if not _is_correction(text):
-                        continue
-                    ts = (obj.get("timestamp") or "")[:10] or "unknown"
-                    yield Correction(
-                        text[:_MAX_TEXT], _ctx(text), "claude-code", repo, ts
-                    )
-            except Exception as exc:
-                _skip(f"claude-code {jsonl.name}: {exc}")
-
-
 def harvest_codex(env: _Env, cutoff: datetime) -> Iterator[Correction]:
     root = env.home() / ".codex" / "sessions"
     if not root.is_dir():
@@ -175,90 +142,7 @@ def harvest_codex(env: _Env, cutoff: datetime) -> Iterator[Correction]:
             _skip(f"codex {jsonl.name}: {exc}")
 
 
-def harvest_cursor(env: _Env, cutoff: datetime) -> Iterator[Correction]:
-    root = env.home() / ".cursor" / "chats"
-    if not root.is_dir():
-        _skip("cursor: ~/.cursor/chats not found")
-        return
-    for db in sorted(root.rglob("store.db")):
-        if db.stat().st_size < 512 or _mtime(db) < cutoff:
-            continue
-        try:
-            conn = sqlite3.connect(
-                f"file:{db}?mode=ro", uri=True, check_same_thread=False
-            )
-            try:
-                rows = conn.execute("SELECT data FROM blobs").fetchall()
-            finally:
-                conn.close()
-            for (raw,) in rows:
-                if not isinstance(raw, bytes):
-                    continue
-                try:
-                    obj = json.loads(raw.decode("utf-8", errors="replace"))
-                except (json.JSONDecodeError, UnicodeDecodeError):
-                    continue
-                if not isinstance(obj, dict) or obj.get("role") != "user":
-                    continue
-                text = _normalize(obj.get("content", ""))
-                # Cursor injects <user_query>…</user_query> around the real text.
-                if m := _CURSOR_QUERY_RE.search(text):
-                    text = m.group(1).strip()
-                if _is_correction(text):
-                    yield Correction(
-                        text[:_MAX_TEXT],
-                        _ctx(text),
-                        "cursor",
-                        db.parent.parent.name,
-                        "unknown",
-                    )
-        except Exception as exc:
-            _skip(f"cursor {db.parent.name}: {exc}")
-
-
-def harvest_opencode(env: _Env, cutoff: datetime) -> Iterator[Correction]:
-    db_path = env.home() / ".local" / "share" / "opencode" / "opencode.db"
-    if not db_path.exists():
-        _skip("opencode: db not found at ~/.local/share/opencode/opencode.db")
-        return
-    try:
-        cutoff_ms = int(cutoff.timestamp() * 1_000)
-        conn = sqlite3.connect(
-            f"file:{db_path}?mode=ro", uri=True, check_same_thread=False
-        )
-        _SQL = (
-            "SELECT m.time_created, p.data, pr.worktree FROM message m "
-            "JOIN part p ON p.message_id = m.id "
-            "LEFT JOIN session s ON s.id = m.session_id "
-            "LEFT JOIN project pr ON pr.id = s.project_id "
-            "WHERE json_extract(m.data,'$.role')='user' "
-            "AND json_extract(p.data,'$.type')='text' AND m.time_created>=?"
-        )
-        try:
-            rows = conn.execute(_SQL, (cutoff_ms,)).fetchall()
-        finally:
-            conn.close()
-        for ts_ms, part_raw, worktree in rows:
-            try:
-                text = (json.loads(part_raw).get("text") or "").strip()
-            except json.JSONDecodeError:
-                continue
-            if not _is_correction(text):
-                continue
-            approx = datetime.fromtimestamp(ts_ms / 1_000, tz=UTC).date().isoformat()
-            yield Correction(
-                text[:_MAX_TEXT], _ctx(text), "opencode", worktree or "unknown", approx
-            )
-    except Exception as exc:
-        _skip(f"opencode: {exc}")
-
-
-_HARVESTERS = {
-    "claude": harvest_claude,
-    "codex": harvest_codex,
-    "cursor": harvest_cursor,
-    "opencode": harvest_opencode,
-}
+_HARVESTERS = {"codex": harvest_codex}
 
 
 def _dedup(it: Iterator[Correction]) -> Iterator[Correction]:

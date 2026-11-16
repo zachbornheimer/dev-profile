@@ -11,7 +11,7 @@
 
 JSON input is a list of Message objects: id/session/source/line/date/role/text/synthetic.
 Native exported JSONL needs top-level role/content; SQLite databases are not supported.
-Pass the native exported path for the harness (only omp and the Codex desktop app are supported; Hermes and Claude Code are removed).
+Pass the native exported path for omp or the Codex desktop app.
 Unknown envelopes are a parser limitation. Label fixtures by observable outcome, not
 preference about prose length. Prompt acts may overlap on one turn. Confidence is a
 model output, not a calibrated latent psychological measure.
@@ -48,11 +48,11 @@ artifact; do not loop retries or switch to a hosted provider. Responses, validat
 reasons, timings, and report `calls` preserve all attempts. Error/progress messages
 omit model/transcript content. Every new run needs a fresh `--out` directory.
 
-Measured real-source command (35-second request bound; not a latency guarantee):
+Path-based command (35-second request bound; not a latency guarantee):
 
 ```sh
 mise run -C ~/.agents/available-skills/learnings extract -- \
-  claude:769b80aa-1364-4e1b-b7fc-3936f4b9f355 \
+  /path/to/exported-session.jsonl \
   --start-line 4313 --end-line 4326 --timeout 35 \
   --max-tokens 1600 --max-attempts 3 --token-step 400 --token-cap 2400 \
   --out ~/.local/state/learnings/learnings-fix/new-run

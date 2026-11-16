@@ -6,7 +6,6 @@ fact-checker are the quality gates and run once per batch of rules.
 
 from __future__ import annotations
 
-import json
 import os
 import re
 from pathlib import Path
@@ -30,7 +29,7 @@ FACT_CHECK_TIMEOUT_SECONDS = 600
 FETCH_TIMEOUT_SECONDS = 20
 JUDGE_MODEL = os.environ.get("MEMORY_LEARN_JUDGE_MODEL", "sonnet")
 STANDING_INSTRUCTIONS_ROOT = Path(
-    os.environ.get("MEMORY_LEARN_INSTRUCTIONS_ROOT", Path.home() / ".claude")
+    os.environ.get("MEMORY_LEARN_INSTRUCTIONS_ROOT", Path.home() / ".agents")
 )
 PATH_SCOPED_FRONTMATTER = re.compile(r"\A---\n(?:(?!---\n).*\n)*?paths:", re.MULTILINE)
 LLM_TIMEOUT_SECONDS = 300
@@ -46,17 +45,16 @@ def extract_rules(shell: Shell, instructions: str, transcript: str) -> list[Rule
     return parse_rules(ask_model(shell, prompt))
 
 
-def ask_model(shell: Shell, prompt: str, claude_model: str = EXTRACT_MODEL) -> str:
+def ask_model(shell: Shell, prompt: str, model: str = EXTRACT_MODEL) -> str:
     return shell.run(
-        ["_llm", "--claude-model", claude_model],
-        stdin=prompt,
+        ["omp", "-p", "--model", model, prompt],
         timeout=LLM_TIMEOUT_SECONDS,
     )
 
 
 def standing_instructions() -> str:
     """The user's always-loaded instruction files, so the judge can catch conflicts."""
-    files = [STANDING_INSTRUCTIONS_ROOT / "CLAUDE.md"]
+    files = [STANDING_INSTRUCTIONS_ROOT / "AGENTS.md"]
     files += sorted((STANDING_INSTRUCTIONS_ROOT / "rules").glob("*.md"))
     texts = []
     for f in files:
@@ -64,7 +62,7 @@ def standing_instructions() -> str:
             text = f.read_text(encoding="utf-8")
         except OSError:
             continue
-        if not PATH_SCOPED_FRONTMATTER.match(text):  # path-scoped rules load on demand
+        if not PATH_SCOPED_FRONTMATTER.match(text):
             texts.append(f"### {f.name}\n{text}")
     return "\n\n".join(texts)
 
@@ -74,16 +72,10 @@ def fact_check(shell: Shell, rules: list[Rule]) -> list[FactCheck]:
     if not rules:
         return []
     out = shell.run(
-        ["claude", "-p", "--no-session-persistence", "--model", FACT_CHECK_MODEL]
-        + ["--safe-mode", "--setting-sources", "user", "--tools=WebSearch,WebFetch"]
-        + ["--output-format", "json"],
-        stdin=fact_check_prompt(rules),
+        ["omp", "-p", "--model", FACT_CHECK_MODEL, fact_check_prompt(rules)],
         timeout=FACT_CHECK_TIMEOUT_SECONDS,
     )
-    reply = json.loads(out)
-    if reply.get("is_error"):
-        raise RuntimeError(f"fact-check failed: {str(reply.get('result'))[:300]}")
-    checks = parse_fact_checks(str(reply.get("result", "")), len(rules))
+    checks = parse_fact_checks(out, len(rules))
     return [confirm_contradiction(c, fetch_page(shell, c.source)) for c in checks]
 
 
@@ -104,5 +96,5 @@ def judge(shell: Shell, rules: list[Rule]) -> list[tuple[bool, str]]:
     if not rules:
         return []
     prompt = judge_prompt(rules, standing_instructions())
-    reply = ask_model(shell, prompt, claude_model=JUDGE_MODEL)
+    reply = ask_model(shell, prompt, model=JUDGE_MODEL)
     return parse_verdicts(reply, len(rules))

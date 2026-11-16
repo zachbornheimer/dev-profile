@@ -75,36 +75,6 @@ class RelocateSyncedSkillsTests(unittest.TestCase):
         )
         self.assertTrue((core / "SKILL.md").is_file())
 
-    def test_moves_claude_local_synced_without_touching_agents_core(self) -> None:
-        write_skill(
-            self.home,
-            ".claude",
-            "skills",
-            "synced",
-            "uuid-folder",
-            "xlsx",
-        )
-        core = self.home / ".agents" / "skills" / "bar"
-        core.mkdir(parents=True)
-        (core / "SKILL.md").write_text("# bar\n", encoding="utf-8")
-
-        code = self.hook.main()
-
-        self.assertEqual(code, 0)
-        self.assertFalse((self.home / ".claude" / "skills" / "synced").exists())
-        self.assertTrue(
-            (
-                self.home
-                / ".agents"
-                / "available-skills"
-                / "synced"
-                / "uuid-folder"
-                / "xlsx"
-                / "SKILL.md"
-            ).is_file()
-        )
-        self.assertTrue((core / "SKILL.md").is_file())
-
     def test_merges_into_existing_available_synced(self) -> None:
         write_skill(
             self.home,
@@ -132,45 +102,6 @@ class RelocateSyncedSkillsTests(unittest.TestCase):
     def test_missing_trees_exits_zero_silent(self) -> None:
         self.assertEqual(self.hook.main(), 0)
         self.assertFalse((self.home / ".agents" / "skills" / "synced").exists())
-        self.assertFalse((self.home / ".claude" / "skills" / "synced").exists())
-
-    def test_removes_claude_trash_skill_without_touching_typesafe(self) -> None:
-        trash = write_skill(
-            self.home,
-            ".claude",
-            "skills",
-            ".trash",
-            "uuid-folder",
-            "docx",
-        )
-        keep = self.home / ".claude" / "skills" / "typesafe-ai"
-        keep.mkdir(parents=True)
-        (keep / "SKILL.md").write_text("# typesafe-ai\n", encoding="utf-8")
-
-        code = self.hook.main()
-
-        self.assertEqual(code, 0)
-        self.assertFalse(trash.exists())
-        self.assertFalse((self.home / ".claude" / "skills" / ".trash").exists())
-        self.assertTrue((keep / "SKILL.md").is_file())
-        remaining = list((self.home / ".claude" / "skills").rglob("SKILL.md"))
-        self.assertEqual(remaining, [keep / "SKILL.md"])
-
-    def test_removes_extra_claude_skill_dirs_keeps_typesafe_symlink(self) -> None:
-        extra = write_skill(self.home, ".claude", "skills", "morning")
-        target = self.home / ".agents" / "skills" / "typesafe-ai"
-        target.mkdir(parents=True)
-        (target / "SKILL.md").write_text("# typesafe-ai\n", encoding="utf-8")
-        link = self.home / ".claude" / "skills" / "typesafe-ai"
-        link.symlink_to(target)
-
-        code = self.hook.main()
-
-        self.assertEqual(code, 0)
-        self.assertFalse(extra.exists())
-        self.assertFalse((self.home / ".claude" / "skills" / "morning").exists())
-        self.assertTrue(link.is_symlink())
-        self.assertTrue((link / "SKILL.md").is_file())
 
 
 if __name__ == "__main__":
