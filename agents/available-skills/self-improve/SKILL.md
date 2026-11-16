@@ -1,6 +1,6 @@
 ---
 name: self-improve
-description: Mine recent corrections across Claude Code, Codex, Cursor, and OpenCode — cluster recurring ones, adversarially verify each candidate, and distill survivors into gotcha entries or CLAUDE.md rules as proposed diffs for human approval. Run on demand or weekly via /schedule.
+description: Mine recent corrections from saved agent histories — cluster recurring ones, adversarially verify each candidate, and distill survivors into gotcha entries or AGENTS.md rules as proposed diffs for human approval. Run on demand or weekly via /schedule. LEGACY: the harvester reads only the old Claude Code, Codex, Cursor and OpenCode history files. Those harnesses are removed and unsupported (only omp and the Codex desktop app are), and it has no omp reader yet, so it finds nothing new.
 ---
 
 # Self-Improve

@@ -12,6 +12,8 @@ argument-hint: "discover|index|analyze|research|audit|eval|worst|scorecard [--da
 
 # Harness efficiency
 
+> Only omp and the Codex desktop app are supported. The scripts here still parse Claude Code, Grok, Cursor, OpenCode and Hermes session files so old transcripts stay auditable. Those harnesses are removed; the parsers are legacy and are not extended.
+
 Audit local coding-agent sessions across harnesses. Scripts find recurring waste
 and map it to the smallest durable primitive. Original session files are
 **read-only** — never load raw transcripts into this conversation.

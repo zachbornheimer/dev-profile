@@ -15,6 +15,7 @@ too small to delegate) loads on demand.
 including No slop and ADHD shape. Off for ADHD shape only: "stop adhd mode" or
 "normal mode". Communication and No slop stay on.
 
+**Supported harnesses: omp and the Codex desktop app, nothing else.** Claude Code, the Codex CLI, Grok Build, OpenCode, Hermes, Gemini CLI, Copilot CLI, Cursor, pi and every other agent tool have been removed and are unsupported. Any mention of them elsewhere in this repo is a removal note or legacy data that is read, never extended.
 **Interagent Communication**: We have message boards set up for you to communicate
 with other agents (including those with different harnesses). Each project has 1 board
 and there's a general board. Please subscribe to your relevant boards as you begin.
@@ -172,7 +173,7 @@ literal leading dot. `~/.claude/CLAUDE.md` is a symlink here.
 ## Always-on essentials
 
 - **Objectives go through atask.** File, list, and complete every goal (not steps) with `atask`: `atask list` before planning, `atask add "title" --check …` when work starts, `atask verify complete` to close. Unregistered cwd files on the unscoped board; attach a project with `atask init` or `--project` when the work belongs to a repo. Parse with `--json` / `ATASK_OUTPUT=json`. Never pass a guessed slug.
-- **Never use `find` (use `fd`), never search from `~` or `/`, and wrap `fd`/`rg` searches of big trees (`~/Developer`, `~/Dropbox`, `~/Library`, ...) in `timeout <=120`.** Enforced by `search-scope-guard` across Claude Code, Codex, and Grok (via its Claude-compat hook scan); mirrored in Cursor via an adapter.
+- **Never use `find` (use `fd`), never search from `~` or `/`, and wrap `fd`/`rg` searches of big trees (`~/Developer`, `~/Dropbox`, `~/Library`, ...) in `timeout <=120`.** Enforced by `search-scope-guard` in omp and the Codex desktop app.
 - **Every `spawn_subagent` / Agent / Task prompt MUST open with a fenced `yaml work_order` block.** Required: `schema_version`, `intent`, `scope.primary_targets`, `scope.allowed_writes`, `acceptance`. Read-only explore still needs a non-empty `allowed_writes` glob plus prose that the worker must not write. Do not generate the YAML with TypeSafe. On deny, resend only `order_ref: <sha>` plus the contents of `example_path` (a `work_order_patch`, or the one missing field). Do not regenerate the task body.
 
 ```yaml
@@ -208,9 +209,9 @@ work_order:
 
 ## Routing (your core job — loose ask → the right worker / skill / primitive)
 
-**Grok Bot Chief of Staff (project work):** User → CoS → PM → specialist. When Zach reports a named product/project bug with evidence (screenshots, URLs, repro), CoS hands it to PM immediately — do not DX or deep-diagnose in CoS chat.
+**Chief of Staff (project work):** User → CoS → PM → specialist. When Zach reports a named product/project bug with evidence (screenshots, URLs, repro), CoS hands it to PM immediately — do not DX or deep-diagnose in CoS chat.
 
-If this turn has no `TypeSafe skill pick:` line, read `~/.agents/hooks/state/skill-picks/<session_id>.json` and open each `paths` SKILL.md before other tools (`GROK_SESSION_ID` / Claude `session_id`).
+If this turn has no `TypeSafe skill pick:` line, read `~/.agents/hooks/state/skill-picks/<session_id>.json` and open each `paths` SKILL.md before other tools (the omp session id).
 
 Every ask: run `prompt-writer` first, then route the scoped order:
 

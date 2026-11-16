@@ -4,7 +4,7 @@ description: >-
   Provider-agnostic ChatGPT desktop controller. Downloads the newest
   run-<uuid>.py/.zip from View files in chat, runs PROVIDER=<cli> uv run --
   <runner>, and pastes evidence only after the composer Stop square becomes
-  Send. Use for one-shot ChatGPT→harness loops (grok, claude, …).
+  Send. Use for one-shot ChatGPT→harness loops. Only omp and the Codex desktop app are supported harnesses; grok, claude and the rest are removed.
 ---
 
 # ChatGPT → other harness

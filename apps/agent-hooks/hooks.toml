@@ -5,7 +5,7 @@ max_concurrency = 32
 default_timeout = "30s"
 
 [defaults]
-agents = ["claude", "codex", "gemini", "grok", "hermes", "copilot", "opencode", "mastra"]
+agents = ["codex", "mastra"]
 protocol = "native"
 shell = true
 timeout = "30s"
@@ -460,27 +460,6 @@ command = ["$HOME/.agents/hooks/transcript-path-note.py"]
 timeout = "5s"
 
 [[hooks]]
-name = "hindsight-claude-sessionstart"
-events = ["session.start"]
-agents = ["claude"]
-command = ['exec "$HOME/.agents/hooks/hindsight-hook.sh" claude-sessionstart-hook.js']
-timeout = "30s"
-
-[[hooks]]
-name = "hindsight-claude-prompt"
-events = ["prompt.submit"]
-agents = ["claude"]
-command = ['exec "$HOME/.agents/hooks/hindsight-hook.sh" claude-hook.js']
-timeout = "30s"
-
-[[hooks]]
-name = "hindsight-claude-stop"
-events = ["turn.stop"]
-agents = ["claude"]
-command = ['exec "$HOME/.agents/hooks/hindsight-hook.sh" claude-stop-hook.js']
-timeout = "60s"
-
-[[hooks]]
 name = "hindsight-codex-sessionstart"
 events = ["session.start"]
 agents = ["codex"]
@@ -499,27 +478,6 @@ name = "hindsight-codex-stop"
 events = ["turn.stop"]
 agents = ["codex"]
 command = ['exec node "$HOME/.hindsight/coding-agents/dist/codex-stop-hook.js"']
-timeout = "60s"
-
-[[hooks]]
-name = "hindsight-grok-sessionstart"
-events = ["session.start"]
-agents = ["grok"]
-command = ['exec node "$HOME/.hindsight/coding-agents/dist/grok-sessionstart-hook.js"']
-timeout = "30s"
-
-[[hooks]]
-name = "hindsight-grok-prompt"
-events = ["prompt.submit", "tool.after"]
-agents = ["grok"]
-command = ['exec node "$HOME/.hindsight/coding-agents/dist/grok-hook.js"']
-timeout = "30s"
-
-[[hooks]]
-name = "hindsight-grok-stop"
-events = ["turn.stop"]
-agents = ["grok"]
-command = ['exec node "$HOME/.hindsight/coding-agents/dist/grok-stop-hook.js"']
 timeout = "60s"
 
 # One prompt-submit batch answers frustration, dictation (for prompts of at least 500 characters), and skill/tool fit.

@@ -40,7 +40,7 @@ Replacement rules (apply only where the consuming program expands the form):
 - mise config (*.toml under ~/.config/mise), ~/.gitconfig, ~/.tmux.conf, ssh config: use ~.
 - Tera templates: {{ env.HOME }}.
 - JSON, YAML, TOML or other configs read by a program that does not expand ~ or $HOME
-  (Claude Code, Codex, herdr, opencode settings and similar): leave the literal path. If
+  (Codex, herdr, omp settings and similar): leave the literal path. If
   the file is per-machine, report that `mise dot track <path> --machine` fits instead.
 - Never touch another user's path, a fixture, a transcript, or a path inside quoted prose.
 - After each edit re-read the file and confirm it still parses (json/toml/yaml) or `bash -n`.

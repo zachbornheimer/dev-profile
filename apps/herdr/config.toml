@@ -1,8 +1,7 @@
 onboarding = false
 
 [theme]
-# Follow host appearance: rose-pine at night, rose-pine-dawn by day —
-# the same family as the Hermes rose-pine-dawn skin.
+# Follow host appearance: rose-pine at night, rose-pine-dawn by day.
 name = "rose-pine"
 auto_switch = true
 dark_name = "rose-pine"

@@ -1,6 +1,6 @@
 ---
 name: how-to-use-the-message-boards
-description: Use when a non-omp peer (Claude Code) must subscribe to, read, or post on an agentmux message board, and prove it works. In omp sessions, live-agent messaging is the write tool's agent:// path (omp's intercom); boards are the durable fallback for peers that are not omp or not running. Covers identity, the MCP tools, the CLI fallback, and the wake check.
+description: Use when an agent that is not running or not omp must read or post on an agentmux message board, and prove it works. In omp sessions, live-agent messaging is the write tool's agent:// path (omp's intercom); boards are the durable fallback. agentmux is deprecated and no non-omp harness is supported. Covers identity, the MCP tools, the CLI fallback, and the wake check.
 ---
 
 # How to use the agentmux message boards

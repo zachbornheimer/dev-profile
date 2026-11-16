@@ -2,9 +2,10 @@
 name: agent-hooks
 description: >-
   Operate the agent-hooks system (~/Developer/Personal/agent-hooks): a Rhai handler pipeline whose live
-  deployment (~/.config/agent-hooks/pipeline) runs guards and gates for the harnesses installed on this
-  machine — omp (through the generated extension) and Claude Code — and can install into Codex, Gemini,
-  Grok, Hermes, Copilot, OpenCode or Mastra if one returns. Use it to pick the event an intent belongs on
+  deployment (~/.config/agent-hooks/pipeline) runs guards and gates for the only supported harnesses:
+  omp (through the generated extension) and the Codex desktop app. The tool's installer still contains
+  adapters for Claude Code, Gemini, Grok, Hermes, Copilot, OpenCode and Mastra; those harnesses are
+  removed and unsupported here, and nothing is installed or maintained for them. Use it to pick the event an intent belongs on
   (behavior from user input -> prompt.submit; may the turn stop -> turn.stop; allow/deny/rewrite a tool
   call -> tool.before; react to a tool result -> tool.after; session setup -> session.start; survive
   compaction -> context.compact.before; verify a subagent -> subagent.stop; worktree lifecycle ->
@@ -56,7 +57,7 @@ do. Full per-harness names and quirks: `references/events-and-harnesses.md`.
 | decide whether a finished turn may stop (completion gate, keep-working nudge)       | `turn.stop` / Stop                       | **block** (the agent keeps working), context                                                       |
 | allow, ask about, or reject a tool call, or rewrite its arguments                   | `tool.before` / PreToolUse               | deny, ask, allow, rewrite tool input                                                               |
 | react to a tool's result (record it, steer the next call, budget the output)        | `tool.after` / PostToolUse               | context only                                                                                       |
-| catch a denied or failed tool call                                                  | `PermissionDenied`, `PostToolUseFailure` | context only (Claude-only event names)                                                             |
+| catch a denied or failed tool call                                                  | `PermissionDenied`, `PostToolUseFailure` | context only (Claude Code event names; Claude Code is removed, so these do not fire)               |
 | set a session up (identity, recall, contracts)                                      | `session.start` / SessionStart           | context only                                                                                       |
 | preserve state across compaction (handoff, save transcript)                         | `context.compact.before` / PreCompact    | context only                                                                                       |
 | verify or score what a subagent returned                                            | `subagent.stop` / SubagentStop           | context only                                                                                       |
