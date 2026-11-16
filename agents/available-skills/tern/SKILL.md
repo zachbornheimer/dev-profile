@@ -6,7 +6,7 @@ description: >
   wants a command, file, split, or browser shown in the terminal they
   are using, and whenever this session is already inside Tern and the
   user should see the work. Do not use it only because a task could
-  use a background shell: run_command owns that. Do not drive Herdr
+  use a background shell: bash owns that. Do not drive Herdr
   when this session is inside Tern.
 ---
 
@@ -22,13 +22,13 @@ Stencil's script language (`tern ctl`, `tern shot`, `tern serve`, documented at 
 
 Use Tern when the user named it, or when `TERN_PANE` is set and they should see a command, a file, or a split.
 
-Do not open a Tern block just to run a command nobody is watching. `run_command` owns that.
+Do not open a Tern block just to run a command nobody is watching. `bash` owns that.
 
-If `TERN_PANE` is set, you are inside Tern. Do not drive Herdr. `run_command` may still drop an interactive command into a Herdr tab when Herdr is installed, which opens the wrong app. Start anything the user should see with `tern new tab`.
+If `TERN_PANE` is set, you are inside Tern. Do not drive Herdr. A shell tool may still drop an interactive command into a Herdr tab when Herdr is installed, which opens the wrong app. Start anything the user should see with `tern new tab`.
 
 If `TERN_PANE` is unset, the CLI can still reach a running daemon. Do not list, split, or close their sessions unless they asked. Say you are not in a Tern pane and stop.
 
-`run_command` usually inherits `TERN_PANE`. If it does not, discover your block from `tern inspect --json` by matching `omp_session_file` to this session. Do not guess `@focused`.
+`bash` usually inherits `TERN_PANE`. If it does not, discover your block from `tern inspect --json` by matching `omp_session_file` to this session. Do not guess `@focused`.
 
 ## Your block
 

@@ -16,7 +16,7 @@ information. Ask the user instead.
 When a user-named tool resolves nowhere on disk, spend exactly one call
 identifying it before any local fan-out or question:
 
-- `run_command`: `command -v <name>; <name> --help` — a binary names itself.
+- `bash`: `command -v <name>; <name> --help` — a binary names itself.
 - or `web_search "<name> cli"` — a product page names the binary and installer.
 
 Do not Glob or Grep `~`, `~/Developer`, or `~/.claude` for the name: a name that
@@ -30,7 +30,7 @@ All three must hold:
 
 1. The user mentions a tool name (a CLI, app, binary, package, or service).
 2. The name does not resolve:
-   - the one probe above (`<name> --help` via run_command, or a web search for
+   - the one probe above (`<name> --help` via bash, or a web search for
      `<name> cli`) is ambiguous — multiple unrelated products, or no single
      authoritative product page — and a Glob/Grep over `~/.agents` is empty.
 3. You have not yet asked the user about this tool.

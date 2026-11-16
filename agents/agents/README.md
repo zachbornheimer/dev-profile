@@ -70,7 +70,7 @@ capability a harness lacks is reported as missing, never silently dropped.
 | `grep`                     | search file contents           | `grep`           | `agentmux_capability_grep`                     | `Grep`                   |
 | `list`                     | list a directory               | `find`           | `agentmux_capability_glob`                     | `LS`                     |
 | `stat`                     | file metadata                  | —                | `agentmux_capability_glob`                     | `Bash(stat)`             |
-| `run_command`              | run a shell command            | `bash`           | `agentmux_capability_run_command`              | `Bash`                   |
+| `bash`                     | run a shell command            | `bash`           | the gateway's command tool                     | `Bash`                   |
 | `run_tests`                | the repo's focused test runner | `bash`           | `run_tests`                                    | `Bash`                   |
 | `search_tools`             | find the rest of the catalog   | — (native)       | `search_tools`                                 | — (native)               |
 | `worktrunk`                | worktree lifecycle             | `bash`           | `worktrunk`                                    | `Bash`                   |

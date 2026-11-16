@@ -1,16 +1,16 @@
 ---
 name: command-denial-recovery
-description: Use the moment a tool the task depends on is denied, blocked, or "not available" - a shell/command tool (Bash, sh, zsh, exec, run_command), or a whole capability absent from the tool list (web search, file search, task tracking). On the FIRST denial, search for a replacement before doing anything else - do not fall back to reading files, reasoning about the answer, restating the blocker, or declaring the task impossible.
+description: Use the moment a tool the task depends on is denied, blocked, or "not available" - a shell/command tool (Bash, sh, zsh, exec), or a whole capability absent from the tool list (web search, file search, task tracking). On the FIRST denial, search for a replacement before doing anything else - do not fall back to reading files, reasoning about the answer, restating the blocker, or declaring the task impossible.
 ---
 
 # Command denial recovery
 
-A denial is information about *which tool*, not about *whether the work is possible*.
+A denial is information about _which tool_, not about _whether the work is possible_.
 
 ## The rule
 
 On the **first** denial of any command-execution tool (`Bash`, `sh`, `zsh`, `exec`,
-`run_command`, or equivalent), immediately search for a replacement command tool:
+or equivalent), immediately search for a replacement command tool:
 
 - Harness `ToolSearch` / `search_tools` with query: `command execution shell`
 - Then call the top match and continue the original task.
