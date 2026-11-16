@@ -19,6 +19,7 @@ from __future__ import annotations
 import contextlib
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -45,6 +46,10 @@ PATH_UNAVAILABLE = "unavailable"
 ACTION_BLOCK = "block"
 ACTION_ALLOW = "allow"
 CLOSING_LINE_CHARS = 200
+# The review gate's answer element is the agent's attestation, never its closing words.
+HAPPINESS_ELEMENT_RE = re.compile(
+    r"<happiness-check\b.*?(?:</happiness-check>|\Z)", re.DOTALL
+)
 MILLIS_PER_SECOND = 1000
 
 BLOCK_DEFERRED = "deferred"
@@ -217,12 +222,16 @@ def request_state(envelope: dict[str, Any]) -> dict[str, Any]:
 def _outside_fences(message: str) -> list[str]:
     """The message's non-empty lines with every fenced block and <evidence-check> element removed.
 
-    A closing <evidence-check> element is the agent's proof, not its closing words: quoting its body as the
-    "closing line" made it read as a false positive.
+    A closing <evidence-check> or <happiness-check> element is the agent's proof, not its closing words: quoting its
+    body as the "closing line" made it read as a false positive.
     """
     kept: list[str] = []
     inside = False
-    for raw in EVIDENCE_ELEMENT_RE.sub("", message).strip().splitlines():
+    for raw in (
+        HAPPINESS_ELEMENT_RE.sub("", EVIDENCE_ELEMENT_RE.sub("", message))
+        .strip()
+        .splitlines()
+    ):
         line = raw.strip()
         if line.startswith("```"):
             inside = not inside
@@ -261,7 +270,11 @@ def block_reason(
         return _deferred_reason(judgment.signals, signals, closing_line(message))
     if kind == BLOCK_INVALID_EVIDENCE_BLOCK:
         return invalid_evidence_block_reason(evidence_problem)
-    return UNPROVEN_CLAIM_REASON.format(**signals) + EVIDENCE_TEMPLATE
+    return (
+        f'You closed with: "{closing_line(message)}"\n'
+        + UNPROVEN_CLAIM_REASON.format(**signals)
+        + EVIDENCE_TEMPLATE
+    )
 
 
 def _deferred_reason(
