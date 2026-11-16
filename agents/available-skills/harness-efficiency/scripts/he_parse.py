@@ -1,4 +1,8 @@
-"""Session parsers and primitive classifiers for harness-efficiency."""
+"""Session parsers and primitive classifiers for harness-efficiency.
+
+Only omp and the Codex desktop app are supported. The Claude Code, Grok, OpenCode, Cursor,
+Gemini and Copilot parsers read old transcripts of removed harnesses (legacy, never extended).
+"""
 
 from __future__ import annotations
 

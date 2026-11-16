@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Discover, index, and analyze coding-agent sessions for recurring waste."""
+"""Discover, index, and analyze coding-agent sessions for recurring waste.
+
+Legacy note: the Claude Code, Grok, OpenCode, Cursor, Gemini and Copilot entries read old
+transcripts of removed, unsupported harnesses. Only omp and the Codex desktop app are supported."""
 
 from __future__ import annotations
 
