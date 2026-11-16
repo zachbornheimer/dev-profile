@@ -20,7 +20,7 @@ This is the one Bash command the gate itself allows the main session to run
 without already being in direct mode (see `orchestrator-only.py`'s
 `direct-mode.py` exception) — nothing else needs to run first.
 
-The script binds `GROK_SESSION_ID` when set, else `CLAUDE_CODE_SESSION_ID`, else
+The script binds `PI_SESSION_ID` (set by omp) when set, else
 the newest per-session state file. Print exactly the script's own output line
 back to the user (`direct mode ON for session <id>`) — do not paraphrase it,
 since that line is the only confirmation that the marker landed on the right

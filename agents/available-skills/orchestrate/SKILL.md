@@ -16,7 +16,7 @@ the default posture — use this to end a hands-on stretch, not to start one.
 ~/.agents/hooks/direct-mode.py off
 ```
 
-The script binds `GROK_SESSION_ID` when set, else `CLAUDE_CODE_SESSION_ID`, else
+The script binds `PI_SESSION_ID` (set by omp) when set, else
 the newest per-session state file. Print exactly the script's own output line
 back to the user (`direct mode OFF for session <id>`) — do not paraphrase it.
 In omp, `<id>` must equal `$PI_SESSION_ID`.
