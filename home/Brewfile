@@ -154,8 +154,6 @@ brew "cliclick"
 brew "libffi"
 # Open-source, cross-platform JavaScript runtime environment
 brew "node"
-# AI-powered coding agent for complex work
-brew "cline"
 # Generate code for scanning Z-polyhedra
 brew "cloog"
 # Cloudflare Tunnel client (formerly Argo Tunnel)
@@ -654,8 +652,6 @@ brew "ollama"
 brew "open-code-review"
 # Search tool like grep and The Silver Searcher
 brew "ripgrep"
-# AI coding agent, built for the terminal
-brew "opencode"
 # Development kit for the Java programming language
 brew "openjdk@11"
 # Spec-driven development (SDD) for AI coding assistants
@@ -926,20 +922,12 @@ cask "chatgpt"
 cask "chromedriver"
 # Anthropic's official Claude AI desktop app
 cask "claude"
-# Terminal-based AI coding assistant
-cask "claude-code@latest"
 # AI code review CLI
 cask "coderabbit"
-# OpenAI's coding agent that runs in your terminal
-cask "codex"
-# Brings the power of Copilot coding agent directly to your terminal
-cask "copilot-cli"
+# OpenAI's Codex desktop app for managing coding agents
+cask "codex-app"
 # Download and manage your addons and mods
 cask "curseforge"
-# Write, edit, and chat about your code with AI
-cask "cursor"
-# Command-line agent for Cursor
-cask "cursor-cli"
 # Browser for SQLite databases
 cask "db-browser-for-sqlite"
 # Audio and video editor
@@ -963,24 +951,18 @@ cask "figma"
 cask "font-monaspace"
 # Set of tools to manage resources and applications hosted on Google Cloud
 cask "gcloud-cli"
-# Native client for GitHub Copilot
-cask "github-copilot-app"
 # Web browser
 cask "google-chrome"
 # Tools to protect your emails and files
 cask "gpg-suite"
 # Grammarly for desktop
 cask "grammarly-desktop"
-# Extensible coding agent for the terminal
-cask "grok-build"
 # Player for sample libraries, synthesizers and hybrid instruments
 cask "halion-sonic"
 # Desktop automation application
 cask "hammerspoon"
 # Open-source video transcoder
 cask "handbrake-app"
-# Open-source desktop AI agent
-cask "hermes-desktop"
 # Software for iLok devices
 cask "ilok-license-manager"
 # Audio tagger focusing on efficiency
@@ -1132,7 +1114,6 @@ vscode "msjsdiag.vscode-react-native"
 vscode "pkief.material-icon-theme"
 vscode "redhat.vscode-yaml"
 vscode "ritwickdey.liveserver"
-vscode "saoudrizwan.claude-dev"
 vscode "sourcegraph.cody-ai"
 vscode "streetsidesoftware.code-spell-checker"
 vscode "valeryanm.vscode-phpsab"

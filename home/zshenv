@@ -20,18 +20,15 @@ export UV_PYTHON_PREFERENCE=only-managed
 # pip: refuse installs outside a virtualenv (protects system/Homebrew trees)
 export PIP_REQUIRE_VIRTUALENV=1
 
-# OpenCode: skip ~/.claude/skills (plugin synced/ included); leave ~/.agents/skills (typesafe-ai) intact
-export OPENCODE_DISABLE_CLAUDE_CODE_SKILLS=1
-
 # Local mbox (/var/mail/$USER) is not used as a notification channel.
 # Default MAILCHECK=60 makes zsh print "you have mail" for old Postfix bounces.
 # Root: failed local sendmail deliveries (garage SMS gateways, etc.) land there.
 MAILCHECK=0
 # Docker engine is Docker Desktop. Do not set DOCKER_HOST; the Desktop
 # context owns the socket. (Former ZYS-881 Colima pin removed 2026-10-15.)
-# aoe re-injects inline hooks that reference these; Grok skips a hook whose
-# referenced env var is unset. Empty-but-set satisfies Grok, and every aoe
-# hook already treats empty as a no-op. aoe's own sessions override these.
+# aoe re-injects inline hooks that reference these; a hook whose referenced env
+# var is unset is skipped. Empty-but-set satisfies that, and every aoe hook
+# already treats empty as a no-op. aoe's own sessions override these.
 export AOE_INSTANCE_ID="${AOE_INSTANCE_ID-}"
 export AOE_HOOK_BIN="${AOE_HOOK_BIN-}"
 

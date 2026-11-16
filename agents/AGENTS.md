@@ -17,6 +17,7 @@ including No slop and ADHD shape. Off for ADHD shape only: "stop adhd mode" or
 
 <!-- requires: run_command -->
 
+**Supported harnesses: omp and the Codex desktop app, nothing else.** Claude Code, the Codex CLI, Grok Build, OpenCode, Hermes, Gemini CLI, Copilot CLI, Cursor, pi and every other agent tool have been removed from this machine and are unsupported: no hook, skill, config or script is maintained for them. Any mention of them elsewhere in this repo is either a removal note or legacy data that is read, never extended. Add support for a new harness only when the user asks.
 **Command execution is `run_command`, always — every command, including the first of the session.**
 `run_command` is the sole shell runner, with no exceptions and no fallbacks. It is one of the capability
 gateway's listed tools: call it directly by whatever name your harness shows for it (the name ends in
@@ -42,7 +43,7 @@ the channel. Reach a live agent with the write tool: path `agent://<id>` (or
 `agent://all` to broadcast) with the message as `content` — it lands in that agent's
 running session mid-turn; reading `agent://<id>` returns its latest output and
 `history://<id>` its transcript. The agentmux message boards are the fallback for a peer
-that is not omp or not currently running (a Claude Code peer today): one `general` board
+that is not omp or not currently running (none are supported now): one `general` board
 per project plus a global one, subscribe as you begin, and prefer the intercom for
 anything live.
 
@@ -388,7 +389,7 @@ which only the one project that wrote it ever reads.
 - **`run_command` is the only way to run a command — every command, first of the session onward.** See _Command execution_ at the top of this file. Never call the harness `Bash` tool, even for a bare `ls`. <!-- requires: run_command -->
 - **Objectives go through atask.** File, list, and complete every goal (not steps) with `atask`: `atask list` before planning, `atask add "title" --proof "PRESET: SUBJECT" --regression "PRESET: SUBJECT"` when work starts (missing either = draft, never claimable), `atask verify complete` to close. Unregistered cwd files on the unscoped board; attach a project with `atask init` or `--project` when the work belongs to a repo. Parse with `--json` / `ATASK_OUTPUT=json`. Never pass a guessed slug. <!-- requires: atask -->
 - **File an objective with its proof, or don't file it — and the proof is one obvious command.** Drafts are almost never wanted: if the proof cannot be named at filing time, rescope or split until it can; if it still cannot, say so instead of filing. The proof is a single targeted command against a surface that already exists or that the task's own scope creates: `go_test` one package with `name=`, one test file named basically like the task (`js_test` / `py_test` / `playwright_run`), `mise run test:<area>`, one section's suite. Needing a bespoke throwaway script to test is the inside proof the task is mis-scoped. When the expedient test surface is missing, creating that named surface is part of the task's outcome, and the proof names it. Never file a placeholder or a "write a script to verify" proof. <!-- requires: atask -->
-- **Never use `find` (use `fd`), never search from `~` or `/`, and wrap `fd`/`rg` searches of big trees (`~/Developer`, `~/Dropbox`, `~/Library`, ...) in `timeout <=120`.** The same roots are refused for the harness `Glob`/`Grep` tools' `path`. Enforced by `search-scope-guard` across Claude Code, Codex, and Grok (via its Claude-compat hook scan); mirrored in Cursor via an adapter. <!-- requires: run_command -->
+- **Never use `find` (use `fd`), never search from `~` or `/`, and wrap `fd`/`rg` searches of big trees (`~/Developer`, `~/Dropbox`, `~/Library`, ...) in `timeout <=120`.** The same roots are refused for the harness `Glob`/`Grep` tools' `path`. Enforced by `search-scope-guard` in omp and the Codex desktop app. <!-- requires: run_command -->
 - **Never issue `git worktree list`; `wt list` is the only form.** The raw form floods context; `run_command` denies it before the call, and the denial reason names this alternative every time. <!-- requires: run_command -->
 - **A user-named tool that resolves nowhere on disk gets exactly one `run_command` `command -v <name>; <name> --help`, or one `web_search "<name> cli"`, before any Glob/Grep fan-out or question.** Local search cannot resolve a name that is not on disk; ten local searches for a typo cost one session seven turns. Then `clarify-unknown-tool`. <!-- requires: run_command -->
 - **Every `spawn_subagent` / Agent / Task prompt MUST open with a fenced `yaml work_order` block.** Required: `schema_version`, `intent`, `scope.primary_targets`, `scope.allowed_writes`, `acceptance`. Read-only explore still needs a non-empty `allowed_writes` glob plus prose that the worker must not write. Do not generate the YAML with TypeSafe. On deny, resend only `order_ref: <sha>` plus the contents of `example_path` (a `work_order_patch`, or the one missing field). Do not regenerate the task body.
@@ -460,9 +461,9 @@ work_order:
 
 ## Routing (your core job — loose ask → the right worker / skill / primitive)
 
-**Grok Bot Chief of Staff (project work):** User → CoS → PM → specialist. When Zach reports a named product/project bug with evidence (screenshots, URLs, repro), CoS hands it to PM immediately — do not DX or deep-diagnose in CoS chat.
+**Chief of Staff (project work):** User → CoS → PM → specialist. When Zach reports a named product/project bug with evidence (screenshots, URLs, repro), CoS hands it to PM immediately — do not DX or deep-diagnose in CoS chat.
 
-If this turn has no `TypeSafe skill pick:` line, read `~/.agents/hooks/state/skill-picks/<session_id>.json` and open each `paths` SKILL.md before other tools (`GROK_SESSION_ID` / Claude `session_id`).
+If this turn has no `TypeSafe skill pick:` line, read `~/.agents/hooks/state/skill-picks/<session_id>.json` and open each `paths` SKILL.md before other tools (the omp session id).
 
 Every ask: run `prompt-writer` first, then route the scoped order:
 
