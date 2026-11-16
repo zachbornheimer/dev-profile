@@ -83,8 +83,8 @@ Only after the app is up with the `mcp` tag and the log shows the URL:
 #   Prefer: tell the agent the URL and use search_tool/use_tool after the
 #   server is reachable; or project-scoped .grok/config.toml that is gitignored.
 #
-# Claude Code (session example from upstream docs):
-claude mcp add --transport http my-wails-app http://127.0.0.1:9099/mcp
+# omp / Codex: register the URL through the app's MCP config; Claude Code and Grok
+# are removed and unsupported, so no `claude mcp add` example is kept.
 ```
 
 If Grok needs the tools mid-session and the server is not already connected:
