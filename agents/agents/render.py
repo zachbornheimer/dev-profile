@@ -31,7 +31,7 @@ OMP_TOOLS: dict[str, str | None] = {
     "grep": "grep",
     "list": "find",
     "stat": None,  # omp has no metadata tool; glob answers most of it
-    "run_command": "bash",
+    "bash": "bash",
     "run_tests": "bash",
     "worktrunk": "bash",
     "web_search": "web_search",
