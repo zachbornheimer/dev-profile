@@ -66,10 +66,12 @@ DENIAL_PHRASES = re.compile(
 )
 
 STEER_TEXT = (
-    "Call search_tools('command execution') right now before any other tool call. "
+    'Call tool_search { query: "run a shell command" } right now before any other tool call. '
     "The shell tool was denied: halt this round, take no other tool call first, and do not "
-    "retry Bash, sh, zsh or exec or try to work around the denial. Run the command with the "
-    "tool search_tools returns."
+    "retry Bash, sh, zsh or exec or try to work around the denial. omp's shell is the native "
+    "`bash` tool (extended by extensions/bash-rules.ts); `run_command` was retired on "
+    "2026-11-16 and no longer exists. Run the command with `bash`, or with the tool "
+    "tool_search returns."
 )
 
 

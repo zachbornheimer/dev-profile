@@ -1,9 +1,10 @@
-"""bash-tool-steer.py: every Bash tool call is denied with the one instruction
-that routes it to run_command, and every other tool is left alone.
+"""bash-tool-steer.py: every foreign shell tool call (capital `Bash`, `sh`, `zsh`, ...) is
+denied with the one instruction that routes it to omp's native `bash`; lowercase `bash`
+and every other tool are left alone.
 
 The config registers this hook with on_failure = "block", so the deny is a
 block at the harness; the hook itself still exits 0 and stays silent for
-anything that is not Bash.
+anything that is not a foreign shell.
 """
 
 from __future__ import annotations
@@ -12,17 +13,19 @@ import pytest
 from hook_harness import HookRunner
 
 HOOK = "bash-tool-steer.py"
-RUN_COMMAND = "mcp__capability__omp_capability_run_command"
-SEARCH_TOOLS = 'search_tools("command execution")'
+SEARCH_TOOLS = 'tool_search { query: "run a shell command" }'
 
 
 def _bash(command: str = "ls") -> dict:
-    return {"hook_event_name": "PreToolUse", "tool_name": "Bash", "tool_input": {"command": command}}
+    return {
+        "hook_event_name": "PreToolUse",
+        "tool_name": "Bash",
+        "tool_input": {"command": command},
+    }
 
 
 OTHER_TOOLS = (
-    "run_command",
-    "mcp__capability__omp_capability_run_command",
+    "bash",
     "Read",
     "Edit",
     "Write",
@@ -34,13 +37,23 @@ PAYLOAD_CASES: dict[str, tuple[dict | str, bool]] = {
     "bash-ls-denied": (_bash("ls"), True),
     "bash-empty-command-denied": (_bash(""), True),
     "bash-camel-payload-denied": (
-        {"hookEventName": "tool.before", "toolName": "Bash", "toolInput": {"command": "pwd"}},
+        {
+            "hookEventName": "tool.before",
+            "toolName": "Bash",
+            "toolInput": {"command": "pwd"},
+        },
         True,
     ),
     "empty-stdin-silent": ("", False),
 }
 PAYLOAD_CASES.update(
-    {f"{tool}-silent": ({"hook_event_name": "PreToolUse", "tool_name": tool, "tool_input": {}}, False) for tool in OTHER_TOOLS}
+    {
+        f"{tool}-silent": (
+            {"hook_event_name": "PreToolUse", "tool_name": tool, "tool_input": {}},
+            False,
+        )
+        for tool in OTHER_TOOLS
+    }
 )
 
 
@@ -54,8 +67,8 @@ def test_decides(hooks: HookRunner, name: str) -> None:
     if denies:
         assert run.decision == "deny"
         reason = (run.output or {})["hookSpecificOutput"]["permissionDecisionReason"]
-        assert RUN_COMMAND in reason
-        assert "Bash is disabled; use run_command." in reason
+        assert "use omp's native `bash` tool" in reason
+        assert "retired" in reason
         assert SEARCH_TOOLS in reason
     else:
         assert run.stdout == ""

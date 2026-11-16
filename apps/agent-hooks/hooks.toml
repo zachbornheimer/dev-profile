@@ -112,7 +112,7 @@ name = "pretooluse-bash-tool-steer"
 events = ["tool.before"]
 command = ["$HOME/.agents/hooks/bash-tool-steer.py"]
 timeout = "15s"
-matcher = "Bash|bash|sh|zsh|shell|terminal|exec|run_terminal_cmd|run_terminal_command"
+matcher = "Bash|sh|zsh|shell|terminal|exec|run_terminal_cmd|run_terminal_command"
 on_failure = "block"
 
 [[hooks]]

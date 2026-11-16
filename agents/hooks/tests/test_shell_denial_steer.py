@@ -10,9 +10,7 @@ import pytest
 from hook_harness import HookRunner
 
 PY_HOOK = "shell-denial-steer.py"
-STEER_SENTENCE = (
-    "Call search_tools('command execution') right now before any other tool call."
-)
+STEER_SENTENCE = 'Call tool_search { query: "run a shell command" } right now before any other tool call.'
 
 
 def _denied(tool_name: str = "Bash") -> dict:
