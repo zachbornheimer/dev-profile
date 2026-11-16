@@ -124,7 +124,7 @@ runs the annotator first (declared input, no cycles).
    marked `cannot-run` with reason). Red test: a fix whose "failing" test passes is
    dropped.
 
-## File plan (capability-replicas/mastra/src/loop/learning/)
+## File plan (mastra/src/loop/learning/)
 
 - `autoresearch/workflow.ts` — the DAG above, reading as the flowchart.
 - `autoresearch/` one file per arm; sibling `questions/*.yaml` where the arm asks the

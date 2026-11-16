@@ -19,7 +19,7 @@ Accepted 2026-10-30. Replaces the single-agent Mastra `learn-from-transcript` ti
 
 - **Model:** `@slow` (`google-antigravity/gemini-4-argon:auto` with fallback chain)
 - **Environment:** `LEARNER=1`, `AGENTMUX_NESTED_RUN=1`
-- **Pass 1 Prompt:** `@<handoff-dir>/<timestamp>-omp-<session_id>-slow.prompt.md` (`src/workflows/learn-from-transcript/analyze.yaml` with `{path}` replaced by `~/.local/share/capability-replicas/annotated/<conversation>.annotated.json`).
+- **Pass 1 Prompt:** `@<handoff-dir>/<timestamp>-omp-<session_id>-slow.prompt.md` (`src/workflows/learn-from-transcript/analyze.yaml` with `{path}` replaced by `~/.local/share/omp/transcripts/annotated/<conversation>.annotated.json`).
 - **Pass 2 Queued Follow-Up (`/queue`):**
   ```text
   /queue I feel like your answer is superficial. For example, you didn't try and identify root causes.

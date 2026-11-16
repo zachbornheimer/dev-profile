@@ -31,7 +31,7 @@ The user operates multiple isolated Linear accounts (at minimum: **Personal** an
 
    | Target Path / Scope                                                                               | Required Linear Account Class                                                                                        |
    | ------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-   | `~/Developer/Personal/*` (`capability-replicas/mastra`, `agentmux`, `atask`, `dev-profile`, etc.) | **Personal**                                                                                                         |
+   | `~/Developer/Personal/*` (`mastra`, `agentmux`, `atask`, `dev-profile`, etc.) | **Personal**                                                                                                         |
    | `~/.agents/*`, `~/.config/agent-hooks/*`, `~/.claude/*`, `~/.omp/*`                               | **Personal**                                                                                                         |
    | `~/Developer/Software-Automation-Holdings/*` or `~/Dropbox/Zysys/Software/*`                      | **Work / SAH**                                                                                                       |
    | Mixed Personal + Work findings in one session                                                     | Keep only reusable Personal tooling/harness defects for Personal Linear; split or ask before filing Work repo issues |
@@ -43,7 +43,7 @@ The user operates multiple isolated Linear accounts (at minimum: **Personal** an
    - Record the workspace slug from returned URLs (`https://linear.app/<workspace-slug>/...`).
 
 3. **Verify account match or stop:**
-   - Confirm that the connected workspace's teams and projects match the expected account class (e.g., **Linear Personal** for `capability-replicas/mastra`, `agentmux`, `dev-profile`, or harness tooling).
+   - Confirm that the connected workspace's teams and projects match the expected account class (e.g., **Linear Personal** for `mastra`, `agentmux`, `dev-profile`, or harness tooling).
    - If the connected MCP points to Work/SAH when the targets are in `~/Developer/Personal/*` (or vice versa), **STOP** before creating or updating any issue. Report the connected workspace identity vs. the required account class and ask the user to switch Linear auth or confirm the target workspace.
    - **GraphQL API Fallback (only when MCP is down/unmounted):** Use `curl` via `run_command` against `https://api.linear.app/graphql`. Before any mutation, query `{ viewer { name email organization { name urlKey } } teams { nodes { id key name } } }` to verify the API key's workspace `urlKey` matches the required account class. Never write Personal issues using a Work/SAH API key.
 
@@ -137,9 +137,9 @@ Follow the Linear Method: **write issues, not user stories**, use **imperative e
 
 ### When to use a Single Issue vs. Parent + Child Sub-Issues:
 
-- **Single Atomic Issue:** The root cause is resolved by a coherent change in **one repository** under **one invariant** verified by **one** **`RED -> GREEN`** **check** (e.g., documenting and enforcing `wait_seconds <= 25` on `agentmux_capability_bash` in `capability-replicas/mastra`).
+- **Single Atomic Issue:** The root cause is resolved by a coherent change in **one repository** under **one invariant** verified by **one** **`RED -> GREEN`** **check** (e.g., documenting and enforcing `wait_seconds <= 25` on `agentmux_capability_bash` in `mastra`).
 - **Parent + Atomic Child Sub-Issues (`parentId`):** Use whenever a forensic causal chain requires:
-  - Changes across **multiple repositories** (e.g., `capability-replicas/mastra` + `~/.agents/hooks`), **OR**
+  - Changes across **multiple repositories** (e.g., `mastra` + `~/.agents/hooks`), **OR**
   - Multiple distinct **layers** (`tool-wiring` + `harness-hook` + `instructions`), **OR**
   - A staged **additive migration** (1. build owner/capability → 2. migrate callers/hooks → 3. enforce lint/type guard that makes the old path uncallable).
 
@@ -173,7 +173,7 @@ Strip the following from all ticket bodies before filing:
 - Personal calendar/working-hours rules ("no work on weekends", "morning pass").
 - Workflow intake boilerplate ("filed by Stage 2 PM agent from `/queue` pass"). Keep provenance to a compact `Forensic source:` line under `## Evidence & links`.
 - Hedging and deliberation prose ("maybe we should consider…", "it might be nice to…"). Put deterministic work in Lane 1 and genuine forks in Lane 2 (`Experiment Needed`).
-- Ephemeral file paths inside verification commands (never write a check that greps `~/.local/share/capability-replicas/annotated/*.json` or `AGENTS.md`).
+- Ephemeral file paths inside verification commands (never write a check that greps `~/.local/share/omp/transcripts/annotated/*.json` or `AGENTS.md`).
 
 ### Template A: Lane 1 — Atomic Bug / Tech-Debt / Harness Fix (Standalone or Child Sub-Issue)
 
@@ -202,7 +202,7 @@ Strip the following from all ticket bodies before filing:
 
 ## Target & blast radius
 
-- **Repository / Owner:** `<repo path, e.g. ~/Developer/Personal/capability-replicas/mastra>`
+- **Repository / Owner:** `<repo path, e.g. ~/Developer/Personal/mastra>`
 - **Layer / Fix kind:** `<layer>` · `<fix_kind>`
 - **Touch:** `<exact file:line paths to edit>`
 - **Do not touch:** `<files/modules that must remain unchanged>`
