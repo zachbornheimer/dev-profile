@@ -1,4 +1,8 @@
-"""Decodes a Claude Code JSONL transcript into transcript events."""
+"""Decodes legacy Claude-format JSONL transcripts into transcript events.
+
+Claude Code is removed and unsupported. This decoder stays only because omp's
+decoder reuses its prompt prefixes and old transcripts still need reading.
+"""
 
 from __future__ import annotations
 

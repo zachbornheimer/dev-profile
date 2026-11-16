@@ -25,9 +25,8 @@ import os
 import re
 import shlex
 import sys
-from pathlib import Path
-
 import tomllib
+from pathlib import Path
 
 # HookSpec fields in src/config.rs. Anything else (enabled, async, script, policy, ...) is ignored.
 KNOWN_KEYS = {
@@ -107,6 +106,8 @@ KNOWN_EVENTS = {
     "UserPromptExpansion",
 }
 # AgentId::parse accepts these aliases, case-insensitively, after trimming.
+# Only omp and codex are supported here; the others are accepted by the binary
+# parser for removed harnesses, so the audit tolerates them but never installs them.
 AGENTS = {
     "claude",
     "claude-code",
