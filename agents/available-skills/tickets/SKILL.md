@@ -77,12 +77,12 @@ transfer. Filing into the wrong account is a real failure mode.
 Linear is reached only through whatever MCP server **this agent harness** has
 connected and authenticated:
 
-| Fact                                                                       | Implication                                                                |
-| -------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| Grok / Claude Code / Cursor / etc. may each wire Linear differently        | Never assume the same workspace as a previous session or another tool      |
-| OAuth tokens live per MCP connection                                       | The connected server is the only workspace you can see                     |
-| `linear-sah` may be enabled in one harness and disabled in another         | Absence of tools ≠ “no tickets needed” — draft for paste or switch harness |
-| Server name may be `linear-sah`, `linear-personal`, plugin-qualified, etc. | Discover via tool search; don’t hardcode a server prefix                   |
+| Fact                                                                                                 | Implication                                                                |
+| ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| omp and the Codex desktop app may wire Linear differently (Grok, Claude Code and Cursor are removed) | Never assume the same workspace as a previous session or another tool      |
+| OAuth tokens live per MCP connection                                                                 | The connected server is the only workspace you can see                     |
+| `linear-sah` may be enabled in one harness and disabled in another                                   | Absence of tools ≠ “no tickets needed” — draft for paste or switch harness |
+| Server name may be `linear-sah`, `linear-personal`, plugin-qualified, etc.                           | Discover via tool search; don’t hardcode a server prefix                   |
 
 **Never hardcode a team** (including `Zysys`). **Never reuse labels/projects** remembered from another workspace.
 

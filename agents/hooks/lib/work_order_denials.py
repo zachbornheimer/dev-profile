@@ -1,6 +1,6 @@
 """The reasons work-order-gate denies with — compact JSON a caller can act on.
 
-Key order is load-bearing: Grok truncates deny reasons from the END at
+Key order is load-bearing: some harnesses (Grok, now removed) truncated deny reasons from the END at
 ~1KB (session 01a0babe lost the repair path when order_ref sat after a
 long example). The fields a caller needs come first, and they stay small.
 
@@ -22,7 +22,7 @@ from typing import Any
 
 from work_order_repair import PENDING_SUFFIX, has_main_fence, order_ref_of
 
-# Grok keeps about the first 1KB of a deny reason and drops the rest.
+# Truncating harnesses keep about the first 1KB of a deny reason and drop the rest.
 TRUNCATION_BUDGET = 1024
 
 REQUIRED_FIELDS = (

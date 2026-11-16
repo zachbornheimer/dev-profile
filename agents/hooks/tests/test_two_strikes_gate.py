@@ -87,10 +87,10 @@ FIXTURE_CASES = (
         },
     ),
     FixtureCase(
-        "two-strikes-edit-grok-deny.json",
+        "two-strikes-edit-camelcase-deny.json",
         DENY,
         {
-            "edit-deny-history-hgtest-ts-edit-grok.tsv": [
+            "edit-deny-history-hgtest-ts-edit-camel.tsv": [
                 "1000000000\t/tmp/stuck.go\tfail",
                 "1000000001\t/tmp/stuck.go\tfail",
             ]

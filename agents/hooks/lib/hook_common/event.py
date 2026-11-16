@@ -1,4 +1,4 @@
-"""One hook invocation's stdin payload, in Claude Code or Grok shape."""
+"""One hook invocation's stdin payload, in snake_case or camelCase shape (the removed Claude Code and Grok shapes)."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from typing import Any
 
 RUN_COMMAND_TOOL = re.compile(r"^mcp__[\w-]*run_command$")
 
-# Grok tool names normalized to Claude Code's, so one `match` serves both.
+# camelCase-payload tool names normalized to the snake_case names, so one `match` serves both.
 TOOL_NAME_ALIASES = {
     # run_command is the only shell runner the instructions allow, so the
     # prefix harnesses use for the capability must normalize like Bash.

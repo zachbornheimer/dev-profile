@@ -45,7 +45,7 @@ def test_port_appends_to_session_counter(hooks: HookRunner) -> None:
 
 
 PAYLOAD_CASES: dict[str, dict | str] = {
-    "grok-camelcase": {
+    "camelcase": {
         "sessionId": "s1",
         "toolName": "search_replace",
         "toolInput": {"file_path": "/x"},

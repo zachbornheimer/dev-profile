@@ -147,9 +147,9 @@ def test_non_bash_tool_is_untouched(hooks: HookRunner) -> None:
 #
 # Codex sends the same snake_case shape as Claude Code (tool_name /
 # tool_input / cwd), so it needs no adapter — covered by the CASES above via
-# the ordinary `payload()` shape. Grok sends camelCase with its own tool
-# name for Bash (`run_terminal_command`); hook_common's TOOL_NAME_ALIASES
-# and HookEvent.field's snake//camel fallback handle it directly. Cursor's
+# the ordinary `payload()` shape. A camelCase payload with its own tool
+# name for Bash (`run_terminal_command`) is normalized by hook_common's
+# TOOL_NAME_ALIASES and HookEvent.field's snake//camel fallback. Cursor's
 # beforeShellExecution payload is shaped differently (`command`/`cwd` at
 # the top level, no tool_name/tool_input at all) and returns a different
 # response shape (`{"permission": ...}` vs Claude's hookSpecificOutput), so
@@ -157,7 +157,7 @@ def test_non_bash_tool_is_untouched(hooks: HookRunner) -> None:
 # adapter instead of the shared entry point.
 
 
-def grok_payload(case: Case) -> dict:
+def camel_payload(case: Case) -> dict:
     return {
         "hookEventName": "pre_tool_use",
         "toolName": "run_terminal_command",
@@ -166,23 +166,21 @@ def grok_payload(case: Case) -> dict:
     }
 
 
-GROK_SHAPE_CASES = (
+CAMEL_SHAPE_CASES = (
     Case("find-plain-deny", "find ~ -name x", DENY),
     Case("fd-repo-subpath-allow", "fd x ~/Developer/Personal/dotfiles", SILENT),
     Case("fd-developer-no-timeout-deny", "fd x ~/Developer", DENY),
 )
 
 
-@pytest.mark.parametrize("case", GROK_SHAPE_CASES, ids=_case_id)
-def test_grok_camelcase_payload_shape(hooks: HookRunner, case: Case) -> None:
-    """Grok's PreToolUse payload (camelCase, run_terminal_command) decides identically.
+@pytest.mark.parametrize("case", CAMEL_SHAPE_CASES, ids=_case_id)
+def test_camelcase_payload_shape(hooks: HookRunner, case: Case) -> None:
+    """A camelCase PreToolUse payload (run_terminal_command) decides identically.
 
-    Grok reaches this same script directly: ~/.grok/config.toml sets
-    [compat.claude] hooks = true, which scans ~/.claude/settings.json's
-    PreToolUse/Bash matcher (search-scope-guard.py is registered there) —
-    no separate Grok registration is needed.
+    hook_common reads camelCase and snake_case payloads through the same
+    aliases, so no separate adapter is needed.
     """
-    run = hooks.run_payload(HOOK, grok_payload(case))
+    run = hooks.run_payload(HOOK, camel_payload(case))
     assert_clean_run(run)
     assert run.decision == case.expected, run.log
 

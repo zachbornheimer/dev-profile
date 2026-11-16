@@ -61,6 +61,9 @@ harnesses:
 Masters name these ids. A renderer maps each to its harness's own tool; a
 capability a harness lacks is reported as missing, never silently dropped.
 
+The Claude Code column is historical naming only. Claude Code is removed and
+unsupported; only the omp and Mastra columns are rendered.
+
 | Canonical                  | Meaning                        | omp              | Mastra                                         | Claude Code              |
 | -------------------------- | ------------------------------ | ---------------- | ---------------------------------------------- | ------------------------ |
 | `read`                     | read a file or range           | `read`           | `agentmux_capability_read`                     | `Read`                   |

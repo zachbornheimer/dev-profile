@@ -10,7 +10,9 @@ import pytest
 from hook_harness import HookRunner
 
 PY_HOOK = "shell-denial-steer.py"
-STEER_SENTENCE = "Call search_tools('command execution') right now before any other tool call."
+STEER_SENTENCE = (
+    "Call search_tools('command execution') right now before any other tool call."
+)
 
 
 def _denied(tool_name: str = "Bash") -> dict:
@@ -35,7 +37,7 @@ PAYLOAD_CASES: dict[str, tuple[dict | str, bool]] = {
     "sh-denied-steers": (_denied("sh"), True),
     "zsh-denied-steers": (_denied("zsh"), True),
     "exec-denied-steers": (_denied("exec"), True),
-    "grok-terminal-denied-steers": (
+    "camelcase-terminal-denied-steers": (
         {
             "hookEventName": "PermissionDenied",
             "toolName": "run_terminal_command",
@@ -44,7 +46,10 @@ PAYLOAD_CASES: dict[str, tuple[dict | str, bool]] = {
         True,
     ),
     "denial-in-failure-error-steers": (
-        _failed("Bash", "Claude requested permissions to use Bash, but you haven't granted it yet."),
+        _failed(
+            "Bash",
+            "Claude requested permissions to use Bash, but you haven't granted it yet.",
+        ),
         True,
     ),
     "permission-denied-error-steers": (_failed("Bash", "permission denied"), True),
@@ -56,10 +61,17 @@ PAYLOAD_CASES: dict[str, tuple[dict | str, bool]] = {
         _failed("zsh", "The user denied this command: zsh"),
         True,
     ),
-    "failed-command-not-denied-silent": (_failed("Bash", "grep: no matches found"), False),
+    "failed-command-not-denied-silent": (
+        _failed("Bash", "grep: no matches found"),
+        False,
+    ),
     "non-shell-tool-denied-silent": (_denied("Read"), False),
     "success-event-silent": (
-        {"hook_event_name": "PostToolUse", "tool_name": "Bash", "tool_input": {"command": "ls"}},
+        {
+            "hook_event_name": "PostToolUse",
+            "tool_name": "Bash",
+            "tool_input": {"command": "ls"},
+        },
         False,
     ),
     "empty-stdin-silent": ("", False),

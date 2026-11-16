@@ -1,5 +1,5 @@
 {
-  "sessionId": "hgtest-ts-edit-grok",
+  "sessionId": "hgtest-ts-edit-camel",
   "hookEventName": "pre_tool_use",
   "toolName": "search_replace",
   "toolInput": {

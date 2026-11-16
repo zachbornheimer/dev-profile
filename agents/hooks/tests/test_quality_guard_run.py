@@ -1,5 +1,5 @@
 """quality-guard-run.py: no run.sh cases exist for this launcher, so these
-cover its three branches directly (Grok dedupe, binary-not-found, and
+cover its branches directly (binary-not-found and
 delegating argv/exit code to the resolved binary).
 """
 

@@ -47,7 +47,9 @@ SESSION_SPLIT_CONFIDENCE_FLOOR = 0.50
 SESSION_RELATION_TOP_LEVEL = 2
 SESSION_RELATION_LEVELS = (
     {
-        "what": ("Same work: continue, correct, first ask, or small talk about `in_flight`."),
+        "what": (
+            "Same work: continue, correct, first ask, or small talk about `in_flight`."
+        ),
         "examples": [
             "keep going on the current task",
             "fix that typo in the in-flight change",
@@ -90,7 +92,7 @@ ALWAYS_CLASSIFY_KINDS = frozenset(
         "subagent",
     }
 )
-SKILL_ROOTS = (".agents/skills", ".agents/available-skills", ".grok/skills")
+SKILL_ROOTS = (".agents/skills", ".agents/available-skills")
 SELECTOR_GROUPS = (
     ("bar", ("review-bar",), ("review-bar",)),
     (
@@ -390,7 +392,9 @@ REASON_FILE_LOSS_RECORD_GUARD = "loss record blocks trash"
 # on the flag_loss_record question via `state`, it never decides the disposition
 # itself; only the model's own Noul answer, gated by FILE_FLAG_FLOORS["loss_record"],
 # does that.
-FILE_LOSS_RECORD_FILENAME_TOKENS = frozenset({"missing", "lost", "unrecovered", "coverage"})
+FILE_LOSS_RECORD_FILENAME_TOKENS = frozenset(
+    {"missing", "lost", "unrecovered", "coverage"}
+)
 # F1/F2 (Zach, 2026-09-23): both forks resolved to a human-in-the-loop default rather
 # than an automatic move/archive, until the deferred question is answered.
 # F1: evidence for a project with a Linear home uploads there directly

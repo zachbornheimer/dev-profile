@@ -1,7 +1,7 @@
 """Hook entry points. Both guarantee fail-open: a crash never blocks the tool call.
 
 - ``run_hook(name, decide)`` owns stdin, logging, and stdout for a hook
-  that speaks the Claude Code decision protocol.
+  that speaks the hook decision protocol (originally Claude Code's; Claude Code is removed).
 - ``run_fail_open(name, main)`` guards an entry point that owns its own
   protocol (a CLI mode, a WorktreeCreate path, a Cursor response shape).
 """
@@ -86,7 +86,9 @@ def _hook_log(hook_name: str) -> HookLog:
     return HookLog(hook_name, HookSettings.from_env(), Clock.from_env())
 
 
-def run_hook(hook_name: str, decide: Callable[[HookEvent], Decision | None]) -> NoReturn:
+def run_hook(
+    hook_name: str, decide: Callable[[HookEvent], Decision | None]
+) -> NoReturn:
     """The entry point for a decision hook. Always exits 0.
 
     ``decide`` returns None to stay silent without logging, or a Decision.

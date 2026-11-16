@@ -34,7 +34,7 @@ from hook_common import Decision, HookEvent, run_hook
 HOOK_NAME = "bash-tool-steer"
 
 # Every harness spelling of the dead surface. Lowercase `bash` is what omp
-# and Grok emit; `sh`/`zsh`/`shell`/`terminal`/`exec`/`run_terminal_cmd` are
+# emits (Grok is removed and unsupported); `sh`/`zsh`/`shell`/`terminal`/`exec`/`run_terminal_cmd` are
 # the spellings shell-denial-steer already recovers from after the fact, so
 # this hook refuses them before they run. hook_common aliases some of these
 # to Bash, which is why the check reads raw_tool_name: the alias of the
@@ -59,7 +59,7 @@ DENY_REASON = (
     "not even for a bare `ls`. Run every command through "
     "mcp__capability__agentmux_capability_run_command "
     "(harnesses that prefix it show `mcp__capability__agentmux_capability_run_command`). "
-    "If that tool is not in your tool list, call search_tools(\"command execution\") "
+    'If that tool is not in your tool list, call search_tools("command execution") '
     "right then, before any other tool call. A failing run_command is fixed by "
     "rephrasing the command, never by switching shells."
 )

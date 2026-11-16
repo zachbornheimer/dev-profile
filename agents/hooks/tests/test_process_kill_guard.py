@@ -174,26 +174,26 @@ def test_subagent_call_is_still_denied(hooks: HookRunner) -> None:
     assert run.decision == DENY, run.log
 
 
-def test_grok_camelcase_payload_denied(hooks: HookRunner) -> None:
-    grok = {
+def test_camelcase_payload_denied(hooks: HookRunner) -> None:
+    camel = {
         "hookEventName": "pre_tool_use",
         "toolName": "run_terminal_command",
         "toolInput": {"command": 'pkill -f "wt step commit"'},
         "cwd": REPO_CWD,
     }
-    run = hooks.run_payload(HOOK, grok)
+    run = hooks.run_payload(HOOK, camel)
     assert_clean_run(run)
     assert run.decision == DENY, run.log
 
 
-def test_grok_camelcase_payload_allows_wrapper(hooks: HookRunner) -> None:
-    grok = {
+def test_camelcase_payload_allows_wrapper(hooks: HookRunner) -> None:
+    camel = {
         "hookEventName": "pre_tool_use",
         "toolName": "run_terminal_command",
         "toolInput": {"command": f"{WRAPPER} -f vite"},
         "cwd": REPO_CWD,
     }
-    run = hooks.run_payload(HOOK, grok)
+    run = hooks.run_payload(HOOK, camel)
     assert_clean_run(run)
     assert run.decision == SILENT, run.log
 

@@ -16,7 +16,7 @@ Compatibility with hook-common.sh (both run side by side during the port):
   - the same HC_* environment overrides (state dir, timeouts, log size,
     reap age/throttle, pinned clock, pinned file mtime, pinned sha256)
   - byte-identical decision JSON to ``jq -n`` (2-space indent, raw UTF-8)
-  - Claude Code snake_case and Grok camelCase payload fields
+  - snake_case and camelCase payload fields (Claude Code and Grok, whose shapes these were, are removed)
 
 Modules, top-down: runner (entry points) -> decision / event (the
 protocol) -> hook_log / settings / clock (state and time) -> shell_command,
