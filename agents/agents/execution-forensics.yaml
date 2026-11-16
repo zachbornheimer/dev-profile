@@ -1,4 +1,4 @@
-# Converted from /Users/zbornheimer/Developer/Personal/.worktrees/mastra-feat-mastra-reads-masters/mastra/src/agents/execution-forensics/execution-forensics.yaml by import_mastra.py.
+# Converted from mastra/src/agents/execution-forensics/execution-forensics.yaml by import_mastra.py.
 schema: agents/v1
 name: execution-forensics
 description: 'Diagnoses one agent execution from its own records: reconstructs what
