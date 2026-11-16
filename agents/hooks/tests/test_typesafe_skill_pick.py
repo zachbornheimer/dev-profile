@@ -14,7 +14,6 @@ import time
 import unittest
 from pathlib import Path
 from unittest import mock
-from urllib.parse import quote
 
 HOOK_PATH = Path(__file__).resolve().parents[1] / "typesafe-skill-pick.py"
 
@@ -26,15 +25,6 @@ def load_hook():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
-
-
-HARNESS_ENV_KEYS = (
-    "GROK_SESSION_ID",
-    "GROK_WORKSPACE_ROOT",
-    "CLAUDE_PROJECT_DIR",
-    "CLAUDE_CODE_ENTRYPOINT",
-    "CODEX_HOME",
-)
 
 
 class TypesafeSkillPickTests(unittest.TestCase):
@@ -70,7 +60,7 @@ class TypesafeSkillPickTests(unittest.TestCase):
                 stack.enter_context(patcher)
             if clear_harness_env:
                 stack.enter_context(mock.patch.dict(os.environ, {}, clear=False))
-                for key in HARNESS_ENV_KEYS:
+                for key in ("PI_SESSION_ID", "CODEX_HOME"):
                     os.environ.pop(key, None)
             code = self.hook.main()
         return code, stdout.getvalue()
@@ -148,11 +138,9 @@ class TypesafeSkillPickTests(unittest.TestCase):
         self.assertIn("Do not call the Skill tool", context)
 
     def _without_grok_env(self):
-        clear_keys = ("GROK_SESSION_ID", "GROK_WORKSPACE_ROOT")
         patched = mock.patch.dict(os.environ, {}, clear=False)
         patched.start()
-        for key in clear_keys:
-            os.environ.pop(key, None)
+        os.environ.pop("PI_SESSION_ID", None)
         return patched
 
     def test_split_true_does_not_block_and_emits_skill_context(self) -> None:
@@ -305,58 +293,6 @@ class TypesafeSkillPickTests(unittest.TestCase):
             "",
         )
 
-    def test_extract_in_flight_reads_grok_summary(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            home = Path(tmp)
-            cwd = "/tmp/project"
-            session_id = "sess-abc"
-            summary_path = (
-                home
-                / ".grok"
-                / "sessions"
-                / quote(cwd, safe="")
-                / session_id
-                / "summary.json"
-            )
-            summary_path.parent.mkdir(parents=True)
-            summary_path.write_text(
-                json.dumps(
-                    {
-                        "generated_title": "Sync Mac licks to iPad",
-                        "last_turn_summary": "turn work in progress",
-                        "session_summary": "also ignored when turn present",
-                    }
-                ),
-                encoding="utf-8",
-            )
-            with mock.patch.object(self.hook.Path, "home", return_value=home):
-                got = self.hook.extract_in_flight(
-                    {"cwd": cwd, "session_id": session_id, "prompt": "x"}
-                )
-            self.assertEqual(got, "turn work in progress")
-
-    def test_extract_in_flight_falls_back_to_last_turn_summary(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            home = Path(tmp)
-            cwd = "/tmp/other"
-            session_id = "sess-def"
-            summary_path = (
-                home
-                / ".grok"
-                / "sessions"
-                / quote(cwd, safe="")
-                / session_id
-                / "summary.json"
-            )
-            summary_path.parent.mkdir(parents=True)
-            summary_path.write_text(
-                json.dumps({"last_turn_summary": "turn summary only"}),
-                encoding="utf-8",
-            )
-            with mock.patch.object(self.hook.Path, "home", return_value=home):
-                got = self.hook.extract_in_flight({"CWD": cwd, "sessionId": session_id})
-            self.assertEqual(got, "turn summary only")
-
     def test_extract_in_flight_reads_claude_transcript_tail(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             transcript = Path(tmp) / "transcript.jsonl"
@@ -436,59 +372,18 @@ class TypesafeSkillPickTests(unittest.TestCase):
 
     def test_detect_harness_from_env(self) -> None:
         cases = [
-            ({"GROK_SESSION_ID": "abc"}, "grok"),
-            ({"GROK_WORKSPACE_ROOT": "/tmp"}, "grok"),
-            ({"CLAUDE_PROJECT_DIR": "/tmp"}, "claude"),
-            ({"CLAUDE_CODE_ENTRYPOINT": "cli"}, "claude"),
+            ({"PI_SESSION_ID": "abc"}, "omp"),
             ({"CODEX_HOME": "/tmp"}, "codex"),
+            ({}, "unknown"),
         ]
-        clear_keys = (
-            "GROK_SESSION_ID",
-            "GROK_WORKSPACE_ROOT",
-            "CLAUDE_PROJECT_DIR",
-            "CLAUDE_CODE_ENTRYPOINT",
-            "CODEX_HOME",
-        )
+        clear_keys = ("PI_SESSION_ID", "CODEX_HOME")
         for env, want in cases:
             with self.subTest(env=env):
-                cleaned = dict.fromkeys(clear_keys, "")
-                cleaned.update(env)
-                with mock.patch.dict(os.environ, cleaned, clear=False):
+                with mock.patch.dict(os.environ, env, clear=False):
                     for key in clear_keys:
                         if key not in env:
                             os.environ.pop(key, None)
                     self.assertEqual(self.hook.detect_harness({}), want)
-
-    def test_detect_harness_from_grok_summary_path(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            home = Path(tmp)
-            cwd = "/tmp/project"
-            session_id = "sess-abc"
-            summary_path = (
-                home
-                / ".grok"
-                / "sessions"
-                / quote(cwd, safe="")
-                / session_id
-                / "summary.json"
-            )
-            summary_path.parent.mkdir(parents=True)
-            summary_path.write_text("{}", encoding="utf-8")
-            clear_keys = (
-                "GROK_SESSION_ID",
-                "GROK_WORKSPACE_ROOT",
-                "CLAUDE_PROJECT_DIR",
-                "CLAUDE_CODE_ENTRYPOINT",
-                "CODEX_HOME",
-            )
-            with mock.patch.dict(os.environ, {}, clear=False):
-                for key in clear_keys:
-                    os.environ.pop(key, None)
-                with mock.patch.object(self.hook.Path, "home", return_value=home):
-                    got = self.hook.detect_harness(
-                        {"cwd": cwd, "session_id": session_id}
-                    )
-            self.assertEqual(got, "grok")
 
     def test_pick_skill_passes_in_flight_flag(self) -> None:
         captured: dict = {}
@@ -590,7 +485,7 @@ class TypesafeSkillPickTests(unittest.TestCase):
         self.assertNotIn("Ignore this if it does not fit.", context)
         self.assertNotIn("...", context)
 
-    def test_slow_agentmux_uses_cached_context_and_emits_before_deadline(self) -> None:
+    def test_slow_history_uses_cached_context_and_emits_before_deadline(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             cache_dir = Path(tmp) / "routing-context"
             cache_dir.mkdir()
@@ -620,7 +515,7 @@ class TypesafeSkillPickTests(unittest.TestCase):
             )
             stdout = io.StringIO()
 
-            def slow_agentmux(_session_id, _harness):
+            def slow_history(*_args):
                 time.sleep(2.1)
                 return {"task": "late task"}
 
@@ -635,16 +530,13 @@ class TypesafeSkillPickTests(unittest.TestCase):
             with (
                 mock.patch.object(self.hook, "read_stdin_json", return_value=payload),
                 mock.patch.object(self.hook, "detect_harness", return_value="claude"),
-                mock.patch.object(
-                    self.hook, "durable_context", side_effect=slow_agentmux
-                ),
+                mock.patch("skill_conversation.history", side_effect=slow_history),
                 mock.patch.object(
                     self.hook,
                     "ROUTING_CONTEXT_CACHE_DIR",
                     cache_dir,
                     create=True,
                 ),
-                mock.patch("skill_conversation.history", return_value=[]),
                 mock.patch.object(self.hook, "pick_skill", picked),
                 mock.patch.object(self.hook, "write_skill_pick"),
                 mock.patch.object(self.hook, "log"),

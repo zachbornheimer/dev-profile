@@ -15,7 +15,6 @@ import sys
 import time
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from urllib.parse import quote
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
 
@@ -105,25 +104,7 @@ def extract_in_flight(payload):
         found = last_assistant_text(transcript_path.strip())
         if found:
             return found
-    cwd, session = (
-        payload.get("cwd") or payload.get("CWD"),
-        payload.get("session_id") or payload.get("sessionId"),
-    )
-    if not cwd or not session:
-        return ""
-    try:
-        body = json.loads(
-            (
-                Path.home()
-                / ".grok/sessions"
-                / quote(str(cwd), safe="")
-                / str(session)
-                / "summary.json"
-            ).read_text()
-        )
-    except (OSError, TypeError, ValueError):
-        return ""
-    return str(body.get("last_turn_summary") or "").strip()
+    return ""
 
 
 def build_context(payload, prompt, in_flight):
@@ -151,39 +132,12 @@ def build_context(payload, prompt, in_flight):
             str(session_id),
             harness,
             prompt,
-            durable=lambda: durable_context(session_id, harness),
+            durable=dict,
             cache_dir=ROUTING_CONTEXT_CACHE_DIR,
             wait_seconds=CONTEXT_OBSERVATION_SECONDS,
         )
     )
     return {key: value for key, value in context.items() if value}
-
-
-def durable_context(session_id, harness):
-    if not session_id or not shutil.which("agentmux"):
-        return {}
-    try:
-        result = subprocess.run(
-            [
-                "agentmux",
-                "goals",
-                "--session",
-                f"{harness}:{session_id}",
-                "prose",
-                "--with-progress",
-                "--json",
-            ],
-            capture_output=True,
-            text=True,
-            timeout=CONTEXT_OBSERVATION_SECONDS,
-            check=False,
-        )
-        if result.returncode != 0:
-            return {}
-        value = json.loads(result.stdout)
-        return value if isinstance(value, dict) else {}
-    except (OSError, TypeError, ValueError, subprocess.TimeoutExpired):
-        return {}
 
 
 def _suggestion_item(raw):
@@ -376,28 +330,10 @@ def pick_skill(prompt, *, in_flight="", context=None, run=subprocess.run):
 
 
 def detect_harness(payload):
-    if os.environ.get("GROK_SESSION_ID") or os.environ.get("GROK_WORKSPACE_ROOT"):
-        return "grok"
-    if os.environ.get("CLAUDE_PROJECT_DIR") or os.environ.get("CLAUDE_CODE_ENTRYPOINT"):
-        return "claude"
+    if os.environ.get("PI_SESSION_ID"):
+        return "omp"
     if os.environ.get("CODEX_HOME"):
         return "codex"
-    cwd, session = (
-        payload.get("cwd") or payload.get("CWD"),
-        payload.get("session_id") or payload.get("sessionId"),
-    )
-    if (
-        cwd
-        and session
-        and (
-            Path.home()
-            / ".grok/sessions"
-            / quote(str(cwd), safe="")
-            / str(session)
-            / "summary.json"
-        ).is_file()
-    ):
-        return "grok"
     return "unknown"
 
 
