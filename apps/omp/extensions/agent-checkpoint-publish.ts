@@ -121,7 +121,14 @@ function ownership(repo: string): Entry {
     return block("blocked-not-enrolled");
   }
   if (config.schema_version !== 1) block("blocked-not-enrolled");
-  const id = identity(repo);
+  let id: string;
+  try {
+    id = identity(repo);
+  } catch (e) {
+    // A folder that is not a git repository cannot be enrolled. Any other git failure still surfaces.
+    if (e instanceof Block && /not a git repository/i.test(e.message)) block("blocked-not-enrolled");
+    throw e;
+  }
   const entries: Entry[] = [];
   for (const [name, value] of Object.entries(config.repos ?? {})) {
     const e = value as any;
@@ -299,7 +306,8 @@ export async function runWorker(file: string) {
   if (process.env.AGENT_CHECKPOINT_PUBLISH === "1") return;
   const bun = Bun.which("bun"), flock = Bun.which("flock");
   if (!bun || !flock) block("blocked-isolation-unavailable");
-  const child = spawn("flock", ["-n", "-F", `${file}.lock`, bun, workerFile, "--execute-job", file], {
+  // No -F: macOS's flock (discoteq) lacks it. The forked job inherits the lock fd, so the lock lives as long as the job.
+  const child = spawn("flock", ["-n", `${file}.lock`, bun, workerFile, "--execute-job", file], {
     stdio: "inherit",
     env: { ...process.env, AGENT_CHECKPOINT_PUBLISH: "1" },
   });
@@ -309,9 +317,10 @@ export async function runWorker(file: string) {
   return promise;
 }
 function launch(job: Job) {
-  const bun = Bun.which("bun"), setsid = Bun.which("setsid");
-  if (!bun || !setsid || !Bun.which("flock")) block("blocked-isolation-unavailable");
-  const child = spawn("setsid", [bun, workerFile, "--worker", jobPath(job.key)], {
+  const bun = Bun.which("bun");
+  if (!bun || !Bun.which("flock")) block("blocked-isolation-unavailable");
+  // detached: true calls setsid(2) itself, so no setsid binary is needed (macOS ships none).
+  const child = spawn(bun, [workerFile, "--worker", jobPath(job.key)], {
     detached: true,
     stdio: "ignore",
     env: process.env,
