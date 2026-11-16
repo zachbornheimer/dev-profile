@@ -46,6 +46,7 @@ LINK_ROOTS=(
 	"$HOME/.claude/skills"
 	"$HOME/.codex/skills"
 	"$HOME/.grok/skills"
+	# Skill dirs of removed harnesses (Cursor, OpenCode, Gemini, ...): listed only so stray links are detected.
 	"$HOME/.cursor/skills"
 	"$HOME/.config/opencode/skills"
 	"$HOME/.gemini/skills"

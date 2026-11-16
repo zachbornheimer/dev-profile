@@ -194,6 +194,9 @@ write_ignore() {
 AUBX_NAME="${AUBX:-aubx}"
 AUBX_AGENT="${AUBX_AGENT:-codex}"
 REAL_HOME="$HOME"
+# Skill dirs of removed harnesses (Claude Code, Grok, Cursor, OpenCode, Gemini) plus Codex.
+# Only omp and the Codex desktop app are supported; the others are listed so stray
+# links left behind by those removed tools are detected and cleaned, never created.
 LINK_ROOTS=(
 	"$REAL_HOME/.claude/skills"
 	"$REAL_HOME/.codex/skills"

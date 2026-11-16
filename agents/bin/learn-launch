@@ -6,8 +6,8 @@
 """Run the learn-from-transcript workflow on one session.
 
 Both /learn (the omp command) and the agent-hooks question pipeline's learn effect call
-this. The source is `<harness>:<id>` (omp, claude, codex, grok, cursor,
-copilot, opencode, pi, hermes, agentmux), a bare omp id, or a Mastra thread
+this. The source is `<harness>:<id>` (omp or codex; Claude Code, Grok, Cursor, Copilot,
+OpenCode, pi, Hermes and agentmux are removed and unsupported), a bare omp id, or a Mastra thread
 (`mastra:thread:<id>` or a Studio thread URL). The workflow resolves and
 annotates the transcript, runs its forensics passes in one thread, saves the
 thread, and files and dispatches every ticket it names as an atask objective by
@@ -31,9 +31,7 @@ from pathlib import Path
 LEARNINGS_DIR = Path.home() / ".agents" / "learnings"
 LAUNCH_LOG = LEARNINGS_DIR / "launch.log"
 REF = re.compile(r"^([a-z][a-z0-9_-]*):([A-Za-z0-9._-]+)$")
-HARNESSES = frozenset(
-    {"omp", "claude", "codex", "grok", "cursor", "copilot", "opencode", "pi", "hermes", "agentmux"}
-)
+HARNESSES = frozenset({"omp", "codex"})
 BARE_OMP_ID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 MASTRA_REF = re.compile(r"^mastra:thread:([^\s:]+)$")
 MASTRA_URL = re.compile(r"^https?://[^\s/?#]+/agents/[^\s/?#]+/threads/([^\s/?#:]+)/?(?:[?#]\S*)?$")
@@ -121,14 +119,8 @@ def find_local_transcript(source: str, home: Path | None = None) -> Path | None:
     patterns: list[str] = []
     if harness == "omp":
         patterns.append(f".omp/agent/sessions/*/*_{sid}.jsonl")
-    elif harness == "claude":
-        patterns.extend([f".config/agentmux/transcripts/claude-code.{sid}.jsonl", f".claude/projects/*/{sid}.jsonl"])
-    elif harness == "grok":
-        patterns.extend([f".config/agentmux/transcripts/grok.{sid}.jsonl", f".grok/sessions/*/{sid}/chat_history.jsonl"])
     elif harness == "codex":
         patterns.extend([f".config/agentmux/transcripts/codex.{sid}.jsonl", f".codex/sessions/*/*/*/rollout-*-{sid}.jsonl"])
-    elif harness == "pi":
-        patterns.append(f".pi/agent/sessions/*/*_{sid}.jsonl")
     for pattern in patterns:
         hits = sorted(base.glob(pattern), key=lambda p: p.stat().st_mtime if p.is_file() else 0, reverse=True)
         for hit in hits:
