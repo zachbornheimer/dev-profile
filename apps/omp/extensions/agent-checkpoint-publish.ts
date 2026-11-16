@@ -418,17 +418,25 @@ function declaredMiseCanonical(): string | undefined {
     return undefined;
   }
 }
-async function headOf(origin: string, branch: string) {
+// omp kills an extension handler after 30 s, and `mise dot status --json` alone was measured at 5-26 s. The whole
+// reconciliation shares one budget, set well under that limit; every command gets only what is left of it.
+const miseBudgetMs = () => positive(process.env.AGENT_CHECKPOINT_MISE_BUDGET_MS, 20_000);
+const budgetPending = (syncRan: boolean): MiseReport => ({
+  outcome: "pending",
+  conditions: [{ reason: "pending", detail: "mise reconciliation exceeded its time budget; the next turn retries" }],
+  syncRan,
+});
+async function headOf(origin: string, branch: string, left: () => number) {
   const r = await exec(
     "git",
     ["ls-remote", "--", origin, `refs/heads/${branch}`],
-    positive(process.env.AGENT_CHECKPOINT_MISE_LSREMOTE_MS, 8_000),
+    Math.min(positive(process.env.AGENT_CHECKPOINT_MISE_LSREMOTE_MS, 8_000), left()),
   );
   const sha = r.out.split(/\s/)[0] ?? "";
   return { reachable: r.code === 0, sha: /^[0-9a-f]{40}$/.test(sha) ? sha : undefined };
 }
-const miseJson = async (args: string[]) => {
-  const r = await exec("mise", args, 20_000);
+const miseJson = async (args: string[], left: () => number) => {
+  const r = await exec("mise", args, Math.min(20_000, left()));
   if (r.code !== 0) return undefined;
   try {
     return JSON.parse(r.out);
@@ -440,7 +448,11 @@ const pendingWork = (h: any) => h.pending_operations > 0 || (h.sync?.pending_app
 // Precedence: blocked > pending > scheduled > verified. Exactly one outcome.
 export async function reconcileMise(): Promise<MiseReport | undefined> {
   if (!Bun.which("mise", { PATH: process.env.PATH })) return undefined;
-  const history = (await miseJson(["dot", "status", "--json"]))?.history;
+  const deadline = now() + miseBudgetMs();
+  // A timer can fire a little early; under 250 ms left is no budget at all.
+  const left = () => deadline - now() < 250 ? 0 : deadline - now();
+  const history = (await miseJson(["dot", "status", "--json"], left))?.history;
+  if (!history && left() === 0) return budgetPending(false);
   if (!history || history.enabled !== true) return undefined;
   const sync = history.sync ?? {}, origin: string | undefined = sync.origin, branch = String(sync.branch ?? "history");
   const blocked: MiseCondition[] = [];
@@ -461,7 +473,8 @@ export async function reconcileMise(): Promise<MiseReport | undefined> {
   if (sync.last_error != null || sync.failing_since != null) {
     blocked.push({ reason: "failing", detail: String(sync.last_error ?? `failing since ${sync.failing_since}`) });
   }
-  if (!origin || !(await headOf(origin, branch)).reachable) {
+  if (!origin || !(await headOf(origin, branch, left)).reachable) {
+    if (left() === 0) return budgetPending(false);
     blocked.push({ reason: "offline", detail: `origin ${origin ?? "(none)"} is unreachable` });
   }
   if (sync.mode !== "sync") {
@@ -473,7 +486,8 @@ export async function reconcileMise(): Promise<MiseReport | undefined> {
   const unsaved: string[] = (history.unsaved ?? []).map(miseEntryPath);
   let scheduled: string[] = [];
   if (unsaved.length) {
-    const show = await miseJson(["dot", "history", "show", "--json"]);
+    const show = await miseJson(["dot", "history", "show", "--json"], left);
+    if (!show && left() === 0) return budgetPending(false);
     const entries: any[] = show?.tree?.coverage?.entries ?? show?.coverage?.entries ?? [];
     const manual = new Set(entries.filter(e => e.autosave === false).map(e => e.path));
     const autosave = unsaved.filter(p => !manual.has(p)), manualSave = unsaved.filter(p => manual.has(p));
@@ -521,7 +535,11 @@ export async function reconcileMise(): Promise<MiseReport | undefined> {
       syncRan: false,
     };
   }
-  const ran = await exec("mise", ["dot", "sync"], positive(process.env.AGENT_CHECKPOINT_MISE_SYNC_MS, 20_000));
+  const ran = await exec(
+    "mise",
+    ["dot", "sync"],
+    Math.min(positive(process.env.AGENT_CHECKPOINT_MISE_SYNC_MS, 20_000), left()),
+  );
   if (ran.code === null) {
     return {
       outcome: "pending",
@@ -530,7 +548,8 @@ export async function reconcileMise(): Promise<MiseReport | undefined> {
     };
   }
   // Exit 0 or a --best-effort warning is not evidence: read the heads back.
-  const after = (await miseJson(["dot", "status", "--json"]))?.history ?? history;
+  const after = (await miseJson(["dot", "status", "--json"], left))?.history ?? history;
+  if (left() === 0) return { ...budgetPending(true), localHead: undefined };
   const post = after.sync ?? sync, bad: MiseCondition[] = [];
   const postConflicts: string[] = (post.conflicts ?? []).map(miseEntryPath);
   if (postConflicts.length) bad.push({ reason: "conflict", detail: "sync recorded conflicts", paths: postConflicts });
@@ -544,7 +563,8 @@ export async function reconcileMise(): Promise<MiseReport | undefined> {
     env: process.env,
   });
   const localHead = head.status === 0 ? head.stdout.trim() : undefined;
-  const remote = await headOf(origin!, branch);
+  const remote = await headOf(origin!, branch, left);
+  if (!remote.reachable && left() === 0) return budgetPending(true);
   if (!remote.reachable) bad.push({ reason: "offline", detail: "origin unreachable after sync" });
   if (!bad.length && pendingWork(after)) {
     return {
