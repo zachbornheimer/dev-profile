@@ -604,7 +604,7 @@ Always-available, read-only tools:
 - `mastra_workspace_grep`
 - `mastra_workspace_file_stat`
 
-These reach any absolute path on this machine: this repository (relative paths), the harness transcript stores (for Claude Code `~/.claude/projects/<project>/<session>.jsonl`; others as the measurement names them), hook configs (`~/.config/agent-hooks/hooks.toml`, `~/.agents/hooks/`), skills (`~/.agents/available-skills/`), and other repositories under `~/Developer`. Read what the diagnosis needs; cite the path.
+These reach any absolute path on this machine: this repository (relative paths), the harness transcript stores (omp and Codex stores as the measurement names them; legacy removed-harness stores such as Claude Code's `~/.claude/projects/` are read-only history), hook configs (`~/.config/agent-hooks/hooks.toml`, `~/.agents/hooks/`), skills (`~/.agents/available-skills/`), and other repositories under `~/Developer`. Read what the diagnosis needs; cite the path.
 
 Other tools must be discovered through `search_tools`.
 

@@ -1,5 +1,7 @@
 # Harness map
 
+> Only omp and the Codex desktop app are supported. Rows for claude-code, grok, opencode, cursor, gemini, copilot and windsurf locate old transcripts from removed harnesses (legacy, read-only, never extended).
+
 Parsers live in `scripts/he_parse.py`. This table is the locator only.
 
 `HE_HOME` overrides home. `HE_STATE` defaults to `~/.local/state/harness-efficiency`.

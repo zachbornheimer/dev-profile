@@ -14,9 +14,7 @@ from learnings.pipeline import JEV, Settings, run_window
 from learnings.report import CompletedReport, coverage
 from learnings.transcript import load
 
-DEFAULT_REPORT = Path.home() / (
-    ".hermes/profiles/zach/cache/scratch/learnings/dev-profile-2/report.json"
-)
+DEFAULT_REPORT = Path.home() / (".local/state/learnings/dev-profile-2/report.json")
 
 
 class Replay:
@@ -72,7 +70,8 @@ def source_check(messages: list[Message], originals: list[Message]) -> None:
             or original.synthetic
             or original.role == "system"
             or message.synthetic
-            or message.model_dump(exclude={"text"}) != original.model_dump(exclude={"text"})
+            or message.model_dump(exclude={"text"})
+            != original.model_dump(exclude={"text"})
         ):
             raise ValueError(f"source text/metadata mismatch: {message.id}")
 
@@ -114,9 +113,9 @@ async def prove(path: Path, files: Files) -> dict[str, object]:
             response_format = TypeAdapter(dict[str, object]).validate_python(
                 generation["response_format"]
             )
-            schema = TypeAdapter(dict[str, object]).validate_python(response_format["json_schema"])[
-                "schema"
-            ]
+            schema = TypeAdapter(dict[str, object]).validate_python(
+                response_format["json_schema"]
+            )["schema"]
             if schema != Extraction.model_json_schema():
                 raise ValueError("unknown historical generation schema")
         result = await run_window(messages, calls, settings)
@@ -133,8 +132,11 @@ async def prove(path: Path, files: Files) -> dict[str, object]:
         for expected, actual in zip(report.calls, calls.records, strict=True):
             if (
                 expected.keys() != actual.keys()
-                or any(expected[key] != actual[key] for key in expected if key != "seconds")
-                or abs(float(str(expected["seconds"])) - float(str(actual["seconds"]))) > 1e-9
+                or any(
+                    expected[key] != actual[key] for key in expected if key != "seconds"
+                )
+                or abs(float(str(expected["seconds"])) - float(str(actual["seconds"])))
+                > 1e-9
             ):
                 raise ValueError("report call timing/validation mismatch")
     result = report.model_dump()

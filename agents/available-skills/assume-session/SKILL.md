@@ -86,16 +86,10 @@ to actually do the work.
 
 ```text
 /assume-session omp:01a1c0b2-1775-76e8-adc1-ab04fb9d04f4            # lookup: read/analyze only
-/assume-session claude:663aeacb why did it stall?                    # lookup with a question
-/assume-session claude:663aeacb-9509-4229-8c87-c248defeac34 --then confirm
-/assume-session grok:01a020ee-d80c-7540-a2fe-a4a518d46c2e --then continue
+/assume-session omp:01a1c0b2 why did it stall?                       # lookup with a question
 /assume-session codex:able-efgh-1234 --then confirm
-/assume-session copilot:014575b7-cc61-4292-84cb-7d26fcc29d2f --then confirm
-/assume-session pi:<id> --then continue
 /assume-session omp:<id> --then continue
-/assume-session grok:latest --then confirm
-/assume-session cursor:DevOps conformance rollout review --then confirm
-/assume-session claude:663aeacb --then confirm
+/assume-session omp:latest --then confirm
 /assume-session https://stable.capability-replicas.localhost/agents/code-improver/threads/a3927124-9c47-4d02-b417-133c06c71385 --then confirm
 ```
 

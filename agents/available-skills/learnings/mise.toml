@@ -1,5 +1,5 @@
 [env]
-UV_PROJECT_ENVIRONMENT = "/Users/zbornheimer/.hermes/profiles/zach/cache/scratch/learnings/venv"
+UV_PROJECT_ENVIRONMENT = "{{env.HOME}}/.local/state/learnings/venv"
 PYTHONPATH = "{{config_root}}/src"
 [tasks.setup]
 run = "uv sync --python 3.12"

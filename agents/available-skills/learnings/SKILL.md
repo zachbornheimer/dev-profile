@@ -15,10 +15,10 @@ Run locally (Python 3.12, uv, mise; no API key):
 mise run -C ~/.agents/available-skills/learnings setup
 mise run -C ~/.agents/available-skills/learnings extract -- claude:769b80aa \
   --start-line 4300 --end-line 4335 \
-  --out ~/.hermes/profiles/zach/cache/scratch/learnings/dev-profile-new
+  --out ~/.local/state/learnings/dev-profile-new
 ```
 
-Native Claude/Hermes JSONL paths and normalized JSON also work. `--timeout`,
+Native omp or Codex JSONL paths (Claude Code and Hermes are removed; legacy files still parse) and normalized JSON also work. `--timeout`,
 `--window-chars`, `--overlap-chars`, `--max-tokens` bound resources; calls are SERIAL.
 Generation enforces <=3 observations, exact quotes <=160 characters, and category-valid
 ratings. `--max-attempts` (1-3; default 3), `--token-step` (default 700), and

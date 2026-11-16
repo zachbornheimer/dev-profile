@@ -6,11 +6,8 @@ never loads JSONL into context.
 
 ## Agent choice
 
-- Claude JSONL (`harness: claude`): spawn `session-forensics`
-  (`~/.claude/agents/session-forensics.md`).
-- Grok / Codex / Cursor / others: spawn `explore` with this brief and stream
-  that harness's files from `path` on the `worst` row. Do not send those
-  transcripts to `session-forensics`.
+- Every harness (omp, codex, and legacy transcripts of removed harnesses): spawn `explore` with this brief and stream
+  that harness's files from `path` on the `worst` row.
 
 Write `$HE_STATE/forensics/<session_id>.md` (default
 `~/.local/state/harness-efficiency/forensics/`). Return the path plus a
