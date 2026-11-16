@@ -534,7 +534,8 @@ rejections and duplicate re-writes are retry waste, not retrieval waste
 In a session past ~10 turns, or after any eviction receipt, re-read the file and
 `write` it whole instead of `edit`-patching a stale hash.
 
-One row is unwired, and it is not the row this transcript exercised. Claude Code
+One row is unwired, and it is not the row this transcript exercised. In that
+(legacy, Claude Code) run the harness
 answered four Bash calls with "No such tool available" (items 3, 24, 61, 74), so the
 call never reached a hook: no `tool.before` guard could fire, and the recovery hook
 needs the harness to emit a denial for a tool that is absent from the list. The
