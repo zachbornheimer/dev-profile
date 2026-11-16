@@ -21,7 +21,9 @@ from pathlib import Path
 MAX_TRANSCRIPT_CHARS = int(os.environ.get("MEMORY_LEARN_MAX_CHARS", "60000"))
 SWEEP_LIMIT = 200
 CLI_TIMEOUT_SECONDS = 60
-# cass agent slug -> get_recent_turns harness.
+# cass agent slug -> get_recent_turns harness. Only omp and the Codex desktop app are
+# supported; claude_code, grok and cursor entries exist only to read old transcripts
+# those removed harnesses already wrote (legacy, never extended).
 CAPABILITY_HARNESS = {
     "claude_code": "claude",
     "grok": "grok",
@@ -143,9 +145,7 @@ class Shell:
     def _request(self, method: str, params: dict, deadline: float) -> dict:
         self._next_id += 1
         wanted = self._next_id
-        self._send(
-            {"jsonrpc": "2.0", "id": wanted, "method": method, "params": params}
-        )
+        self._send({"jsonrpc": "2.0", "id": wanted, "method": method, "params": params})
         while True:
             line = self._read_line(deadline)
             try:

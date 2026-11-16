@@ -12,7 +12,7 @@ description: >
 Wails v3 is Go + a web frontend in a native webview. The agent works the **Go
 side**, the **frontend**, and — when verifying live UI — the **built-in MCP
 server** that can drive a running app. Do not permanently register that MCP in
-`~/.grok/config.toml`; connect only while an MCP-enabled binary is running.
+any user-level config; connect only while an MCP-enabled binary is running.
 
 Official MCP guide: <https://v3.wails.io/guides/mcp-service/>
 
@@ -27,7 +27,7 @@ Official MCP guide: <https://v3.wails.io/guides/mcp-service/>
 
 1. **MCP is opt-in and ephemeral.** Server code is only compiled with the `mcp`
    build tag. Production/default builds must **not** ship it.
-2. **Do not add a permanent `[mcp_servers.wails]` entry** to Grok/Claude/Cursor
+2. **Do not add a permanent `[mcp_servers.wails]` entry** to omp or Codex
    config. The endpoint only exists while _this_ app is running with MCP.
 3. **Prove UI claims on a fresh process** started after the build you care about.
    Unit tests do not prove webview behavior.
@@ -79,29 +79,28 @@ Only after the app is up with the `mcp` tag and the log shows the URL:
 
 ```bash
 # One-shot / session-local check — do NOT leave this in permanent user config
-# Grok (this session or temporary project scope if you must):
+# omp / Codex (Claude Code, Grok and Cursor are removed and unsupported):
 #   Prefer: tell the agent the URL and use search_tool/use_tool after the
-#   server is reachable; or project-scoped .grok/config.toml that is gitignored.
+#   server is reachable; or a project-scoped MCP config that is gitignored.
 #
-# omp / Codex: register the URL through the app's MCP config; Claude Code and Grok
-# are removed and unsupported, so no `claude mcp add` example is kept.
+# No `claude mcp add` or `grok mcp add` example is kept: those tools are removed.
 ```
 
-If Grok needs the tools mid-session and the server is not already connected:
+If the tools are needed mid-session and the server is not already connected:
 
 1. Confirm something is listening: `curl -sS -o /dev/null -w '%{http_code}\n' http://127.0.0.1:9099/mcp` (any non-connection-refused response means the port is open).
 2. Use project-scoped config **only if the project wants it**, and keep it out of committed user-global config:
 
    ```bash
    # from the app repo — project scope, not user scope
-   grok mcp add --scope project --transport http wails http://127.0.0.1:9099/mcp
+   # add http://127.0.0.1:9099/mcp as a project-scoped MCP server named wails, in your harness's MCP config
    ```
 
 3. Refresh MCP list (`/mcps` → `r`) or start a new session.
 4. When done verifying, remove project entry if you added one:
-   `grok mcp remove --scope project wails`
+   delete that project-scoped `wails` MCP entry.
 
-**Never** `grok mcp add` (user scope) for Wails. The permanent config was deliberately
+**Never** add the Wails MCP at user scope. The permanent config was deliberately
 rejected: Wails MCP is per-running-app, not a always-on service.
 
 ## MCP tools (verify-oriented)
