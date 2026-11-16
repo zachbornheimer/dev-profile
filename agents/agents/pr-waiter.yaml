@@ -10,7 +10,7 @@ workspace: machine
 tools:
   all: true
   always:
-    - run_command
+    - bash
   searchable: []
   denied: []
 spawns: []

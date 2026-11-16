@@ -24,7 +24,7 @@ tools:
     - list
     - stat
   searchable:
-    - run_command
+    - bash
     - run_tests
     - search_tools
     - worktrunk
