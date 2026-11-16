@@ -9,6 +9,9 @@ set -euo pipefail
 #   DEV_PROFILE_PR_CHECKS_WAIT   seconds to wait for CI to report checks (default 120)
 #   DEV_PROFILE_PR_MERGE_WAIT    seconds to wait for GitHub to merge (default 14400)
 #   DEV_PROFILE_PR_MERGE_METHOD  merge|squash|rebase (default: your repo default)
+#   DEV_PROFILE_PR_FIX_RED_CI    command (word-split) that repairs a red PR; gets
+#                                the PR URL, exits 0 when mergeable (default:
+#                                bun ~/.omp/agent/tools/fix_red_ci/cli.ts)
 pr="${1:?usage: dev-profile-pr-watch <pr-url-or-number>}"
 # An unexpected error must never vanish with its tab. Until the PR is known,
 # say where it stopped (and stay open in a terminal); fail() takes over below.
@@ -17,6 +20,8 @@ trap 'echo "dev-profile-pr-watch stopped at line ${LINENO}: ${BASH_COMMAND}" >&2
 poll="${DEV_PROFILE_PR_POLL:-15}"
 checks_wait="${DEV_PROFILE_PR_CHECKS_WAIT:-120}"
 merge_wait="${DEV_PROFILE_PR_MERGE_WAIT:-14400}"
+# shellcheck disable=SC2206 # word-splitting is the contract of the override
+fix_red_ci=(${DEV_PROFILE_PR_FIX_RED_CI:-bun "${HOME}/.omp/agent/tools/fix_red_ci/cli.ts"})
 
 origin_url="$(git config --get remote.origin.url || :)"
 origin_url="${origin_url%/}"
@@ -109,8 +114,15 @@ await_ci() {
 	done
 	status "CI running"
 	if ! ghr pr checks "${pr}" --watch --fail-fast --interval "$((poll > 0 ? poll : 1))"; then
-		no_checks || fail "CI failed"
-		status "no CI checks reported"
+		if no_checks; then
+			status "no CI checks reported"
+			return 0
+		fi
+		# Standard practice: repair red CI with fix_red_ci (bounded rounds, never
+		# merges) instead of stopping. It returns 0 only when the PR is mergeable.
+		status "CI failed; running fix_red_ci"
+		"${fix_red_ci[@]}" "${url}" || fail "CI failed; fix_red_ci could not repair it"
+		status "fix_red_ci repaired CI"
 	fi
 }
 

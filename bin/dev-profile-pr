@@ -8,7 +8,8 @@ set -euo pipefail
 # is skipped with exit 0, so `wt step for-each` can run this everywhere. Never
 # prompts, so loops and scripts can drive it.
 #   --draft     create the PR as a draft
-#   --auto      mark the PR ready, then watch CI and merge it when green
+#   --auto      mark the PR ready, arm GitHub auto-merge, then watch CI,
+#               repair red CI with fix_red_ci, and merge it when green
 #   -- CMD ...  run CMD in the worktree first; it makes the change to publish
 #   DEV_PROFILE_PR_WATCH  tab|background: where --auto watches (default: a
 #                         kitty tab when interactive in kitty, else background)
@@ -155,6 +156,14 @@ if [[ "$(ghr pr view "${url}" --json isDraft --jq .isDraft)" == true ]]; then
 	ghr pr ready "${url}"
 fi
 
+# Arm GitHub auto-merge now, so the PR still merges when green even if the
+# watcher dies. Repos that refuse it (private, Free plan) are left to the
+# watcher, which merges directly once checks pass.
+method="${DEV_PROFILE_PR_MERGE_METHOD:-$(gh repo view ${slug:+"${slug}"} --json viewerDefaultMergeMethod \
+	--jq '.viewerDefaultMergeMethod | ascii_downcase')}"
+if ! refusal="$(ghr pr merge "${url}" --auto "--${method}" 2>&1)"; then
+	echo "auto-merge not armed (the watcher merges when green): ${refusal}" >&2
+fi
 # Interactive in kitty: watch in a background tab. Loops and scripts: detach,
 # so a batch of PRs does not open a tab each; notifications still arrive.
 watcher="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/dev-profile-pr-watch"

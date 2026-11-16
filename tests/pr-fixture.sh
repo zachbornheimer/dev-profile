@@ -183,6 +183,7 @@ logged "pr create" && fail "a merged PR with no new commits must not be recreate
 reset
 DEV_PROFILE_PR_WATCH=tab KITTY_LISTEN_ON=unix:/tmp/fixture KITTY_WINDOW_ID=9 "$publish" --auto >/dev/null 2>&1 || fail "pr --auto must publish"
 logged "kitten @ --to unix:/tmp/fixture launch --type=tab --keep-focus" || fail "pr --auto must open a kitty watcher tab"
+logged "gh pr merge https://github.com/me/repo/pull/7 --auto --squash --repo me/repo" || fail "pr --auto must arm GitHub auto-merge"
 logged "--match id:9 ${watch} https://github.com/me/repo/pull/7" || fail "the kitty tab must run the watcher on the PR"
 
 # `wt pr --create=… -- CMD` runs CMD on a fresh branch, then publishes it.
@@ -216,12 +217,27 @@ logged "pr create" && fail "a failed command must not create a PR"
 git switch -q feature
 
 export DEV_PROFILE_PR_POLL=0 DEV_PROFILE_PR_CHECKS_WAIT=0
+# The default repair is the real fix_red_ci; the fixture's is one that cannot fix.
+printf '#!/usr/bin/env bash\necho "fix_red_ci $*" >>"${PR_LOG}"\nexit 1\n' >"${stubs}/fix_red_ci"
+chmod +x "${stubs}/fix_red_ci"
+export DEV_PROFILE_PR_FIX_RED_CI="${stubs}/fix_red_ci"
 git push -q origin feature
 reset
 echo 1 >"${state}/checks_exit"
 "$watch" 7 >/dev/null 2>&1 </dev/null && fail "failed CI must exit nonzero"
-logged "terminal-notifier -title PR #7: CI failed" || fail "failed CI must notify"
+logged "terminal-notifier -title PR #7: CI failed; fix_red_ci could not repair it" || fail "unrepairable CI must notify"
 logged "pr merge" && fail "failed CI must not merge"
+logged "fix_red_ci https://github.com/me/repo/pull/7" || fail "red CI must run fix_red_ci on the PR"
+
+# fix_red_ci that repairs the PR lets the watch carry on to merge.
+reset
+echo 1 >"${state}/checks_exit"
+git rev-parse feature >"${state}/oid"
+printf '#!/usr/bin/env bash\necho "fix_red_ci $*" >>"${PR_LOG}"\nrm -f "${PR_STATE}/checks_exit"\n' >"${stubs}/fix_red_ci_ok"
+chmod +x "${stubs}/fix_red_ci_ok"
+DEV_PROFILE_PR_FIX_RED_CI="${stubs}/fix_red_ci_ok" "$watch" 7 >/dev/null 2>&1 </dev/null || fail "red CI repaired by fix_red_ci must merge"
+logged "gh pr merge 7 --auto --squash --repo me/repo" || fail "a repaired PR must merge"
+git push -q origin feature
 
 reset
 git rev-parse feature >"${state}/oid"
