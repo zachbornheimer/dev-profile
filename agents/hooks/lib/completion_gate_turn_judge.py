@@ -227,7 +227,11 @@ def _outside_fences(message: str) -> list[str]:
     """
     kept: list[str] = []
     inside = False
-    for raw in HAPPINESS_ELEMENT_RE.sub("", EVIDENCE_ELEMENT_RE.sub("", message)).strip().splitlines():
+    for raw in (
+        HAPPINESS_ELEMENT_RE.sub("", EVIDENCE_ELEMENT_RE.sub("", message))
+        .strip()
+        .splitlines()
+    ):
         line = raw.strip()
         if line.startswith("```"):
             inside = not inside
@@ -266,7 +270,11 @@ def block_reason(
         return _deferred_reason(judgment.signals, signals, closing_line(message))
     if kind == BLOCK_INVALID_EVIDENCE_BLOCK:
         return invalid_evidence_block_reason(evidence_problem)
-    return UNPROVEN_CLAIM_REASON.format(**signals) + EVIDENCE_TEMPLATE
+    return (
+        f'You closed with: "{closing_line(message)}"\n'
+        + UNPROVEN_CLAIM_REASON.format(**signals)
+        + EVIDENCE_TEMPLATE
+    )
 
 
 def _deferred_reason(
