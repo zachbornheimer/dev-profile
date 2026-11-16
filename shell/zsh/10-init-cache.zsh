@@ -13,7 +13,7 @@ _zsh_binpath() {
 		return 1
 	fi
 	local p dir
-	for dir in /opt/homebrew/bin "$HOME/.local/bin" /usr/local/bin; do
+	for dir in /opt/homebrew/bin "$HOME/.local/bin" /usr/local/bin /usr/bin; do
 		[[ -x $dir/$name ]] && print -r -- "$dir/$name" && return 0
 	done
 	p="${commands[$name]}"
