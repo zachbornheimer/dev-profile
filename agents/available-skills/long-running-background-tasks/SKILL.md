@@ -20,7 +20,7 @@ There is one way to launch and one way to wait. You never sleep, never poll on a
 
 omp's `bash` (extended by `extensions/bash-rules.ts`, which superseded `run_command`) backgrounds any command that runs past about 20 s and returns a job id and `log_path`; the log is where output lives. The exit wakes you; you arm nothing for the common case. Use `bash` with an explicit `timeout` for long work, or start it detached with `nohup ... &` and wait on the pid.
 
-```
+```text
 bash { command: "mise run test" }   # >20 s: backgrounded; job id + log path returned; the exit wakes you
 ```
 
