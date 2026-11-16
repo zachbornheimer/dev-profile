@@ -3,5 +3,5 @@
   "hook_event_name": "Stop",
   "reason": "end_turn",
   "transcript_path": "/Users/zbornheimer/.claude/hooks/tests/fixtures/completion-transcript-no-evidence.txt",
-  "last_assistant_message": "Done.\n\n```evidence\n{\"claim\": \"tests pass\", \"type\": \"test\", \"ref\": \"go test ./nonexistent/...\", \"scope\": \"unit\"}\n```\n"
+  "last_assistant_message": "Done.\n\n<evidence-check>\n<claim>tests pass</claim>\n<type>test</type>\n<ref>go test ./nonexistent/...</ref>\n<scope>unit</scope>\n</evidence-check>\n"
 }

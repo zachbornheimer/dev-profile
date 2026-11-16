@@ -362,7 +362,7 @@ me a menu or make me triage my own list.
   a formality to satisfy the gate.
 - Keep a hook, a test, and generated code trustworthy: don't bypass one, weaken
   one to go green, or hand-edit the other — and never commit secrets.
-- **End every done / fixed / merged / verified claim with an `evidence` fence** ({"claim","type","ref","scope"}, one JSON line) naming the command, test, commit or file that proves it. The completion gate accepts the fence without a rewrite.
+- **End every done / fixed / merged / verified claim with an `<evidence-check>` element** (children `claim`, `type`, `ref`, `scope`; one element per claim) naming the command, test, commit or file that proves it. The element is hidden from the user's screen; the completion gate reads it.
 
 ## Machine layout (local Mac — binding)
 

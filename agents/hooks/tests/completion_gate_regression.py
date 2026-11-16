@@ -5,7 +5,7 @@ Pins the boundary the misfire replay introduces, on both enforcement points:
   judge policy (turn_judge.decide_turn)
     action ask   -> a deferral still blocks
     mixed ask    -> the deferred action clause still blocks
-    known ask + invalid ```evidence fence on a completion claim -> H1 blocks
+    known ask + invalid <evidence-check> element on a completion claim -> H1 blocks
     no ask + the same claim                        -> vetoed, allow
   gate facade (completion_gate_turn_judge.TurnJudge)
     no user_prompt + a judged deferred block       -> downgraded to allow
@@ -83,7 +83,7 @@ def deferral_answers() -> dict:
 
 
 def claim_answers() -> dict:
-    """\"Done and verified\" with an invalid ```evidence fence."""
+    """\"Done and verified\" with an invalid <evidence-check> element."""
     return {
         turn_judge.QUESTION_ENDS_ON_HANDOFF: noul(0.1),
         turn_judge.QUESTION_TURN_OUTCOME: score(0.98, 0.01, 0.01),

@@ -1,10 +1,11 @@
-"""The ```evidence fenced-JSON block: extraction, shape validation, and
+"""The <evidence-check> element: extraction, shape validation, and
 provenance ("did this actually happen") — computed once, shared by both
 H5 (permission-question) and H1 (completion-claim) in completion-gate.py.
 
-Level 1 (shape): claim/type/ref/scope present, type/scope in their enums.
-Level 2 (provenance, only attempted when the shape is valid): the claimed
-ref must be independently corroborated —
+Level 1 (shape): claim/type/ref/scope children present and non-empty, type in
+its enum. Every element in the message is checked.
+Level 2 (provenance, only attempted when every element's shape is valid): each
+claimed ref must be independently corroborated —
   test/command -> a recorded SUCCESS in this session's bash history whose
                   signature equals the ref's own signature
   commit       -> `git cat-file -e <ref>` resolves
@@ -18,58 +19,61 @@ ref must be independently corroborated —
 from __future__ import annotations
 
 import contextlib
-import json
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
 from hook_common import GIT, command_signature
 
 EVIDENCE_TYPE_ENUM = ("test", "command", "commit", "http", "file", "render")
-EVIDENCE_SCOPE_ENUM = ("unit", "live")
+EVIDENCE_CHILDREN = ("claim", "type", "ref", "scope")
 EVIDENCE_TEMPLATE = (
-    "```evidence\n"
-    '{"claim": "<what you are claiming>", "type": "test|command|commit|http|file|render", '
-    '"ref": "<command run, test name, commit sha, url, or file path>", "scope": "unit|live"}\n'
-    "```"
+    "<evidence-check>\n"
+    "<claim>what you are claiming</claim>\n"
+    "<type>test|command|commit|http|file|render</type>\n"
+    "<ref>command run, test name, commit sha, url, or file path</ref>\n"
+    "<scope>unit|live, or what the proof covers</scope>\n"
+    "</evidence-check>"
 )
-EVIDENCE_FENCE_MARKER = "```evidence"
-FENCE_MARKER = "```"
+# Opening tag at the start of a line; an unclosed element is malformed.
+EVIDENCE_ELEMENT_RE = re.compile(
+    r"^<evidence-check>(.*?)(?:</evidence-check>|\Z)", re.DOTALL | re.MULTILINE
+)
+CLOSING_TAG = "</evidence-check>"
 HTTP_SIGNATURE_TOOLS = ("curl", "wget")
 GIT_CAT_FILE_TIMEOUT_SECS = 5
 CURRENT_DIRECTORY = "."
 
 
+@dataclass(frozen=True, slots=True)
+class EvidenceElement:
+    text: str
+    closed: bool
+
+
 def invalid_evidence_block_reason(missing: str) -> str:
     return (
-        f"This turn's ```evidence block is missing or has invalid field(s): "
+        f"This turn's <evidence-check> element is missing or has invalid field(s): "
         f"{missing}. Fill in the template:\n{EVIDENCE_TEMPLATE}"
     )
 
 
-def extract_evidence_block(message: str) -> str:
-    """The raw text between a ```evidence fence and the next ``` line.
+def extract_evidence_elements(message: str) -> list[EvidenceElement]:
+    """The raw body of every <evidence-check> element, in order.
 
-    Substring matching (not exact-line), matching the awk original: any
-    line CONTAINING the marker toggles fence state.
+    Each is closed at its closing tag; an unclosed one runs to the
+    end of the message and is reported as malformed by the shape check.
     """
-    lines: list[str] = []
-    in_fence = False
-    for line in message.split("\n"):
-        if EVIDENCE_FENCE_MARKER in line:
-            in_fence = True
-            continue
-        if in_fence and FENCE_MARKER in line:
-            in_fence = False
-            continue
-        if in_fence:
-            lines.append(line)
-    return "\n".join(lines)
+    return [
+        EvidenceElement(match.group(1), match.group(0).endswith(CLOSING_TAG))
+        for match in EVIDENCE_ELEMENT_RE.finditer(message)
+    ]
 
 
 @dataclass(frozen=True, slots=True)
 class EvidenceClaim:
-    """A parsed ```evidence block: its shape errors (if any) and provenance."""
+    """The parsed <evidence-check> elements: shape errors (if any) and provenance."""
 
     present: bool
     missing: str = ""
@@ -86,58 +90,67 @@ class EvidenceClaim:
         return self.shape_valid and self.provenance_ok
 
 
-def _missing_fields(payload: dict) -> str:
-    missing: list[str] = []
-    if not payload.get("claim"):
-        missing.append("claim")
-    if not payload.get("ref"):
-        missing.append("ref")
-    claim_type = payload.get("type") or ""
-    if not claim_type:
-        missing.append("type")
-    elif claim_type not in EVIDENCE_TYPE_ENUM:
-        missing.append("type (must be one of: test|command|commit|http|file|render)")
-    scope = payload.get("scope") or ""
-    if not scope:
-        missing.append("scope")
-    elif scope not in EVIDENCE_SCOPE_ENUM:
-        missing.append("scope (must be one of: unit|live)")
-    return ", ".join(missing)
+def _child_text(body: str, name: str) -> str:
+    match = re.search(rf"<{name}>(.*?)</{name}>", body, re.DOTALL)
+    return match.group(1).strip() if match else ""
 
 
-def evaluate_evidence_block(
-    block_text: str, state_dir: Path, session_id: str
+def _missing_fields(element: EvidenceElement) -> str:
+    if not element.closed:
+        return "the <evidence-check> element is not closed with </evidence-check>"
+    missing = [
+        name
+        for name in EVIDENCE_CHILDREN
+        if not _child_text(element.text, name)
+        or (
+            name == "type" and _child_text(element.text, name) not in EVIDENCE_TYPE_ENUM
+        )
+    ]
+    return ", ".join(
+        "type (must be one of: test|command|commit|http|file|render)"
+        if name == "type" and _child_text(element.text, name)
+        else name
+        for name in missing
+    )
+
+
+def evaluate_evidence_elements(
+    elements: list[EvidenceElement], state_dir: Path, session_id: str
 ) -> EvidenceClaim:
-    """Shape-validate and (if valid) provenance-check a raw ```evidence block.
+    """Shape-validate and (if all valid) provenance-check every element.
 
-    ``block_text`` is "" when the message carried no ```evidence fence at
-    all — that case is EvidenceClaim(present=False), never a shape error.
+    No elements -> EvidenceClaim(present=False), never a shape error. Any
+    shape error is reported (all joined); otherwise provenance_ok requires
+    every element corroborated, and claim_type/ref name the first element
+    that failed (or the first, when all pass).
     """
-    if not block_text:
+    if not elements:
         return EvidenceClaim(present=False)
 
-    try:
-        payload = json.loads(block_text)
-    except ValueError:
+    problems = [_missing_fields(element) for element in elements]
+    if any(problems):
+        first = next(i for i, problem in enumerate(problems) if problem)
         return EvidenceClaim(
-            present=True, missing="the ```evidence block is not valid JSON"
-        )
-    if not isinstance(payload, dict):
-        return EvidenceClaim(
-            present=True, missing="the ```evidence block is not valid JSON"
-        )
-
-    missing = _missing_fields(payload)
-    claim_type = payload.get("type") or ""
-    ref = payload.get("ref") or ""
-    if missing:
-        return EvidenceClaim(
-            present=True, missing=missing, claim_type=claim_type, ref=ref
+            present=True,
+            missing="; ".join(problem for problem in problems if problem),
+            claim_type=_child_text(elements[first].text, "type"),
+            ref=_child_text(elements[first].text, "ref"),
         )
 
-    provenance_ok = _check_provenance(claim_type, ref, state_dir, session_id)
+    picked = elements[0]
+    provenance_ok = True
+    for element in elements:
+        claim_type = _child_text(element.text, "type")
+        ref = _child_text(element.text, "ref")
+        if not _check_provenance(claim_type, ref, state_dir, session_id):
+            provenance_ok = False
+            picked = element
+            break
     return EvidenceClaim(
-        present=True, claim_type=claim_type, ref=ref, provenance_ok=provenance_ok
+        present=True,
+        claim_type=_child_text(picked.text, "type"),
+        ref=_child_text(picked.text, "ref"),
+        provenance_ok=provenance_ok,
     )
 
 
