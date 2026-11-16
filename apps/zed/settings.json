@@ -21,7 +21,6 @@
   },
   "language_models": {
     "openai_compatible": {
-      
     }
   },
   "indent_guides": {
@@ -36,11 +35,6 @@
     },
     "favorite_models": [],
     "model_parameters": []
-  },
-  "agent_servers": {
-    "claude-acp": {
-      "type": "registry"
-    }
   },
   "session": {
     "trust_all_worktrees": true
