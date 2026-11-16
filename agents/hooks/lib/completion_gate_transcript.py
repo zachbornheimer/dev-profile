@@ -37,6 +37,13 @@ from omp_session_store import readable_transcript
 
 # ~0.5 s to decode under load; older test results than this are stale anyway.
 TRANSCRIPT_TAIL_BYTES = 8_000_000
+# Tools that only look: they cannot change the world. Claude's names and omp's own; a tool outside this set (a shell
+# call, an edit, anything unknown) counts as acting, so a turn is never called read-only on a guess.
+READ_ONLY_TOOLS = frozenset(
+    {"Read", "Grep", "Glob", "LS", "NotebookRead"}
+    | {"read", "grep", "glob", "find", "ast_grep"}
+    | {"bash_status", "wait"}
+)
 SHELL_TOOL = "Bash"
 SUBAGENT_TOOL = "Agent"
 TASK_NOTIFICATION_COMMAND = "task-notification"
