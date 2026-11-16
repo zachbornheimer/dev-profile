@@ -320,7 +320,7 @@ function launch(job: Job) {
   const bun = Bun.which("bun");
   if (!bun || !Bun.which("flock")) block("blocked-isolation-unavailable");
   // detached: true calls setsid(2) itself, so no setsid binary is needed (macOS ships none).
-  const child = spawn(bun, [workerFile, "--worker", jobPath(job.key)], {
+  const child = spawn("bun", [workerFile, "--worker", jobPath(job.key)], {
     detached: true,
     stdio: "ignore",
     env: process.env,
