@@ -90,7 +90,7 @@ def test_port_decides_on_unlisted_fixture(hooks: HookRunner, fixture: str) -> No
     assert_clean_run(run)
 
 
-# --- payload cases the fixtures miss: fork exemption, Grok camelCase, an
+# --- payload cases the fixtures miss: fork exemption, camelCase, an
 # untyped/absent subagent_type, and an unrelated tool.
 def _agent(**tool_input) -> dict:
     return {"session_id": "wog-payload", "tool_name": "Agent", "tool_input": tool_input}
@@ -100,7 +100,7 @@ PAYLOAD_CASES: dict[str, dict] = {
     "fork-exempt-silent": _agent(
         subagent_type="fork", prompt="anything, no fence needed"
     ),
-    "grok-camelcase-subagent-type": {
+    "camelcase-subagent-type": {
         "sessionId": "wog-payload",
         "toolName": "spawn_subagent",
         "toolInput": {"subagentType": "fork", "prompt": "anything"},
@@ -274,7 +274,7 @@ def test_yaml_parse_error_stays_in_the_file(hooks: HookRunner) -> None:
 
 
 def test_long_example_file_stays_out_of_the_deny_payload(tmp_path: Path) -> None:
-    """The reason stays well under Grok's ~1KB end-truncation even if the file is huge."""
+    """The reason stays well under a ~1KB end-truncation even if the file is huge."""
     long = "mapping " + ("x" * 20_000)
     reason = fresh_order_reason(
         "prompt with a broken fence",

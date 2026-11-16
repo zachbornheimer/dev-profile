@@ -137,14 +137,14 @@ class TypesafeSkillPickTests(unittest.TestCase):
         self.assertIn("Use the Read tool on these paths:", context)
         self.assertIn("Do not call the Skill tool", context)
 
-    def _without_grok_env(self):
+    def _without_session_env(self):
         patched = mock.patch.dict(os.environ, {}, clear=False)
         patched.start()
         os.environ.pop("PI_SESSION_ID", None)
         return patched
 
     def test_split_true_does_not_block_and_emits_skill_context(self) -> None:
-        env = self._without_grok_env()
+        env = self._without_session_env()
         try:
             code, out = self._run_main(
                 {
@@ -218,7 +218,7 @@ class TypesafeSkillPickTests(unittest.TestCase):
         self.assertNotIn("/new", context)
 
     def test_split_true_with_choice_none_prints_nothing(self) -> None:
-        env = self._without_grok_env()
+        env = self._without_session_env()
         try:
             code, out = self._run_main(
                 {
@@ -250,7 +250,7 @@ class TypesafeSkillPickTests(unittest.TestCase):
         self.assertNotIn("/new", context)
 
     def test_hook_never_blocks_on_cli_split(self) -> None:
-        env = self._without_grok_env()
+        env = self._without_session_env()
         try:
             code, out = self._run_main(
                 {
@@ -348,7 +348,7 @@ class TypesafeSkillPickTests(unittest.TestCase):
                 + "\n",
                 encoding="utf-8",
             )
-            env = self._without_grok_env()
+            env = self._without_session_env()
             try:
                 code, out = self._run_main(
                     {
@@ -600,7 +600,7 @@ class TypesafeSkillPickTests(unittest.TestCase):
     def test_split_does_not_block_and_writes_pick_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             picks = Path(tmp) / "skill-picks"
-            env = self._without_grok_env()
+            env = self._without_session_env()
             try:
                 code, out = self._run_main(
                     {

@@ -171,7 +171,7 @@ def test_allows_git_that_worktrunk_does_not_replace(
             "cwd": "/tmp",
         },
     ],
-    ids=["grok-camelcase", "codex-snake"],
+    ids=["camelcase", "codex-snake"],
 )
 def test_denies_across_harness_payload_shapes(hooks: HookRunner, payload: dict) -> None:
     run = hooks.run_payload(PY_HOOK, payload)

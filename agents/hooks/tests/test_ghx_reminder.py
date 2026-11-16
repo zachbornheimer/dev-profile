@@ -24,7 +24,7 @@ PAYLOAD_CASES: dict[str, dict | str] = {
     "non-bash-tool-silent": {"tool_name": "Read", "tool_input": {"file_path": "/x"}},
     "empty-command-silent": _bash(""),
     "empty-stdin-silent": "",
-    "grok-camelcase-reminds": {
+    "camelcase-reminds": {
         "toolName": "run_terminal_command",
         "toolInput": {"command": "gh issue list --repo foo/bar"},
     },

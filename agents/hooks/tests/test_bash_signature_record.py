@@ -50,7 +50,7 @@ PAYLOAD_CASES: dict[str, dict | str] = {
         "hook_event_name": "PostToolUse",
         "tool_name": "Bash",
     },
-    "grok-camelcase": {
+    "camelcase": {
         "sessionId": "hgtest-bsr6",
         "hookEventName": "post_tool_use",
         "toolName": "run_terminal_command",
