@@ -218,7 +218,7 @@ if [ -n "$pr_head" ]; then
 	rc=0
 	guard_out="$(REPO_PATH="$work" ALLOWED_PATHS="$allowed" BASE_SHA="$prb" HEAD_SHA="$upstream" BASE_REF=main HEAD_REF=pr \
 		UPSTREAM_REPO="${up_repo:-can1357/oh-my-pi}" UPSTREAM_BRANCH=main UPSTREAM_SHA="$(git rev-parse refs/remotes/origin/main)" \
-		POST_COMMENT=false GITHUB_TOKEN= python3 "$guard" 2>&1)" || rc=$?
+		POST_COMMENT=false GITHUB_TOKEN='' python3 "$guard" 2>&1)" || rc=$?
 	if [ "$rc" != 0 ]; then
 		echo "  FAIL protect-main: the PR touches files outside the allowed paths ($(printf '%s' "$allowed" | tr '\n' ' '))"
 		printf '%s\n' "$guard_out" | grep -E '^\|' | sed 's/^/    /' | head -20
@@ -289,6 +289,7 @@ for b in "${branches[@]}"; do
 		# The guard expression changed across CI revisions: run the one in the base's own workflow.
 		guard_expr="$(git show "$upstream:.github/workflows/omp-build.yml" 2>/dev/null | sed -n 's/^ *non_merge="\(.*\)"$/\1/p' | head -1)"
 		if [ -n "$guard_expr" ]; then
+			# shellcheck disable=SC2034 # read by the eval below
 			branch="$b"
 			non_merge="$(eval "printf '%s\n' \"$guard_expr\"" 2>/dev/null || true)"
 			unset branch
