@@ -88,6 +88,15 @@ The cd fixture uses an isolated database and a failing shim to guard this path.
 The mise config-stamp ancestry walk stops at the filesystem root or an unchanged
 parent, so shells started in deleted directories finish startup.
 
+Interactive prompts paint a cached or pure-zsh header before starting Starship,
+mise and direnv refreshes, or detached command-log writes. Slow background work
+can delay status and environment updates, but never blocks the initial prompt.
+The scheduler retains its notification fd between prompts to avoid synchronous
+process-substitution cleanup. Directory convergence checks PATH and project
+markers only inside its detached worker (`&!`), never in `chpwd`.
+`mise run test:cd-latency` exercises held renderers, environment refreshes, and
+blocked worker discovery in an interactive terminal.
+
 `mise run test:omp` checks the installed `~/.omp/agent/tools` import graphs and
 callable default exports, then loads installed extensions through OMP's real RPC
 startup and registration path. It sends no model prompt and executes no tool.

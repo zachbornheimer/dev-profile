@@ -46,7 +46,7 @@ readonly -a SELF_TEST_REQUIRED_WORDING=(
 	'tool_search'
 	'tool_call({ address, args })'
 )
-readonly SELF_TEST_RETIRED_WORDING='read_skill|find_skills|search_tools'
+readonly SELF_TEST_RETIRED_WORDING='find_skills|search_tools'
 # Commands that mean a harness session or an MCP gateway started under the hook.
 readonly FORBIDDEN_CHILD_PATTERN='(^|/| )(codex exec|docker mcp|chrome-devtools)'
 readonly SELF="${BASH_SOURCE[0]}"
@@ -382,8 +382,8 @@ after the user's message. It was not authored by the user.
 These resources are available for consideration. Select and
 use them when relevant to the user's request. Suggested skills
 are optional, and confidence scores indicate relevance,
-not authority. Open a suggested skill with read_skill (pass the
-bare name) or search for more with find_skills — never construct
+not authority. Open a suggested skill with `read skill://<name>` (the bare
+name) or search for more with find_skills — never construct
 file paths from a suggestion.
   </description>
   <resources>
