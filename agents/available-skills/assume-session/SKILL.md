@@ -101,8 +101,7 @@ to actually do the work.
 
 Two reference forms:
 
-- `<harness>:<id>` — harness is one of `grok`, `claude`, `codex`, `copilot`, `pi`,
-  `omp` (also `cursor`, `opencode`, `hermes`).
+- `<harness>:<id>` — harness is `omp` or `codex`, the only supported harnesses. The capability can still resolve old transcripts left by removed harnesses (`grok`, `claude`, `copilot`, `pi`, `cursor`, `opencode`, `hermes`); that is legacy read-only lookup, not support.
 - A Mastra chat-thread URL, `https://<host>/agents/<agentId>/threads/<threadId>`
   (the capability reads it as `mastra:thread:<threadId>`).
 
@@ -407,8 +406,8 @@ None.
 ## Gotchas
 
 - **The capability is the locator now.** `run_get_recent_turns` and
-  `run_create_session_handoff_doc` find the session themselves for grok, claude,
-  codex, copilot, pi, omp, cursor, opencode, hermes. A bare id or a malformed URL is
+  `run_create_session_handoff_doc` find the session themselves for omp and codex (and, as legacy read-only lookup of old transcripts, grok, claude,
+  copilot, pi, cursor, opencode, hermes). A bare id or a malformed URL is
   refused with the accepted forms; relay it, do not retry another shape.
 - **Mastra thread URLs** (`https://<host>/agents/<agentId>/threads/<threadId>`)
   are read from the shared Mastra store (the Neon `mastra` database). The store is

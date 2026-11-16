@@ -341,7 +341,7 @@ _p_line_init() {
 	_p_url_async_start
 }
 
-# Re-sync appearance and redraw when signaled (e.g. by set-theme.sh on OS switch).
+# Re-sync appearance and redraw when signaled (e.g. by kitty/themes/set-theme on OS switch).
 # The cached header has the old width, so a resize is also a re-render.
 TRAPWINCH() {
 	_p_theme_plist_mtime=-1
