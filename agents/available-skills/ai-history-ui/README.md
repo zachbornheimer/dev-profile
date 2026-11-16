@@ -1,6 +1,6 @@
 # AI history UI — thinking glow + action stack
 
-User skill for Claude, Grok, and Codex. Invoke with `/ai-history-ui`.
+User skill for omp and the Codex desktop app. Invoke with `/ai-history-ui`.
 
 **Start at [SKILL.md](SKILL.md).** That is the agent entry.
 

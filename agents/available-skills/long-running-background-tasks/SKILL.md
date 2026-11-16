@@ -10,7 +10,7 @@ Only submitting or queuing jobs is not sufficient to complete the task. The defi
 
 This means you must see through the jobs completion by watching the job to ensure that its healthy, progressing, and working as intended.
 
-When the user says "Please spawn a tmux session" or a Grok pane is glitched, spawn or restart a Grok tmux pane and watch it through completion. Do not leave a prompt sitting for the user to hit enter.
+When the user says "Please spawn a tmux session" or an agent pane is glitched, spawn or restart the tmux pane and watch it through completion. Do not leave a prompt sitting for the user to hit enter.
 
 ## Tools available
 
@@ -40,7 +40,7 @@ run_command(
 
 When you need a durable wake instead — the event may land after this turn, or you want the completion to reach a session that might not be listening — arm exactly one wait:
 
-```
+```text
 wait {
   action: "arm",
   until: { type: "job_exit", job_id: "<id>" },
@@ -106,7 +106,7 @@ run_command(
 # standing pane; no exit arm — arm on the log_path it returned
 ```
 
-```
+```text
 wait {
   action: "arm",
   until: { type: "job_output", log_path: "<log_path>" },

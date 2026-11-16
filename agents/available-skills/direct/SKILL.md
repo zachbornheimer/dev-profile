@@ -24,7 +24,7 @@ The script binds `GROK_SESSION_ID` when set, else `CLAUDE_CODE_SESSION_ID`, else
 the newest per-session state file. Print exactly the script's own output line
 back to the user (`direct mode ON for session <id>`) — do not paraphrase it,
 since that line is the only confirmation that the marker landed on the right
-session. On Grok, `<id>` must equal `$GROK_SESSION_ID`.
+session. In omp, `<id>` must equal `$PI_SESSION_ID`.
 
 If the script instead prints `no session state found yet`, run any read-only
 command first (e.g. `git status`), then retry — that path is only for a session
