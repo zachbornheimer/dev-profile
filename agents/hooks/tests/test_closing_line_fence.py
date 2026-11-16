@@ -1,4 +1,4 @@
-"""closing_line is the last line of prose: a fenced block (evidence, JSON, commands) is never quoted as the close."""
+"""closing_line is the last line of prose: a fenced block or <evidence-check> element is never quoted as the close."""
 
 from __future__ import annotations
 
@@ -10,13 +10,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "lib"))
 from completion_gate_turn_judge import CLOSING_LINE_CHARS, closing_line
 
 
-def test_trailing_evidence_fence_yields_the_prose_before_it():
-    msg = 'Both suites pass.\n\n```evidence\n{"claim":"x","type":"test","ref":"y","scope":"unit"}\n```\n'
+def test_trailing_evidence_element_yields_the_prose_before_it():
+    msg = "Both suites pass.\n\n<evidence-check>\n<claim>x</claim>\n<type>test</type>\n<ref>y</ref>\n<scope>unit</scope>\n</evidence-check>\n"
     assert closing_line(msg) == "Both suites pass."
 
 
 def test_prose_after_a_fence_is_the_close():
-    msg = 'The work is done.\n\n```evidence\n{"claim":"x"}\n```\nI also verified it.'
+    msg = "The work is done.\n\n<evidence-check>\n<claim>x</claim>\n</evidence-check>\nI also verified it."
     assert closing_line(msg) == "I also verified it."
 
 

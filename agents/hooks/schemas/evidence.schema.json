@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "completion-gate evidence block",
-  "description": "Shape of the fenced ```evidence JSON block completion-gate.sh validates (Level 1) before checking provenance (Level 2). Documentation artifact for humans/tests — completion-gate.sh itself validates inline with jq, not by loading this file.",
+  "title": "completion-gate evidence-check element",
+  "description": "Shape of one <evidence-check> element (its four children, as fields) that the completion gate validates (Level 1) before checking provenance (Level 2). Documentation artifact for humans/tests — the gate validates in completion_gate_evidence.py, not by loading this file.",
   "type": "object",
   "required": ["claim", "type", "ref", "scope"],
   "properties": {

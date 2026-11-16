@@ -18,7 +18,7 @@ Block kinds, checked in this order:
                        unless the user told the agent to hold off on that action
                        or the closing question asks a preference only they hold
   unmatched_failures   claims completion while a go-test FAIL is unmatched
-  invalid_evidence_block  claims completion with a malformed ```evidence block
+  invalid_evidence_block  claims completion with a malformed <evidence-check> element
   unproven_claim       claims completion without evidence it actually ran
 
 A turn with no user_request (a subagent's turn, or a transcript the hook could
@@ -115,7 +115,11 @@ TURN_OUTCOME_LEVELS = (
 
 
 def _noul(question: str, yes: str, no: str) -> dict[str, Any]:
-    return {"type": "noul", "instructions": question, "criteria": {"true": yes, "false": no}}
+    return {
+        "type": "noul",
+        "instructions": question,
+        "criteria": {"true": yes, "false": no},
+    }
 
 
 def build_questions() -> dict[str, dict[str, Any]]:
@@ -167,7 +171,7 @@ def build_questions() -> dict[str, dict[str, Any]]:
             "from `evidence` showing that the agent actually performed or corroborated that work?",
             "The message claims completion, success, passing tests, deployment, or verification, but "
             "`evidence` contains no relevant command execution, test result, subagent report, or "
-            "corroborated evidence block supporting that claim.",
+            "corroborated <evidence-check> element supporting that claim.",
             "There is no completion claim, or the evidence contains relevant execution or "
             "corroboration supporting it.",
         ),
@@ -182,9 +186,9 @@ def build_questions() -> dict[str, dict[str, Any]]:
             'It\'s a ~10-minute add.", "There\'s still one edge case to fix.", "I haven\'t run the '
             'integration tests yet.", "The remaining cleanup is straightforward.", or "Next I would '
             'update the hook." When `user_request` asks for information, advice, a review, or a '
-            'report, closing instructions addressed to the user (a command for them to run, a flag '
-            'to add) are the deliverable, not unfinished work; only work the agent itself says it '
-            'will do or left unfinished counts.',
+            "report, closing instructions addressed to the user (a command for them to run, a flag "
+            "to add) are the deliverable, not unfinished work; only work the agent itself says it "
+            "will do or left unfinished counts.",
             "The current task is complete, or every remaining meaningful step genuinely depends on "
             "something only the user can provide or decide.",
         ),
@@ -313,9 +317,13 @@ def _noul_value(answers: dict[str, Any], question: str) -> float:
 
 
 def _outcome_probability(answers: dict[str, Any], level: int) -> float:
-    probabilities = _answer(answers, QUESTION_TURN_OUTCOME, "score").get("probabilities")
+    probabilities = _answer(answers, QUESTION_TURN_OUTCOME, "score").get(
+        "probabilities"
+    )
     if not isinstance(probabilities, dict):
-        raise TypeError(f"TypeSafe answer {QUESTION_TURN_OUTCOME} missing probabilities")
+        raise TypeError(
+            f"TypeSafe answer {QUESTION_TURN_OUTCOME} missing probabilities"
+        )
     return _as_float(probabilities.get(str(level), 0.0))
 
 
@@ -328,8 +336,12 @@ def _already_authorized(answers: dict[str, Any], signals: dict[str, float]) -> b
 
 def _deferral_excused(answers: dict[str, Any], signals: dict[str, float]) -> bool:
     """True when the user held the action back or the closing question needs the user's taste."""
-    signals["user_withheld_action"] = _noul_value(answers, QUESTION_USER_WITHHELD_ACTION)
-    signals["closing_asks_user_preference"] = _noul_value(answers, QUESTION_CLOSING_ASKS_PREFERENCE)
+    signals["user_withheld_action"] = _noul_value(
+        answers, QUESTION_USER_WITHHELD_ACTION
+    )
+    signals["closing_asks_user_preference"] = _noul_value(
+        answers, QUESTION_CLOSING_ASKS_PREFERENCE
+    )
     return (
         signals["user_withheld_action"] >= TURN_USER_WITHHELD_THRESHOLD
         or signals["closing_asks_user_preference"] >= TURN_CLOSING_PREFERENCE_THRESHOLD
@@ -350,12 +362,18 @@ def _deferred(answers: dict[str, Any], signals: dict[str, float]) -> bool:
                 unless that work is already running in the background
       outcome   the turn hands the user work the agent could do itself
     """
-    signals["waits_on_user"] = _outcome_probability(answers, OUTCOME_WAITS_ON_USER_LEVEL)
+    signals["waits_on_user"] = _outcome_probability(
+        answers, OUTCOME_WAITS_ON_USER_LEVEL
+    )
     if signals["waits_on_user"] >= TURN_OUTCOME_CONFIDENT_THRESHOLD:
-        signals["defers_doable_work"] = _noul_value(answers, QUESTION_DEFERS_DOABLE_WORK)
+        signals["defers_doable_work"] = _noul_value(
+            answers, QUESTION_DEFERS_DOABLE_WORK
+        )
         if signals["defers_doable_work"] >= TURN_WAITING_TURN_DOABLE_BAR:
             return True
-        signals["prework_before_handoff"] = _noul_value(answers, QUESTION_PREWORK_BEFORE_HANDOFF)
+        signals["prework_before_handoff"] = _noul_value(
+            answers, QUESTION_PREWORK_BEFORE_HANDOFF
+        )
         return signals["prework_before_handoff"] >= TURN_PREWORK_THRESHOLD
     return (
         _deferred_by_handoff(answers, signals)
@@ -365,7 +383,9 @@ def _deferred(answers: dict[str, Any], signals: dict[str, float]) -> bool:
 
 
 def _deferred_by_outcome(answers: dict[str, Any], signals: dict[str, float]) -> bool:
-    signals["hands_off_doable_work"] = _outcome_probability(answers, OUTCOME_DEFERRED_LEVEL)
+    signals["hands_off_doable_work"] = _outcome_probability(
+        answers, OUTCOME_DEFERRED_LEVEL
+    )
     return signals["hands_off_doable_work"] >= TURN_OUTCOME_CONFIDENT_THRESHOLD
 
 
@@ -374,18 +394,24 @@ def _deferred_by_handoff(answers: dict[str, Any], signals: dict[str, float]) -> 
     if signals["ends_on_handoff"] < TURN_HANDOFF_THRESHOLD:
         return False
     signals["defers_doable_work"] = _noul_value(answers, QUESTION_DEFERS_DOABLE_WORK)
-    signals["stopped_investigation"] = _noul_value(answers, QUESTION_STOPPED_INVESTIGATION)
+    signals["stopped_investigation"] = _noul_value(
+        answers, QUESTION_STOPPED_INVESTIGATION
+    )
     return (
         signals["defers_doable_work"] >= TURN_DOABLE_WORK_THRESHOLD
         or signals["stopped_investigation"] >= TURN_UNINVESTIGATED_THRESHOLD
     )
 
 
-def _deferred_by_leftover_work(answers: dict[str, Any], signals: dict[str, float]) -> bool:
+def _deferred_by_leftover_work(
+    answers: dict[str, Any], signals: dict[str, float]
+) -> bool:
     signals["leaves_doable_work"] = _noul_value(answers, QUESTION_LEAVES_DOABLE_WORK)
     if signals["leaves_doable_work"] < TURN_LEAVES_DOABLE_WORK_THRESHOLD:
         return False
-    signals["remaining_work_running"] = _noul_value(answers, QUESTION_REMAINING_WORK_RUNNING)
+    signals["remaining_work_running"] = _noul_value(
+        answers, QUESTION_REMAINING_WORK_RUNNING
+    )
     return signals["remaining_work_running"] < TURN_REMAINING_WORK_RUNNING_THRESHOLD
 
 

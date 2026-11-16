@@ -7,7 +7,10 @@
 set -euo pipefail
 
 out="$(cd "${1:?usage: foxguard-introduced-fixture.sh <generated-dir>}" && pwd -P)"
+# An installed helper is exercised when the directory has one; an empty
+# directory exercises this checkout's source helper.
 helper="${out}/bin/dev-profile-foxguard-introduced"
+[[ -x ${helper} ]] || helper="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)/bin/dev-profile-foxguard-introduced"
 command -v foxguard >/dev/null 2>&1 || {
 	echo "foxguard fixture skipped: foxguard not installed"
 	exit 0
@@ -91,6 +94,7 @@ printf 'export const addedOnly = () => dangerouslyRun("new-only");\n' >new-only.
 gate new-only.ts
 [[ ${status} -eq 1 ]] || fail "an all-new input must be compared, got ${status}: $(cat "${work}/err")"
 grep -q new-only "${work}/out" || fail "the all-new finding was not reported"
+rm new-only.ts
 
 # A target the repository does not have, and a call without one, fail closed.
 gate --target origin/nope legacy.ts
@@ -101,5 +105,34 @@ status=$?
 set -e
 [[ ${status} -eq 2 ]] || fail "a call without --target must fail closed, got ${status}"
 grep -q 'usage:' "${work}/err" || fail "a call without --target must explain itself"
+
+# A file foxguard cannot parse at the target contributes no findings there, and
+# only that file: findings the target's parseable files carry stay suppressed.
+# `export type * from` is syntax foxguard skips as a parse error.
+git switch -q -c unparseable-target origin/main
+printf 'export type * from "./legacy";\n' >skipped.ts
+git add skipped.ts
+git commit -q -m "target with an unparseable file"
+git update-ref refs/remotes/origin/unparseable-target HEAD
+git switch -q -c parseable-branch
+gate_unparseable_target() { gate --target origin/unparseable-target "$@"; }
+
+printf 'export const parsed = 1;\n' >skipped.ts
+gate_unparseable_target skipped.ts
+[[ ${status} -eq 0 ]] || fail "a clean branch over an unparseable target file must pass, got ${status}: $(cat "${work}/out" "${work}/err")"
+
+printf 'export const parsed = () => dangerouslyRun("newly-parseable");\n' >skipped.ts
+gate_unparseable_target skipped.ts
+[[ ${status} -eq 1 ]] || fail "a finding in a newly parseable file must be introduced, got ${status}: $(cat "${work}/out" "${work}/err")"
+grep -q 'newly-parseable' "${work}/out" || fail "the newly parseable file's finding was not reported: $(cat "${work}/out")"
+
+printf 'export const parsed = 1;\n' >skipped.ts
+gate_unparseable_target legacy.ts skipped.ts
+[[ ${status} -eq 0 ]] || fail "a parseable target file's finding must stay suppressed beside an unparseable one, got ${status}: $(cat "${work}/out" "${work}/err")"
+grep -q 'legacy-fixed' "${work}/out" && fail "a finding the target's parseable file carries was reported"
+
+printf 'export type * from "./legacy";\n' >skipped.ts
+gate_unparseable_target skipped.ts
+[[ ${status} -eq 2 ]] || fail "an unparseable branch file must fail closed, got ${status}: $(cat "${work}/out" "${work}/err")"
 
 echo "ok foxguard-introduced fixture"

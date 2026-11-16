@@ -60,9 +60,33 @@ Protections enforced on self-saving history:
 - **Tripwire**: `agents/hooks/gate-bypass-tripwire.py` blocks `--allow-plaintext-history`, `MISE_HISTORY_ALLOW_PLAINTEXT_HISTORY`, and `allow_plaintext_history = true`.
 - **`main` branch isolation**: History sync connects to a dedicated `--branch history` (or dedicated private setup repository), never a repository's protected `main` code branch.
 
+On macOS, the repair launcher keeps ownership of its worker through the startup
+grace period. A worker that exits during that period is reaped and logged as a
+startup failure, so the watchdog notifies the user instead of entering cooldown.
+Surviving workers keep their own session and outlive the watchdog tick.
+
 ## Checks
 
 Run mise run doctor. Run mise dot apply --dry-run before changing live links.
+Hook fixtures use Git from mise when configured, otherwise the installed Git
+on PATH (Homebrew on macOS).
+
+Interactive prompts paint a cached or pure-zsh header before starting Starship,
+mise and direnv refreshes, or detached command-log writes. Slow background work
+can delay status and environment updates, but never blocks the initial prompt.
+The scheduler retains its notification fd between prompts to avoid synchronous
+process-substitution cleanup. Directory convergence checks PATH and project
+markers only inside its detached worker (`&!`), never in `chpwd`.
+`mise run test:cd-latency` exercises held renderers, environment refreshes, and
+blocked worker discovery in an interactive terminal.
+
+Fuzzy `cd` and `z` resolve their target with the native zoxide binary selected
+by `_zsh_binpath`, without changing PATH or running the mise shim. This lookup
+must complete before changing PWD; `zoxide add` remains detached (`&!`).
+The cd fixture uses an isolated database and a failing shim to guard this path.
+
+The mise config-stamp ancestry walk stops at the filesystem root or an unchanged
+parent, so shells started in deleted directories finish startup.
 
 `mise run test:omp` checks the installed `~/.omp/agent/tools` import graphs and
 callable default exports, then loads installed extensions through OMP's real RPC
@@ -80,6 +104,12 @@ by the branch, not unchanged files inherited from published merge parents;
 authored lint findings still fail, and the history secret scan stays range-wide.
 Direct attribution measures the current checkout at `HEAD`; use `--to-ref HEAD`
 for this mode. The hook's tools lint checkout files, not another ref's tree.
+
+`mise run test:foxguard-introduced` runs real foxguard through
+`bin/dev-profile-foxguard-introduced`. A target file foxguard cannot parse
+contributes no findings, while findings from the target's other files stay
+suppressed. A branch file foxguard cannot parse, a scanner failure, or an invalid
+comparison fails closed with exit 2.
 
 Failed hooks restore tracked content and staged entries, including edits that
 preserve file size and timestamps. Snapshot indexes discard Git's stat cache

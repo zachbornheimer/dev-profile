@@ -27,7 +27,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from completion_gate_evidence import EVIDENCE_TEMPLATE, invalid_evidence_block_reason
+from completion_gate_evidence import (
+    EVIDENCE_ELEMENT_RE,
+    EVIDENCE_TEMPLATE,
+    invalid_evidence_block_reason,
+)
 from typesafe_location import TYPESAFE_CLI
 
 TURN_JUDGE_CLI_ENV = "HC_TURN_JUDGE_CLI"
@@ -81,7 +85,7 @@ UNPROVEN_CLAIM_REASON = (
     "This turn claims the work is done, fixed, passing, or verified, but TypeSafe found nothing "
     "this turn that backs it (unproven claim {unproven_claim:.2f}): no test or command output and "
     "no subagent report. Run the check and cite its output, or downgrade the claim (e.g. 'not yet "
-    "verified'). An evidence block also works:\n"
+    "verified'). An <evidence-check> element also works:\n"
 )
 
 Run = Callable[..., subprocess.CompletedProcess[str]]
@@ -211,14 +215,14 @@ def request_state(envelope: dict[str, Any]) -> dict[str, Any]:
 
 
 def _outside_fences(message: str) -> list[str]:
-    """The message's non-empty lines with every fenced block, fences and body, removed.
+    """The message's non-empty lines with every fenced block and <evidence-check> element removed.
 
-    A closing ```evidence block is the agent's proof, not its closing words: quoting its JSON body as the
-    "closing line" made the block read as a false positive.
+    A closing <evidence-check> element is the agent's proof, not its closing words: quoting its body as the
+    "closing line" made it read as a false positive.
     """
     kept: list[str] = []
     inside = False
-    for raw in message.strip().splitlines():
+    for raw in EVIDENCE_ELEMENT_RE.sub("", message).strip().splitlines():
         line = raw.strip()
         if line.startswith("```"):
             inside = not inside
@@ -257,11 +261,7 @@ def block_reason(
         return _deferred_reason(judgment.signals, signals, closing_line(message))
     if kind == BLOCK_INVALID_EVIDENCE_BLOCK:
         return invalid_evidence_block_reason(evidence_problem)
-    return (
-        f'You closed with: "{closing_line(message)}"\n'
-        + UNPROVEN_CLAIM_REASON.format(**signals)
-        + EVIDENCE_TEMPLATE
-    )
+    return UNPROVEN_CLAIM_REASON.format(**signals) + EVIDENCE_TEMPLATE
 
 
 def _deferred_reason(

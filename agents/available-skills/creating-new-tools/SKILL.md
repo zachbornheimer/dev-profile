@@ -189,7 +189,7 @@ supply data the runtime can safely derive.
 
 **Wire-schema and description budget (measured 2026-11-10/11):**
 
-- Every character in a disclosed (top-level) tool's `description` and JSON Schema is sent on **every turn**. Compacting `run_command` in `~/.omp/agent/tools/run_command/` from 10,598 wire chars (4,515 desc + 5,999 schema) to 3,832 wire chars (1,222 desc + 2,610 schema) cut startup cost by **2,508 tokens per turn** (~10,000 tokens over a 4-turn task) while keeping a 100% pass rate.
+- Every character in a disclosed (top-level) tool's `description` and JSON Schema is sent on **every turn**. Compacting a former shell tool (since superseded by `bash` + `extensions/bash-rules.ts`) from 10,598 wire chars (4,515 desc + 5,999 schema) to 3,832 wire chars (1,222 desc + 2,610 schema) cut startup cost by **2,508 tokens per turn** (~10,000 tokens over a 4-turn task) while keeping a 100% pass rate.
 - Never paste JSON schemas, multi-paragraph tutorials, or repeated constraint prose (`{minLength: 1}`, `{exclusiveMinimum: 0}`) into `.describe(...)`. Keep field descriptions to one short phrase (`"Max 300"`, `"Absolute; default session cwd"`), and enforce value refinements and cross-field rules per variant `type` inside `execute()` / `validateInput()` with a clear error message instead of inflating the wire JSON Schema with `oneOf` unions.
 - Keep required fields explicit in `z.object({ ... })` (avoid making the primary argument `.optional()` unless `{}` is a valid call). `onUserPromptSubmit.ts` (`argsExample` and `readToolSource`) builds the `<tools>` `how-to-call` example from required fields; when a tool has no required fields (and no `command` property), its `how-to-call` shows `args: {}`, which causes agents to call `tool_call` with empty args and burn an extra turn.
 
@@ -324,7 +324,7 @@ A kit tool reaches agents through the Mastra mount (the `mcp__capability_…`
 gateway tool and `capability run <name>`). Add an **omp adapter** only when the
 tool must be a first-class omp tool: it needs the omp process (session id,
 `context.invokeTool`, the native job registry), or it replaces a builtin
-(`edit`, `write`, `todo`, `run_command`, `wait`). Otherwise the Mastra mount
+(`edit`, `write`, `todo`, `wait`). Otherwise the Mastra mount
 alone is the finished tool.
 
 **One-core rule.** `@zab-ai/ai` owns every decision: description, input schema,
@@ -344,7 +344,7 @@ mastra/src/capability/<family>/<family>.ts  defineCapability mount (§4)
 mastra/adapters/omp/zab-ai-tools/<name>.ts  default-export ToolFactory
 mastra/adapters/omp/zab-ai-tools/index.ts   add the factory to the registration loop
 mastra/test/capability/<family>_one_core.test.ts  parity: same description, schema, output
-mastra/test/capability/<family>_import_boundary.test.ts  model: run_command_import_boundary.test.ts
+mastra/test/capability/<family>_import_boundary.test.ts  model: an existing import-boundary test
 ```
 
 Adapter shape (copy `todo.ts` for a delegating tool, `wait.ts` for one that
@@ -392,14 +392,14 @@ ordinary functions in a fixed order; the model calls the tool, not the steps.
 No `@zab-ai/ai`, no Mastra mount, no gateway.
 
 **Where.** `~/.omp/agent/tools/<name>.ts` (or `~/.omp/agent/tools/<name>/index.ts`
-when the tool has helper modules and unit tests, like `~/.omp/agent/tools/run_command/`)
+when the tool has helper modules and unit tests, like `~/.omp/agent/tools/better_tool.ts`'s siblings)
 for a personal tool; `.omp/tools/<name>.ts` inside a repo for a project tool.
 The oh-my-pi fork builds `.omp/tools/**` and `.omp/tests/**` in CI, so put shared
 repo tools there.
 
 **Visibility: disclosed upfront vs lazy (`hidden: true`, `loadMode: "discoverable"`).**
 
-- Only the tiny startup core (`run_command`, `write`, `read`, `tool_search`,
+- Only the tiny startup core (`bash`, `write`, `read`, `tool_search`,
   `tool_call`, `skill_search` in the 6-tool `lean` benchmark config — 117.6k
   tokens/task and 33.7 s vs 752.6k tokens/task and 63.5 s with all 168 tools
   disclosed) belongs on the top-level startup tool list.
@@ -467,12 +467,12 @@ export default factory;
   `mastra`. Put helper modules and unit tests inside
   `~/.omp/agent/tools/<name>/` (with `index.ts` as the entry point).
 
-**Tool standard (same bar as the extension standard).** The exemplar for extension shape is `~/.omp/agent/extensions/onUserPromptSubmit.ts` (see `updating-oh-my-pi` `references/extensions.md`, "Extension standard"); the exemplar for a tool is `~/.omp/agent/tools/run_command/`. A new tool MUST:
+**Tool standard (same bar as the extension standard).** The exemplar for extension shape is `~/.omp/agent/extensions/onUserPromptSubmit.ts` (see `updating-oh-my-pi` `references/extensions.md`, "Extension standard"); the exemplar for a tool is any directory tool under `~/.omp/agent/tools/` with sibling `*.test.ts` files. A new tool MUST:
 
 1. Open with a header comment stating its one responsibility and naming where each other concern lives.
 2. Keep `index.ts` a thin factory: name, description, schema, and an `execute()` that validates, calls the pure core, and renders. Decisions, parsing, and policy live in sibling modules with no omp imports.
 3. Put per-variant and cross-field validation in a `validateInput`-style function with a clear error, not in an inflated wire schema (§2.2 budget).
-4. Report failure truthfully, in one of two ways. A refusal the caller can act on (bad input, policy, scope) is a typed result: `details: { status: "denied", reason }` with the same text in `content`, as `run_command` does through `denied()`. An unexpected failure (bug, I/O error, abort via `signal?.throwIfAborted()`) throws. Never return a failure as success, and put non-fatal problems in the result instead of swallowing them.
+4. Report failure truthfully, in one of two ways. A refusal the caller can act on (bad input, policy, scope) is a typed result: `details: { status: "denied", reason }` with the same text in `content`, as the rule modules under `extensions/bash-rules/core/` do through `denied()`. An unexpected failure (bug, I/O error, abort via `signal?.throwIfAborted()`) throws. Never return a failure as success, and put non-fatal problems in the result instead of swallowing them.
 5. Take every side effect (process, filesystem, clock, network) through a parameter or port so tests can fake it.
 6. Ship `*.test.ts` files beside the pure modules in `tools/<name>/`, covering behavior, boundaries and errors; run them with `bun test`.
 7. Be hidden and discoverable unless it belongs in the startup core, with a routing description (§2.1) and required fields non-optional.

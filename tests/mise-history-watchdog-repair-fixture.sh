@@ -76,7 +76,9 @@ printf '%s\n' '#!/usr/bin/env bash' 'exit 1' >"$work/bin/pgrep"
 printf '%s\n' '#!/usr/bin/env bash' 'exit 0' >"$work/bin/heal-ok"
 printf '%s\n' '#!/usr/bin/env bash' 'echo "heal: multi-line entry needs a hand edit: ~/.config/x.toml" >&2' 'exit 1' >"$work/bin/heal-fail"
 printf '%s\n' '#!/usr/bin/env bash' 'printf "%s\\n" "$*" >>"$SPAWN_CALLS"' 'exec sleep 30' >"$work/bin/capability-ok"
-printf '%s\n' '#!/usr/bin/env bash' 'printf "%s\\n" "$*" >>"$SPAWN_CALLS"' 'echo "omp: failed to start"' 'exit 3' >"$work/bin/capability-fail"
+# A real binary that exits at once: a bash stub's interpreter startup can outlast
+# the startup grace, which would turn this immediate failure into a slow one.
+cp /usr/bin/false "$work/bin/capability-fail"
 cat >"$work/bin/systemctl" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$SYSTEMCTL_CALLS"
@@ -307,6 +309,21 @@ tick 'stale lock'
 [ -e "$HOME/.local/state/mise/history/operation" ] || fail 'a fresh lock was removed'
 grep -q 'removed stale sync.lock' "$log" || fail "the lock removal was not logged: $(cat "$log")"
 rm -f "$HOME/.local/state/mise/history/operation"
+
+# --- a live long operation is neither restarted nor stripped of its lock -----
+reset
+printf '%s\n' '✓ 100 entries up to date (`--verbose` lists them all)' '  watcher health (updated 900s ago): last capture 2026-11-04 18:00' >"$MISE_STATUS"
+touch -t 202001010000 "$HOME/.local/state/mise/history/operation"
+touch "$HOME/.local/state/mise/history/operation.json"
+: >"$log"
+tick 'live operation'
+[ -e "$HOME/.local/state/mise/history/operation" ] || fail 'the lock of a live operation was removed'
+if grep -q 'watcher health frozen' "$log"; then fail "a live operation's watcher was restarted: $(cat "$log")"; fi
+touch -t 202001010000 "$HOME/.local/state/mise/history/operation.json"
+tick 'abandoned operation'
+[ ! -e "$HOME/.local/state/mise/history/operation" ] || fail 'the lock of an abandoned operation was kept'
+grep -q 'watcher health frozen 900s' "$log" || fail 'an abandoned operation did not get its watcher restarted'
+rm -f "$HOME/.local/state/mise/history/operation.json"
 
 # --- a Linux fleet box: the same script, systemd for the service and the run --
 reset
