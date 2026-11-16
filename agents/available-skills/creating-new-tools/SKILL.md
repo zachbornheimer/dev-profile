@@ -219,7 +219,7 @@ Run the real suggestion path and read the shortlist and `how-to-call` examples i
 - **In Mastra (legacy gateway):**
 
 ```sh
-cd ~/Developer/Personal/capability-replicas/mastra
+cd ~/Developer/Personal/mastra
 ./bin/capability run suggest_skills_tools_and_mcp --fresh --text "<prompt>" \
   | jq -r '.output.Suggestions[]? | "\(.Confidence)  \(.Name)"'
 ```
@@ -464,7 +464,7 @@ export default factory;
   sends `onUpdate` heartbeats (see `~/.omp/agent/tools/ask_mastra.ts`), passes
   `signal` to `pi.exec` and every await, and clears its timers in `finally`.
 - **Self-contained.** Zero imports from `@zab-ai/ai`, `@mastra/*`, or
-  `capability-replicas`. Put helper modules and unit tests inside
+  `mastra`. Put helper modules and unit tests inside
   `~/.omp/agent/tools/<name>/` (with `index.ts` as the entry point).
 
 **Tool standard (same bar as the extension standard).** The exemplar for extension shape is `~/.omp/agent/extensions/onUserPromptSubmit.ts` (see `updating-oh-my-pi` `references/extensions.md`, "Extension standard"); the exemplar for a tool is `~/.omp/agent/tools/run_command/`. A new tool MUST:
@@ -476,7 +476,7 @@ export default factory;
 5. Take every side effect (process, filesystem, clock, network) through a parameter or port so tests can fake it.
 6. Ship `*.test.ts` files beside the pure modules in `tools/<name>/`, covering behavior, boundaries and errors; run them with `bun test`.
 7. Be hidden and discoverable unless it belongs in the startup core, with a routing description (§2.1) and required fields non-optional.
-8. Stay self-contained (no `@zab-ai/*`, `@mastra/*`, or `capability-replicas`) and never mutate host objects it did not create.
+8. Stay self-contained (no `@zab-ai/*`, `@mastra/*`, or `mastra`) and never mutate host objects it did not create.
 
 **Workflow steps.** Keep steps as plain functions in the same module (or sibling
 files in `~/.omp/agent/tools/<name>/`), called in order by `execute()`. For a

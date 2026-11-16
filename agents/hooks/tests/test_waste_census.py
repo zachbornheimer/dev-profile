@@ -16,7 +16,7 @@ spec.loader.exec_module(census_mod)
 
 ANNOTATED_OMP_SESSION = (
     Path.home()
-    / ".local/share/capability-replicas/annotated"
+    / ".local/share/omp/transcripts/annotated"
     / "omp_01a169a2-d468-7000-a856-796b75fda94b.annotated.json"
 )
 
@@ -32,8 +32,16 @@ def test_turns_export_resolves_tool_name_from_tool_call_id(tmp_path: Path) -> No
                         "source": "agent",
                         "text": "Calling write and eval",
                         "tool_calls": [
-                            {"id": "call-1", "name": "write", "arguments": {"path": "a.txt"}},
-                            {"toolCallId": "call-2", "name": "eval", "arguments": {"code": "1+1"}},
+                            {
+                                "id": "call-1",
+                                "name": "write",
+                                "arguments": {"path": "a.txt"},
+                            },
+                            {
+                                "toolCallId": "call-2",
+                                "name": "eval",
+                                "arguments": {"code": "1+1"},
+                            },
                         ],
                     },
                     {

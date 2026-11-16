@@ -21,7 +21,7 @@ SESSION_HEADER = {
     "version": 3,
     "id": "01a1990d-7b5e-7554-9b57-43716d787a06",
     "timestamp": "2026-11-01T21:39:20.030Z",
-    "cwd": "/home/zbornheimer/Developer/Personal/capability-replicas/mastra",
+    "cwd": "/home/zbornheimer/Developer/Personal/mastra",
 }
 USER_TURN = {
     "type": "message",

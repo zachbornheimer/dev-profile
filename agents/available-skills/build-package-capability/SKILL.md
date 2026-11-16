@@ -1,6 +1,6 @@
 ---
 name: build-package-capability
-description: "Use when adding a new tool to capability-replicas: code that lives in @zab-ai/ai (packages/ai) and is mounted in mastra so `capability run <name>` reaches it. Covers the file layout, the leaf-module mount, the registry and test-map entries, how to run an agent prompt in the user's full omp setup, how to verify, and the traps that cost time (thread sessions have no tools, parallel writes fork worktrees, commit and test rules)."
+description: "Use when adding a new tool to mastra: code that lives in @zab-ai/ai (packages/ai) and is mounted in mastra so `capability run <name>` reaches it. Covers the file layout, the leaf-module mount, the registry and test-map entries, how to run an agent prompt in the user's full omp setup, how to verify, and the traps that cost time (thread sessions have no tools, parallel writes fork worktrees, commit and test rules)."
 ---
 
 # Build a package capability
@@ -31,16 +31,24 @@ Wire-ups, each one line:
 Import the package's leaf modules, never `@zab-ai/ai/tools` or `@zab-ai/ai/tools/<family>`. Those register the tool on the package registry as an import side effect. See `mastra/src/capability/edit/edit.ts` for the comment and `prepare_ticket.ts` for a short mount:
 
 ```ts
+import { runX, X_NAME } from "@zab-ai/ai/tools/<family>/<name>";
 import { x_description } from "@zab-ai/ai/tools/<family>/description";
-import { X_NAME, runX } from "@zab-ai/ai/tools/<family>/<name>";
-import { x_input_schema, x_output_schema } from "@zab-ai/ai/tools/<family>/schemas";
+import {
+  x_input_schema,
+  x_output_schema,
+} from "@zab-ai/ai/tools/<family>/schemas";
 import { defineCapability } from "../../runtime/capability.js";
 
 export const x = defineCapability({
-  name: X_NAME, description: x_description,
-  needs: { tools: [], network: true }, cache: false,
-  input: x_input_schema, output: x_output_schema,
-  async run(input) { return await runX(input); },
+  name: X_NAME,
+  description: x_description,
+  needs: { tools: [], network: true },
+  cache: false,
+  input: x_input_schema,
+  output: x_output_schema,
+  async run(input) {
+    return await runX(input);
+  },
 });
 ```
 

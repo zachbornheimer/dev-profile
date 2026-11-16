@@ -3,7 +3,7 @@ name: spec-writer
 description: Use when the user has an idea to turn into a spec or wants to be interviewed about it ('write a spec', 'spec this out', 'interview me', 'I have an idea', 'socratic', 'rfc', 'design doc for X'), from any directory including ~. Runs the capability gateway's Jev-graded Socratic interview, writes spec.md + seed.json, then hands the acceptance criteria to atask.
 user-invokable: true
 disable-model-invocation: false
-argument-hint: '[the idea, or an interview session_id to resume]'
+argument-hint: "[the idea, or an interview session_id to resume]"
 ---
 
 # Spec writer
@@ -17,7 +17,7 @@ Sessions and specs are stored centrally in `~/.local/share/specs/<session_id>/`,
 
 ## Spec Kit repo
 
-If the directory has `.specify/`, the same loop is also a Spec Kit command. Install once from capability-replicas:
+If the directory has `.specify/`, the same loop is also a Spec Kit command. Install once from mastra:
 
 ```bash
 specify extension add --dev --force mastra/spec-kit/extension

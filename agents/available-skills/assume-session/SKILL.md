@@ -90,7 +90,7 @@ to actually do the work.
 /assume-session codex:able-efgh-1234 --then confirm
 /assume-session omp:<id> --then continue
 /assume-session omp:latest --then confirm
-/assume-session https://stable.capability-replicas.localhost/agents/code-improver/threads/a3927124-9c47-4d02-b417-133c06c71385 --then confirm
+/assume-session https://stable.mastra.localhost/agents/code-improver/threads/a3927124-9c47-4d02-b417-133c06c71385 --then confirm
 ```
 
 Two reference forms:

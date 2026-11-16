@@ -32,7 +32,7 @@ import shutil
 import sqlite3
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
@@ -187,7 +187,7 @@ def claim_unreviewed_periods(
                         newest_claim, datetime.fromisoformat(claimed_at).timestamp()
                     )
         if min_interval > 0 and newest_claim > 0:
-            age = datetime.now(timezone.utc).timestamp() - newest_claim
+            age = datetime.now(UTC).timestamp() - newest_claim
             if age < min_interval:
                 return []
         periods: dict[str, dict] = {}
@@ -200,7 +200,7 @@ def claim_unreviewed_periods(
                 period["accounts"].append(item["account_key"])
         if not periods:
             return []
-        now_iso = datetime.now(timezone.utc).isoformat()
+        now_iso = datetime.now(UTC).isoformat()
         for period in periods.values():
             handle.write(json.dumps({**period, "claimed_at": now_iso}) + "\n")
         handle.flush()
@@ -210,7 +210,7 @@ def claim_unreviewed_periods(
 # A launcher override reaches execve as one argv element, never through a shell. Only a plain
 # executable path or name is allowed: anything with a space, quote, or shell metacharacter is a
 # configuration error at the call site, so it is refused before the launch (same rule as
-# SAFE_TOKEN/plainToken in capability-replicas fleet-offload.ts).
+# SAFE_TOKEN/plainToken in mastra fleet-offload.ts).
 SAFE_LAUNCHER = re.compile(r"^/?[A-Za-z0-9_][A-Za-z0-9._/@:+-]*$")
 
 
