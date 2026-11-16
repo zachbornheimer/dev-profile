@@ -1,5 +1,7 @@
 # Events and harnesses
 
+> Only omp and the Codex desktop app are supported. The columns below for Claude Code, Gemini, Grok, OpenCode, Copilot and Hermes describe adapters that still exist in the `agent-hooks` code. Those harnesses are removed here, and nothing is installed or maintained for them.
+
 Source of truth: `src/events.rs` (`native_event_for`, `normalize_event`) and `src/installer.rs`
 (`is_native_event`, install paths). Re-read those if this table and the code disagree.
 

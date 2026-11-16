@@ -1,6 +1,6 @@
 ---
 name: orchestrate
-description: Use when the user says "/orchestrate", "back to delegating", or "stop editing directly" — turns direct mode back off, re-enabling the orchestrator-only gate so this session (Claude Code or Grok) goes back to prompting and delegating instead of editing files or running mutating commands itself.
+description: Use when the user says "/orchestrate", "back to delegating", or "stop editing directly" — turns direct mode back off, re-enabling the orchestrator-only gate so this session (omp) goes back to prompting and delegating instead of editing files or running mutating commands itself.
 user-invokable: true
 ---
 

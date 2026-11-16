@@ -1,6 +1,6 @@
 ---
 name: direct
-description: Use when the user says "/direct", "let me do this hands-on", or "stop delegating for a bit" — allows this main session (Claude Code or Grok) to edit files and run mutating shell commands directly for the rest of the session, bypassing the orchestrator-only PreToolUse gate.
+description: Use when the user says "/direct", "let me do this hands-on", or "stop delegating for a bit" — allows this main session (omp) to edit files and run mutating shell commands directly for the rest of the session, bypassing the orchestrator-only PreToolUse gate.
 user-invokable: true
 ---
 
