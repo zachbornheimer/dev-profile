@@ -7,7 +7,7 @@
 per-session escape hatch (see ~/.agents/available-skills/direct/SKILL.md and
 ~/.agents/available-skills/orchestrate/SKILL.md, which call this).
 
-Session id, in order: GROK_SESSION_ID, CLAUDE_CODE_SESSION_ID, then the most
+Session id, in order: PI_SESSION_ID (set by omp), then the most
 recently modified per-session state file under $STATE_DIR
 (bash-history-<session>.tsv, written by bash-signature-record.py's
 PostToolUse hook on every completed Bash call; falls back to
@@ -30,13 +30,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
 
 from hook_common import HookSettings, file_mtime
 
-# Grok first so a Grok process binds GROK_SESSION_ID even when
-# CLAUDE_CODE_SESSION_ID is also set. The mtime guess is last.
-SESSION_ID_ENVS = ("GROK_SESSION_ID", "CLAUDE_CODE_SESSION_ID")
+# omp exports PI_SESSION_ID. The mtime guess is last.
+SESSION_ID_ENVS = ("PI_SESSION_ID",)
 USAGE = "usage: {prog} on|off"
-NO_SESSION_STATE_MESSAGE = (
-    "direct-mode: no session state found yet — run any Bash/Edit command first, then retry."
-)
+NO_SESSION_STATE_MESSAGE = "direct-mode: no session state found yet — run any Bash/Edit command first, then retry."
 # Filename -> (prefix, suffix) for each per-session state family latest_session_id scans,
 # in the same precedence-by-recency order as direct-mode.sh's glob.
 SESSION_STATE_GLOBS = (
@@ -51,7 +48,7 @@ def _session_id_from_filename(name: str, prefix: str, suffix: str) -> str:
 
 
 def live_session_id() -> str | None:
-    """The harness-exported id for this process, or None when neither is set."""
+    """The harness-exported id for this process, or None when it is unset."""
     for key in SESSION_ID_ENVS:
         value = os.environ.get(key, "").strip()
         if value:

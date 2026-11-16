@@ -10,13 +10,13 @@ from hook_harness import FIXTURES_DIR, HOOKS_DIR, HookRun
 
 PY_HOOK = "ssh-session-reap.py"
 
-PS_TABLE = """  101     1 /usr/bin/ssh nas docker ps GROK_SESSION_ID=hgtest-ssh-reap
-  102     1 /usr/bin/ssh nas docker ps GROK_SESSION_ID=other-session-id
-  103     1 /usr/bin/ssh -N -o BatchMode=yes -o ControlPath=/tmp/cm GROK_SESSION_ID=hgtest-ssh-reap
-  104     1 /usr/sbin/sshd -D GROK_SESSION_ID=hgtest-ssh-reap
+PS_TABLE = """  101     1 /usr/bin/ssh nas docker ps PI_SESSION_ID=hgtest-ssh-reap
+  102     1 /usr/bin/ssh nas docker ps PI_SESSION_ID=other-session-id
+  103     1 /usr/bin/ssh -N -o BatchMode=yes -o ControlPath=/tmp/cm PI_SESSION_ID=hgtest-ssh-reap
+  104     1 /usr/sbin/sshd -D PI_SESSION_ID=hgtest-ssh-reap
   105   200 /usr/bin/ssh mini hostname
   106     1 /usr/bin/ssh mini hostname
-  200     1 /bin/zsh -c builtin export GROK_AGENT=1 GROK_SESSION_ID=hgtest-ssh-reap
+  200     1 /bin/zsh -c builtin export PI_SESSION_ID=hgtest-ssh-reap
 """
 
 
