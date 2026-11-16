@@ -1,6 +1,6 @@
 # ui-decompose
 
-A Claude Code skill that turns a design implementation request into an exhaustive, implementation-neutral UI decomposition and gates final output behind deterministic validation plus fresh adversarial source review.
+A skill (written for Claude Code, which is removed and unsupported; run it from omp) that turns a design implementation request into an exhaustive, implementation-neutral UI decomposition and gates final output behind deterministic validation plus fresh adversarial source review.
 
 ## Install
 

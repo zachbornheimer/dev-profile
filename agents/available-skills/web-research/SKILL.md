@@ -7,7 +7,7 @@ description: Use when the user says "do web research", "deep web research", "dee
 
 He wants a decision that changes the next action. The default failure is a literature review, a clarifying question, or a citation from memory.
 
-These gotchas are from his Claude, Codex, and Grok asks (2026). `self-improve` should keep them.
+These gotchas are from his asks in omp and Codex sessions (2026); older ones came from harnesses that are now removed and unsupported. `self-improve` should keep them.
 
 ## Gotchas
 
@@ -46,6 +46,6 @@ Then:
      --text "exact wording from the page" --from page.txt
    ```
 
-4. If `~/.hermes/skills/research/grounded-citations/scripts/sources.py` exists, `add` each URL before writing prose. Otherwise cite `[title](url)` plus source date and retrieval date.
+4. Cite `[title](url)` plus source date and retrieval date for every source before writing prose (Hermes and its `sources.py` helper are removed and unsupported).
 5. Reply: recommendation, the deciding fact with citation, what would flip it. Then act, discuss, or stop per `after`.
 6. If `workers` is 1 or more, spawn that many read-only workers. `cheap_model` means a cheaper model. Do not spawn extra rounds.
