@@ -176,9 +176,9 @@ exit 1
 if ! git rev-parse --verify -q HEAD >/dev/null 2>&1; then
   exec wt step commit
 fi
-wt tree-for-changes -- wt land
-{% elif landing | default(\"\") != \"\" and landing != \"merge\" and landing != \"pr\" %}
-echo \"wt land: --landing must be merge or pr\" >&2
+wt tree-for-changes -- wt land{% if landing | default(\"\") != \"\" %} --landing={{ landing }}{% endif %}
+{% elif landing | default(\"\") != \"\" and landing != \"merge\" and landing != \"pr\" and landing != \"pr-auto\" %}
+echo \"wt land: --landing must be pr, pr-auto, or merge\" >&2
 exit 1
 {% else %}
 if ! git diff --quiet || ! git diff --cached --quiet; then
@@ -191,15 +191,13 @@ if [ -n \"$untracked\" ]; then
 fi
 {% if landing | default(\"\") == \"merge\" %}
 wt merge --stage=tracked
+{% elif landing | default(\"\") == \"pr\" %}
+wt pr
 {% else %}
 wt pr-auto
 {% endif %}
 {% endif %}"""
-commit-unstaged = """
-if ! git rev-parse --verify -q HEAD >/dev/null 2>&1; then
-  exec wt step commit
-fi
-wt tree-for-changes -- wt land --landing=merge"""
+commit-unstaged = "wt land --landing=merge"
 commit-fix = "~/.local/share/dev-profile/bin/dev-profile-commit-fix step commit {{ args }}"
 sync = """
 if [ -n \"{{ branch | default(\"\") }}\" ] && [ \"$(git branch --show-current)\" != \"{{ branch | default(\"\") }}\" ]; then
