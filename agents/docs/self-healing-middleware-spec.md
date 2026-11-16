@@ -137,14 +137,14 @@ Extend MCP Tool Protocol:
 
 ```typescript
 interface MCPToolManifest {
-  capabilities: string[];    // ["command_execution"]
-  replaces: string[];        // ["Bash", "sh"]
-  fallback_for: string[];    // What this substitutes
+  capabilities: string[]; // ["command_execution"]
+  replaces: string[]; // ["Bash", "sh"]
+  fallback_for: string[]; // What this substitutes
 }
 
 interface MCPDiscoveryProtocol {
   discover(capability: string): Promise<Tool[]>;
-  substitute(original: Tool, args: any): Promise<{tool: Tool, args: any}>;
+  substitute(original: Tool, args: any): Promise<{ tool: Tool; args: any }>;
 }
 ```
 
@@ -154,7 +154,7 @@ interface MCPDiscoveryProtocol {
 2. **Sub-second discovery**: <1s from original call to retry
 3. **100% transparent**: Agent sees success/failure, not "I discovered X"
 4. **Learning-enabled**: Improves via substitution history
-5. **Cross-environment**: Works in Claude Code, Cursor, Codex without reimplementation
+5. **Cross-environment**: Works in omp and the Codex desktop app without reimplementation (Claude Code and Cursor are removed and unsupported)
 
 ## Metrics
 

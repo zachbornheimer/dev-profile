@@ -13,9 +13,8 @@ kill $(pgrep ...)) and steers any unscoped `pkill -f` to the age-limited
 `pkill-aged` wrapper. Rules live in lib/process_kill_rules.py.
 
 Unlike orchestrator-only, this applies to every caller, subagents and
-workers included: they are the ones running these commands. Claude Code,
-Codex and Hermes register it; Grok reaches it through its Claude-compat
-scan of ~/.claude/settings.json; OpenCode through its claude-hooks plugin.
+workers included: they are the ones running these commands. Codex registers it.
+Claude Code, Grok, Hermes and OpenCode are removed and unsupported.
 
 Fails OPEN on any parse error or unexpected input: a false block is far
 more costly than a missed check.

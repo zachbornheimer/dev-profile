@@ -106,10 +106,8 @@ aubx-skills --dry-run add <package> --skill <skill-name> -g
 ├── aubx -> ~/.agents/bin/aubx
 └── ...
 
-~/.claude/skills/              # Symlinks to available-skills (created by aubx-skills)
-~/.codex/skills/               # Symlinks to available-skills
-~/.grok/skills/                # Symlinks to available-skills
-~/.cursor/skills/              # Symlinks to available-skills
+~/.codex/skills/               # Symlinks to available-skills (the one supported harness link)
+# Claude Code, Grok and Cursor skill dirs are removed and unsupported; aubx-skills only cleans stray links there.
 ```
 
 ## Guarantees

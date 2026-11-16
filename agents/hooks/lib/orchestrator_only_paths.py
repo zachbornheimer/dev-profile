@@ -21,12 +21,14 @@ HOME = str(Path.home())
 WORKTREE_DIR_MARKER = "/.worktrees/"
 CLAUDE_WORKTREE_DIR_MARKER = "/.claude/worktrees/"
 
-LEARN_TRASH_PREFIX = f"{HOME}/.grok/learn/trash/"
+LEARN_TRASH_PREFIX = f"{HOME}/.omp/learn/trash/"
 LEARN_RUN_STAMP = re.compile(r"^20\d{6}-\d{6}$")
 LEARN_LEAF_DIRS_MD_ONLY = frozenset({"reduce", "verify"})
 LEARN_LEAF_DIR_PATCHES = "patches"
 LEARN_PATCHES_SUFFIXES = (".md", ".json", ".jsonl")
-LEARN_TOP_LEVEL_ALLOWED = re.compile(r"^(map.*\.md|report\.md|actions\.json|decisions\.jsonl)$")
+LEARN_TOP_LEVEL_ALLOWED = re.compile(
+    r"^(map.*\.md|report\.md|actions\.json|decisions\.jsonl)$"
+)
 
 
 def normalize_path(path: str) -> str:
@@ -100,7 +102,9 @@ def path_is_inside(path: str, root: str) -> bool:
     return path == root or path.startswith(root + "/")
 
 
-def path_is_scratch(resolved_path: str, scratchpad_dir: str = "", tmpdir: str = "") -> bool:
+def path_is_scratch(
+    resolved_path: str, scratchpad_dir: str = "", tmpdir: str = ""
+) -> bool:
     """Under this session's scratchpad_dir, $TMPDIR, /tmp, or /var/folders.
 
     ``scratchpad_dir``/``tmpdir`` are passed in by the caller (read once from

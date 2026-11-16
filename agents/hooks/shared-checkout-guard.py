@@ -93,7 +93,7 @@ def read_stdin_json() -> dict:
 
 
 def field(payload: dict, snake: str, camel: str):
-    """First non-empty of payload[snake] / payload[camel] — Grok camelCase
+    """First non-empty of payload[snake] / payload[camel] — camelCase
     compat, mirroring hook-common.sh's hc_field."""
     val = payload.get(snake)
     if val:
@@ -251,8 +251,8 @@ def invocation_is_mutating(tokens, git_index, subcmd) -> bool:
 def path_is_worktree_or_scratch(path: str) -> bool:
     """True for a canonical <repo-parent>/.worktrees/... worktree (the
     placement worktree-provision.sh uses for every repo, regardless of
-    where it's rooted), a per-repo Claude Code default worktree
-    (<repo>/.claude/worktrees/<name> — the placement Claude Code's
+    where it's rooted), a per-repo legacy default worktree
+    (<repo>/.claude/worktrees/<name> — Claude Code, removed, used this placement
     built-in flow would use absent a WorktreeCreate hook), or scratch
     space."""
     if not path:

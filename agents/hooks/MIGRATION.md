@@ -36,7 +36,7 @@ Entry points (both always fail open: an exception, a stdin timeout, or SIGINT/SI
 
 The protocol:
 
-- `HookEvent`: `.tool_name` (Grok aliases normalized), `.event_name`, `.session_id`, `.subagent_type` (also Grok's `toolInput.subagentType`), `.field(snake, camel)`, `.tool_input(name)`, `.tool_input_section() -> dict`. Values come back as text, `""` when absent; semantics match jq `//` (a present `""` wins).
+- `HookEvent`: `.tool_name` (camelCase aliases normalized), `.event_name`, `.session_id`, `.subagent_type` (also the camelCase `toolInput.subagentType`), `.field(snake, camel)`, `.tool_input(name)`, `.tool_input_section() -> dict`. Values come back as text, `""` when absent; semantics match jq `//` (a present `""` wins).
 - `Decision.deny(reason, *, log_detail=None)`, `.allow(reason, *, updated_input=None, log_label="allow", log_detail=None)`, `.no_objection(detail, log_label="allow")` (logs, prints nothing), `.block(reason)` (Stop), `.context(text, event_name, log_label="allow", *, log_detail=None)`. JSON is byte-identical to the .sh's `jq -n`. `updated_input` adds `updatedInput`. `log_detail` makes hooks.log record a shorter detail than the printed reason, when the .sh's `hc_log` did (a signature, a counter).
 - `emit(decision, log)`: what `run_hook` does with a Decision; for `run_fail_open` hooks that print one.
 - `read_stdin(timeout_secs) -> str | None`: `None` on timeout.
@@ -59,7 +59,7 @@ Build it from pure functions over values: word-layer rules take a `Segment`, and
 
 1. `FIXTURE_CASES`: one `FixtureCase(fixture, DENY|SILENT)` per `expect_*` line for this hook in `tests/run.sh`, in the same order. Grep run.sh for the hook's other assertions (`expect_context`, `expect_stop_block`, reason-contains) and cover those too.
 2. `test_port_decides_like_run_sh`: runs the `.py` through the `hooks` fixture (`HookRunner`) and asserts `assert_clean_run` plus the decision.
-3. Parity (`@pytest.mark.parity`): runs the same inputs through `.py` and `.sh`. It requires equal `output` and equal `log`. Also add `PAYLOAD_CASES` for paths the fixtures miss: Grok camelCase, empty stdin, disk reads, and unparseable input.
+3. Parity (`@pytest.mark.parity`): runs the same inputs through `.py` and `.sh`. It requires equal `output` and equal `log`. Also add `PAYLOAD_CASES` for paths the fixtures miss: camelCase payloads, empty stdin, disk reads, and unparseable input.
 4. State across calls (`tests/hook_harness.py`): `hooks.session(name, env)` is a `HookSession` whose state dir persists across calls (`.run_payload`, `.run_fixture`, `.seed(name, lines)`, `.write(name, text)`, `.log`); each `HookRun.log` holds only what that call appended. `hooks.twins(stem, env)` runs every step through `<stem>.sh` and `<stem>.py` in two sessions and returns `(sh_run, py_run)`. A stateful hook also gets a cross-language test: the `.sh` writes the state, the `.py` reads it, and the result must equal the `.sh` reading it (the swap happens mid-session).
 5. Fail-open is covered for every entry file automatically by `tests/test_fail_open.py` (malformed JSON, a wrong-shaped payload, a fault inside `decide`, a fault at every I/O boundary). A hook with a deliberate non-zero status adds a `Contract` there, with its reason.
 6. Run `cd ~/.agents/hooks && uv run --with pytest pytest tests/test_<stem>.py -q`.

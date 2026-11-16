@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Gated probe: does Grok deliver hook additionalContext on UPS vs PreToolUse?"""
+"""Gated probe: does a harness deliver hook additionalContext on UPS vs PreToolUse? (Grok, the original target, is removed.)"""
 
 from __future__ import annotations
 
