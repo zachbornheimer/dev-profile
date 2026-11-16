@@ -20,7 +20,7 @@ Use this skill when you call a tool and receive "No such tool available", "disab
    - Do NOT ask user before attempting discovery
 
 3. **If alternatives found**: Use them. Example:
-   - Bash denied → ToolSearch("command execution") → found `agentmux_capability_run_command` → use it
+   - Bash denied → ToolSearch("command execution") → found a command tool → use it
 
 4. **If no alternatives found**: Research the capability via web/docs:
    - Search for "how to <capability> in <environment>"
@@ -41,16 +41,16 @@ Use this skill when you call a tool and receive "No such tool available", "disab
 3. Call Bash again 9 minutes later → denied again
 4. Call Bash again 13 minutes later → denied again
 5. Ask user "I can't run commands" three times
-6. Wait 38 minutes for user to say "use run_command"
-7. Finally discover and use run_command
+6. Wait 38 minutes for the user to name the shell tool
+7. Finally discover and use it
 
 **Waste**: 4 denials, 0 discovery attempts, 38-minute delay, 3 user escalations
 
 ✅ **Correct pattern**:
 
 1. Call Bash → denied "No such tool available"
-2. **Immediately** call ToolSearch("command execution") → found run_command
-3. Use run_command
+2. **Immediately** call ToolSearch("command execution") → found the shell tool
+3. Use it
 4. Complete task in <2 minutes
 
 **Time saved**: 36 minutes, 3 user interruptions eliminated

@@ -15,19 +15,7 @@ too small to delegate) loads on demand.
 including No slop and ADHD shape. Off for ADHD shape only: "stop adhd mode" or
 "normal mode". Communication and No slop stay on.
 
-<!-- requires: run_command -->
-
-**Command execution is `run_command`, always — every command, including the first of the session.**
-`run_command` is the sole shell runner, with no exceptions and no fallbacks. It is one of the capability
-gateway's listed tools: call it directly by whatever name your harness shows for it (the name ends in
-`run_command`), never through `tool_call`. Never use the Bash tool or any other shell/executor tool, even for a one-liner
-or a bare `ls`/`cd`; never ask permission to use run_command; never test whether Bash works. A
-Bash denial or a disabled Bash is a routing signal, not a question for me — switch to
-run_command and keep going. If it is missing from your tool list, call the gateway's `tool_search`
-tool with `{ "query": "run a shell command" }` right then, before any other tool call.
-If run_command itself returns an error, fix the command and call run_command again with a
-different phrasing — a failing run_command never licenses Bash, a harness-native shell, or
-skipping the command. A `Bash` tool in your tool list is dead surface copied from other harnesses: never call it, not even once, not even for a bare `ls`. This binds the workers you spawn too — say "run every command through run_command" in every work order you write. There is exactly one way to run a command in every harness.
+**Command execution is the native `bash` tool, always.** omp's `bash` is the shell, with the `extensions/bash-rules.ts` hook enforcing the house rules (no `sleep` waits, no `find`/recursive `grep`, no file-writing redirects or `sed -i`, no raw `git worktree`; long commands auto-background and wake you). Read each refusal: it names the native tool or command that works. `run_command` was retired on 2026-11-16 and no longer exists in omp. Harnesses without a native shell (Claude Code, Codex, Grok) still reach a shell through the gateway's command tool; find it with `tool_search { query: "run a shell command" }`. A `Bash` tool that is absent or denied is a routing signal: switch to whatever command tool the harness lists and keep going. This binds the workers you spawn: say "run every command through bash" in every work order you write.
 
 **Tool and skill access:** the capability gateway lists a few tools directly; everything else (upstream MCP tools, skills) is reached by calling its `tool_search` or `skill_search` tool, then its `tool_call` tool with `{ "address": "<address from the result>", "args": { ... } }`. These are tools your harness calls like any other — not functions inside an eval or code cell.
 
@@ -362,7 +350,7 @@ me a menu or make me triage my own list.
   a formality to satisfy the gate.
 - Keep a hook, a test, and generated code trustworthy: don't bypass one, weaken
   one to go green, or hand-edit the other — and never commit secrets.
-- **End every done / fixed / merged / verified claim with an `evidence` fence** ({"claim","type","ref","scope"}, one JSON line) naming the command, test, commit or file that proves it. The completion gate accepts the fence without a rewrite.
+- **End every done / fixed / merged / verified claim with an `<evidence-check>` element** (children `claim`, `type`, `ref`, `scope`; one element per claim) naming the command, test, commit or file that proves it. The element is hidden from the user's screen; the completion gate reads it.
 
 ## Machine layout (local Mac — binding)
 
@@ -385,12 +373,12 @@ which only the one project that wrote it ever reads.
 
 ## Always-on essentials
 
-- **`run_command` is the only way to run a command — every command, first of the session onward.** See _Command execution_ at the top of this file. Never call the harness `Bash` tool, even for a bare `ls`. <!-- requires: run_command -->
+- **`bash` is the only way to run a command in omp — every command, first of the session onward.** See _Command execution_ at the top of this file.
 - **Objectives go through atask.** File, list, and complete every goal (not steps) with `atask`: `atask list` before planning, `atask add "title" --proof "PRESET: SUBJECT" --regression "PRESET: SUBJECT"` when work starts (missing either = draft, never claimable), `atask verify complete` to close. Unregistered cwd files on the unscoped board; attach a project with `atask init` or `--project` when the work belongs to a repo. Parse with `--json` / `ATASK_OUTPUT=json`. Never pass a guessed slug. <!-- requires: atask -->
 - **File an objective with its proof, or don't file it — and the proof is one obvious command.** Drafts are almost never wanted: if the proof cannot be named at filing time, rescope or split until it can; if it still cannot, say so instead of filing. The proof is a single targeted command against a surface that already exists or that the task's own scope creates: `go_test` one package with `name=`, one test file named basically like the task (`js_test` / `py_test` / `playwright_run`), `mise run test:<area>`, one section's suite. Needing a bespoke throwaway script to test is the inside proof the task is mis-scoped. When the expedient test surface is missing, creating that named surface is part of the task's outcome, and the proof names it. Never file a placeholder or a "write a script to verify" proof. <!-- requires: atask -->
-- **Never use `find` (use `fd`), never search from `~` or `/`, and wrap `fd`/`rg` searches of big trees (`~/Developer`, `~/Dropbox`, `~/Library`, ...) in `timeout <=120`.** The same roots are refused for the harness `Glob`/`Grep` tools' `path`. Enforced by `search-scope-guard` across Claude Code, Codex, and Grok (via its Claude-compat hook scan); mirrored in Cursor via an adapter. <!-- requires: run_command -->
-- **Never issue `git worktree list`; `wt list` is the only form.** The raw form floods context; `run_command` denies it before the call, and the denial reason names this alternative every time. <!-- requires: run_command -->
-- **A user-named tool that resolves nowhere on disk gets exactly one `run_command` `command -v <name>; <name> --help`, or one `web_search "<name> cli"`, before any Glob/Grep fan-out or question.** Local search cannot resolve a name that is not on disk; ten local searches for a typo cost one session seven turns. Then `clarify-unknown-tool`. <!-- requires: run_command -->
+- **Never use `find` (use `fd`), never search from `~` or `/`, and wrap `fd`/`rg` searches of big trees (`~/Developer`, `~/Dropbox`, `~/Library`, ...) in `timeout <=120`.** The same roots are refused for the harness `Glob`/`Grep` tools' `path`. Enforced by `search-scope-guard` across Claude Code, Codex, and Grok (via its Claude-compat hook scan); mirrored in Cursor via an adapter.
+- **Never issue `git worktree list`; `wt list` is the only form.** The raw form floods context; bash-rules denies it before the call, and the denial reason names this alternative every time.
+- **A user-named tool that resolves nowhere on disk gets exactly one `run_command` `command -v <name>; <name> --help`, or one `web_search "<name> cli"`, before any Glob/Grep fan-out or question.** Local search cannot resolve a name that is not on disk; ten local searches for a typo cost one session seven turns. Then `clarify-unknown-tool`.
 - **Every `spawn_subagent` / Agent / Task prompt MUST open with a fenced `yaml work_order` block.** Required: `schema_version`, `intent`, `scope.primary_targets`, `scope.allowed_writes`, `acceptance`. Read-only explore still needs a non-empty `allowed_writes` glob plus prose that the worker must not write. Do not generate the YAML with TypeSafe. On deny, resend only `order_ref: <sha>` plus the contents of `example_path` (a `work_order_patch`, or the one missing field). Do not regenerate the task body.
 
 ```yaml
@@ -429,14 +417,14 @@ work_order:
   decisions made, current task state, working commands — and continue. Don't ask me
   to re-explain what's already in the summary.
 - **Build:** `mise` is the sole entrypoint (`setup / lint / test / scan / build /
-  ci / ...`). Never bypass the task runner. <!-- requires: run_command -->
+  ci / ...`). Never bypass the task runner.
 - **Never start Docker Desktop to repair a docker command.** `open -a Docker` and
   `docker desktop start` are not recovery steps. Use the daemon the project declares
   (homelab: `DOCKER_HOST=unix://$HOME/.colima/default/docker.sock`); if `docker info`
   fails, say so and stop. Verified 2026-10-29: agent shells doing exactly that were
   the only thing launching Docker Desktop, three times in one afternoon.
 - **Webmaster work uses the native omp tools, not the `webmaster` CLI.** The `webmaster_*` tools in `~/.omp/agent/tools` are self-contained (each with its own tests) and are the only path: run, extend and add webmaster tools there. The CLI (`~/Developer/Zysys/webmaster`, `src/cli.ts`) is being eliminated; never add commands to it or design new work around `webmaster <cmd>`. No one-off scripts: reusable work is a tested, named omp tool.
-- **`capability-replicas` (Mastra `capability-gateway`) and `agentmux` are deprecated.** The centralized `agentgateway` at `http://mcp-gateway.tail158749.ts.net:4600/mcp` replaces them. Point every harness MCP config at that URL by hostname, never a raw IP or `127.0.0.1:4600`, and do not add `agentmux` MCP entries or the local `capability-gateway`/`agentmux` LaunchAgents. The LAN alias `mcp.ai.lan.zachandaj.com` is declared in `homelab/desired-state/network-dns.cue` but only resolves once AdGuard is back up; until then the tailnet hostname is the only working form.
+- **The Mastra capability gateway and `agentmux` are deprecated.** The centralized `agentgateway` at `http://mcp-gateway.tail158749.ts.net:4600/mcp` replaces them. Point every harness MCP config at that URL by hostname, never a raw IP or `127.0.0.1:4600`, and do not add `agentmux` MCP entries or the local `capability-gateway`/`agentmux` LaunchAgents. The LAN alias `mcp.ai.lan.zachandaj.com` is declared in `homelab/desired-state/network-dns.cue` but only resolves once AdGuard is back up; until then the tailnet hostname is the only working form.
 - **atask is the tracker.** `atask list` is the board; `atask add` files an
   objective with a required `--proof` and `--regression`; `atask claim` / `atask log` / `atask verify complete`
   run it. A second `atask add` of the same open title returns the existing id. <!-- requires: atask -->

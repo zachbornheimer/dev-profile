@@ -101,7 +101,7 @@ Rules every renderer keeps:
 
 ### The same masters, read by Mastra
 
-`capability-replicas` reads these files directly: each agent passes `master: "<name>"` beside its
+`mastra` reads these files directly: each agent passes `master: "<name>"` beside its
 in-repo `definition` URL, and `src/agents/master-definition.ts` takes `description`, `whenToUse` and
 `prompt` from the master, keeps `Model`/`ModelRouting` from the in-repo file (routing metadata is not
 the agent's description), and swaps each canonical capability name for the Mastra tool that serves
@@ -123,7 +123,7 @@ Current targets:
 - **omp** — `render.py` writes `~/.omp/agent/agents/<name>.md`: YAML frontmatter
   (`name`, `description`, `tools`, `spawns`, `model`, `thinkingLevel`, `output`)
   and the master prompt as the body, preceded by the capability bindings note.
-- **Mastra** — planned: `capability-replicas` reads the master directly and
+- **Mastra** — planned: `mastra` reads the master directly and
   builds its `Definition` from it (`mastra/src/agents/<name>/`), so the YAML
   beside the TS file retires.
 - **Claude Code** — planned: `~/.claude/agents/<name>.md` with `name`,

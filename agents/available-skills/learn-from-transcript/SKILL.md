@@ -35,7 +35,7 @@ If the prompt names no path, run this first and read the file it writes:
 capability run get-annotated-transcript --input '{"sources":["<ref>"]}'
 ```
 
-`<ref>` is `<harness>:<id>` (agentmux, grok, omp, pi, claude, codex, hermes, cursor, copilot) or a Mastra thread (`mastra:thread:<id>`, or `https://<host>/agents/<agentId>/threads/<threadId>`). The command writes `~/.local/share/capability-replicas/annotated/<conversation>.annotated.json` (`CAPABILITY_ANNOTATED_DIR` overrides the directory) and prints the sessions. Use that file for the rest of this skill, including `waste-census.py`.
+`<ref>` is `<harness>:<id>` (agentmux, grok, omp, pi, claude, codex, hermes, cursor, copilot) or a Mastra thread (`mastra:thread:<id>`, or `https://<host>/agents/<agentId>/threads/<threadId>`). The command writes `~/.local/share/omp/transcripts/annotated/<conversation>.annotated.json` (`OMP_ANNOTATED_DIR` overrides the directory) and prints the sessions. Use that file for the rest of this skill, including `waste-census.py`.
 
 Once you have the transcript, read the below.
 
@@ -58,18 +58,7 @@ too small to delegate) loads on demand.
 including No slop and ADHD shape. Off for ADHD shape only: \"stop adhd mode\" or
 \"normal mode\". Communication and No slop stay on.
 
-<!-- requires: run_command -->
-
-**Command execution is `run_command`, always — every command, including the first of the session.**
-`run_command` (`agentmux_capability_run_command`; harnesses that prefix it show `mcp__capability__agentmux_capability_run_command`) is the sole shell runner, with no exceptions
-and no fallbacks. Never use the Bash tool or any other shell/executor tool, even for a one-liner
-or a bare `ls`/`cd`; never ask permission to use run_command; never test whether Bash works. A
-Bash denial or a disabled Bash is a routing signal, not a question for me — switch to
-run_command and keep going. If it is missing from your tool list, call
-`search_tools(\"command execution\")` right then, before any other tool call.
-If run_command itself returns an error, fix the command and call run_command again with a
-different phrasing — a failing run_command never licenses Bash, a harness-native shell, or
-skipping the command. A `Bash` tool in your tool list is dead surface copied from other harnesses: never call it, not even once, not even for a bare `ls`. This binds the workers you spawn too — say \"run every command through run_command\" in every work order you write. There is exactly one way to run a command in every harness.
+**Command execution is the native `bash` tool, always.** The `bash-rules` hook enforces the house rules and each refusal names the command that works. The former `run_command` tool is superseded by `bash` as extended by `extensions/bash-rules.ts`.
 
 **Tool denial recovery:** When any tool returns \"No such tool available\", \"disabled\", or similar denial, immediately call search_tools with the tool's capability category (e.g., \"command execution\", \"web search\", \"file editing\") to discover alternatives. Do not retry the denied tool, escalate to user, or ask permission until you have attempted discovery. One denial = one immediate search_tools call.
 
@@ -387,9 +376,9 @@ literal leading dot. `~/.claude/CLAUDE.md` is a symlink here.
 
 ## Always-on essentials
 
-- **`run_command` is the only way to run a command — every command, first of the session onward.** See _Command execution_ at the top of this file. Never call the harness `Bash` tool, even for a bare `ls`. <!-- requires: run_command -->
+- **`bash` is the only way to run a command in omp.**
 - **Objectives go through atask.** File, list, and complete every goal (not steps) with `atask`: `atask list` before planning, `atask add \"title\" --proof \"PRESET: SUBJECT\" --regression \"PRESET: SUBJECT\"` when work starts (missing either = draft, never claimable), `atask verify complete` to close. Unregistered cwd files on the unscoped board; attach a project with `atask init` or `--project` when the work belongs to a repo. Parse with `--json` / `ATASK_OUTPUT=json`. Never pass a guessed slug. <!-- requires: atask -->
-- **Never use `find` (use `fd`), never search from `~` or `/`, and wrap `fd`/`rg` searches of big trees (`~/Developer`, `~/Dropbox`, `~/Library`, ...) in `timeout <=120`.** Enforced by `search-scope-guard` across Claude Code, Codex, and Grok (via its Claude-compat hook scan); mirrored in Cursor via an adapter. <!-- requires: run_command -->
+- **Never use `find` (use `fd`), never search from `~` or `/`, and wrap `fd`/`rg` searches of big trees (`~/Developer`, `~/Dropbox`, `~/Library`, ...) in `timeout <=120`.** Enforced by `search-scope-guard` across Claude Code, Codex, and Grok (via its Claude-compat hook scan); mirrored in Cursor via an adapter.
 - **Every `spawn_subagent` / Agent / Task prompt MUST open with a fenced `yaml work_order` block.** Required: `schema_version`, `intent`, `scope.primary_targets`, `scope.allowed_writes`, `acceptance`. Read-only explore still needs a non-empty `allowed_writes` glob plus prose that the worker must not write. Do not generate the YAML with TypeSafe. On deny, resend only `order_ref: <sha>` plus the contents of `example_path` (a `work_order_patch`, or the one missing field). Do not regenerate the task body.
 
 ```yaml
@@ -418,7 +407,7 @@ work_order:
   decisions made, current task state, working commands — and continue. Don't ask me
   to re-explain what's already in the summary.
 - **Build:** `mise` is the sole entrypoint (`setup / lint / test / scan / build /
-  ci / ...`). Never bypass the task runner. <!-- requires: run_command -->
+  ci / ...`). Never bypass the task runner.
 - **atask is the tracker.** `atask list` is the board; `atask add` files an
   objective with a required `--proof` and `--regression`; `atask claim` / `atask log` / `atask verify complete`
   run it. A second `atask add` of the same open title returns the existing id. <!-- requires: atask -->
@@ -475,16 +464,15 @@ longer every cycle while the behavior it described did not change.
 in the same cycle, naming the file that must change. Prose alone is inert: the next
 learning pass reads this table, finds the same open row, and re-derives the same
 lesson instead of doing the wiring. That is how one mechanism became seventeen
-entries, and how `run_command` stayed out of the tool list for three cycles.
+entries.
 
-| Mechanism                                                              | Needs                                                                                            | Wired?                                                                                                                                                                                                                                                                                                                                             | Absorbed entries                                                                                                                                                               |
-| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Deny Bash before it runs; inject `search_tools(\"command execution\")` | `tool.before`, matcher `Bash`                                                                    | yes — `pretooluse-bash-tool-steer` → `hooks/bash-tool-steer.py`                                                                                                                                                                                                                                                                                    | learn-8b16a676, learn-f8589c7d                                                                                                                                                 |
-| Recover from a denial that already happened                            | `PostToolUseFailure`                                                                             | yes — `hooks.toml:463` `permissiondenied-shell-denial-steer-py`, events `PermissionDenied` and `PostToolUseFailure`, matcher `Bash`, `sh`, `zsh`, `exec`, `shell`, `terminal`, `run_terminal_command` → `hooks/shell-denial-steer.py`. Residual: fires only if the harness emits a denial for a tool that never entered the tool list — unverified | learn-8a3dd7ec, learn-735089f2, learn-2adca13e, learn-c1c3e2c6, learn-0a920a64, learn-4b6cd45d, learn-3b495ce8, learn-9f5a4b04, learn-cc83792f, learn-40a147aa, learn-69491e00 |
-| Put `run_command` in the always-on tool set                            | the tool list an agent is started with (a capability or gateway catalog entry, not a hook event) | **no** — needs a tool-list change, not a hook; filed as an atask objective                                                                                                                                                                                                                                                                         | learn-d8ed40a2, learn-28f21afa, learn-fa0a56cb                                                                                                                                 |
-| A completion claim must show a tool call exercising the deliverable    | completion gate                                                                                  | yes — `hooks/lib/completion_gate_*.py`                                                                                                                                                                                                                                                                                                             | learn-bd25e218                                                                                                                                                                 |
-| Count the waste classes that are not tool errors before diagnosing     | a script the loop runs, not a hook event                                                         | partial — `hooks/waste-census.py` exists and is run by hand; nothing invokes it                                                                                                                                                                                                                                                                    | waste-census                                                                                                                                                                   |
-| Refuse a new skill whose mechanism an existing skill already owns      | `tool.before`, matcher `Write\|Edit\|MultiEdit\|NotebookEdit`                                    | yes — `pretooluse-promotion-gate` → `hooks/promotion-gate.py`, which calls `check-promotion.py:find_collision` as the one owner of the mechanism-word rule                                                                                                                                                                                         | promotion-gate                                                                                                                                                                 |
+| Mechanism                                                              | Needs                                                         | Wired?                                                                                                                                                                                                                                                                                                                                             | Absorbed entries                                                                                                                                                               |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Deny Bash before it runs; inject `search_tools(\"command execution\")` | `tool.before`, matcher `Bash`                                 | yes — `pretooluse-bash-tool-steer` → `hooks/bash-tool-steer.py`                                                                                                                                                                                                                                                                                    | learn-8b16a676, learn-f8589c7d                                                                                                                                                 |
+| Recover from a denial that already happened                            | `PostToolUseFailure`                                          | yes — `hooks.toml:463` `permissiondenied-shell-denial-steer-py`, events `PermissionDenied` and `PostToolUseFailure`, matcher `Bash`, `sh`, `zsh`, `exec`, `shell`, `terminal`, `run_terminal_command` → `hooks/shell-denial-steer.py`. Residual: fires only if the harness emits a denial for a tool that never entered the tool list — unverified | learn-8a3dd7ec, learn-735089f2, learn-2adca13e, learn-c1c3e2c6, learn-0a920a64, learn-4b6cd45d, learn-3b495ce8, learn-9f5a4b04, learn-cc83792f, learn-40a147aa, learn-69491e00 |
+| A completion claim must show a tool call exercising the deliverable    | completion gate                                               | yes — `hooks/lib/completion_gate_*.py`                                                                                                                                                                                                                                                                                                             | learn-bd25e218                                                                                                                                                                 |
+| Count the waste classes that are not tool errors before diagnosing     | a script the loop runs, not a hook event                      | partial — `hooks/waste-census.py` exists and is run by hand; nothing invokes it                                                                                                                                                                                                                                                                    | waste-census                                                                                                                                                                   |
+| Refuse a new skill whose mechanism an existing skill already owns      | `tool.before`, matcher `Write\|Edit\|MultiEdit\|NotebookEdit` | yes — `pretooluse-promotion-gate` → `hooks/promotion-gate.py`, which calls `check-promotion.py:find_collision` as the one owner of the mechanism-word rule                                                                                                                                                                                         | promotion-gate                                                                                                                                                                 |
 
 **A diagnosis must clear the census.** Run `hooks/waste-census.py <transcript>` before
 proposing any fix. It counts `tool_error`, `duplicate_call`, `repeat_text`, `refetch`
@@ -498,9 +486,7 @@ One row is unwired, and it is not the row this transcript exercised. Claude Code
 answered four Bash calls with \"No such tool available\" (items 3, 24, 61, 74), so the
 call never reached a hook: no `tool.before` guard could fire, and the recovery hook
 needs the harness to emit a denial for a tool that is absent from the list. The
-mechanism that would have prevented the run sits upstream of both — hold
-`run_command` from the first turn so no denial happens at all. That is row three.
-It sat here marked \"needs a config change\" while three cycles re-derived row two.
+mechanism that would have prevented the run sits upstream of both — keep a command tool in the list from the first turn (native `bash` in omp) so no denial happens at all.
 
 ## Execution Forensics Analyst
 
@@ -614,7 +600,7 @@ Never invent a callable tool name.
 
 ### Command execution
 
-`agentmux_capability_run_command` executes `/bin/bash -lc` with a deadline and returns status, exit code, and bounded output.
+`bash` executes `/bin/bash -lc` with a deadline and returns status, exit code, and bounded output.
 
 Use it only for authorized, read-only investigation: querying stores, inspecting records, checking files, and measuring historical evidence.
 
@@ -624,7 +610,7 @@ Use `agentmux_capability_summarize` when it can prevent an unnecessarily large c
 
 ### Execution records
 
-When the request carries the execution's trace inline, that trace is the complete record. Do not run `recent-turns` or read the transcript again; call `agentmux_capability_run_command` only for a follow-up the trace cannot answer, such as a full tool result.
+When the request carries the execution's trace inline, that trace is the complete record. Do not run `recent-turns` or read the transcript again; call `bash` only for a follow-up the trace cannot answer, such as a full tool result.
 
 Otherwise, for an execution identifier such as `hermes:20261019_091318_31d5df`:
 
@@ -1069,7 +1055,7 @@ It's a large transcript.
 
 I'd like an extensive set of learnings - things we can do in the future to help improve agent performance. Anything that touches multiple agents (meaning AGENTS.md, skill rewrites, tool removals, etc) will go thru standard evidentiary procedure and will be included if their scorers deem the experiment a success. But, first, we need to know what we should look at.
 
-After you go thru your standard prompt workings, adversarially review this transcript. Turn by turn. If we had ____, we could have skipped X steps, if we disabled parallel reads for the first 3 turns we'd save X tokens (you can estimate with `echo \"Hello, World\" | tokuin --model gpt-4` via the run_command tool if needed). What I want is an extensive list of options - some may compete, eg:
+After you go thru your standard prompt workings, adversarially review this transcript. Turn by turn. If we had ____, we could have skipped X steps, if we disabled parallel reads for the first 3 turns we'd save X tokens (you can estimate with `echo \"Hello, World\" | tokuin --model gpt-4` via the shell tool if needed). What I want is an extensive list of options - some may compete, eg:
 
 " A tool or skill that does ___."
 That implies that experimentation should be done or both should be done if there's no consequence (which we don't put tool names and descriptions into context without semantic filtering first).

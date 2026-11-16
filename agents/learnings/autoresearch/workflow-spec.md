@@ -21,7 +21,8 @@ So: mechanize the loop. Deterministic checks where no judgment is needed; parall
 small contexts so monolithic-context failures (summary-trust, truncation blindness,
 template flattening) are structurally harder; adversarial revision to mechanize the
 pushback. Cost is roughly a wash vs a monolithic run (five 10–50K contexts + parent
-+ adversary), wall-clock much faster.
+
+- adversary), wall-clock much faster.
 
 ## The DAG
 
@@ -45,6 +46,7 @@ All five producers are safe to run alone: if the annotated export is missing, th
 runs the annotator first (declared input, no cycles).
 
 ### 1. `reconstruct` — timeline + functional-completion moment
+
 - **Input:** raw session items (annotated export; annotate if missing).
 - **Output:** ordered event list (item id, actor, one-line event), plus the first
   item id where the user's actual request was satisfied and the list of everything
@@ -53,6 +55,7 @@ runs the annotator first (declared input, no cycles).
   causes belong to `synthesize`.
 
 ### 2. `ground_truth` — export completeness + true end state (deterministic + small model)
+
 - **Input:** the annotated export AND the raw session log; both required. If the raw
   log is unavailable, the arm's output must say so and mark every end-state claim
   `unverified`.
@@ -64,6 +67,7 @@ runs the annotator first (declared input, no cycles).
   it cannot be crowded out because it never writes report prose.
 
 ### 3. `census` — waste counts, including invisible classes (deterministic + small model)
+
 - **Input:** raw session items.
 - **Output:** counts per waste class, adding the classes the current
   `waste-census.py` misses: `unsolicited_execution`, `deliverable_missing` (user
@@ -75,6 +79,7 @@ runs the annotator first (declared input, no cycles).
   explicitly.
 
 ### 4. `frustration_trace` — onset and earliest divergence
+
 - **Input:** raw session items, user turns only for onset detection.
 - **Output:** frustration onset item id (first corrective/emotional user turn),
   escalation turns, and the earliest divergence item id before onset.
@@ -82,6 +87,7 @@ runs the annotator first (declared input, no cycles).
   be an item that exists, not a paraphrase.
 
 ### 5. `fix_extraction` — fixes with files and red tests
+
 - **Input:** the other four fragments + raw items they cite.
 - **Output:** candidate fixes, each `{claim, root_cause_id, file, red_test}` where
   `red_test` is a check that fails against today's code.
@@ -89,6 +95,7 @@ runs the annotator first (declared input, no cycles).
   here, not by the parent.
 
 ### 6. `synthesize` — parent amalgamator
+
 - **Input:** all five fragments PLUS read access to raw items. Must not glue: it
   re-reads the raw items that fragments cite, re-derives the causal chain across
   arm boundaries, and produces the report per the floor prompt's Report shape.
@@ -98,6 +105,7 @@ runs the annotator first (declared input, no cycles).
 - **Output:** the draft report, one-line root cause first.
 
 ### 7. `attack` — adversarial revision arm (fresh context)
+
 - **Input:** the draft report + raw items + raw log. Never sees the fragments or
   the parent's reasoning.
 - **Job:** try to falsify every material claim. Do the cited item ids exist and
@@ -108,6 +116,7 @@ runs the annotator first (declared input, no cycles).
   ranked by damage.
 
 ### 8. `revise`
+
 - **Input:** draft + attack verdicts + raw items.
 - **Job:** the parent revises once. Claims that broke are corrected or retracted and
   listed in Corrections.
@@ -124,7 +133,7 @@ runs the annotator first (declared input, no cycles).
    marked `cannot-run` with reason). Red test: a fix whose "failing" test passes is
    dropped.
 
-## File plan (capability-replicas/mastra/src/loop/learning/)
+## File plan (mastra/src/loop/learning/)
 
 - `autoresearch/workflow.ts` — the DAG above, reading as the flowchart.
 - `autoresearch/` one file per arm; sibling `questions/*.yaml` where the arm asks the

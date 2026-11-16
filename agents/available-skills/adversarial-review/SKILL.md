@@ -17,8 +17,7 @@ where the work is wrong, so that separation is the whole mechanism.
   report. Not read-only — the parent runs reproductions (step 4).
 - **Task tool**: the platform's subagent/delegation mechanism.
 - **Adversary**: a read-only subagent spawned with exactly one attack role.
-- **run_command**: the platform's command-execution tool (for example
-  agentmux_run; harnesses that name it differently have an equivalent). Every
+- **bash**: the platform's command-execution tool (omp's native `bash`; harnesses that name it differently have an equivalent). Every
   command any agent in this run executes goes through it.
 
 ## Cost envelope — pick the profile first

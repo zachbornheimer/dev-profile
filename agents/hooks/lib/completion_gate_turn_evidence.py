@@ -2,7 +2,7 @@
 that started the turn, and a compact digest of what tools actually did.
 
 The digest carries facts, not text to pattern-match: this turn's tool
-runs, subagent reports, and the ```evidence block's status. Every
+runs, subagent reports, and the <evidence-check> elements' status. Every
 field is capped so one huge tool result can't crowd out the rest.
 """
 

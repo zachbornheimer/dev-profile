@@ -36,8 +36,8 @@ from completion_gate_escalation import (
 )
 from completion_gate_evidence import (
     EvidenceClaim,
-    evaluate_evidence_block,
-    extract_evidence_block,
+    evaluate_evidence_elements,
+    extract_evidence_elements,
 )
 from completion_gate_session_state import (
     GOAL_HANDOFF_PATH_ENV,
@@ -188,9 +188,9 @@ def _latest_prompt_at(facts: TranscriptFacts | None) -> str:
 
 def _judge_message(turn: StopTurn, loop_guard: LoopGuard | None) -> Decision:
     """TypeSafe's judgment of the message; an allow when TypeSafe can't answer."""
-    evidence_text = extract_evidence_block(turn.message)
-    claim = evaluate_evidence_block(
-        evidence_text, turn.settings.state_dir, turn.session_id
+    evidence_elements = extract_evidence_elements(turn.message)
+    claim = evaluate_evidence_elements(
+        evidence_elements, turn.settings.state_dir, turn.session_id
     )
     facts = (
         read_transcript_facts(turn.transcript_path) if turn.transcript_path else None

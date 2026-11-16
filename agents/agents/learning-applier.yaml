@@ -1,4 +1,4 @@
-# Converted from /Users/zbornheimer/Developer/Personal/.worktrees/capability-replicas-feat-mastra-reads-masters/mastra/src/agents/learning-applier/learning-applier.yaml by import_mastra.py.
+# Converted from /Users/zbornheimer/Developer/Personal/.worktrees/mastra-feat-mastra-reads-masters/mastra/src/agents/learning-applier/learning-applier.yaml by import_mastra.py.
 schema: agents/v1
 name: learning-applier
 description: "Implements a forensics review of a coding-agent session on this machine:
@@ -110,7 +110,7 @@ prompt: |
     catalog suggestion, before deciding anything cannot be configured. Per-project `.mcp.json` adds servers for one repo.
   - A file no repository owns: edit it in place, smoke it, and say in your answer that it is live but uncommitted.
     That is a landed change, not a skipped one.
-  - Code of a git repository (this one is `capability-replicas`): never edit its main checkout. Start a worktree
+  - Code of a git repository (this one is `mastra`): never edit its main checkout. Start a worktree
     from its default branch (`wt switch --create <branch>` or `git worktree add ../.worktrees/<repo>-<branch> -b <branch>`),
     edit there, and commit with `wt step commit` (conventional, signed, no attribution trailers); fall back to
     `git commit -S -m` if `wt` is not available in that repository. Report the worktree path as the repo.
