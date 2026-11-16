@@ -2882,6 +2882,29 @@ ClarityOneLevelPerFunction:
     violates: A function mixes high-level steps with low-level detail, or the file must be read bottom-up.
     not_applicable: The target has one short function.
 
+ClarityHonestSignatures:
+  instructions: >-
+    Does each function in `target.source` take everything it reads and give
+    back everything it produces through its signature, so that a caller can
+    control its behavior by its arguments? Hidden inputs are a global, the
+    clock, a random generator, the environment, or state owned by another
+    module. In-place mutation of an argument the caller handed in is honest.
+  criteria:
+    meets: Every function's inputs and outputs appear in its signature, or its effect is the point of the function and sits at the outermost layer.
+    violates: Some function reads or writes a global, the clock, a random generator, or other hidden state in its body, or its name promises more than its signature delivers.
+    not_applicable: The target has no functions.
+
+ClarityWeakestParameterType:
+  instructions: >-
+    Does each function in `target.source` ask for the weakest parameter type
+    its body needs, such as an iterable or view where it only loops, one field
+    where it uses one field, and no unexplained boolean flags or long runs of
+    same-typed positional arguments?
+  criteria:
+    meets: Parameters ask for no more than the body uses, and call sites read without a signature lookup.
+    violates: Some function demands a concrete container or a whole object for one field, or takes an unexplained boolean flag or several same-typed positional arguments.
+    not_applicable: The target has no function with parameters.
+
 ClarityNoAndTest:
   instructions: >-
     Can each function and the file in `target.source` be described without

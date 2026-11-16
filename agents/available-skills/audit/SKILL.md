@@ -38,10 +38,12 @@ recurring code shape in the file (direct system calls, error patterns,
 constants, concurrency shapes, etc.) with a count of instances. This prevents
 whack-a-mole — you fix the pattern structurally, not each instance in turn.
 
-| Pattern             | Instances | Current form | Correct form                   |
-| ------------------- | --------- | ------------ | ------------------------------ |
-| Direct `time.Now()` | 4         | inline       | `timeSource.Now()`             |
-| Bare `return err`   | 7         | no context   | `fmt.Errorf("op %s: %w", ...)` |
+| Pattern                           | Instances | Current form             | Correct form                                                          |
+| --------------------------------- | --------- | ------------------------ | --------------------------------------------------------------------- |
+| Direct `time.Now()`               | 4         | inline                   | `timeSource.Now()`                                                    |
+| Bare `return err`                 | 7         | no context               | `fmt.Errorf("op %s: %w", ...)`                                        |
+| Global RNG / clock read in a body | 3         | hidden input             | generator or clock passed as a parameter                              |
+| Section comment inside a body     | 5         | mixed abstraction levels | one function per level (`code-style` `references/function-design.md`) |
 
 Fix each pattern once (create the structure), then migrate all instances.
 

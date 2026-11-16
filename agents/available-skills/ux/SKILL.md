@@ -71,7 +71,9 @@ Fresh data lands; update the display. Never silently serve stale data as current
   called function tells you HOW one step works.
 - A developer opening any file understands its purpose within 5 minutes.
 - Side effects are explicit in the name: `saveUser()`, `sendNotification()`.
-  A function named `getUser()` must not modify anything.
+  A function named `getUser()` must not modify anything. More generally a
+  signature shows every input and output: no hidden reads of a global, the clock,
+  or a RNG. See `code-style` → `references/function-design.md`.
 - Internal package APIs follow external API rules: consistent patterns, predictable
   errors, small surface area, zero surprise.
 
