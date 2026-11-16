@@ -164,6 +164,11 @@ test("default enrollment and continuation/worker guards never publish", async ()
 test("a turn ending outside any git repository is skipped quietly", async () => {
   const f = fixture(), plain = path.join(f.root, "plain");
   fs.mkdirSync(plain);
+  // Isolate the checkpoint outcome from machine-global mise reconciliation.
+  const gitOnly = path.join(f.root, "git-only");
+  fs.mkdirSync(gitOnly);
+  fs.symlinkSync(Bun.which("git")!, path.join(gitOnly, "git"));
+  process.env.PATH = gitOnly;
   const handlers = new Map<string, Function>(), notices: string[] = [];
   install({
     on(n, fn) {
