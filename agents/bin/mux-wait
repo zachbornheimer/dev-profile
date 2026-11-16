@@ -1,0 +1,3 @@
+#!/bin/sh
+# Wait until a terminal pane shows a pattern or an idle agent prompt. See ~/.omp/agent/extensions/mux/pane_wait.ts.
+exec bun "$HOME/.omp/agent/extensions/mux/pane_wait.ts" "$@"
