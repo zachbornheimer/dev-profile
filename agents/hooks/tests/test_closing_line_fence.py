@@ -31,3 +31,17 @@ def test_message_of_only_fences_has_no_closing_line():
 
 def test_long_closing_line_is_truncated():
     assert len(closing_line("x" * (CLOSING_LINE_CHARS + 50))) == CLOSING_LINE_CHARS + 1
+
+
+def test_trailing_happiness_element_yields_the_prose_before_it():
+    msg = (
+        "Both suites pass.\n\n"
+        '<happiness-check checksum="abc">\n<happy>true</happy>\n'
+        "<explanation>\nYes, done.\n</explanation>\n</happiness-check>\n"
+    )
+    assert closing_line(msg) == "Both suites pass."
+
+
+def test_unclosed_happiness_element_is_not_the_close():
+    msg = 'Done.\n\n<happiness-check checksum="abc">\n<happy>true</happy>\nYes, still writing'
+    assert closing_line(msg) == "Done."
