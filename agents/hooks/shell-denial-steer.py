@@ -33,9 +33,9 @@ HOOK_NAME = "shell-denial-steer"
 PERMISSION_DENIED_EVENT = "PermissionDenied"
 FAILURE_EVENT = "PostToolUseFailure"
 
-# Every name a harness gives the shell tool, lowercased. Claude's `Bash`,
-# Grok's `run_terminal_command`/`terminal`, Codex's `shell`, and the `sh`,
-# `zsh`, `exec` spellings other harnesses use.
+# Every name a harness gives the shell tool, lowercased. `Bash`, `run_terminal_command`/`terminal`,
+# Codex's `shell`, and the `sh`, `zsh`, `exec` spellings (the Claude Code and Grok ones are removed
+# and unsupported but still recovered from if a stray payload arrives).
 SHELL_TOOL_NAMES = frozenset(
     {
         "bash",

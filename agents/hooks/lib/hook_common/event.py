@@ -107,7 +107,7 @@ class HookEvent:
     def subagent_type(self) -> str:
         """``.tool_input.subagent_type // .toolInput.subagentType``.
 
-        Grok renames the key as well as the section, so tool_input(name)
+        A camelCase payload renames the key as well as the section, so tool_input(name)
         alone misses it.
         """
         return self.tool_input("subagent_type") or as_text(

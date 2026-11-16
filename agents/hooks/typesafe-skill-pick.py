@@ -59,7 +59,7 @@ def log(event, **fields):
 
 
 def last_assistant_text(transcript_path):
-    """Tail-read a Claude Code transcript JSONL and return the most recent
+    """Tail-read a transcript JSONL and return the most recent
     assistant text turn, truncated. Fails soft to "" on any error."""
     try:
         path = Path(transcript_path)
@@ -352,8 +352,8 @@ def read_instruction(paths):
         return " Load that SKILL.md only."
     joined = ", ".join(paths)
     if len(paths) > 1:
-        return f" Use the Read tool on these paths: {joined}. Do not call the Skill tool for them — these are not registered Claude Code skills."
-    return f" Use the Read tool on this path: {joined}. Do not call the Skill tool for it — this is not a registered Claude Code skill."
+        return f" Use the Read tool on these paths: {joined}. Do not call the Skill tool for them — these are not registered skills."
+    return f" Use the Read tool on this path: {joined}. Do not call the Skill tool for it — this is not a registered skill."
 
 
 def session_context(result):

@@ -5,7 +5,7 @@
 # ///
 """WorktreeRemove — cleanup counterpart to worktree-provision.py.
 
-Once ANY WorktreeCreate hook is registered, Claude Code stops doing its own
+Once ANY WorktreeCreate hook is registered, the harness (legacy Claude Code behavior; Claude Code is removed) stops doing its own
 `git worktree remove` even though these are still ordinary git worktrees —
 this hook does that removal, plus the matching `worktree-<name>` branch
 worktree-provision.py created.
@@ -63,14 +63,18 @@ def main() -> None:
 
     delete_branch = branch.startswith(ADOPTED_BRANCH_PREFIX)
     if wt_remove_worktree(worktree_path, delete_branch=delete_branch):
-        log.record("remove", f"{worktree_path} via wt remove delete_branch={delete_branch}")
+        log.record(
+            "remove", f"{worktree_path} via wt remove delete_branch={delete_branch}"
+        )
         return
 
     if main_root and git.remove_worktree(main_root, worktree_path):
         log.record("remove", f"{worktree_path} via git worktree remove")
     else:
         git.remove_directory(worktree_path)
-        log.record("remove-fallback", f"{worktree_path} via rm -rf (main_root={main_root})")
+        log.record(
+            "remove-fallback", f"{worktree_path} via rm -rf (main_root={main_root})"
+        )
 
     if delete_branch and main_root:
         if git.delete_branch(main_root, branch):

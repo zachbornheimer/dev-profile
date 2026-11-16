@@ -105,7 +105,7 @@ end
 
 --- Live symlinks whose targets are where Nvim now resolves a file.
 --- $HOME and $HOME/.config cover the dotfile cutover; one extra level covers
---- links like ~/.grok/skills that are not themselves the link.
+--- links like ~/.codex/skills that are not themselves the link.
 local function symlink_links()
   if links then
     return links
@@ -119,7 +119,7 @@ local function symlink_links()
   symlink_children(home, found)
   local config = home .. "/.config"
   symlink_children(config, found)
-  for _, dir in ipairs({ home .. "/.grok", home .. "/.claude", home .. "/.codex", home .. "/.vim" }) do
+  for _, dir in ipairs({ home .. "/.codex", home .. "/.vim" }) do
     local stat = vim.uv.fs_lstat(dir)
     if stat and stat.type == "directory" then
       symlink_children(dir, found)

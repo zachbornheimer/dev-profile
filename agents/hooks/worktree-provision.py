@@ -5,7 +5,7 @@
 # ///
 """WorktreeCreate — canonical-location agent worktrees via worktrunk (`wt`).
 
-Claude Code may pre-create `worktree-<name>` under `.claude/worktrees/`
+A removed harness (Claude Code) pre-created `worktree-<name>` under `.claude/worktrees/`
 before this hook runs; those are adopted onto
 `<repo-parent>/.worktrees/<repo>-<name>`. New worktrees are created with
 `wt switch --create` (exact dest via --config-set worktree-path). Stdout
@@ -92,8 +92,10 @@ def canonical_dest(repo_root: str, repo_name: str, name: str) -> str:
     return f"{Path(repo_root).parent}/.worktrees/{repo_name}-{name}"
 
 
-def adopt_precreated_branch(repo_root: str, dest: str, branch: str, log: HookLog) -> bool:
-    """True if a branch Claude Code already made was adopted onto dest."""
+def adopt_precreated_branch(
+    repo_root: str, dest: str, branch: str, log: HookLog
+) -> bool:
+    """True if a branch a harness already made was adopted onto dest."""
     if not git.branch_exists(repo_root, branch):
         return False
     existing = git.worktree_holding_branch(repo_root, branch)
@@ -104,7 +106,9 @@ def adopt_precreated_branch(repo_root: str, dest: str, branch: str, log: HookLog
         if git.relocate_worktree(repo_root, existing, dest):
             log.record("adopt", f"{dest} branch={branch} mode=moved from={existing}")
             return True
-        fail(log, f"git worktree move failed from {existing} to {dest} (branch {branch})")
+        fail(
+            log, f"git worktree move failed from {existing} to {dest} (branch {branch})"
+        )
     if git.attach_worktree_to_branch(repo_root, dest, branch):
         log.record("adopt", f"{dest} branch={branch} mode=added-existing-branch")
         return True
@@ -117,7 +121,9 @@ def wt_base_for_mode(base_ref_mode: str) -> str:
     return "@" if base_ref_mode == "head" else "^"
 
 
-def handle_non_repo_cwd(name: str, session_cwd: str, settings: HookSettings, log: HookLog) -> None:
+def handle_non_repo_cwd(
+    name: str, session_cwd: str, settings: HookSettings, log: HookLog
+) -> None:
     env = dict(os.environ)
     backing = None
     is_chezmoi_target = path_is_chezmoi_target(session_cwd, env)
@@ -150,7 +156,9 @@ def handle_non_repo_cwd(name: str, session_cwd: str, settings: HookSettings, log
     print(dest)
 
 
-def provision_and_print(repo_root: str, repo_name: str, name: str, log: HookLog) -> None:
+def provision_and_print(
+    repo_root: str, repo_name: str, name: str, log: HookLog
+) -> None:
     branch = f"worktree-{name}"
     base_ref_mode = base_ref_mode_from_settings()
     dest = canonical_dest(repo_root, repo_name, name)
@@ -179,7 +187,9 @@ def provision_and_print(repo_root: str, repo_name: str, name: str, log: HookLog)
         return
     if switched.path != dest:
         if git.relocate_worktree(repo_root, switched.path, dest):
-            log.record("adopt", f"{dest} branch={branch} mode=moved from={switched.path}")
+            log.record(
+                "adopt", f"{dest} branch={branch} mode=moved from={switched.path}"
+            )
         else:
             fail(
                 log,
@@ -246,13 +256,14 @@ def resolve_repo_root(
     if order_top:
         return order_top, "work-order"
     log.record(
-        "provision-warn", f"queued target {queued} is not a git work tree; using session cwd"
+        "provision-warn",
+        f"queued target {queued} is not a git work tree; using session cwd",
     )
     return fallback, "session-cwd"
 
 
 def remove_stray_session_worktree(session_repo: str, branch: str, log: HookLog) -> None:
-    """Claude Code pre-creates `branch` and a worktree under the SESSION
+    """A removed harness (Claude Code) pre-created `branch` and a worktree under the SESSION
     repo's .claude/worktrees/ before this hook runs; when the order targets
     another repo that is litter. Never forced; the branch goes only if empty."""
     if not git.branch_exists(session_repo, branch):
@@ -262,13 +273,17 @@ def remove_stray_session_worktree(session_repo: str, branch: str, log: HookLog) 
         if not stray.startswith(f"{session_repo}/.claude/worktrees/"):
             log.record(
                 "provision-warn",
-                f"left {stray} (branch {branch}): not a Claude Code pre-created path",
+                f"left {stray} (branch {branch}): not a harness pre-created path",
             )
             return
         if not git.remove_worktree(session_repo, stray):
-            log.record("provision-warn", f"left stray {stray} (worktree remove refused)")
+            log.record(
+                "provision-warn", f"left stray {stray} (worktree remove refused)"
+            )
             return
-    if git.branch_is_empty(session_repo, branch) and git.delete_branch(session_repo, branch):
+    if git.branch_is_empty(session_repo, branch) and git.delete_branch(
+        session_repo, branch
+    ):
         log.record(
             "cleanup",
             f"removed stray {stray or '<no worktree>'} + branch {branch} from {session_repo}",
@@ -308,7 +323,9 @@ def main() -> None:
         return
 
     session_repo = git.show_toplevel(session_cwd)
-    repo_root, repo_source = resolve_repo_root(event, session_repo, session_cwd, settings, log)
+    repo_root, repo_source = resolve_repo_root(
+        event, session_repo, session_cwd, settings, log
+    )
     repo_name = Path(repo_root).name
     log.record(
         "repo",

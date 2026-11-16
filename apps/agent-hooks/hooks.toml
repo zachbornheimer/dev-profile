@@ -85,8 +85,7 @@ name = "precompact-agentmux"
 events = ["context.compact.before"]
 command = ["agentmux save-transcript --harness \"$AGENT_HOOKS_HARNESS\" --hook-payload"]
 timeout = "15s"
-# No matcher: agent-hooks tests `trigger` (Claude, Codex, Copilot, Gemini) or `source` (Grok)
-# and the OpenCode bridge sends neither, so "manual|auto" would silently skip OpenCode.
+# No matcher: the omp bridge sends neither `trigger` nor `source`, so "manual|auto" would silently skip omp.
 
 # Rewrites <state dir>/handoff/<harness>-<session id>.md from the session's transcript (mastra
 # create_session_handoff_doc, no model call) so the takeover doc matches the session as of its latest
@@ -452,7 +451,7 @@ command = ["atask context --hook --changed"]
 timeout = "5s"
 
 # Compaction destroys the record of where the full session history lives; this one line keeps the raw
-# JSONL path in reach on every prompt (the omp bridge and Claude Code both carry transcript_path).
+# JSONL path in reach on every prompt (the omp bridge carries transcript_path).
 [[hooks]]
 name = "promptsubmit-transcript-path"
 events = ["prompt.submit"]

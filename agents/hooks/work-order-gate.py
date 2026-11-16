@@ -88,9 +88,9 @@ class Spawn:
             subagent_type=event.subagent_type,
             prompt=event.tool_input("prompt"),
             isolation=event.tool_input("isolation"),
-            # Harness-declared: Hermes creates a worktree per child
-            # (delegation.worktree_isolation) and has no per-call isolation
-            # parameter; the payload flag is the only signal the policy can trust.
+            # Harness-declared worktree isolation (a removed harness, Hermes, did this per
+            # child and had no per-call isolation parameter); the payload flag is the only
+            # signal the policy can trust.
             harness_worktree_isolation=event.field(
                 "harness_worktree_isolation", "harnessWorktreeIsolation"
             ),
@@ -236,7 +236,7 @@ class GateRun:
     def _queue_worktree_target(self, envelope: str) -> None:
         # Only an EXPLICIT per-call isolation: isolation: "worktree" means the
         # WorktreeCreate provisioner will create the tree. A harness-declared
-        # worktree (Hermes delegation.worktree_isolation) is created by the
+        # worktree (a harness-created tree, e.g. Hermes delegation, removed) is created by the
         # harness itself — it never fires WorktreeCreate — so it must not
         # enqueue, or the record would linger and misroute a later spawn.
         if self.spawn.isolation != WORKTREE_ISOLATION:

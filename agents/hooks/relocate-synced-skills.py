@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """SessionStart — move plugin `synced/` trees out of harness auto-scan dirs.
 
-Claude and Grok dump every SKILL.md under `skills/`. Plugin sync writes
+Removed harnesses (Claude Code, Grok) dumped every SKILL.md under `skills/`. Plugin sync writes
 `synced/` there. Merge those trees into `~/.agents/available-skills/synced`
 (picker-only) and delete the auto-scan copy. Also drop leftover Claude skill
-dirs (`.trash`, plugin dumps) so OpenCode cannot auto-discover them. The
+dirs (`.trash`, plugin dumps) so no harness auto-discovers them. The
 harness skills dir stays empty; skills are picker-only. Fail open. Prints nothing.
 """
 

@@ -3,7 +3,8 @@
 # requires-python = ">=3.10"
 # dependencies = []
 # ///
-"""Bounded, active-only cm recall shared by SessionStart and Hermes."""
+"""Bounded, active-only cm recall for SessionStart (Hermes is removed and unsupported)."""
+
 from __future__ import annotations
 
 import json
@@ -33,12 +34,27 @@ MAX_QUERY_CHARS = 600
 LOGGER = logging.getLogger(__name__)
 HEADER = "Relevant cm memory (retrieval hints, not approvals; provenance: cm why <id>):"
 TOPICS = {
-    "resume": (r"\b(restart(?:ed)?|reboot|resume|recover|interrupted)\b|please continue|assume.session", "computer restart recover interrupted session objective accepted decisions side effects"),
-    "objective": (r"\b(objective|remember|original goal|accepted plan)\b", "remember original objective why accepted plan purge dev-profile"),
-    "identity": (r"wrong dir|\b(takeover|resumption|session id|task id|assume.session)\b", "session takeover reconcile task session id named project wrong directory cwd"),
-    "contract": (r"\b(atask|contract|handoff|superseded|lineage)\b", "atask contract handoff dated design lineage accepted contract superseded drafts"),
+    "resume": (
+        r"\b(restart(?:ed)?|reboot|resume|recover|interrupted)\b|please continue|assume.session",
+        "computer restart recover interrupted session objective accepted decisions side effects",
+    ),
+    "objective": (
+        r"\b(objective|remember|original goal|accepted plan)\b",
+        "remember original objective why accepted plan purge dev-profile",
+    ),
+    "identity": (
+        r"wrong dir|\b(takeover|resumption|session id|task id|assume.session)\b",
+        "session takeover reconcile task session id named project wrong directory cwd",
+    ),
+    "contract": (
+        r"\b(atask|contract|handoff|superseded|lineage)\b",
+        "atask contract handoff dated design lineage accepted contract superseded drafts",
+    ),
 }
-UNTRUSTED_INSTRUCTIONS = re.compile(r"<[^>]+>|ignore (?:all|previous)|system.prompt|you must|approved|run this", re.IGNORECASE)
+UNTRUSTED_INSTRUCTIONS = re.compile(
+    r"<[^>]+>|ignore (?:all|previous)|system.prompt|you must|approved|run this",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,13 +67,19 @@ def recall_topics(intent: str) -> frozenset[str]:
     """Treat intent as search data only; never copy it into model context."""
     if UNTRUSTED_INSTRUCTIONS.search(intent):
         return frozenset()
-    return frozenset(name for name, (pattern, _) in TOPICS.items() if re.search(pattern, intent[:MAX_QUERY_CHARS], re.IGNORECASE))
+    return frozenset(
+        name
+        for name, (pattern, _) in TOPICS.items()
+        if re.search(pattern, intent[:MAX_QUERY_CHARS], re.IGNORECASE)
+    )
 
 
 def recall_query(cwd: str, intent: str = "", project: str = "") -> str:
     topics = recall_topics(intent)
     label = project if re.fullmatch(r"[\w.-]{1,80}", project) else Path(cwd).name
-    return " ".join([*(TOPICS[t][1] for t in TOPICS if t in topics), label])[:MAX_QUERY_CHARS]
+    return " ".join([*(TOPICS[t][1] for t in TOPICS if t in topics), label])[
+        :MAX_QUERY_CHARS
+    ]
 
 
 def records(value: object, key: str) -> list[dict[str, object]]:
@@ -73,12 +95,19 @@ def records(value: object, key: str) -> list[dict[str, object]]:
 @dataclass(frozen=True, slots=True)
 class Playbook:
     """The process seam; both calls share one bounded recall budget."""
+
     binary: str
     timeout: float = CM_TIMEOUT_SECONDS
 
     def read(self, args: list[str], key: str) -> list[dict[str, object]]:
         try:
-            done = subprocess.run([self.binary, *args, "--json"], capture_output=True, text=True, timeout=self.timeout / 2, check=False)
+            done = subprocess.run(
+                [self.binary, *args, "--json"],
+                capture_output=True,
+                text=True,
+                timeout=self.timeout / 2,
+                check=False,
+            )
             if done.returncode or len(done.stdout) > MAX_RESPONSE_CHARS:
                 return []
             return records(json.loads(done.stdout), key)
@@ -89,18 +118,43 @@ class Playbook:
     def similar(self, query: str, topics: frozenset[str] = frozenset()) -> list[Rule]:
         # cm's getActiveBullets includes drafts; similar omits state entirely.
         catalog = self.read(["ls"], "bullets")
-        active = {row["id"]: row for row in catalog if isinstance(row.get("id"), str) and row.get("state") == "active" and row.get("deprecated") is False and row.get("maturity") != "deprecated"}
+        active = {
+            row["id"]: row
+            for row in catalog
+            if isinstance(row.get("id"), str)
+            and row.get("state") == "active"
+            and row.get("deprecated") is False
+            and row.get("maturity") != "deprecated"
+        }
         if not active:
             return []
-        matches = self.read(["similar", query, "--limit", str(SEARCH_LIMIT), "--threshold", str(SIMILARITY_THRESHOLD)], "results")
+        matches = self.read(
+            [
+                "similar",
+                query,
+                "--limit",
+                str(SEARCH_LIMIT),
+                "--threshold",
+                str(SIMILARITY_THRESHOLD),
+            ],
+            "results",
+        )
         selected: list[Rule] = []
         seen: set[str] = set()
         for match in matches:
             ident, content = match.get("id"), match.get("content")
-            if not isinstance(ident, str) or not re.fullmatch(r"[\w-]+", ident) or ident in seen:
+            if (
+                not isinstance(ident, str)
+                or not re.fullmatch(r"[\w-]+", ident)
+                or ident in seen
+            ):
                 continue
             row = active.get(ident)
-            if row is None or not isinstance(content, str) or row.get("content") != content:
+            if (
+                row is None
+                or not isinstance(content, str)
+                or row.get("content") != content
+            ):
                 continue
             if row.get("scope") == "task" and row.get("scopeKey") not in topics:
                 continue
@@ -124,13 +178,21 @@ def render_rules(rules: list[Rule]) -> str:
     return "\n".join(lines) if len(lines) > 1 else ""
 
 
-def recall_context(cwd: str, intent: str = "", project: str = "", playbook: Playbook | None = None) -> str:
+def recall_context(
+    cwd: str, intent: str = "", project: str = "", playbook: Playbook | None = None
+) -> str:
     book = playbook or Playbook(os.environ.get(CM_BIN_ENV, DEFAULT_CM_BIN))
-    return render_rules(book.similar(recall_query(cwd, intent, project), recall_topics(intent)))
+    return render_rules(
+        book.similar(recall_query(cwd, intent, project), recall_topics(intent))
+    )
 
 
 def intent_text(payload: Mapping[str, object]) -> str:
-    return " ".join(value for key in ("task_intent", "prompt", "user_message") if isinstance(value := payload.get(key), str))[:MAX_QUERY_CHARS]
+    return " ".join(
+        value
+        for key in ("task_intent", "prompt", "user_message")
+        if isinstance(value := payload.get(key), str)
+    )[:MAX_QUERY_CHARS]
 
 
 def decide(event: HookEvent, playbook: Playbook | None = None) -> Decision | None:
@@ -141,7 +203,11 @@ def decide(event: HookEvent, playbook: Playbook | None = None) -> Decision | Non
     if not intent and event.field("source", "source") in {"resume", "compact"}:
         intent = "recover interrupted session"
     context = recall_context(cwd, intent, event.field("project", "project"), playbook)
-    return Decision.context(context, event_name="SessionStart", log_label="emitted") if context else None
+    return (
+        Decision.context(context, event_name="SessionStart", log_label="emitted")
+        if context
+        else None
+    )
 
 
 if __name__ == "__main__":
