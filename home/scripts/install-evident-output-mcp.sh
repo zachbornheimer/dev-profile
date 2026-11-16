@@ -14,30 +14,26 @@ install_skill() {
 	if [[ ! -f "${skill_src}" ]]; then
 		return 0
 	fi
-	local d
-	for d in \
-		"${home}/.claude/skills/cli-output" \
-		"${home}/.codex/skills/cli-output"; do
-		mkdir -p "${d}"
-		if [[ -d "${d}/references" ]]; then
-			rm -rf "${d}/references"
-		fi
-		cp "${skill_src}" "${d}/SKILL.md"
-		# Append machine-local MCP notes (portable skill has no host paths).
-		{
-			echo ""
-			echo "## Local MCP (this machine)"
-			echo ""
-			echo "Binary: \`~/.local/bin/evident-output-mcp\` (chezmoi"
-			echo "\`run_onchange_after_install-evident-output-mcp\`, pin **${pin}**)."
-			echo ""
-			echo '```bash'
-			echo "evident-output-mcp --version"
-			echo "evident-output-mcp --help   # register the MCP in omp or the Codex desktop app"
-			echo '```'
-		} >>"${d}/SKILL.md"
-		echo "cli-output skill: installed → ${d}/SKILL.md"
-	done
+	local d="${home}/.codex/skills/cli-output"
+	mkdir -p "${d}"
+	if [[ -d "${d}/references" ]]; then
+		rm -rf "${d}/references"
+	fi
+	cp "${skill_src}" "${d}/SKILL.md"
+	# Append machine-local MCP notes (portable skill has no host paths).
+	{
+		echo ""
+		echo "## Local MCP (this machine)"
+		echo ""
+		echo "Binary: \`~/.local/bin/evident-output-mcp\` (chezmoi"
+		echo "\`run_onchange_after_install-evident-output-mcp\`, pin **${pin}**)."
+		echo ""
+		echo '```bash'
+		echo "evident-output-mcp --version"
+		echo "evident-output-mcp --help   # register the MCP in omp or the Codex desktop app"
+		echo '```'
+	} >>"${d}/SKILL.md"
+	echo "cli-output skill: installed → ${d}/SKILL.md"
 }
 
 # Prefer upstream portable skill from local evo checkout (always current on this Mac).

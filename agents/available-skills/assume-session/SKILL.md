@@ -43,7 +43,6 @@ are `capability/run_<name>`.
 | Per-turn cost, waste, corrections, tokens                              | `get_transcript` `{sources: ["<ref>"], annotate: true}`, then read the `path` it returns (`annotation` on each line)  |
 | Adversarial review: what the session wasted, how to do better          | `extract_hypotheses` `{sources: ["<ref>"]}`                                                                           |
 | Turn a bad session into filed fixes                                    | `learn_from_transcript` `{source: "<ref>"}` (only when asked; it files tickets)                                       |
-| Claude session's native transcript path, jobId or pid                  | the `find-session` skill                                                                                              |
 
 Report what the transcript shows with turn numbers or verbatim quotes, and mark
 inference as inference. An ambiguous prefix or title is refused with candidates:

@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """Discover, index, and analyze coding-agent sessions for recurring waste.
 
-Legacy note: the Claude Code, Grok, OpenCode, Cursor, Gemini and Copilot entries read old
-transcripts of removed, unsupported harnesses. Only omp and the Codex desktop app are supported."""
+Only Codex desktop sessions are indexed; there is no omp parser."""
 
 from __future__ import annotations
 
@@ -73,14 +72,7 @@ CREATE TABLE IF NOT EXISTS events (
 CREATE INDEX IF NOT EXISTS idx_events_session ON events(harness, session_id, seq);
 """
 
-HARNESS_GLOBS = {
-    "claude": (".claude/projects", "*/*.jsonl"),
-    "codex": (".codex/sessions", "**/*.jsonl"),
-    "cursor": (".cursor/projects", "*/agent-transcripts/*/*.jsonl"),
-    "grok": (".grok/sessions", "*/*/summary.json"),
-    "gemini": (".gemini/tmp", "*/chats/*.jsonl"),
-    "copilot": (".copilot/session-state", "*/events.jsonl"),
-}
+HARNESS_GLOBS = {"codex": (".codex/sessions", "**/*.jsonl")}
 
 SESSION_INT_FIELDS = (
     "user_turns",
@@ -109,7 +101,7 @@ SESSION_OPT_FIELDS = (
 )
 
 REQUIRED_EVAL_CASES = (
-    "discover_multi_harness",
+    "discover_codex",
     "repeated_workflow_to_command",
     "skill_vs_command_vs_subagent",
     "instruction_bloat",
@@ -177,8 +169,6 @@ def discover(ctx: Context, harness: str | None = None) -> list[dict[str, Any]]:
         present = root.exists()
         count = _count_glob(root, pattern) if present else 0
         notes = ""
-        if name == "cursor" and present:
-            notes = "jsonl under agent-transcripts only"
         rows.append(
             {
                 "name": name,
@@ -186,45 +176,6 @@ def discover(ctx: Context, harness: str | None = None) -> list[dict[str, Any]]:
                 "session_count": count,
                 "path": str(root),
                 "notes": notes,
-            }
-        )
-    if not wanted or "opencode" in wanted:
-        db = ctx.home / ".local" / "share" / "opencode" / "opencode.db"
-        count = 0
-        notes = ""
-        present = db.is_file()
-        if present:
-            try:
-                conn = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
-                try:
-                    count = int(
-                        conn.execute("SELECT count(*) FROM session").fetchone()[0]
-                    )
-                finally:
-                    conn.close()
-            except sqlite3.Error as exc:
-                notes = f"db_error: {exc}"
-        else:
-            notes = "missing"
-        rows.append(
-            {
-                "name": "opencode",
-                "present": present,
-                "session_count": count,
-                "path": str(db),
-                "notes": notes,
-            }
-        )
-    if not wanted or "windsurf" in wanted:
-        root = ctx.home / ".windsurf"
-        present = root.is_dir()
-        rows.append(
-            {
-                "name": "windsurf",
-                "present": present,
-                "session_count": 0,
-                "path": str(root),
-                "notes": "no_sessions" if present else "missing",
             }
         )
     return rows
@@ -242,29 +193,12 @@ def list_sources(ctx: Context, harness: str | None) -> list[tuple[str, Path]]:
         for path in root.glob(pattern):
             if path.is_file():
                 out.append((name, path))
-    if not wanted or "opencode" in wanted:
-        db = ctx.home / ".local" / "share" / "opencode" / "opencode.db"
-        if db.is_file():
-            out.append(("opencode", db))
     return out
 
 
-def parse_source(name: str, path: Path, cutoff: datetime) -> list[parse.Session]:
-    if name == "claude":
-        return [parse.parse_claude(path)]
+def parse_source(name: str, path: Path) -> list[parse.Session]:
     if name == "codex":
         return [parse.parse_codex(path)]
-    if name == "cursor":
-        return [parse.parse_cursor(path)]
-    if name == "grok":
-        session = parse.parse_grok(path)
-        return [session] if session else []
-    if name == "gemini":
-        return [parse.parse_gemini(path)]
-    if name == "copilot":
-        return [parse.parse_copilot(path)]
-    if name == "opencode":
-        return parse.parse_opencode_db(path, int(cutoff.timestamp() * 1000))
     return []
 
 
@@ -352,7 +286,7 @@ def index_sessions(
                 continue
             conn.execute("DELETE FROM events WHERE path = ?", (str(path),))
             conn.execute("DELETE FROM sessions WHERE path = ?", (str(path),))
-            for session in parse_source(name, path, cutoff):
+            for session in parse_source(name, path):
                 insert_session(conn, session)
                 indexed += 1
             conn.execute(
@@ -820,208 +754,65 @@ def _write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
 
 
 def write_eval_fixtures(home: Path) -> Path:
-    claude_md = home / ".claude" / "CLAUDE.md"
-    claude_md.parent.mkdir(parents=True, exist_ok=True)
-    claude_md.write_text(
+    agents_md = home / "AGENTS.md"
+    agents_md.write_text(
         "\n".join(f"# rule {i}" for i in range(210)) + "\n", encoding="utf-8"
     )
     for index in range(3):
-        path = home / ".claude" / "projects" / "repo" / f"sess-{index}.jsonl"
-        _write_jsonl(
-            path,
-            [
-                {
-                    "type": "user",
-                    "cwd": "/repo",
-                    "timestamp": "2026-09-18T12:00:00Z",
-                    "message": {"role": "user", "content": "check the tree"},
-                },
-                {
-                    "type": "assistant",
-                    "message": {
-                        "role": "assistant",
-                        "content": [
-                            {
-                                "type": "tool_use",
-                                "id": "1",
-                                "name": "Bash",
-                                "input": {"command": "git status --short"},
-                            },
-                            {
-                                "type": "tool_use",
-                                "id": "2",
-                                "name": "Bash",
-                                "input": {"command": "git diff"},
-                            },
-                            {
-                                "type": "tool_use",
-                                "id": "3",
-                                "name": "Read",
-                                "input": {"file_path": str(claude_md)},
-                            },
-                        ],
-                    },
-                },
-                {
-                    "type": "user",
-                    "message": {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "tool_result",
-                                "tool_use_id": "1",
-                                "content": "ok",
-                            }
-                        ],
-                    },
-                },
-            ],
+        path = (
+            home
+            / ".codex"
+            / "sessions"
+            / "2026"
+            / "09"
+            / "18"
+            / f"rollout-{index}.jsonl"
         )
-    _write_jsonl(
-        home / ".codex" / "sessions" / "2026" / "09" / "18" / "rollout-eval.jsonl",
-        [
-            {"type": "session_meta", "payload": {"cwd": "/repo", "id": "codex-eval"}},
+        rows = [
+            {
+                "type": "session_meta",
+                "timestamp": "2026-09-18T12:00:00Z",
+                "payload": {"cwd": "/repo", "id": f"codex-eval-{index}"},
+            },
             {"type": "turn_context", "payload": {"model": "gpt-5"}},
             {
                 "type": "response_item",
                 "payload": {
                     "role": "user",
-                    "content": [{"type": "input_text", "text": "hi"}],
+                    "content": [{"type": "input_text", "text": "check the tree"}],
                 },
             },
-            {
-                "type": "response_item",
-                "payload": {
-                    "type": "function_call",
-                    "name": "shell",
-                    "arguments": json.dumps({"command": "ls"}),
-                },
-            },
-        ],
-    )
-    _write_jsonl(
-        home
-        / ".cursor"
-        / "projects"
-        / "repo"
-        / "agent-transcripts"
-        / "t1"
-        / "chat.jsonl",
-        [
-            {
-                "role": "user",
-                "message": {"content": [{"type": "text", "text": "hi"}]},
-            },
-            {
-                "role": "assistant",
-                "message": {
-                    "content": [
-                        {
-                            "type": "tool_use",
-                            "name": "ReadFile",
-                            "input": {"path": "a.py"},
-                        }
-                    ]
-                },
-            },
-        ],
-    )
-    grok_dir = home / ".grok" / "sessions" / "tmp-repo" / "sess-eval"
-    grok_dir.mkdir(parents=True, exist_ok=True)
-    (grok_dir / "summary.json").write_text(
-        json.dumps(
-            {
-                "id": "sess-eval",
-                "cwd": "/tmp/repo",
-                "current_model_id": "grok-4",
-                "created_at": "2026-09-18T12:00:00Z",
-                "updated_at": "2026-09-18T12:01:00Z",
-            }
-        )
-        + "\n",
-        encoding="utf-8",
-    )
-    _write_jsonl(
-        grok_dir / "chat_history.jsonl",
-        [{"type": "user", "content": "hello"}],
-    )
-    _write_jsonl(
-        home / ".gemini" / "tmp" / "proj" / "chats" / "c1.jsonl",
-        [
-            {"sessionId": "gem-1", "startTime": "2026-09-18T12:00:00Z"},
-            {"role": "user", "content": "hi"},
-        ],
-    )
-    copilot = home / ".copilot" / "session-state" / "s1"
-    copilot.mkdir(parents=True, exist_ok=True)
-    _write_jsonl(copilot / "events.jsonl", [{"type": "user", "role": "user"}])
-    (copilot / "vscode.metadata.json").write_text(
-        json.dumps({"workspace": "/repo"}) + "\n", encoding="utf-8"
-    )
-    (home / ".windsurf").mkdir(parents=True, exist_ok=True)
-    db = home / ".local" / "share" / "opencode" / "opencode.db"
-    db.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(db)
-    try:
-        conn.executescript(
-            """
-            CREATE TABLE session (
-                id TEXT PRIMARY KEY,
-                directory TEXT,
-                title TEXT,
-                model TEXT,
-                agent TEXT,
-                cost REAL,
-                tokens_input INTEGER,
-                tokens_output INTEGER,
-                tokens_cache_read INTEGER,
-                time_created INTEGER,
-                time_updated INTEGER,
-                time_compacting INTEGER
-            );
-            CREATE TABLE message (
-                id TEXT PRIMARY KEY,
-                session_id TEXT,
-                time_created INTEGER,
-                data TEXT
-            );
-            CREATE TABLE part (
-                id TEXT PRIMARY KEY,
-                message_id TEXT,
-                data TEXT
-            );
-            """
-        )
-        now_ms = int(datetime.now(UTC).timestamp() * 1000)
-        conn.execute(
-            "INSERT INTO session VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-            (
-                "ses_eval",
-                "/repo",
-                "eval",
-                "opencode",
-                "build",
-                0.0,
-                10,
-                10,
-                0,
-                now_ms,
-                now_ms,
-                None,
-            ),
-        )
-        conn.execute(
-            "INSERT INTO message VALUES (?,?,?,?)",
-            ("msg1", "ses_eval", now_ms, json.dumps({"role": "user"})),
-        )
-        conn.execute(
-            "INSERT INTO part VALUES (?,?,?)",
-            ("p1", "msg1", json.dumps({"type": "text", "text": "hello"})),
-        )
-        conn.commit()
-    finally:
-        conn.close()
-    return claude_md
+        ]
+        for call_id, name, arguments in (
+            ("1", "shell", {"command": "git status --short"}),
+            ("2", "shell", {"command": "git diff"}),
+            ("3", "read", {"file_path": str(agents_md)}),
+        ):
+            rows.append(
+                {
+                    "type": "response_item",
+                    "payload": {
+                        "role": "assistant",
+                        "type": "function_call",
+                        "call_id": call_id,
+                        "name": name,
+                        "arguments": json.dumps(arguments),
+                    },
+                }
+            )
+            rows.append(
+                {
+                    "type": "response_item",
+                    "timestamp": "2026-09-18T12:01:00Z",
+                    "payload": {
+                        "type": "function_call_output",
+                        "call_id": call_id,
+                        "output": "ok",
+                    },
+                }
+            )
+        _write_jsonl(path, rows)
+    return agents_md
 
 
 def _restore_env(key: str, value: str | None) -> None:
@@ -1032,35 +823,12 @@ def _restore_env(key: str, value: str | None) -> None:
 
 
 def eval_discover(disc: list[dict[str, Any]]) -> dict[str, Any]:
-    required = (
-        "claude",
-        "codex",
-        "cursor",
-        "grok",
-        "opencode",
-        "gemini",
-        "copilot",
+    ok = (
+        len(disc) == 1
+        and disc[0]["name"] == "codex"
+        and (disc[0].get("present") and disc[0].get("session_count", 0) == 3)
     )
-    by_name = {row["name"]: row for row in disc}
-    missing = [
-        name
-        for name in required
-        if not (
-            by_name.get(name, {}).get("present")
-            and by_name[name].get("session_count", 0) >= 1
-        )
-    ]
-    wind = by_name.get("windsurf")
-    wind_ok = (
-        wind is None
-        or wind.get("notes") in {"no_sessions", "missing"}
-        or (wind.get("present") and wind.get("session_count", 0) == 0)
-    )
-    ok = not missing and wind_ok
-    return {
-        "ok": ok,
-        "detail": "ok" if ok else f"missing={missing} windsurf={wind}",
-    }
+    return {"ok": bool(ok), "detail": "ok" if ok else f"unexpected discovery: {disc}"}
 
 
 def eval_repeated(findings: list[dict[str, Any]]) -> dict[str, Any]:
@@ -1143,7 +911,7 @@ def run_eval() -> dict[str, Any]:
             write_eval_fixtures(home)
             ctx = load_context()
             disc = discover(ctx)
-            cases["discover_multi_harness"] = eval_discover(disc)
+            cases["discover_codex"] = eval_discover(disc)
             index_sessions(ctx, days=parse.DEFAULT_DAYS)
             run_dir = state / "runs" / "eval"
             findings = analyze(ctx, run_dir=run_dir)

@@ -275,9 +275,8 @@ def _is_exempt_target(raw_path: str, cwd: str, scratchpad_dir: str) -> bool:
 
 def _target_repo(order: dict, cwd: str, scratchpad_dir: str) -> tuple[str, list[dict]]:
     """The one git repo an isolation:worktree spawn's non-exempt
-    primary_targets live in ("" when every target is exempt). The gate hands
-    it to worktree-provision.sh so the worktree follows the order's target,
-    not the session's cwd. Targets spanning repos cannot share one worktree."""
+    primary_targets live in ("" when every target is exempt).
+    Targets spanning repos cannot share one worktree."""
     primary_targets = (
         order.get("work_order", {}).get("scope", {}).get("primary_targets", [])
     )
@@ -549,9 +548,9 @@ def compile_order() -> dict:
 
 
 def target_repo_of_envelope() -> dict:
-    """`target-repo` entry point, used by worktree-provision.sh: the repo an
-    envelope's order targets ("" when it has none or does not parse). The
-    gate already denied invalid and multi-repo orders, so no errors here."""
+    """`target-repo` entry point: the repo an envelope's order targets
+    ("" when it has none or does not parse). The gate already denied invalid
+    and multi-repo orders, so no errors here."""
     envelope = _read_envelope()
     prompt = envelope.get("prompt") or ""
     fence_text = _extract_fence(MAIN_FENCE_RE, prompt)

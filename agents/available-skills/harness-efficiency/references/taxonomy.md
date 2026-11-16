@@ -25,22 +25,22 @@ Never invent harness or model names. Omit a field you cannot measure.
 
 ## Kinds
 
-| kind                | What clusters                                                                        |
-| ------------------- | ------------------------------------------------------------------------------------ |
-| `repeated_shell`    | Normalized command, and consecutive 2-grams                                          |
-| `repeated_read`     | Same path                                                                            |
-| `repeated_search`   | Same query/pattern                                                                   |
-| `repeated_tool_seq` | Tool-name 3-grams                                                                    |
-| `correction`        | User text, lowercase first 80 chars                                                  |
-| `permission_stop`   | Permission denials / rejections                                                      |
-| `retry`             | Error then the same tool                                                             |
-| `compaction`        | Compaction events                                                                    |
-| `subagent`          | High spawn count                                                                     |
-| `test_overuse`      | `tests > 3 ×` non-test shell and `tests >= 10`                                       |
-| `long_session`      | `user_turns + agent_turns >= 80`                                                     |
-| `instruction_bloat` | Reads of `CLAUDE.md` / `AGENTS.md` / `SKILL.md`                                      |
-| `model_routing`     | Tiny sessions (`user_turns <= 2`) on expensive names containing `opus` or `grok-4.6` |
-| `skill_self`        | This skill's own loop (re-auditing without a new primitive)                          |
+| kind                | What clusters                                                                                               |
+| ------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `repeated_shell`    | Normalized command, and consecutive 2-grams                                                                 |
+| `repeated_read`     | Same path                                                                                                   |
+| `repeated_search`   | Same query/pattern                                                                                          |
+| `repeated_tool_seq` | Tool-name 3-grams                                                                                           |
+| `correction`        | User text, lowercase first 80 chars                                                                         |
+| `permission_stop`   | Permission denials / rejections                                                                             |
+| `retry`             | Error then the same tool                                                                                    |
+| `compaction`        | Compaction events                                                                                           |
+| `subagent`          | High spawn count                                                                                            |
+| `test_overuse`      | `tests > 3 ×` non-test shell and `tests >= 10`                                                              |
+| `long_session`      | `user_turns + agent_turns >= 80`                                                                            |
+| `instruction_bloat` | Reads of `AGENTS.md`                                                                                        |
+| `model_routing`     | Tiny sessions (`user_turns <= 2`) on expensive names containing `gpt-5-pro`, `gpt-5.1-pro` or `gpt-5.2-pro` |
+| `skill_self`        | This skill's own loop (re-auditing without a new primitive)                                                 |
 
 ## Prior join
 

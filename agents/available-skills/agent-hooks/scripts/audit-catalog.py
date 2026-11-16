@@ -105,24 +105,8 @@ KNOWN_EVENTS = {
     "PermissionDenied",
     "UserPromptExpansion",
 }
-# AgentId::parse accepts these aliases, case-insensitively, after trimming.
-# Only omp and codex are supported here; the others are accepted by the binary
-# parser for removed harnesses, so the audit tolerates them but never installs them.
-AGENTS = {
-    "claude",
-    "claude-code",
-    "codex",
-    "gemini",
-    "gemini-cli",
-    "grok",
-    "grok-build",
-    "hermes",
-    "copilot",
-    "github-copilot",
-    "opencode",
-    "open-code",
-    "mastra",
-}
+# omp's bridge announces itself as claude; retain both binary aliases for it.
+AGENTS = {"codex", "mastra", "claude", "claude-code"}
 # humantime accepts many unit spellings and spaces; only reject strings with no number+unit shape at all.
 DURATION = re.compile(r"^\s*(\d+(\.\d+)?\s*[a-zA-Zµμ]+\s*)+$")
 # Events whose payload carries a matcher-able field (tool name, source, trigger, ...).

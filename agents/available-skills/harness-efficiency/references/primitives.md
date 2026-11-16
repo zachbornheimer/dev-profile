@@ -14,7 +14,7 @@ command.
 | subagent            | Output would flood the parent (dump, search, explore)    | Isolated; parent sees the summary             |
 | hook                | Must fire even if the model forgets (block, redact, cap) | Zero model tokens; mandatory                  |
 | MCP                 | Live external system (Linear, git host)                  | Tool schemas on demand (harness-dependent)    |
-| always-on rule      | Fact that is true every turn (`AGENTS.md` / `CLAUDE.md`) | Paid every turn; re-injected after compaction |
+| always-on rule      | Fact that is true every turn (`AGENTS.md`)               | Paid every turn; re-injected after compaction |
 | path-scoped rule    | Fact true only under a glob                              | Paid on matching files                        |
 | model-routing       | Tiny / mechanical work on a cheap model                  | Saves the expensive turn                      |
 | harness config      | Vendor setting (permissions, sandbox, plugins)           | None after the change                         |

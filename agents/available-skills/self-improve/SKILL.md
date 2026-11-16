@@ -1,6 +1,6 @@
 ---
 name: self-improve
-description: Mine recent corrections from saved agent histories — cluster recurring ones, adversarially verify each candidate, and distill survivors into gotcha entries or AGENTS.md rules as proposed diffs for human approval. Run on demand or weekly via /schedule. LEGACY: the harvester reads only the old Claude Code, Codex, Cursor and OpenCode history files. Those harnesses are removed and unsupported (only omp and the Codex desktop app are), and it has no omp reader yet, so it finds nothing new.
+description: Mine recent corrections from saved agent histories — cluster recurring ones, adversarially verify each candidate, and distill survivors into gotcha entries or AGENTS.md rules as proposed diffs for human approval. Run on demand or weekly via /schedule. Only Codex desktop sessions are harvested; there is no omp reader.
 ---
 
 # Self-Improve
@@ -12,7 +12,7 @@ your eyes on it.
 ## 1 — Harvest
 
 ```bash
-uv run /Users/zbornheimer/.claude/skills/self-improve/scripts/harvest-corrections.py --days 30
+uv run ~/.agents/available-skills/self-improve/scripts/harvest-corrections.py --days 30
 ```
 
 Streams candidate corrections as NDJSON to stdout. Fields per line:
@@ -43,12 +43,12 @@ question:
 
 > "Would this rule have caught a _real, distinct_ mistake in the harvested
 > sessions — or is it a one-off, or already covered by an existing rule in
-> `~/.claude/CLAUDE.md` or `skills/`?"
+> `~/.codex/AGENTS.md` or `skills/`?"
 
 Gate: **≥ 3 distinct corrections of the same class** to proceed. A rule that
 would not have changed a prior outcome is noise — reject it.
 
-The skeptic must also check whether any existing CLAUDE.md line or skill
+The skeptic must also check whether any existing AGENTS.md line or skill
 `references/gotchas.md` already covers this pattern before recommending it.
 
 ## 4 — Distill (proposed diff only — never auto-apply)
@@ -58,7 +58,7 @@ Survivors go to exactly one of three targets:
 | Scope                    | Target                                                |
 | ------------------------ | ----------------------------------------------------- |
 | Specific, localized      | `skills/<name>/references/gotchas.md` — a new bullet  |
-| Cross-cutting behavioral | `~/.claude/CLAUDE.md` — a new always-on line          |
+| Cross-cutting behavioral | `~/.codex/AGENTS.md` — a new always-on line           |
 | Skill workflow rule      | `skills/<name>/SKILL.md` — under the relevant heading |
 
 Output a unified diff. Present it. You apply it with `patch -p1 < proposed.patch`

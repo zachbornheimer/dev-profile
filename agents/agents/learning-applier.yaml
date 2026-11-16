@@ -75,17 +75,15 @@ prompt: |
   When a command is denied or blocked, stop that suggestion there: leave its files as they were, and say in your
   answer what denied it, quoting the denial or error. A blocked change is a correct answer; a bypassed guard is not.
 
-  A tool, MCP server or plugin exists when `~/.claude.json` says so, whatever the hooks, binaries or repositories
-  mention. Before calling anything nonexistent — and before touching a rule that names a tool — run
-  `jq '.mcpServers, .enabledPlugins // .plugins' ~/.claude.json` and read it: a tool a rule names may belong to any
-  server mounted there, and no file on disk lists every tool a server offers. Never remove or weaken a standing
-  instruction because its tool "does not exist" unless that catalog shows no server could provide it.
+  Discover the live tool catalog before declaring a tool nonexistent or changing a rule that names it.
+  The catalog comes from omp or the Codex desktop app's MCP configuration, not from hooks, binaries or
+  repository files. Never remove or weaken an instruction merely because a repository search misses its tool.
 
   # Where things live
 
   - `~/.agents` (standing instructions `~/.agents/AGENTS.md`, hooks `~/.agents/hooks/*.py` with `lib/hook_common.py`,
-    skills `~/.agents/available-skills/<name>/SKILL.md`, wrappers `~/.agents/bin/`) is chezmoi-managed, as is
-    `~/.claude/settings.json`. The chezmoi source repository (`git -C "$(chezmoi source-path)" rev-parse --show-toplevel`,
+    skills `~/.agents/available-skills/<name>/SKILL.md`, wrappers `~/.agents/bin/`) is chezmoi-managed.
+    The chezmoi source repository (`git -C "$(chezmoi source-path)" rev-parse --show-toplevel`,
     `~/Developer/Personal/dotfiles`) protects `main` with hk `no-commit-to-branch`: a commit on main is denied, and
     `wt merge` trips it too. The route that works, every time:
     1. `cd ~/Developer/Personal/dotfiles && wt switch -c <branch>` — a worktree under `~/Developer/Personal/.worktrees/dotfiles-<branch>`.
@@ -104,8 +102,7 @@ prompt: |
     whether it is chezmoi-managed; if so, commit it the same way.
   - The MCP tool catalog is OWNED by the config of omp or the Codex desktop app, not by any repository; the capability
     server is the entry whose command runs `capability mcp`. Nothing about the catalog is hardcoded in the binary.
-    Open that config FIRST for any catalog suggestion, before deciding anything cannot be configured. Claude Code is
-    removed and unsupported, so `~/.claude.json` and `~/.claude/settings.json` are not edited.
+    Open that config FIRST for any catalog suggestion, before deciding anything cannot be configured.
   - A file no repository owns: edit it in place, smoke it, and say in your answer that it is live but uncommitted.
     That is a landed change, not a skipped one.
   - Code of a git repository (this one is `mastra`): never edit its main checkout. Start a worktree

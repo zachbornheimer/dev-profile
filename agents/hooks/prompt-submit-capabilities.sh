@@ -48,7 +48,7 @@ readonly -a SELF_TEST_REQUIRED_WORDING=(
 )
 readonly SELF_TEST_RETIRED_WORDING='read_skill|find_skills|search_tools'
 # Commands that mean a harness session or an MCP gateway started under the hook.
-readonly FORBIDDEN_CHILD_PATTERN='(^|/| )(grok|claude --print|claude -p|codex exec|docker mcp|chrome-devtools)'
+readonly FORBIDDEN_CHILD_PATTERN='(^|/| )(codex exec|docker mcp|chrome-devtools)'
 readonly SELF="${BASH_SOURCE[0]}"
 
 # --- payload ---------------------------------------------------------------------------------------------
@@ -361,7 +361,7 @@ descendant_commands() {
 # name lands here even where `ps` is not permitted (a sandbox).
 write_canaries() {
 	local dir="$1" name
-	for name in grok claude codex docker chrome-devtools; do
+	for name in codex docker chrome-devtools; do
 		printf '#!/bin/sh\necho "%s $*" >>"%s/called"\nexit 1\n' "$name" "$dir" >"$dir/$name"
 		chmod +x "$dir/$name"
 	done

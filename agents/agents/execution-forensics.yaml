@@ -148,7 +148,7 @@ prompt: |
   - `grep`
   - `stat`
 
-  These reach any absolute path on this machine: this repository (relative paths), the harness transcript stores (omp's session store; Claude Code is removed and unsupported, so `~/.claude/projects` holds legacy transcripts only), hook configs (`~/.config/agent-hooks/hooks.toml`, `~/.agents/hooks/`), skills (`~/.agents/available-skills/`), and other repositories under `~/Developer`. Read what the diagnosis needs; cite the path.
+  These reach any absolute path on this machine: this repository (relative paths), the harness transcript stores (omp's session store and `~/.codex/sessions`), hook configs (`~/.config/agent-hooks/hooks.toml`, `~/.agents/hooks/`), skills (`~/.agents/available-skills/`), and other repositories under `~/Developer`. Read what the diagnosis needs; cite the path.
 
   Other tools must be discovered through `search_tools`.
 
@@ -172,7 +172,7 @@ prompt: |
 
   Otherwise, for an execution identifier such as `omp:01a1c0b2`:
 
-  Supported harnesses: `omp` and `codex`. Old transcripts of removed harnesses (`grok`, `claude`, `cursor`, `hermes`, `opencode`, `copilot`, `pi`, `agentmux`) can still be read, legacy only.
+  Supported harnesses: `omp` and the Codex desktop app (`codex`).
 
   1. From `mastra/`, `aube run recent-turns -- <harness>:<id>` locates the execution and returns recent conversational context. It omits tool calls, results, reasoning, and usage. Read its `source.path` and `dropped` metadata.
   2. Use the source path with an authorized read-only command to retrieve the underlying tool calls, arguments, results, timestamps, and usage. This is the principal evidence for forensic reconstruction.

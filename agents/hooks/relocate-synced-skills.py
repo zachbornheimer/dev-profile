@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
-"""SessionStart — move plugin `synced/` trees out of harness auto-scan dirs.
+"""SessionStart — move synced skills into the picker-only available-skills tree.
 
-Removed harnesses (Claude Code, Grok) dumped every SKILL.md under `skills/`. Plugin sync writes
-`synced/` there. Merge those trees into `~/.agents/available-skills/synced`
-(picker-only) and delete the auto-scan copy. Also drop leftover Claude skill
-dirs (`.trash`, plugin dumps) so no harness auto-discovers them. The
-harness skills dir stays empty; skills are picker-only. Fail open. Prints nothing.
+Merge ~/.agents/skills/synced into ~/.agents/available-skills/synced and remove
+only the source tree. Fail open. Prints nothing.
 """
 
 from __future__ import annotations
@@ -17,8 +14,6 @@ from pathlib import Path
 
 HOME_ENV = "SYNCED_RELOCATE_HOME"
 AGENTS_SYNCED = Path(".agents") / "skills" / "synced"
-CLAUDE_SKILLS = Path(".claude") / "skills"
-CLAUDE_SYNCED = CLAUDE_SKILLS / "synced"
 AVAILABLE_SYNCED = Path(".agents") / "available-skills" / "synced"
 
 
@@ -42,21 +37,6 @@ def relocate(source: Path, dest: Path) -> None:
     shutil.rmtree(source)
 
 
-def remove_path(path: Path) -> None:
-    if path.is_symlink() or path.is_file():
-        path.unlink()
-        return
-    if path.is_dir():
-        shutil.rmtree(path)
-
-
-def sweep_claude_skills(skills_dir: Path) -> None:
-    if not skills_dir.exists() or not skills_dir.is_dir():
-        return
-    for child in list(skills_dir.iterdir()):
-        remove_path(child)
-
-
 def drain_stdin() -> None:
     try:
         sys.stdin.read()
@@ -70,8 +50,6 @@ def main() -> int:
         home = home_dir()
         dest = home / AVAILABLE_SYNCED
         relocate(home / AGENTS_SYNCED, dest)
-        relocate(home / CLAUDE_SYNCED, dest)
-        sweep_claude_skills(home / CLAUDE_SKILLS)
     except (OSError, shutil.Error):
         return 0
     return 0

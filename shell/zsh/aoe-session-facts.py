@@ -1,120 +1,94 @@
 import json
 import sqlite3
-import subprocess
 import sys
+import tempfile
+from contextlib import closing
 from pathlib import Path
 
 TITLE_MAX = 120
-CLAUDE_FULL_SCAN = 8 * 1024 * 1024
-CLAUDE_WINDOW = 512 * 1024
 PLACEHOLDERS = {"new session", "untitled", "untitled session"}
-
-ref = sys.argv[1]
-find_session = Path(sys.argv[2])
-find_transcript = Path(sys.argv[3])
-extract_context = Path(sys.argv[4])
-harness, _, session_id = ref.partition(":")
 home = Path.home()
 
 
-def run(argv):
-    try:
-        proc = subprocess.run(
-            argv, stdout=subprocess.PIPE, text=True, timeout=60, check=False
-        )
-    except (OSError, subprocess.TimeoutExpired):
+def cwd_from_slug(slug):
+    if slug.startswith("--") and slug.endswith("--"):
+        root, encoded = Path("/"), slug[2:-2]
+    elif slug == "-tmp" or slug.startswith("-tmp-"):
+        root, encoded = Path(tempfile.gettempdir()).resolve(), slug[5:]
+    elif slug.startswith("-"):
+        root, encoded = home, slug[1:]
+    else:
         return ""
-    return proc.stdout or ""
+
+    def candidates(parent, remaining):
+        if not remaining:
+            return {str(parent.resolve())}
+        found = set()
+        try:
+            for child in parent.iterdir():
+                if not child.is_dir():
+                    continue
+                if child.name == remaining:
+                    found.add(str(child.resolve()))
+                elif remaining.startswith(child.name + "-"):
+                    found.update(candidates(child, remaining[len(child.name) + 1 :]))
+        except OSError:
+            pass
+        return found
+
+    matches = candidates(root, encoded)
+    return matches.pop() if len(matches) == 1 else ""
 
 
-def first_obj(raw):
-    raw = (raw or "").strip()
-    if not raw:
-        return {}
-    try:
-        obj, _ = json.JSONDecoder().raw_decode(raw)
-    except json.JSONDecodeError:
-        return {}
-    return obj if isinstance(obj, dict) else {}
-
-
-def summary_beside(transcript):
-    if not transcript or transcript.startswith("sqlite:"):
-        return {}
-    summary = Path(transcript).parent / "summary.json"
-    if not summary.is_file():
-        return {}
-    try:
-        data = json.loads(summary.read_text())
-    except (OSError, json.JSONDecodeError):
-        return {}
-    return data if isinstance(data, dict) else {}
-
-
-def cwd_from_transcript(transcript):
-    info = summary_beside(transcript).get("info") or {}
-    if isinstance(info, dict) and info.get("cwd"):
-        return str(info["cwd"])
-    return ""
-
-
-def claude_title(path):
-    custom = ""
-    ai = ""
-
-    def take(blob):
-        nonlocal custom, ai
-        for line in blob.decode("utf-8", "replace").splitlines():
-            if "custom-title" not in line and "ai-title" not in line:
-                continue
-            try:
-                obj = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            kind = obj.get("type")
-            if kind == "custom-title":
-                title = str(obj.get("customTitle") or "").strip()
-                if title:
-                    custom = title
-            elif kind == "ai-title":
-                title = str(obj.get("aiTitle") or "").strip()
-                if title:
-                    ai = title
-
-    try:
-        size = path.stat().st_size
-        with path.open("rb") as handle:
-            if size <= CLAUDE_FULL_SCAN:
-                take(handle.read())
-            else:
-                take(handle.read(CLAUDE_WINDOW))
-                handle.seek(max(0, size - CLAUDE_WINDOW))
-                handle.readline()
-                take(handle.read())
-    except OSError:
-        return ""
-    return custom or ai
-
-
-def title_from_transcript(transcript):
-    if not transcript or transcript.startswith("sqlite:"):
-        return ""
-    generated = str(summary_beside(transcript).get("generated_title") or "").strip()
-    if generated:
-        return generated
-    path = Path(transcript)
-    if path.is_file() and path.suffix == ".jsonl":
-        return claude_title(path)
-    return ""
+def omp_facts(session_id):
+    root = home / ".omp" / "agent"
+    buckets = set()
+    cwd = title = ""
+    for path in (root / "sessions").glob(f"*/*_{session_id}*"):
+        if not (
+            path.name.endswith("_" + session_id)
+            or path.name.endswith("_" + session_id + ".jsonl")
+        ):
+            continue
+        buckets.add(path.parent.name)
+        if path.suffix != ".jsonl" or not path.is_file():
+            continue
+        try:
+            with path.open() as handle:
+                # omp stores its title and session header before conversation entries.
+                for _ in range(2):
+                    line = handle.readline()
+                    if not line:
+                        break
+                    obj = json.loads(line)
+                    if obj.get("type") == "title":
+                        title = str(obj.get("title") or "")
+                    elif obj.get("type") == "session" and obj.get("id") == session_id:
+                        cwd = str(obj.get("cwd") or "")
+                        title = title or str(obj.get("title") or "")
+        except (OSError, ValueError):
+            continue
+    if not cwd and len(buckets) == 1:
+        cwd = cwd_from_slug(buckets.pop())
+    db = root / "history.db"
+    if db.is_file():
+        try:
+            with closing(sqlite3.connect(f"file:{db}?mode=ro", uri=True)) as con:
+                row = con.execute(
+                    "SELECT title FROM session_titles WHERE session_id = ?",
+                    (session_id,),
+                ).fetchone()
+                if row:
+                    title = str(row[0] or "")
+        except sqlite3.Error:
+            pass
+    return cwd, title
 
 
 def codex_name(session_id):
-    root = home / ".codex"
     best = None
     best_n = -1
-    if not root.is_dir():
-        return ""
-    for cand in root.glob("state_*.sqlite"):
+    for cand in (home / ".codex").glob("state_*.sqlite"):
         try:
             number = int(cand.stem.rsplit("_", 1)[-1])
         except ValueError:
@@ -122,17 +96,17 @@ def codex_name(session_id):
         if number > best_n:
             best, best_n = cand, number
     if best is None:
-        return ""
+        return "", ""
     try:
-        con = sqlite3.connect(f"file:{best}?mode=ro", uri=True)
-        row = con.execute(
-            "SELECT name FROM threads WHERE id = ?", (session_id,)
-        ).fetchone()
+        with closing(sqlite3.connect(f"file:{best}?mode=ro", uri=True)) as con:
+            row = con.execute(
+                "SELECT cwd, name FROM threads WHERE id = ?", (session_id,)
+            ).fetchone()
     except sqlite3.Error:
-        return ""
-    if not row or not row[0]:
-        return ""
-    return str(row[0]).strip()
+        return "", ""
+    if not row:
+        return "", ""
+    return str(row[0] or ""), str(row[1] or "").strip()
 
 
 def sanitize(title):
@@ -148,33 +122,17 @@ def sanitize(title):
 
 
 def main():
-    cwd = ""
-    transcript = ""
-    title = ""
-    if find_session.is_file():
-        obj = first_obj(run(["python3", str(find_session), ref]))
-        cwd = str(obj.get("cwd") or "")
-        transcript = str(obj.get("transcript_path") or "")
-        if not cwd and transcript:
-            cwd = cwd_from_transcript(transcript)
-        title = title_from_transcript(transcript)
-    if not transcript and find_transcript.is_file() and harness and session_id:
-        found = run(["bash", str(find_transcript), harness, session_id]).strip()
-        if found and not found.startswith("ERROR"):
-            transcript = found.splitlines()[-1].strip()
+    harness, _, session_id = sys.argv[1].partition(":")
+    cwd = title = ""
     if (
-        transcript
-        and not cwd
-        and extract_context.is_file()
-        and not transcript.startswith("sqlite:")
-        and Path(transcript).is_file()
+        session_id
+        and "/" not in session_id
+        and not any(c in session_id for c in "*?[]")
     ):
-        obj = first_obj(run(["python3", str(extract_context), harness, transcript]))
-        cwd = str(obj.get("working_dir") or obj.get("cwd") or "")
-    if transcript and not title:
-        title = title_from_transcript(transcript)
-    if not title and harness == "codex":
-        title = codex_name(session_id)
+        if harness == "omp":
+            cwd, title = omp_facts(session_id)
+        elif harness == "codex":
+            cwd, title = codex_name(session_id)
     sys.stdout.write(cwd + "\n" + sanitize(title) + "\n")
 
 
