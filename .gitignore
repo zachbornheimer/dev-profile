@@ -80,6 +80,7 @@ agents/AGENTS.md.orig
 config/tools.toml
 agents/learnings/launch.log
 agents/learnings/handoffs/*.prompt.md
+# Leftover credential file from the removed OpenCode harness; never commit it.
 apps/opencode/service.json
 home/ssh/known_hosts
 home/ssh/config

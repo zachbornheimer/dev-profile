@@ -126,9 +126,8 @@ Current targets:
 - **Mastra** — planned: `capability-replicas` reads the master directly and
   builds its `Definition` from it (`mastra/src/agents/<name>/`), so the YAML
   beside the TS file retires.
-- **Claude Code** — planned: `~/.claude/agents/<name>.md` with `name`,
-  `description`, `tools`, `model` frontmatter.
-- **Codex** — planned: a project-scoped agent entry; Codex has no user-level
+- **Claude Code** — removed and unsupported; no renderer is planned.
+- **Codex desktop app** — planned: a project-scoped agent entry; Codex has no user-level
   agent files today, so the renderer writes into the checkout it runs in.
 
 ## Adding an agent
