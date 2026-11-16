@@ -1,4 +1,4 @@
-"""ZYS-1230: closing_line must not quote a bare markdown fence."""
+"""closing_line is the last line of prose: a fenced block or <evidence-check> element is never quoted as the close."""
 
 from __future__ import annotations
 
@@ -7,34 +7,27 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "lib"))
 
-from completion_gate_turn_judge import _is_fence_only, closing_line
+from completion_gate_turn_judge import CLOSING_LINE_CHARS, closing_line
 
 
-def test_fence_only_lines():
-    assert _is_fence_only("```")
-    assert _is_fence_only("```json")
-    assert _is_fence_only("```evidence")
-    assert not _is_fence_only("``` not a fence info with spaces")
-    assert not _is_fence_only("code with ``` inside")
+def test_trailing_evidence_element_yields_the_prose_before_it():
+    msg = "Both suites pass.\n\n<evidence-check>\n<claim>x</claim>\n<type>test</type>\n<ref>y</ref>\n<scope>unit</scope>\n</evidence-check>\n"
+    assert closing_line(msg) == "Both suites pass."
 
 
-def test_closing_line_skips_trailing_fence():
-    msg = (
-        "identify_intent returns build. Run these from the worktree:\n"
-        "\n"
-        "```\n"
-        'go run ./cmd/agentmux capability run identify_intent --text "x"\n'
-        "```\n"
-    )
-    got = closing_line(msg)
-    assert got != "```"
-    assert "go run" in got
+def test_prose_after_a_fence_is_the_close():
+    msg = "The work is done.\n\n<evidence-check>\n<claim>x</claim>\n</evidence-check>\nI also verified it."
+    assert closing_line(msg) == "I also verified it."
 
 
-def test_closing_line_skips_json_fence_closer():
-    msg = 'Posted.\n\n```json\n{"ok":true}\n```'
-    assert closing_line(msg) == '{"ok":true}'
+def test_a_command_fence_is_not_quoted():
+    msg = "Run this from the worktree:\n\n```\nmise run test\n```\n"
+    assert closing_line(msg) == "Run this from the worktree:"
 
 
-def test_closing_line_empty_when_only_fences():
+def test_message_of_only_fences_has_no_closing_line():
     assert closing_line("```\n```") == ""
+
+
+def test_long_closing_line_is_truncated():
+    assert len(closing_line("x" * (CLOSING_LINE_CHARS + 50))) == CLOSING_LINE_CHARS + 1
