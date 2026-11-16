@@ -149,9 +149,7 @@ def _run_with_fault(
     injector_dir = tmp_path / "injector"
     injector_dir.mkdir()
     shutil.copy(FAULT_INJECTOR, injector_dir / "sitecustomize.py")
-    env = {
-        key: value for key, value in os.environ.items() if not key.startswith("GROK_")
-    }
+    env = {key: value for key, value in os.environ.items() if not key.startswith("PI_")}
     env.update(
         HOME=str(home),
         UV_CACHE_DIR=str(REAL_UV_CACHE_DIR),

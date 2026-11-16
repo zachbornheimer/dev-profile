@@ -24,7 +24,7 @@ Known limitation (respected, logged on the at-51q2ph objective): in omp,
 run_command is invoked as `write xd://…` and the bridge passes the raw tool
 name, so tool-name matchers may never fire there — the lavish skill text is
 omp's enforcement. This hook covers the harnesses whose tool.before payloads
-do reach agent-hooks (Claude Code, Codex, Grok, Copilot, ...).
+do reach agent-hooks (Codex; Claude Code, Grok and Copilot are removed and unsupported).
 
 Fails open inside run_hook (a crash logs and exits 0); the config's
 on_failure = "block" turns a nonzero exit into a block at the harness.

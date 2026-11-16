@@ -9,8 +9,8 @@ TypeSafe judges the final message. A clear failure of a calibrated rule blocks.
 A middle score, a short status, or a TypeSafe outage allows the stop. The
 reject cap ends the loop if the rewrite still fails.
 
-Reads last_assistant_message (Claude Stop), final_response (Hermes pre_verify),
-or assistant_response. pre_verify is the Hermes event that can continue the turn.
+Reads last_assistant_message or assistant_response. (final_response and the
+Hermes pre_verify event are legacy: Hermes is removed and unsupported.)
 """
 
 from __future__ import annotations
