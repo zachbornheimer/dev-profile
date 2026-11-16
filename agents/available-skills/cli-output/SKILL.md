@@ -45,8 +45,6 @@ Host-specific wiring lives under `integrations/<host>/` in the repo, not in this
 | `evident_output_preview`      | Plain profiles         |
 | `evident_output_explain`      | `rule_id` (not `id`)   |
 
-On Grok, tools are `evident-output__evident_output_*`.
-
 ## Install library
 
 ```bash

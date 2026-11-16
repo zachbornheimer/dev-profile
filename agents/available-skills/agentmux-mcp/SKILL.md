@@ -66,25 +66,7 @@ through `agentmux` CLI.
 
 ## Setup (per harness)
 
-Claude — `~/.claude.json` global `mcpServers.agentmux`:
-
-```json
-"agentmux": {
-  "type": "stdio",
-  "command": "agentmux",
-  "args": ["mcp"],
-  "env": {}
-}
-```
-
-Grok — `~/.grok/config.toml`:
-
-```toml
-[mcp_servers.agentmux]
-command = "agentmux"
-args = ["mcp"]
-enabled = true
-```
+agentmux is deprecated, and omp reaches live agents through `agent://<id>`. Only the Codex desktop app config remains documented; the Claude and Grok configs were removed with those harnesses.
 
 Codex — `~/.codex/config.toml` (server + per-tool approval tables):
 

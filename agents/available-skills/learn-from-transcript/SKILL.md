@@ -35,7 +35,7 @@ If the prompt names no path, run this first and read the file it writes:
 capability run get-annotated-transcript --input '{"sources":["<ref>"]}'
 ```
 
-`<ref>` is `<harness>:<id>` (agentmux, grok, omp, pi, claude, codex, hermes, cursor, copilot) or a Mastra thread (`mastra:thread:<id>`, or `https://<host>/agents/<agentId>/threads/<threadId>`). The command writes `~/.local/share/capability-replicas/annotated/<conversation>.annotated.json` (`CAPABILITY_ANNOTATED_DIR` overrides the directory) and prints the sessions. Use that file for the rest of this skill, including `waste-census.py`.
+`<ref>` is `<harness>:<id>` (`omp` or `codex`; old refs for removed harnesses such as grok, claude, hermes, cursor and copilot resolve only to transcripts they already left) or a Mastra thread (`mastra:thread:<id>`, or `https://<host>/agents/<agentId>/threads/<threadId>`). The command writes `~/.local/share/capability-replicas/annotated/<conversation>.annotated.json` (`CAPABILITY_ANNOTATED_DIR` overrides the directory) and prints the sessions. Use that file for the rest of this skill, including `waste-census.py`.
 
 Once you have the transcript, read the below.
 
@@ -430,7 +430,7 @@ work_order:
 
 ## Routing (your core job — loose ask → the right worker / skill / primitive)
 
-**Grok Bot Chief of Staff (project work):** User → CoS → PM → specialist. When Zach reports a named product/project bug with evidence (screenshots, URLs, repro), CoS hands it to PM immediately — do not DX or deep-diagnose in CoS chat.
+**Chief of Staff (project work):** User → CoS → PM → specialist. When Zach reports a named product/project bug with evidence (screenshots, URLs, repro), CoS hands it to PM immediately — do not DX or deep-diagnose in CoS chat.
 
 If this turn has no `TypeSafe skill pick:` line, read `~/.agents/hooks/state/skill-picks/<session_id>.json` and open each `paths` SKILL.md before other tools (the omp session id).
 
@@ -626,9 +626,9 @@ Use `agentmux_capability_summarize` when it can prevent an unnecessarily large c
 
 When the request carries the execution's trace inline, that trace is the complete record. Do not run `recent-turns` or read the transcript again; call `agentmux_capability_run_command` only for a follow-up the trace cannot answer, such as a full tool result.
 
-Otherwise, for an execution identifier such as `hermes:20261019_091318_31d5df`:
+Otherwise, for an execution identifier such as `omp:01a1c0b2`:
 
-Harnesses: `agentmux` `grok` `claude` `cursor` `codex` `hermes` `opencode`.
+Supported harnesses: `omp` and `codex`. Old transcripts of removed harnesses (`grok`, `claude`, `cursor`, `hermes`, `opencode`, `copilot`, `pi`, `agentmux`) can still be read, legacy only.
 
 1. From `mastra/`, `aube run recent-turns -- <harness>:<id>` locates the execution and returns recent conversational context. It omits tool calls, results, reasoning, and usage. Read its `source.path` and `dropped` metadata.
 2. Use the source path with an authorized read-only command to retrieve the underlying tool calls, arguments, results, timestamps, and usage. This is the principal evidence for forensic reconstruction.

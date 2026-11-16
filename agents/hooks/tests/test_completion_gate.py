@@ -48,7 +48,7 @@ def decision_shape(run: HookRun) -> str:
 
 @pytest.mark.parametrize(
     "name",
-    ["grok-camelcase-no-message-silent", "empty-stdin-silent"],
+    ["camelcase-no-message-silent", "empty-stdin-silent"],
 )
 def test_port_decides_on_payload(hooks: HookRunner, name: str) -> None:
     payload: dict[str, Any] | str
@@ -56,7 +56,7 @@ def test_port_decides_on_payload(hooks: HookRunner, name: str) -> None:
         payload = ""
     else:
         payload = {
-            "sessionId": "hgtest-cg-grok",
+            "sessionId": "hgtest-cg-camel",
             "hookEventName": "Stop",
             "reason": "end_turn",
         }

@@ -62,33 +62,6 @@ def run(
     )
 
 
-# --- Grok dual-load dedupe -------------------------------------------------
-
-
-def test_grok_session_without_native_flag_defers(tmp_path: Path) -> None:
-    env = _minimal_env(HOME=str(tmp_path), GROK_SESSION_ID="abc123")
-
-    result = run(PY_HOOK, ["--mode=fast"], env)
-
-    assert result.returncode == 0
-    assert json.loads(result.stdout) == {
-        "decision": "allow",
-        "reason": "quality-guard deferred to grok-native hook",
-    }
-
-
-def test_grok_native_source_runs_the_real_check(tmp_path: Path) -> None:
-    home = _fake_binary_home(tmp_path)
-    env = _minimal_env(
-        HOME=str(home), GROK_SESSION_ID="abc123", QUALITY_GUARD_SOURCE="grok-native"
-    )
-
-    result = run(PY_HOOK, ["--mode=fast"], env)
-
-    assert result.returncode == 7
-    assert json.loads(result.stdout)["argv"] == "--mode=fast"
-
-
 # --- binary not found --------------------------------------------------
 
 

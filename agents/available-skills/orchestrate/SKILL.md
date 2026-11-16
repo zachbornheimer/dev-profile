@@ -19,7 +19,7 @@ the default posture — use this to end a hands-on stretch, not to start one.
 The script binds `GROK_SESSION_ID` when set, else `CLAUDE_CODE_SESSION_ID`, else
 the newest per-session state file. Print exactly the script's own output line
 back to the user (`direct mode OFF for session <id>`) — do not paraphrase it.
-On Grok, `<id>` must equal `$GROK_SESSION_ID`.
+In omp, `<id>` must equal `$PI_SESSION_ID`.
 
 From here, route implementation work through `prompt-writer` → `implement`
 subagent as usual (see `~/.claude/CLAUDE.md`, "Route implementation through
