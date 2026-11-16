@@ -88,11 +88,24 @@ fi
 # content — was never scanned, and a pass would be silence about it: the
 # pack's readiness warnings on stderr start with "Warning", the per-file skip
 # notices with "warning", so the lowercase anchor never matches the report.
-require_fully_scanned() { # require_fully_scanned <err-file> <scan-name>
-	if grep -q '^warning: skipping' "$1"; then
+# A file the target already could not scan cannot be a regression: the branch
+# introduced nothing that scanning could have attributed to it, so it is
+# reported on stderr and does not fail the push. A file only the branch could
+# not scan (the branch broke its parse) still fails closed.
+skipped_files() { # skipped_files <err-file>: the sorted, ./-stripped skipped paths
+	grep '^warning: skipping' "$1" | sed -E 's/^warning: skipping (.*) \([^()]*\)$/\1/; s#^\./##' | sort -u || true
+}
+require_fully_scanned() { # require_fully_scanned <branch-err> <base-err>
+	local branch_only both
+	branch_only="$(comm -23 <(skipped_files "$1") <(skipped_files "$2"))"
+	if [ -n "${branch_only}" ]; then
 		cat "$1" >&2
-		echo "dev-profile-foxguard-introduced: a listed file could not be scanned ($2)" >&2
+		echo "dev-profile-foxguard-introduced: a listed file could not be scanned (the scan of the branch): ${branch_only//$'\n'/ }" >&2
 		exit 2
+	fi
+	both="$(comm -12 <(skipped_files "$1") <(skipped_files "$2"))"
+	if [ -n "${both}" ]; then
+		echo "dev-profile-foxguard-introduced: not scanned on the target either, so nothing it carries is introduced: ${both//$'\n'/ }" >&2
 	fi
 }
 
@@ -114,7 +127,6 @@ else
 	printf '{"findings":[]}\n' >"${base_json}"
 	: >"${work}/base.err"
 fi
-require_fully_scanned "${work}/base.err" "the scan of ${target}"
 case "${base_status}" in
 0 | 1) ;;
 *)
@@ -126,7 +138,7 @@ esac
 
 current_status=0
 (cd "${root}" && foxguard --rules "${rules}" --changed-files-from "${list}" --format json .) >"${current_json}" 2>"${work}/current.err" || current_status=$?
-require_fully_scanned "${work}/current.err" "the scan of the branch"
+require_fully_scanned "${work}/current.err" "${work}/base.err"
 case "${current_status}" in
 0 | 1) ;;
 *)
