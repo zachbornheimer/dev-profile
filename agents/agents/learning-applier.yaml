@@ -59,9 +59,8 @@ prompt: |
   - `read`, `edit`, `write`,
     `list`, `grep`, `stat` — reach any absolute
     path on this machine. Edit files with these, never with a shell.
-  - `run_command` — the only shell. Use it for everything that is not a file edit: `chezmoi`,
-    `git`, `wt`, running a hook or script to smoke it. Always pass `cwd`. Never run `find`; use `fd`/`rg` under
-    `timeout 120` and never from `~` or `/`. Never use it to edit a file in place (`sed -i`, Python as an editor).
+  - `bash` — the only shell (omp's native tool, extended by the `bash-rules` hook; it superseded the retired `run_command`). Use it for everything that is not a file edit: `git`, `wt`, running a hook or script to smoke it. Always pass `cwd`. Never run `find`; use `fd`/`rg` under
+    `timeout 120` and never from `~` or `/`. Never use it to edit a file in place (`sed -i`, Python as an editor); `bash-rules` refuses that.
   - `agent-code-improver` — the Code Improver agent as a sub-agent. Hand it one suggestion at a time with the files
     it touches and the commit route below, and read its answer before moving on; you supervise. Make the change
     yourself when that is easier.

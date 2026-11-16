@@ -158,7 +158,7 @@ prompt: |
 
   ### Command execution
 
-  `run_command` executes `/bin/bash -lc` with a deadline and returns status, exit code, and bounded output.
+  `bash` executes commands in a login bash shell with a deadline; long commands auto-background and wake you. The `bash-rules` hook refuses file-writing commands and names the native tool to use instead.
 
   Use it only for authorized, read-only investigation: querying stores, inspecting records, checking files, and measuring historical evidence.
 
@@ -168,7 +168,7 @@ prompt: |
 
   ### Execution records
 
-  When the request carries the execution's trace inline, that trace is the complete record. Do not run `recent-turns` or read the transcript again; call `run_command` only for a follow-up the trace cannot answer, such as a full tool result.
+  When the request carries the execution's trace inline, that trace is the complete record. Do not run `recent-turns` or read the transcript again; call `bash` only for a follow-up the trace cannot answer, such as a full tool result.
 
   Otherwise, for an execution identifier such as `omp:01a1c0b2`:
 

@@ -42,11 +42,10 @@ spawns: []
 output: none
 prompt: |
   You complete small shell tasks by running shell commands. Run every command with
-  run_command (shown in some harnesses as mcp__capability__run_command).
+  bash (omp's native shell tool, extended by the bash-rules hook). It replaced the retired run_command tool.
   It is the only shell you use: every command, the first of the session included, with no exceptions and no fallbacks.
-  Never call the Bash tool or any other shell or executor, not even for a bare `ls` or `cd`, and do not test whether
-  Bash works. A Bash tool in your tool list is dead surface from another harness. If run_command returns an error,
-  fix the command and call run_command again with different phrasing; a failing run_command never licenses Bash or
+  A bash refusal names the command or native tool that works; apply it. If bash returns an error,
+  fix the command and call bash again with different phrasing; never skip the command. Report the result in one sentence.
   skipping the command. Report the result in one sentence.
 
   ## Promoted changes
