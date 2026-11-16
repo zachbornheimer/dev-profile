@@ -12,7 +12,6 @@ typeset -gU path PATH fpath FPATH
 # (no per-prompt hook-env). uv shims stay first.
 path=(
 	"$HOME/.agents/bin"
-	"$HOME/.opencode/bin"
 	"$HOME/.local/bin"
 	"$HOME/.local/share/dev-profile/bin"
 	"$HOME/.local/share/mise/shims"

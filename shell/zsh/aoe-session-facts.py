@@ -1,9 +1,7 @@
 import json
-import os
 import sqlite3
 import subprocess
 import sys
-import urllib.parse
 from pathlib import Path
 
 TITLE_MAX = 120
@@ -57,8 +55,6 @@ def cwd_from_transcript(transcript):
     info = summary_beside(transcript).get("info") or {}
     if isinstance(info, dict) and info.get("cwd"):
         return str(info["cwd"])
-    if "/.grok/sessions/" in transcript.replace("\\", "/"):
-        return urllib.parse.unquote(Path(transcript).parent.parent.name)
     return ""
 
 
@@ -139,38 +135,6 @@ def codex_name(session_id):
     return str(row[0]).strip()
 
 
-def opencode_facts(session_id):
-    db = Path(
-        os.environ.get("OPENCODE_DB")
-        or (
-            Path(os.environ.get("XDG_DATA_HOME") or home / ".local/share")
-            / "opencode/opencode.db"
-        )
-    )
-    if not db.is_file():
-        return ("", "")
-    ids = [session_id]
-    if session_id.startswith("ses_"):
-        ids.append(session_id[4:])
-    else:
-        ids.append("ses_" + session_id)
-    try:
-        con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
-    except sqlite3.Error:
-        return ("", "")
-    for table in ("session_v2", "session"):
-        for one in ids:
-            try:
-                row = con.execute(
-                    f"SELECT directory, title FROM {table} WHERE id = ?", (one,)
-                ).fetchone()
-            except sqlite3.Error:
-                continue
-            if row:
-                return str(row[0] or "").strip(), str(row[1] or "").strip()
-    return ("", "")
-
-
 def sanitize(title):
     title = " ".join(title.split())
     if title.lower() in PLACEHOLDERS:
@@ -211,10 +175,6 @@ def main():
         title = title_from_transcript(transcript)
     if not title and harness == "codex":
         title = codex_name(session_id)
-    if harness == "opencode" and (not cwd or not title):
-        native_cwd, native_title = opencode_facts(session_id)
-        cwd = cwd or native_cwd
-        title = title or native_title
     sys.stdout.write(cwd + "\n" + sanitize(title) + "\n")
 
 

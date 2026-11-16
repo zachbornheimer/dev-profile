@@ -1,16 +1,15 @@
 # agent / a — start a coding agent as an aoe ACP structured-view session, then open the dashboard.
 #   agent <auto|ACP agent> [--model <m>] [--effort <e>] [--resume <id>] [prompt...]
-#   agent grok:<uuid>   (also claude:  claude-code:  codex:  opencode:)
+#   agent omp:<uuid>   (also codex:)
 # `auto` omits --agent so aoe uses its default ACP agent.
 # A `harness:id` or `--resume harness:id` restores that native ACP conversation in its cwd.
 # If that session already has a title, it is passed as `aoe add --title`.
 # Options are validated before any session is created, so bad input never leaves an orphan.
 
 typeset -g AOE_DEFAULT_EFFORT=medium
-# Fresh Claude sessions use an initial /effort command; native resume uses explicit --effort.
-typeset -ga AOE_EFFORT_AGENTS=(claude claude-code)
-# grok is a custom ACP agent via ~/.agent-of-empires/config.toml [session.agent_acp_cmd].
-typeset -ga AOE_ACP_AGENTS=(claude claude-code grok codex opencode aoe-agent gemini kimi omp pi prime-agent vibe)
+# Only omp and the Codex desktop app are supported; the others are removed.
+typeset -ga AOE_EFFORT_AGENTS=()
+typeset -ga AOE_ACP_AGENTS=(omp codex)
 typeset -g AOE_FIND_SESSION="$HOME/.agents/available-skills/find-session/scripts/find-session.py"
 typeset -g AOE_FIND_TRANSCRIPT="$HOME/.agents/available-skills/assume-session/scripts/find-transcript.sh"
 typeset -g AOE_EXTRACT_CONTEXT="$HOME/.agents/available-skills/assume-session/scripts/extract-context.py"
@@ -32,7 +31,7 @@ usage: agent <harness|harness:id|--resume harness:id> [--model <m>] [--effort <e
 
   harness     auto | ${(j: | :)AOE_ACP_AGENTS}
               "auto" uses aoe's default ACP agent.
-  harness:id  resume that CLI session in ACP (grok: claude: claude-code: codex: opencode:)
+  harness:id  resume that CLI session in ACP (omp: codex:)
               restores the original native conversation and creates the AoE view in that cwd.
               an existing title on that session is passed as $(aoe add --title).
   --model     forwarded to the agent.

@@ -45,8 +45,7 @@ htab() {
 
 # Supported Herdr agent kinds.
 typeset -ga _HERDR_AGENT_KINDS=(
-	pi claude codex gemini cursor devin agy cline omp mastracode opencode
-	copilot kimi kiro droid amp grok hermes kilo qodercli qwen letta maki muse
+	omp codex
 )
 
 # Identify the agent kind associated with a Zsh job.
