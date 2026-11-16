@@ -378,12 +378,14 @@ class TypesafeSkillPickTests(unittest.TestCase):
         ]
         clear_keys = ("PI_SESSION_ID", "CODEX_HOME")
         for env, want in cases:
-            with self.subTest(env=env):
-                with mock.patch.dict(os.environ, env, clear=False):
-                    for key in clear_keys:
-                        if key not in env:
-                            os.environ.pop(key, None)
-                    self.assertEqual(self.hook.detect_harness({}), want)
+            with (
+                self.subTest(env=env),
+                mock.patch.dict(os.environ, env, clear=False),
+            ):
+                for key in clear_keys:
+                    if key not in env:
+                        os.environ.pop(key, None)
+                self.assertEqual(self.hook.detect_harness({}), want)
 
     def test_pick_skill_passes_in_flight_flag(self) -> None:
         captured: dict = {}
