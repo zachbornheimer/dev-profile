@@ -5,7 +5,7 @@ description: >-
   improving harness efficiency, converting repeated friction into a skill,
   command, hook, or Linear item, or checking whether a prior harness fix still
   helps. Not for summarizing sessions into notes. Not a replacement for /learn
-  (Grok skill/plugin usage) or self-improve (correction-to-gotcha diffs).
+  (skill/plugin usage) or self-improve (correction-to-gotcha diffs).
 user-invocable: true
 argument-hint: "discover|index|analyze|research|audit|eval|worst|scorecard [--days N | --since-last] [--harness NAME] [--json] [--limit N] [--session ID]"
 ---
@@ -18,13 +18,9 @@ Audit local coding-agent sessions across harnesses. Scripts find recurring waste
 and map it to the smallest durable primitive. Original session files are
 **read-only** — never load raw transcripts into this conversation.
 
-Claude's `session-forensics` lives at `~/.claude/agents/session-forensics.md`.
-Grok already lists it as a spawn type (Claude-compat). Use it for Claude JSONL
-only. It pins `model: sonnet` (Grok ignores / cannot pin that) and Claude tool
-names; the procedure (stream with python3, never load the transcript) still
-works here. Do not send Grok/Codex/Cursor transcripts to that agent. For those,
-spawn `explore` with the same eight-section brief plus python streaming of that
-harness's files.
+For any harness's transcripts, spawn `explore` with the eight-section brief plus
+python streaming of that harness's files (never load the transcript). The old
+`session-forensics` agent for Claude JSONL went away with Claude Code, which is removed.
 
 ## Run
 

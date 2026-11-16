@@ -10,8 +10,8 @@
 5. Read report + source before promotion. No rule adoption is automatic.
 
 JSON input is a list of Message objects: id/session/source/line/date/role/text/synthetic.
-Native Hermes exported JSONL needs top-level role/content; SQLite databases are not supported.
-Only claude:id is resolved automatically; use native exported path for other harnesses.
+Native exported JSONL needs top-level role/content; SQLite databases are not supported.
+Pass the native exported path for the harness (only omp and the Codex desktop app are supported; Hermes and Claude Code are removed).
 Unknown envelopes are a parser limitation. Label fixtures by observable outcome, not
 preference about prose length. Prompt acts may overlap on one turn. Confidence is a
 model output, not a calibrated latent psychological measure.
@@ -55,7 +55,7 @@ mise run -C ~/.agents/available-skills/learnings extract -- \
   claude:769b80aa-1364-4e1b-b7fc-3936f4b9f355 \
   --start-line 4313 --end-line 4326 --timeout 35 \
   --max-tokens 1600 --max-attempts 3 --token-step 400 --token-cap 2400 \
-  --out ~/.hermes/profiles/zach/cache/scratch/learnings-fix/new-run
+  --out ~/.local/state/learnings/learnings-fix/new-run
 ```
 
 Replay with `mise run -C ~/.agents/available-skills/learnings proof -- REPORT`.

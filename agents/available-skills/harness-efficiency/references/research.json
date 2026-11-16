@@ -1,6 +1,7 @@
 {
   "checked_at": "2026-09-18",
   "ttl_days": 7,
+  "_note": "Dated research from 2026-09-18. Only omp and the Codex desktop app are supported; claude-code, opencode and grok entries below are history for removed harnesses.",
   "harnesses": {
     "claude-code": {
       "sources": [

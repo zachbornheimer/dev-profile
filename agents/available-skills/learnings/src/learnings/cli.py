@@ -21,8 +21,13 @@ DEFAULT_TIMEOUT = 90.0
 
 def arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("source", help="Native Claude/Hermes JSONL, normalized JSON, or claude:id")
-    parser.add_argument("--out", type=Path, required=True, help="New private artifact directory")
+    parser.add_argument(
+        "source",
+        help="Native JSONL path, normalized JSON, or <harness>:id (omp or codex)",
+    )
+    parser.add_argument(
+        "--out", type=Path, required=True, help="New private artifact directory"
+    )
     parser.add_argument("--window-chars", type=int, default=DEFAULT_LIMIT)
     parser.add_argument("--overlap-chars", type=int, default=DEFAULT_OVERLAP)
     parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT)
@@ -53,7 +58,8 @@ async def execute(args: argparse.Namespace, files: Files) -> int:
         messages = [
             m
             for m in all_messages
-            if m.line >= args.start_line and (args.end_line is None or m.line <= args.end_line)
+            if m.line >= args.start_line
+            and (args.end_line is None or m.line <= args.end_line)
         ]
         if not messages:
             raise ValueError("selected source range contains no messages")
@@ -74,7 +80,9 @@ async def execute(args: argparse.Namespace, files: Files) -> int:
         recovery = Recovery(args.max_attempts, args.token_cap, args.token_step)
         recovery.validate(args.max_tokens)
         report["recovery"] = asdict(recovery)
-        settings = Settings(max_tokens=args.max_tokens, baseline=args.baseline, recovery=recovery)
+        settings = Settings(
+            max_tokens=args.max_tokens, baseline=args.baseline, recovery=recovery
+        )
         async with httpx.AsyncClient(trust_env=False, follow_redirects=False) as client:
             calls = Calls(
                 LocalTransport(client, args.timeout),
@@ -83,13 +91,17 @@ async def execute(args: argparse.Namespace, files: Files) -> int:
             for index, chunk in enumerate(chunks):
                 result = await run_window(chunk, calls, settings)
                 result["window"] = index
-                result["source_messages"] = [m.model_dump(exclude={"text"}) for m in chunk]
+                result["source_messages"] = [
+                    m.model_dump(exclude={"text"}) for m in chunk
+                ]
                 reports.append(result)
         report.update(
             {
                 "status": "completed",
                 "windows": reports,
-                "dimension_coverage": coverage([WindowReport.model_validate(w) for w in reports]),
+                "dimension_coverage": coverage(
+                    [WindowReport.model_validate(w) for w in reports]
+                ),
                 "cross_window_note": "Independent overlapping candidates; contradictions across "
                 "windows require source review, not automatic rule adoption.",
             }
@@ -113,7 +125,9 @@ async def execute(args: argparse.Namespace, files: Files) -> int:
 def main() -> None:
     args = arguments()
     if args.out.exists():
-        raise SystemExit("--out must be a new directory to prevent stale proof artifacts")
+        raise SystemExit(
+            "--out must be a new directory to prevent stale proof artifacts"
+        )
     raise SystemExit(asyncio.run(execute(args, Files())))
 
 
