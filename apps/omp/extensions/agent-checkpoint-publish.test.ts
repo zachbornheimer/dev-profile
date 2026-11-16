@@ -675,3 +675,18 @@ test("mise: absent from PATH omits the outcome entirely", async () => {
   await handlers.get("agent_end")!({}, { cwd: b.home, ui: { notify: (t: string) => void notices.push(t) } });
   expect(notices.filter(n => n.startsWith("mise-dotfiles:"))).toEqual([]);
 });
+
+test("mise: a slow mise cannot hold agent_end past the shared budget", async () => {
+  const b = miseBox();
+  // Every mise call sleeps 3 s; the 1.5 s budget stands in for the 20 s budget under omp's 30 s handler limit.
+  fs.writeFileSync(path.join(b.root, "bin", "mise"), `#!/usr/bin/env bash\nsleep 3\n`, { mode: 0o755 });
+  process.env.AGENT_CHECKPOINT_MISE_BUDGET_MS = "1500";
+  const started = Date.now();
+  const r = await b.report();
+  const elapsed = Date.now() - started;
+  delete process.env.AGENT_CHECKPOINT_MISE_BUDGET_MS;
+  expect(elapsed).toBeLessThan(2_800);
+  expect(r.mise).toHaveLength(1);
+  expect(r.mise[0]).toStartWith("mise-dotfiles: pending");
+  expect(r.mise[0]).toContain("time budget");
+}, 30_000);
