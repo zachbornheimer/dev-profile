@@ -19,9 +19,7 @@ goes through `Bash git ...`, still gated.
 
 ## Setup (per machine)
 
-Registered per-user in `~/.claude.json` under `mcpServers.git` (this is
-Claude-Code-specific runtime config, not chezmoi-templated — re-add it by hand
-on a new machine, or script it):
+Register it in the MCP config of omp or the Codex desktop app under the server name `git` (machine-local runtime config, not tracked; re-add it by hand on a new machine, or script it):
 
 ```json
 "git": {

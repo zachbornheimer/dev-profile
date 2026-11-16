@@ -194,15 +194,12 @@ optional; missing them is the default failure mode.
   or `~/.agents`. Check this before shipping the order — a spawn missing it on
   an edit-typed agent (`implement`, `mechanical-refactor`, etc.) is rejected at
   spawn time. Read-only workers (`explore`, `reviewer`, report-writers) omit it.
-  Hermes children get their worktree from `delegation.worktree_isolation: true`
-  (the harness creates it per child); the order never names the main checkout.
+  Worktree isolation is set per child by the harness; the order never names the main checkout.
 - **no write-back** — a work order NEVER tells a worker to copy files from, or
   write results back to, a main checkout. If a `primary_target` is untracked in
   git, commit it before spawning so the worktree from HEAD contains it; a worktree
   cannot be forged by instructing the worker to write into the parent's tree.
-  Targets are worktree-relative for harnesses without path rewriting (Hermes
-  `delegate_task`); absolute main-checkout paths make the shared checkout the
-  write target by design and are refused by the write-scope guard.
+  Targets are worktree-relative; an absolute main-checkout path makes the shared checkout the write target by design and is refused by the write-scope guard.
 - **turn cap** and **token budget** — required on every `/goal`. Set as spawn
   parameters; the gate falls back to parsing "Turn cap: N" / "Token budget:
   ~Nk tokens" prose, then to harness defaults, if the parameter is absent.
