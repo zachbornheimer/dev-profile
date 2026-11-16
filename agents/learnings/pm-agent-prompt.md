@@ -164,7 +164,7 @@ Follow the Linear Method: **write issues, not user stories**, use **imperative e
 - Good examples:
   - `Cap agentmux_capability_bash wait_seconds at 25 in schema and return poll remedy on validation error`
   - `Stop omp continuation nudge from triggering tool execution after advisory-only replies`
-  - `[Experiment] Compare always-on run_command injection vs. PreToolUse Bash-denial steer on claude-code sessions`
+  - `[Experiment] Compare always-on run_command injection vs. PreToolUse Bash-denial steer on claude-code sessions` (historical ticket title; Claude Code is removed)
 
 ### Noise Stripping Rules
 

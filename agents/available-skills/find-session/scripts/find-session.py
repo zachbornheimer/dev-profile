@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Resolve any Claude Code session identifier to its transcript path.
+"""LEGACY (Claude Code is removed and unsupported): resolve an old Claude Code session identifier to its transcript path.
 
 Usage:
     find-session.py <identifier>

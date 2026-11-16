@@ -3,7 +3,8 @@
 # requires-python = ">=3.10"
 # dependencies = []
 # ///
-"""Orchestrator-side half of the structured work-order protocol: delivers
+"""(Claude Code, cited below as the protocol source, is removed and unsupported.)
+Orchestrator-side half of the structured work-order protocol: delivers
 the verification lib/work-order-verify.py already recorded (at
 SubagentStop, keyed by order_id + agent_id in
 state/work-orders/<order_id>.json) to the PARENT session.
@@ -89,7 +90,10 @@ def report() -> dict:
         return {"applicable": False, "reason": "no agent_transcript_path"}
     order_id = _find_order_id(Path(transcript_path_raw))
     if not order_id:
-        return {"applicable": False, "reason": "no work-order-id marker in agent transcript"}
+        return {
+            "applicable": False,
+            "reason": "no work-order-id marker in agent transcript",
+        }
 
     order_file = state_orders_dir / f"{order_id}.json"
     if not order_file.exists():
@@ -102,7 +106,10 @@ def report() -> dict:
             verification = record
             break
     if verification is None:
-        return {"applicable": False, "reason": "no verification recorded yet for this agent"}
+        return {
+            "applicable": False,
+            "reason": "no verification recorded yet for this agent",
+        }
 
     reported_agent_ids = order_state.setdefault("reported_agent_ids", [])
     report_key = agent_id or f"order:{order_id}"

@@ -3,7 +3,8 @@
 # requires-python = ">=3.10"
 # dependencies = []
 # ///
-"""SubagentStop-side half of the structured work-order protocol: scope
+"""(Claude Code, cited below as the protocol source, is removed and unsupported.)
+SubagentStop-side half of the structured work-order protocol: scope
 enforcement (declared allowed_writes vs actual git diff) and harness-run
 acceptance, per skills/prompt-writer/references/work-order-protocol.md.
 
