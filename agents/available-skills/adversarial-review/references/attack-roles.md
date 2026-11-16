@@ -102,7 +102,7 @@ mechanism, and the role briefs above carry only the role-specific fallback line.
 
 The parent fills `<run-dir>` and pins `model` before spawning. The YAML block is
 first — required house format for every spawn. Adversaries are read-only except
-for their one findings file. Run every command through `run_command`.
+for their one findings file. Run every command through `bash`.
 
 ```yaml
 work_order:
@@ -140,7 +140,7 @@ Rules of engagement:
 
 - READ-ONLY except your findings file. Do not modify, create, or delete anything
   else; the `allowed_writes` glob names your findings file only. Run every
-  command through `run_command`.
+  command through `bash`.
 - Judge only from the manifest and the source you read yourself.
 - Every finding cites file:line, the exact doc passage, or a command you ran.
   No citation, no finding. "Should fail" is not a finding.

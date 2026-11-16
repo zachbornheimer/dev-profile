@@ -4,7 +4,7 @@ description: "Legacy skill for explicit Makefile requests only. Default policy i
 user-invokable: true
 disable-model-invocation: true
 argument-hint: "[path-to-repo]"
-allowed-tools: mcp__capability__omp_capability_run_command Read Write Edit Glob Grep
+allowed-tools: Bash Read Write Edit Glob Grep
 ---
 
 # Setup Makefile

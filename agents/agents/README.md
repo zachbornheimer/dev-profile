@@ -64,8 +64,8 @@ capability a harness lacks is reported as missing, never silently dropped.
 The Claude Code column is historical naming only. Claude Code is removed and
 unsupported; only the omp and Mastra columns are rendered.
 
-| Canonical                  | Meaning                        | omp              | Mastra                                         | Claude Code              |
-| -------------------------- | ------------------------------ | ---------------- | ---------------------------------------------- | ------------------------ |
+| Canonical                  | Meaning                        | omp              | Mastra                                    | Claude Code              |
+| -------------------------- | ------------------------------ | ---------------- | ----------------------------------------- | ------------------------ |
 | `read`                     | read a file or range           | `read`           | `omp_capability_read`                     | `Read`                   |
 | `write`                    | create or overwrite a file     | `write`          | `omp_capability_write`                    | `Write`                  |
 | `edit`                     | patch an existing file         | `edit`           | `omp_capability_edit`                     | `Edit`                   |
@@ -73,13 +73,13 @@ unsupported; only the omp and Mastra columns are rendered.
 | `grep`                     | search file contents           | `grep`           | `omp_capability_grep`                     | `Grep`                   |
 | `list`                     | list a directory               | `find`           | `omp_capability_glob`                     | `LS`                     |
 | `stat`                     | file metadata                  | —                | `omp_capability_glob`                     | `Bash(stat)`             |
-| `run_command`              | run a shell command            | `bash`           | `omp_capability_run_command`              | `Bash`                   |
-| `run_tests`                | the repo's focused test runner | `bash`           | `run_tests`                                    | `Bash`                   |
-| `search_tools`             | find the rest of the catalog   | — (native)       | `search_tools`                                 | — (native)               |
-| `worktrunk`                | worktree lifecycle             | `bash`           | `worktrunk`                                    | `Bash`                   |
+| `bash`                     | run a shell command            | `bash`           | the gateway's command tool                | `Bash`                   |
+| `run_tests`                | the repo's focused test runner | `bash`           | `run_tests`                               | `Bash`                   |
+| `search_tools`             | find the rest of the catalog   | — (native)       | `search_tools`                            | — (native)               |
+| `worktrunk`                | worktree lifecycle             | `bash`           | `worktrunk`                               | `Bash`                   |
 | `atask_*`                  | task board verbs               | MCP `atask_*`    | `omp_capability_*`                        | via MCP                  |
-| `memory_*`                 | durable memory                 | MCP `memory_*`   | `memory_*`                                     | via MCP                  |
-| `web_search` / `web_fetch` | external facts                 | `web_search` / — | `web_search` / `web_fetch`                     | `WebSearch` / `WebFetch` |
+| `memory_*`                 | durable memory                 | MCP `memory_*`   | `memory_*`                                | via MCP                  |
+| `web_search` / `web_fetch` | external facts                 | `web_search` / — | `web_search` / `web_fetch`                | `WebSearch` / `WebFetch` |
 | `collect_failure_evidence` | bounded failure evidence       | —                | `omp_capability_collect_failure_evidence` | —                        |
 
 `—` means the harness has no equivalent: the renderer omits it and the prompt's
