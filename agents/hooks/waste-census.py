@@ -19,7 +19,7 @@ say which items it explains and which it does not.
     waste-census.py --fleet [--provider NAME] [--model SUBSTR] [--since ISO] [--until ISO]
                          [--sessions-dir DIR] [--exclude SUBSTR] [--json]
 
-Accepts the exported item shape, omp session JSONL and Claude Code project JSONL. For the
+Accepts the exported item shape, omp session JSONL and legacy Claude Code project JSONL (removed harness, read-only). For the
 last two an item id is the raw 1-based line number of the transcript file. Fleet
 mode streams every session transcript under --sessions-dir (default
 ~/.omp/agent/sessions, one and two levels deep) and attributes burn per

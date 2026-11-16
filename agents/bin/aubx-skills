@@ -976,8 +976,8 @@ while IFS= read -r p; do
 		*) violations+=("$p -> $target") ;;
 		esac
 	elif [ -e "$p" ]; then
-		# A real file reached through a symlinked root (~/.grok/skills -> the
-		# roster) is still inside available-skills. Spelling is not evidence:
+		# A real file reached through a symlinked root (a leftover ~/.grok/skills link from a
+		# removed harness -> the roster) is still inside available-skills. Spelling is not evidence:
 		# resolve the parent before judging it a leak.
 		parent_canon="$(cd -- "$(dirname -- "$p")" 2>/dev/null && pwd -P)" || parent_canon=""
 		case "$parent_canon" in
