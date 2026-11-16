@@ -430,6 +430,14 @@ export function createLiveAuditRepoPorts(options: {
       }
     },
 
+    async wtRemove(repoRoot, branch, signal) {
+      const res = await exec("wt", ["-C", repoRoot, "remove", "--foreground", "-D", "--yes", branch], {
+        timeout: WT_TIMEOUT_MS,
+        signal,
+      });
+      return { code: res.code, stdout: res.stdout, stderr: res.stderr };
+    },
+
     async gitRun(repoRoot, args, opts) {
       const targetCwd = opts?.cwd ?? repoRoot;
       const res = await exec("git", ["-C", targetCwd, ...args], {

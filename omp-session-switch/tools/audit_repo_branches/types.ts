@@ -251,6 +251,7 @@ export interface AuditRepoPorts {
   resolveBase(repoRoot: string, wtDefaultBranch?: string, signal?: AbortSignal): Promise<{ defaultBranch: string; baseRef: string; baseSha: string }>;
   listWtItems(repoRoot: string, signal?: AbortSignal): Promise<WtListEnvelope>;
   listPullRequests(repoRoot: string, signal?: AbortSignal): Promise<{ prs: readonly PullRequestInfo[]; status: "ok" | "unavailable"; detail: string }>;
+  wtRemove(repoRoot: string, branch: string, signal?: AbortSignal): Promise<{ code: number; stdout: string; stderr: string }>;
   gitRun(repoRoot: string, args: readonly string[], options?: { cwd?: string; signal?: AbortSignal }): Promise<{ code: number; stdout: string; stderr: string }>;
   readWorktreeFile(worktreePath: string, relPath: string): Promise<string | null>;
   pathExists(absPath: string): Promise<boolean>;

@@ -1,5 +1,6 @@
 import type { CustomToolFactory } from "@oh-my-pi/pi-coding-agent";
 import { renderAuditReport, runAuditRepoBranches } from "./analyze.js";
+import { applyPrune, planPrune, renderApply } from "./apply.js";
 import { createLiveAuditRepoPorts } from "./live_ports.js";
 
 export const DESCRIPTION = [
@@ -31,6 +32,13 @@ const factory: CustomToolFactory = (pi) => {
         .nullable()
         .optional()
         .describe("Optional base ref override to audit against (e.g. origin/assembled or origin/main)."),
+      prune: z
+        .enum(["plan", "apply"])
+        .nullable()
+        .optional()
+        .describe(
+          "Act on completed_or_redundant entries: `plan` lists the removals, `apply` runs them (wt remove -D for local branches and worktrees, one batched git push origin --delete for remote-only refs). Skips the base branch, open PRs and dirty worktrees. Omit to audit only.",
+        ),
     }),
 
     async execute(_toolCallId, params, onUpdate, _ctx, signal) {
@@ -53,8 +61,12 @@ const factory: CustomToolFactory = (pi) => {
           ports,
           signal,
         );
+        let text = renderAuditReport(output);
+        if (params.prune) {
+          text = `${text}\n\n${renderApply(await applyPrune(ports, output.repo, planPrune(output), params.prune === "apply", signal))}`;
+        }
         return {
-          content: [{ type: "text", text: renderAuditReport(output) }],
+          content: [{ type: "text", text }],
           details: output,
         };
       } finally {
