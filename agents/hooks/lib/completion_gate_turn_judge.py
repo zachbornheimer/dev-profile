@@ -163,7 +163,10 @@ class TurnJudge:
         if verdict.get("source") != SOURCE_TYPESAFE:
             hops = verdict.get("detail")
             suffix = f" [{hops}]" if hops else ""
-            return f"typesafe-unavailable:{verdict.get('reason') or 'unknown'}{suffix}", verdict
+            return (
+                f"typesafe-unavailable:{verdict.get('reason') or 'unknown'}{suffix}",
+                verdict,
+            )
         return "", verdict
 
 
@@ -207,26 +210,25 @@ def request_state(envelope: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _is_fence_only(line: str) -> bool:
-    """True for a markdown fence opener/closer with no other content.
+def _outside_fences(message: str) -> list[str]:
+    """The message's non-empty lines with every fenced block, fences and body, removed.
 
-    TypeSafe often scores a turn that *ends* on a code fence (verify commands,
-    JSON dumps, ```evidence) as deferred investigation. Quoting the bare fence
-    as the closing line makes the block look like an FP ("```" @ 0.70). Skip
-    fence-only lines when picking what the agent reads.
+    A closing ```evidence block is the agent's proof, not its closing words: quoting its JSON body as the
+    "closing line" made the block read as a false positive.
     """
-    stripped = line.strip()
-    if not stripped.startswith("```"):
-        return False
-    # ``` / ```json / ```evidence / ```go — the info string may follow
-    rest = stripped[3:].strip()
-    return " " not in rest and "\n" not in rest
+    kept: list[str] = []
+    inside = False
+    for raw in message.strip().splitlines():
+        line = raw.strip()
+        if line.startswith("```"):
+            inside = not inside
+        elif line and not inside:
+            kept.append(line)
+    return kept
 
 
 def closing_line(message: str) -> str:
-    lines = [line.strip() for line in message.strip().splitlines() if line.strip()]
-    while lines and _is_fence_only(lines[-1]):
-        lines.pop()
+    lines = _outside_fences(message)
     last = lines[-1] if lines else ""
     return last if len(last) <= CLOSING_LINE_CHARS else last[:CLOSING_LINE_CHARS] + "…"
 
