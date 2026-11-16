@@ -88,7 +88,7 @@ git remote get-url origin >/dev/null 2>&1 || {
 # primary clone to restack. Its work is safe once every local tip is on origin;
 # then --drop trashes the directory. Anything else is refused untouched.
 if [[ "$(git rev-parse --is-inside-git-dir 2>/dev/null)" == true &&
-	"$(git rev-parse --is-bare-repository 2>/dev/null)" == false ]]; then
+"$(git rev-parse --is-bare-repository 2>/dev/null)" == false ]]; then
 	stray="$(pwd -P)"
 	git fetch --prune --quiet origin '+refs/heads/*:refs/remotes/origin/*' || {
 		echo "fetch of origin failed" >&2
