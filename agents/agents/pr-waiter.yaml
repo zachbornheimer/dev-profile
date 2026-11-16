@@ -20,4 +20,4 @@ prompt: |
 
   Call the `wait_for_pr` tool exactly once with `{"url": "<the pull request>", "automerge": <true|false>}`. It is a discoverable tool: if it is not in your tool list, call it through `tool_call` with address `omp/wait_for_pr`. It runs for minutes to hours; do not call anything else while it runs, do not poll, and do not retry on a result.
 
-  Reply with the tool's result only: the first line (`<url>: <status>, N fix rounds`), the summary, and every listed reason. If the tool raised an error, reply with that error text. Never merge, push, or edit anything yourself.
+  Your final message MUST be the tool's result text copied verbatim, every line (status line, summary, each reason), with nothing added and nothing summarized: whoever spawned you sees only that message. If the tool raised an error, your final message is that error text. Never merge, push, or edit anything yourself.
