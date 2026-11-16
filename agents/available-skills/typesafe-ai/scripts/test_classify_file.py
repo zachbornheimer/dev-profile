@@ -104,11 +104,12 @@ SAMPLE_CATALOG = [
     catalog_entry(
         "zachbornheimer/orchestrator",
         ["orchestrator", "tmux", "go"],
-        local_path="/Users/zbornheimer/Developer/Personal/oh-my-pi",
+        local_path="~/Developer/Personal/oh-my-pi",
     ),
     catalog_entry("zachbornheimer/zq", ["zq", "worktree", "lefthook", "mise", "go"]),
     catalog_entry(
-        "zachbornheimer/evident-output", ["evo", "evident-output", "cli", "progress", "go"]
+        "zachbornheimer/evident-output",
+        ["evo", "evident-output", "cli", "progress", "go"],
     ),
     catalog_entry(
         "ZAB-AI-LLC/obsidian-backup",
@@ -118,9 +119,13 @@ SAMPLE_CATALOG = [
         "ZAB-AI-LLC/obsidian-backup-macos",
         ["obsidian-backup", "macos", "swiftui", "menu-bar"],
     ),
-    catalog_entry("ZAB-AI-LLC/obsidian-vault", ["obsidian-backup", "obsidian-vault", "supabase"]),
+    catalog_entry(
+        "ZAB-AI-LLC/obsidian-vault", ["obsidian-backup", "obsidian-vault", "supabase"]
+    ),
     catalog_entry("zysys/flight", ["flight", "github-pr", "automerge", "railway"]),
-    catalog_entry("zysys/flight-live-test", ["flight", "live-test", "integration-test", "proof"]),
+    catalog_entry(
+        "zysys/flight-live-test", ["flight", "live-test", "integration-test", "proof"]
+    ),
     catalog_entry(
         "Software-Automation-Holdings-LLC/rapidsign",
         ["rapidsign", "isaapi", "document signing", "e-signature", "lambda"],
@@ -130,13 +135,17 @@ SAMPLE_CATALOG = [
         ["rapidsign", "sdk", "go", "generated", "mirror"],
     ),
     catalog_entry(
-        "Software-Automation-Holdings-LLC/sdk", ["sdk", "go sdk", "unified sdk", "rapidsign"]
+        "Software-Automation-Holdings-LLC/sdk",
+        ["sdk", "go sdk", "unified sdk", "rapidsign"],
     ),
     catalog_entry("zachbornheimer/homelab", ["homelab", "nas", "docker", "compose"]),
     catalog_entry("zachbornheimer/nas-recovery", ["nas-recovery", "synology", "btrfs"]),
     # noise: many unrelated repos sharing common words like "go"/"cli"/"sdk" that must
     # not dilute a strong single-repo signal for e.g. "orchestrator" or "zq".
-    *[catalog_entry(f"org/generic-tool-{i}", ["go", "cli", "sdk", "tooling"]) for i in range(6)],
+    *[
+        catalog_entry(f"org/generic-tool-{i}", ["go", "cli", "sdk", "tooling"])
+        for i in range(6)
+    ],
 ]
 SAMPLE_LINEAR_PROJECTS = [
     {"name": "Orchestrator"},
@@ -225,7 +234,8 @@ class ProjectCandidateScoringTests(unittest.TestCase):
     def test_zq_filename_is_a_strong_unique_match(self) -> None:
         observation = observation_for("zq-live-notes.md")
         self.assertEqual(
-            classify_file.strong_project_match(observation, SAMPLE_CATALOG), "zachbornheimer/zq"
+            classify_file.strong_project_match(observation, SAMPLE_CATALOG),
+            "zachbornheimer/zq",
         )
 
     def test_evo_filename_is_a_strong_unique_match(self) -> None:
@@ -239,11 +249,15 @@ class ProjectCandidateScoringTests(unittest.TestCase):
         # "obsidian" alone matches 3 repos (backup, backup-macos, vault) — must not
         # blind-guess; falls through to the scored candidate list instead.
         observation = observation_for("obsidian-live-proof-20260713-101402.txt")
-        self.assertIsNone(classify_file.strong_project_match(observation, SAMPLE_CATALOG))
+        self.assertIsNone(
+            classify_file.strong_project_match(observation, SAMPLE_CATALOG)
+        )
 
     def test_no_catalog_signal_has_no_strong_match(self) -> None:
         observation = observation_for("ZBbio.md")
-        self.assertIsNone(classify_file.strong_project_match(observation, SAMPLE_CATALOG))
+        self.assertIsNone(
+            classify_file.strong_project_match(observation, SAMPLE_CATALOG)
+        )
 
     def test_obsidian_ranks_above_a_generic_shared_token_distractor(self) -> None:
         # Regression: obsidian-live-proof-*.txt was wrongly routed to
@@ -252,18 +266,26 @@ class ProjectCandidateScoringTests(unittest.TestCase):
         observation = observation_for("obsidian-live-proof-20260713-101402.txt")
         candidates = shortlist_names(observation, SAMPLE_CATALOG, [])
         obsidian_repos = [name for name in candidates if "obsidian" in name.lower()]
-        self.assertTrue(obsidian_repos, "expected at least one obsidian-* candidate offered")
+        self.assertTrue(
+            obsidian_repos, "expected at least one obsidian-* candidate offered"
+        )
         self.assertNotIn("zysys/flight-live-test", candidates)
 
     def test_candidate_set_is_bounded_not_the_whole_catalog(self) -> None:
         observation = observation_for("random-desktop-notes.md")
-        candidates = shortlist_names(observation, SAMPLE_CATALOG, SAMPLE_LINEAR_PROJECTS)
+        candidates = shortlist_names(
+            observation, SAMPLE_CATALOG, SAMPLE_LINEAR_PROJECTS
+        )
         # personal buckets + a small bounded top-K, never every catalog repo.
-        self.assertLess(len(candidates), len(SAMPLE_CATALOG) + len(SAMPLE_LINEAR_PROJECTS))
+        self.assertLess(
+            len(candidates), len(SAMPLE_CATALOG) + len(SAMPLE_LINEAR_PROJECTS)
+        )
 
     def test_same_named_linear_project_is_shadowed_by_matching_repo(self) -> None:
         observation = observation_for("orchestrator-ui-research-pass.md")
-        candidates = shortlist_names(observation, SAMPLE_CATALOG, SAMPLE_LINEAR_PROJECTS)
+        candidates = shortlist_names(
+            observation, SAMPLE_CATALOG, SAMPLE_LINEAR_PROJECTS
+        )
         self.assertIn("zachbornheimer/orchestrator", candidates)
         self.assertNotIn("linear:Orchestrator", candidates)
 
@@ -325,7 +347,9 @@ class ObserveTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "brief.docx"
             path.write_bytes(b"not-real-docx-bytes")
-            observation = classify_file.observe(path, run_textutil=lambda p: "extracted docx text")
+            observation = classify_file.observe(
+                path, run_textutil=lambda p: "extracted docx text"
+            )
             self.assertEqual(observation["excerpt"], "extracted docx text")
 
     def test_textutil_failure_falls_open_to_empty_excerpt(self) -> None:
@@ -339,7 +363,9 @@ class ObserveTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "brief.pdf"
             path.write_bytes(b"%PDF-1.4 not real")
-            observation = classify_file.observe(path, run_pdftotext=lambda p: "extracted pdf text")
+            observation = classify_file.observe(
+                path, run_pdftotext=lambda p: "extracted pdf text"
+            )
             self.assertEqual(observation["excerpt"], "extracted pdf text")
 
     def test_html_file_strips_tags(self) -> None:
@@ -407,7 +433,9 @@ class PrefilterTests(unittest.TestCase):
         self.assertEqual(result.kind, "media")
 
     def test_text_file_is_not_prefiltered(self) -> None:
-        self.assertIsNone(classify_file.prefilter(self._observation("everest-problems.md")))
+        self.assertIsNone(
+            classify_file.prefilter(self._observation("everest-problems.md"))
+        )
 
     def test_directory_is_not_prefiltered(self) -> None:
         observation = self._observation("some-dir")
@@ -417,7 +445,9 @@ class PrefilterTests(unittest.TestCase):
 
 class CatalogAndLinearLoadTests(unittest.TestCase):
     def test_missing_catalog_path_fails_open(self) -> None:
-        self.assertEqual(classify_file.load_catalog("/nonexistent/repo-catalog.json"), [])
+        self.assertEqual(
+            classify_file.load_catalog("/nonexistent/repo-catalog.json"), []
+        )
 
     def test_empty_catalog_flag_fails_open(self) -> None:
         self.assertEqual(classify_file.load_catalog(""), [])
@@ -457,8 +487,12 @@ class BuildRequestTests(unittest.TestCase):
 
     def test_offers_one_noul_per_shortlisted_candidate(self) -> None:
         observation = observation_for("orchestrator-ui-research-pass.md")
-        request = classify_file.build_request(observation, SAMPLE_CATALOG, SAMPLE_LINEAR_PROJECTS)
-        shortlist = classify_file._shortlist(observation, SAMPLE_CATALOG, SAMPLE_LINEAR_PROJECTS)
+        request = classify_file.build_request(
+            observation, SAMPLE_CATALOG, SAMPLE_LINEAR_PROJECTS
+        )
+        shortlist = classify_file._shortlist(
+            observation, SAMPLE_CATALOG, SAMPLE_LINEAR_PROJECTS
+        )
         noul_questions = [q for q in request["questions"] if q.startswith("match_")]
         self.assertEqual(len(noul_questions), len(shortlist))
         for question in request["questions"].values():
@@ -492,7 +526,10 @@ class BuildRequestTests(unittest.TestCase):
     def test_pre_decided_project_skips_candidate_nouls(self) -> None:
         observation = observation_for("orchestrator-ui-research-pass.md")
         request = classify_file.build_request(
-            observation, SAMPLE_CATALOG, SAMPLE_LINEAR_PROJECTS, project="zachbornheimer/orchestrator"
+            observation,
+            SAMPLE_CATALOG,
+            SAMPLE_LINEAR_PROJECTS,
+            project="zachbornheimer/orchestrator",
         )
         self.assertFalse(any(q.startswith("match_") for q in request["questions"]))
         self.assertEqual(request["state"]["project"], "zachbornheimer/orchestrator")
@@ -501,7 +538,9 @@ class BuildRequestTests(unittest.TestCase):
         # Only project Nouls are skipped — kind and the 5 flags are still needed to
         # compute the disposition even when project is already known.
         observation = observation_for("2025-taxes.pdf")
-        request = classify_file.build_request(observation, [], [], project="personal:finance")
+        request = classify_file.build_request(
+            observation, [], [], project="personal:finance"
+        )
         self.assertIn("kind", request["questions"])
         for flag_id in constants.FILE_FLAGS:
             self.assertIn(flag_id, request["questions"])
@@ -514,7 +553,10 @@ class DecideTests(unittest.TestCase):
     def test_winning_candidate_above_threshold_becomes_project(self) -> None:
         observation = self._observation()
         answers = answers_for(
-            observation, SAMPLE_CATALOG, [], matches={"zachbornheimer/orchestrator": 0.9}
+            observation,
+            SAMPLE_CATALOG,
+            [],
+            matches={"zachbornheimer/orchestrator": 0.9},
         )
         result = classify_file.decide(answers, observation, SAMPLE_CATALOG, [])
         self.assertEqual(result.project, "zachbornheimer/orchestrator")
@@ -534,7 +576,9 @@ class DecideTests(unittest.TestCase):
         rule chain in decide() can no longer produce this pair by construction (R4
         requires a repo project); this proves it end to end with real flag inputs."""
         observation = observation_for("NAS-Rebuild-Plan.md")
-        answers = answers_for(observation, [], [], matches={"personal:other": 0.9}, kind="document")
+        answers = answers_for(
+            observation, [], [], matches={"personal:other": 0.9}, kind="document"
+        )
         result = classify_file.decide(answers, observation, [], [])
         self.assertNotEqual(result.disposition, "move-to-repo")
 
@@ -547,7 +591,9 @@ class DecideTests(unittest.TestCase):
         with mock.patch.object(
             classify_file,
             "_resolve_disposition",
-            return_value=classify_file._DispositionOutcome("move-to-repo", 0.9, "selected"),
+            return_value=classify_file._DispositionOutcome(
+                "move-to-repo", 0.9, "selected"
+            ),
         ):
             result = classify_file.decide(answers, observation, [], [])
         self.assertEqual(result.project, "personal:finance")
@@ -571,7 +617,9 @@ class DecideTests(unittest.TestCase):
 
     def test_trash_candidate_has_no_destination(self) -> None:
         observation = self._observation()
-        answers = answers_for(observation, [], [], kind="backup", backup=0.95, regenerable=0.9)
+        answers = answers_for(
+            observation, [], [], kind="backup", backup=0.95, regenerable=0.9
+        )
         result = classify_file.decide(answers, observation, [], [])
         self.assertEqual(result.disposition, "trash-candidate")
         self.assertEqual(result.destination_hint, "")
@@ -580,7 +628,11 @@ class DecideTests(unittest.TestCase):
         observation = self._observation()
         answers = answers_for(observation, SAMPLE_CATALOG, [])
         result = classify_file.decide(
-            answers, observation, SAMPLE_CATALOG, [], project="zachbornheimer/orchestrator"
+            answers,
+            observation,
+            SAMPLE_CATALOG,
+            [],
+            project="zachbornheimer/orchestrator",
         )
         self.assertEqual(result.project, "zachbornheimer/orchestrator")
         self.assertEqual(result.disposition, "move-to-repo")
@@ -618,9 +670,13 @@ class GateByConsequenceTests(unittest.TestCase):
         with mock.patch.object(
             classify_file,
             "_resolve_disposition",
-            return_value=classify_file._DispositionOutcome("move-to-repo", 0.10, "selected"),
+            return_value=classify_file._DispositionOutcome(
+                "move-to-repo", 0.10, "selected"
+            ),
         ):
-            result = classify_file.decide(answers, observation, [], [], project="owner/repo")
+            result = classify_file.decide(
+                answers, observation, [], [], project="owner/repo"
+            )
         self.assertEqual(result.disposition, "keep")
         self.assertEqual(result.reason, "confidence below floor")
         self.assertFalse(result.needs_triage)
@@ -634,7 +690,8 @@ class GateByConsequenceTests(unittest.TestCase):
 
     def test_thresholds_are_centralized_in_constants(self) -> None:
         self.assertEqual(
-            set(constants.FILE_DISPOSITION_CONFIDENCE_FLOORS), set(constants.FILE_DISPOSITIONS)
+            set(constants.FILE_DISPOSITION_CONFIDENCE_FLOORS),
+            set(constants.FILE_DISPOSITIONS),
         )
 
 
@@ -643,17 +700,23 @@ class LegalDispositionInvariantTests(unittest.TestCase):
         self.assertEqual(classify_file.project_kind("none"), "none")
         self.assertEqual(classify_file.project_kind("linear:ZAP Protocol"), "linear")
         self.assertEqual(classify_file.project_kind("personal:finance"), "personal")
-        self.assertEqual(classify_file.project_kind("zachbornheimer/orchestrator"), "repo")
+        self.assertEqual(
+            classify_file.project_kind("zachbornheimer/orchestrator"), "repo"
+        )
 
     def test_move_to_repo_is_illegal_for_every_non_repo_project_kind(self) -> None:
         for project in ("none", "linear:ZAP Protocol", "personal:finance"):
             with self.subTest(project=project):
-                self.assertNotIn("move-to-repo", classify_file.legal_dispositions_for(project))
+                self.assertNotIn(
+                    "move-to-repo", classify_file.legal_dispositions_for(project)
+                )
 
     def test_personal_docs_is_illegal_outside_personal_projects(self) -> None:
         for project in ("none", "linear:ZAP Protocol", "zachbornheimer/orchestrator"):
             with self.subTest(project=project):
-                self.assertNotIn("personal-docs", classify_file.legal_dispositions_for(project))
+                self.assertNotIn(
+                    "personal-docs", classify_file.legal_dispositions_for(project)
+                )
 
     def test_keep_and_archive_and_trash_candidate_are_always_legal(self) -> None:
         for project in ("none", "linear:x", "personal:finance", "owner/repo"):
@@ -665,10 +728,14 @@ class LegalDispositionInvariantTests(unittest.TestCase):
     def test_attach_evidence_is_legal_only_for_repo_and_linear_projects(self) -> None:
         for project in ("owner/repo", "linear:ZAP Protocol"):
             with self.subTest(project=project):
-                self.assertIn("attach-evidence", classify_file.legal_dispositions_for(project))
+                self.assertIn(
+                    "attach-evidence", classify_file.legal_dispositions_for(project)
+                )
         for project in ("none", "personal:finance"):
             with self.subTest(project=project):
-                self.assertNotIn("attach-evidence", classify_file.legal_dispositions_for(project))
+                self.assertNotIn(
+                    "attach-evidence", classify_file.legal_dispositions_for(project)
+                )
 
 
 class DispositionLegalityPropertyTests(unittest.TestCase):
@@ -725,11 +792,14 @@ class DispositionLegalityPropertyTests(unittest.TestCase):
                                         ):
                                             self.assertIn(
                                                 result.disposition,
-                                                classify_file.legal_dispositions_for(project),
+                                                classify_file.legal_dispositions_for(
+                                                    project
+                                                ),
                                             )
                                             if private >= 0.5 or loss_record >= 0.5:
                                                 self.assertNotEqual(
-                                                    result.disposition, "trash-candidate"
+                                                    result.disposition,
+                                                    "trash-candidate",
                                                 )
 
 
@@ -758,7 +828,9 @@ def run_classify_file(
             stdin=io.StringIO(""),
             stdout=stdout,
         )
-    lines = [json.loads(line) for line in stdout.getvalue().splitlines() if line.strip()]
+    lines = [
+        json.loads(line) for line in stdout.getvalue().splitlines() if line.strip()
+    ]
     return code, lines, stdout.getvalue()
 
 
@@ -808,7 +880,13 @@ class NamedDesktopFixtureRedCaseTests(unittest.TestCase):
         observation["is_dir"] = True
         observation["entries"] = ["Import.mbox"]
         answers = answers_for(
-            observation, [], [], kind="backup", backup=0.95, private=0.9, regenerable=0.1
+            observation,
+            [],
+            [],
+            kind="backup",
+            backup=0.95,
+            private=0.9,
+            regenerable=0.1,
         )
         result = classify_file.decide(answers, observation, [], [])
         self.assertNotEqual(result.disposition, "trash-candidate")
@@ -819,7 +897,9 @@ class NamedDesktopFixtureRedCaseTests(unittest.TestCase):
         # data, not disposable diagnostics.
         observation = observation_for("Dorico Diagnostics.zip")
         observation["entries"] = ["Activation Manager/config.dat", "settings.json"]
-        answers = answers_for(observation, [], [], kind="evidence", evidence=0.8, private=0.7)
+        answers = answers_for(
+            observation, [], [], kind="evidence", evidence=0.8, private=0.7
+        )
         result = classify_file.decide(answers, observation, [], [])
         self.assertNotEqual(result.disposition, "trash-candidate")
         self.assertEqual(result.disposition, "keep")
@@ -831,12 +911,20 @@ class NamedDesktopFixtureRedCaseTests(unittest.TestCase):
         # must still reach trash-candidate.
         observation = observation_for("hof-25162-backup-preconvert.html")
         answers = answers_for(
-            observation, [], [], kind="backup", backup=0.95, regenerable=0.9, private=0.05
+            observation,
+            [],
+            [],
+            kind="backup",
+            backup=0.95,
+            regenerable=0.9,
+            private=0.05,
         )
         result = classify_file.decide(answers, observation, [], [])
         self.assertEqual(result.disposition, "trash-candidate")
 
-    def test_flight_fix_list_routes_to_linear_via_its_repos_linear_sibling(self) -> None:
+    def test_flight_fix_list_routes_to_linear_via_its_repos_linear_sibling(
+        self,
+    ) -> None:
         # The shortlist only ever offers "zysys/flight" (a Linear project sharing a
         # repo's basename is shadowed, see _shortlist) — the fix is that decide()
         # discovers flight's Linear sibling from the resolved repo project, so an
@@ -850,17 +938,27 @@ class NamedDesktopFixtureRedCaseTests(unittest.TestCase):
             kind="issue-list",
             issue_list=0.85,
         )
-        result = classify_file.decide(answers, observation, SAMPLE_CATALOG, SAMPLE_LINEAR_PROJECTS)
+        result = classify_file.decide(
+            answers, observation, SAMPLE_CATALOG, SAMPLE_LINEAR_PROJECTS
+        )
         self.assertEqual(result.project, "zysys/flight")
         self.assertEqual(result.disposition, "file-to-linear")
         self.assertNotEqual(result.reason, "disposition illegal for project type")
 
-    def test_obsidian_live_proof_needs_regenerable_not_just_backup_to_trash(self) -> None:
+    def test_obsidian_live_proof_needs_regenerable_not_just_backup_to_trash(
+        self,
+    ) -> None:
         # flag_backup low (not a duplicate) even though flag_regenerable is high: R2
         # now requires both signals, so a low backup flag alone blocks trash.
         observation = observation_for("obsidian-live-proof-20260713-101402.txt")
         answers = answers_for(
-            observation, [], [], kind="evidence", backup=0.2, regenerable=0.9, evidence=0.8
+            observation,
+            [],
+            [],
+            kind="evidence",
+            backup=0.2,
+            regenerable=0.9,
+            evidence=0.8,
         )
         result = classify_file.decide(answers, observation, [], [])
         self.assertNotEqual(result.disposition, "trash-candidate")
@@ -873,7 +971,8 @@ class NamedDesktopFixtureRedCaseTests(unittest.TestCase):
         # (backup+regenerable both high, mirroring the pre-fix run). It is the only
         # record of what was lost, so flag_loss_record must block trash regardless.
         observation = observation_for(
-            "navidrome_missing_files.csv", excerpt="path,artist,album\n/music/a.flac,A,B\n"
+            "navidrome_missing_files.csv",
+            excerpt="path,artist,album\n/music/a.flac,A,B\n",
         )
         answers = answers_for(
             observation,
@@ -936,7 +1035,9 @@ class NamedDesktopFixtureRedCaseTests(unittest.TestCase):
         self.assertEqual(result.disposition, "move-to-repo")
         self.assertTrue(result.important)
 
-    def test_hof_backup_preconvert_html_with_no_loss_record_signal_still_trashes(self) -> None:
+    def test_hof_backup_preconvert_html_with_no_loss_record_signal_still_trashes(
+        self,
+    ) -> None:
         # Guard against over-correction: a genuinely regenerable backup with no loss
         # record signal must still reach trash-candidate, and `important` stays False.
         observation = observation_for("hof-25162-backup-preconvert.html")
@@ -1005,7 +1106,9 @@ class ClassifyFileCliTests(unittest.TestCase):
     def test_one_http_call_per_file_produces_one_json_line_each(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             catalog_path = Path(tmp) / "repo-catalog.json"
-            catalog_path.write_text(json.dumps({"repos": SAMPLE_CATALOG}), encoding="utf-8")
+            catalog_path.write_text(
+                json.dumps({"repos": SAMPLE_CATALOG}), encoding="utf-8"
+            )
             first = Path(tmp) / "orchestrator-ui-research-pass.md"
             first.write_text("design notes for orchestrator", encoding="utf-8")
             second = Path(tmp) / "2025-taxes.pdf"
