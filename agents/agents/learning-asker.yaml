@@ -1,4 +1,4 @@
-# Converted from /Users/zbornheimer/Developer/Personal/.worktrees/capability-replicas-feat-mastra-reads-masters/mastra/src/agents/learning-asker/learning-asker.yaml by import_mastra.py.
+# Converted from mastra/src/agents/learning-asker/learning-asker.yaml by import_mastra.py.
 schema: agents/v1
 name: learning-asker
 description: 'Reads one agent session through exactly one dimension (skills, tokens,

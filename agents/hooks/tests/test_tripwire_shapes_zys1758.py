@@ -19,18 +19,20 @@ the f4bd6e86 `HK=0 git commit`.
 from __future__ import annotations
 
 import os
+import tomllib
 from pathlib import Path
 from typing import Any
 
 import pytest
-import tomllib
 from hook_harness import HOOKS_DIR, HookRunner
 
 TRIPWIRE = "gate-bypass-tripwire.py"
 SID = "01a17553-7563-72cf-be2e-80628fa41ab7"
 
-PUSH = "cd /Users/x/.worktrees/capability-replicas-zys-1731 && git push --no-verify origin main 2>&1 | tail -4 && git rev-parse origin/main"
-HK0 = "cd /Users/x/capability-replicas && HK=0 git commit -m \"$(cat <<'EOF'\nfix: x\nEOF\n)\" -- a.ts"
+PUSH = "cd /Users/x/.worktrees/mastra-zys-1731 && git push --no-verify origin main 2>&1 | tail -4 && git rev-parse origin/main"
+HK0 = (
+    "cd /Users/x/mastra && HK=0 git commit -m \"$(cat <<'EOF'\nfix: x\nEOF\n)\" -- a.ts"
+)
 INCIDENTS = {"no-verify-push": PUSH, "hk0-commit": HK0}
 
 SH_HELPER = (
@@ -85,7 +87,7 @@ def omp_eval(code: str, language: str = "py") -> dict[str, Any]:
     }
 
 
-def eval_sh(command: str, cwd: str = "/Users/x/capability-replicas") -> dict[str, Any]:
+def eval_sh(command: str, cwd: str = "/Users/x/mastra") -> dict[str, Any]:
     """The ManagerialBooby shape: a `sh()` helper, then print(sh('<command>'))."""
     return omp_eval(SH_HELPER.format(cwd=cwd) + f"print(sh({command!r}))")
 

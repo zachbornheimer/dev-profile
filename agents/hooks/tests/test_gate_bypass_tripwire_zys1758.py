@@ -10,11 +10,11 @@ them and the guard never ran).
 from __future__ import annotations
 
 import os
+import tomllib
 from pathlib import Path
 from typing import Any
 
 import pytest
-import tomllib
 from hook_harness import HookRunner
 
 PY_HOOK = "gate-bypass-tripwire.py"
@@ -215,13 +215,13 @@ def _omp_eval(command: str) -> dict[str, Any]:
 OMP_CASES: dict[str, tuple[dict[str, Any], str]] = {
     "omp-shallowpelican-push": (
         _omp_run_command(
-            "cd /Users/x/.worktrees/capability-replicas-zys-1731 && git push --no-verify origin main 2>&1 | tail -4 && git rev-parse origin/main"
+            "cd /Users/x/.worktrees/mastra-zys-1731 && git push --no-verify origin main 2>&1 | tail -4 && git rev-parse origin/main"
         ),
         DENY,
     ),
     "omp-always-on-hk0-commit": (
         _omp_run_command(
-            "cd /Users/x/capability-replicas && HK=0 git commit -m \"$(cat <<'EOF'\nfix: x\nEOF\n)\" -- a.ts",
+            "cd /Users/x/mastra && HK=0 git commit -m \"$(cat <<'EOF'\nfix: x\nEOF\n)\" -- a.ts",
             server="mcp__capability_always_on_agentmux_capability_run_command",
         ),
         DENY,

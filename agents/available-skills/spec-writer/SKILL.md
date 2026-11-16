@@ -17,7 +17,7 @@ Sessions and specs are stored centrally in `~/.local/share/specs/<session_id>/`,
 
 ## Spec Kit repo
 
-If the directory has `.specify/`, the same loop is also a Spec Kit command. Install once from capability-replicas:
+If the directory has `.specify/`, the same loop is also a Spec Kit command. Install once from mastra:
 
 ```bash
 specify extension add --dev --force mastra/spec-kit/extension

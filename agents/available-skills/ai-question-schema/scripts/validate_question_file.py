@@ -39,8 +39,8 @@ SCALAR_CONSTRAINTS = frozenset(
 CANONICAL_DIR = Path(
     "/Users/zbornheimer/Developer/Personal/agentmux/internal/capabilities/questions"
 )
-BROKEN_DIR = Path(
-    "/Users/zbornheimer/Developer/Personal/capability-replicas/mastra/src/workflows/learn-from-transcript"
+BROKEN_DIR = (
+    Path.home() / "Developer/Personal/mastra/src/workflows/learn-from-transcript"
 )
 BROKEN_FILES = ("analyze.yaml", "synthesize.yaml", "log-tickets.yaml")
 

@@ -35,7 +35,7 @@ If the prompt names no path, run this first and read the file it writes:
 capability run get-annotated-transcript --input '{"sources":["<ref>"]}'
 ```
 
-`<ref>` is `<harness>:<id>` (`omp` or `codex`; old refs for removed harnesses such as grok, claude, hermes, cursor and copilot resolve only to transcripts they already left) or a Mastra thread (`mastra:thread:<id>`, or `https://<host>/agents/<agentId>/threads/<threadId>`). The command writes `~/.local/share/capability-replicas/annotated/<conversation>.annotated.json` (`CAPABILITY_ANNOTATED_DIR` overrides the directory) and prints the sessions. Use that file for the rest of this skill, including `waste-census.py`.
+`<ref>` is `<harness>:<id>` (`omp` or `codex`; old refs for removed harnesses such as grok, claude, hermes, cursor and copilot resolve only to transcripts they already left) or a Mastra thread (`mastra:thread:<id>`, or `https://<host>/agents/<agentId>/threads/<threadId>`). The command writes `~/.local/share/omp/transcripts/annotated/<conversation>.annotated.json` (`OMP_ANNOTATED_DIR` overrides the directory) and prints the sessions. Use that file for the rest of this skill, including `waste-census.py`.
 
 Once you have the transcript, read the below.
 

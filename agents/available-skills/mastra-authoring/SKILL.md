@@ -101,7 +101,7 @@ A scheduled run is the same workflow. Put a `schedule` field on the workflow. A 
 ## Local dev surface
 
 - Serve a checkout with `mise run dev`; `mise run dev:status` prints its state read-only.
-- Serving is portless: the route is a `.localhost` host, not a port. The main checkout serves `https://capability-replicas.localhost`; a worktree serves `https://capability-replicas-<slug>.localhost`. Do not hunt for port numbers.
+- Serving is portless: the route is a `.localhost` host, not a port. The main checkout serves `https://mastra.localhost`; a worktree serves `https://mastra-<slug>.localhost`. Do not hunt for port numbers.
 - A run is watchable on the Studio route at `/workflows/<id>/graph/<runId>`.
 
 ## Before you write

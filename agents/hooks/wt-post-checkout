@@ -16,7 +16,7 @@ cd "$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
 # (ai-task internal/workspace/manager.go, CopyIgnored), which its own comment
 # assumes is not doubled by Worktrunk's post-start hook. Left in, this fires on
 # top of that copy for every claim: a second clone of the whole ignored tree
-# (26k files, 333MB in capability-replicas) behind Worktrunk's serialized hook
+# (26k files, 333MB in mastra) behind Worktrunk's serialized hook
 # path. Under a handful of concurrent claims that is minutes per claim, and a
 # claim that outlives atask's five-minute ClaimWindow always fails — it is what
 # takes `atask claim` past the capability's bound.
