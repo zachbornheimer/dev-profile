@@ -24,7 +24,7 @@ tools:
   always: [read, write, edit, glob, grep, list, stat]
   # Searchable: found through the harness's tool search, never preloaded.
   searchable:
-    - run_command
+    - bash
     - run_tests
     - search_tools
     - worktrunk
