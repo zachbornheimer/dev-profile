@@ -1,13 +1,5 @@
 # AI Tools
-# claude CLI is commander-style: `claude <subcommand> [options]`. Global flags
-# placed before a subcommand get consumed by the top-level parser and the
-# subcommand name falls through as the [prompt] positional instead of routing
-# to the subcommand (e.g. `claude --remote-control agents` errors with
-# "Input must be provided either through stdin or as a prompt argument when
-# using --print"). So: known subcommands run bare; everything else (plain
-# prompt, --resume/-r/-c, interactive session) keeps the skip-permissions +
-# remote-control defaults.
-# Secrets for every AI CLI (claude, codex, opencode, grok) are resolved once
+# Secrets for the supported AI tools (omp, Codex desktop) are resolved once
 # via `op inject` into a private cache, not on every launch via `op run` —
 # avoids a 1Password round-trip per invocation. `ai-keys-refresh` forces a
 # re-inject when the template changes.
@@ -99,29 +91,7 @@ ai-keys::exec() {
 	)
 }
 
-claude::bin() {
-	local known_subcommands=(
-		agents attach auth auto-mode doctor gateway import install logs mcp
-		plugin plugins project respawn rm setup-token stop kill ultrareview
-		update upgrade
-	)
-	local -a claude_args
-	if (($# > 0)) && ((${known_subcommands[(Ie)$1]})); then
-		claude_args=("$@")
-	else
-		claude_args=(--allow-dangerously-skip-permissions --dangerously-skip-permissions --remote-control --chrome "$@")
-	fi
-	ai-keys::exec claude "${claude_args[@]}"
-}
-claude() { claude::bin "$@"; }
-c() { claude::bin "$@"; }
 codex() { ai-keys::exec codex "$@"; }
-opencode() { ai-keys::exec opencode "$@"; }
-
-# WORK PROFILE — separate config dir (its own settings.json → work Linear MCP) +
-# work-vault keys. Scaffold ~/.claude-work first, then uncomment:
-# alias claude-work='CLAUDE_CONFIG_DIR="$HOME/.claude-work" op run --no-masking --env-file="$HOME/.config/claude/keys.work.env.op" -- claude'
-
 # GitHub MCP — do not fork `gh auth token` on every shell start.
 # When a tool needs it: `_zsh_github_token_ensure` (or export yourself).
 _zsh_github_token_ensure() {

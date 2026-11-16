@@ -15,7 +15,7 @@ from completion_gate_omp_transcript import is_omp_session
 from completion_gate_transcript import read_transcript_facts
 from completion_gate_turn_evidence import build_envelope
 
-RUN_COMMAND_DEVICE = "xd://mcp__capability_agentmux_capability_run_command"
+RUN_COMMAND_DEVICE = "xd://mcp__capability_omp_capability_run_command"
 DEFERRAL = 'Fixed two of six. Reply "go" and I\'ll do those four.'
 PROMPT_TIME = "2026-10-26T23:23:32.965Z"
 

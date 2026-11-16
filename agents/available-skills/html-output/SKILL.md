@@ -27,7 +27,7 @@ going into a Markdown-native system (READMEs, GitHub PR bodies, etc.).
 
 Every throwaway editor or interactive artifact ends with a **"Copy as JSON"** or
 **"Copy as prompt"** button that serializes the current state back to something
-pasteable into Claude Code or committable to a file. The loop must close.
+pasteable into the agent session or committable to a file. The loop must close.
 
 Without this, the artifact is a dead end. With it, it's a tight loop.
 
@@ -102,6 +102,4 @@ you'll USE it — that context shapes the structure more than any template.
 - **The copy-out button is not optional on interactive artifacts.** If the user
   tunes something in a slider-based editor, they need a way to get that result
   back. Always close the loop.
-- **Use Claude Code's full context for rich artifacts.** Claude Code can read
-  your filesystem, MCPs (Slack, Linear), browser (Chrome MCP), and git history
-  before generating. For a review or report, that context is the whole point.
+- **Use the agent's full context for rich artifacts.** The agent can read your filesystem, MCPs (Slack, Linear), browser, and git history before generating. For a review or report, that context is the whole point.

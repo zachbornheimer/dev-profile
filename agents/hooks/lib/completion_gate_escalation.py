@@ -4,7 +4,7 @@ A block is never unconditional: the loop guard records it, the reject
 ledger caps how many times one user request can be blocked, an identical
 reason is restated (never silently repeated), and a /goal condition that
 keeps getting denied stops re-arming. Each of those ends in a silent
-allow (Decision.no_objection): Grok treats Stop additionalContext as
+allow (Decision.no_objection): a legacy Grok harness (removed, unsupported) treated Stop additionalContext as
 continue, the same as a decision block, so the portable end-the-turn
 path is empty stdout plus a log line.
 """

@@ -14,3 +14,12 @@ schema_version = 1
 # visibility = "private"                                # "private" or "public"; recorded, not verified
 # namespace = "refs/heads/agent-checkpoints/"
 # remote = "origin"                                     # selector only; never authorization
+
+# The mise dotfiles-history destination the turn-end reconciliation compares against
+# (ADR 0001 section 10). If `mise dot status` reports a different origin, the outcome is
+# `blocked` with reason `destination-changed`. Owner-edited, like the rest of this file.
+[destinations."mise-history"]
+kind = "mise-dot"
+canonical = "https://github.com/zachbornheimer/dotfiles.git"
+branch = "history"
+mode = "sync"

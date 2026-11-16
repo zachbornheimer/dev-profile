@@ -25,9 +25,8 @@ import os
 import re
 import shlex
 import sys
-from pathlib import Path
-
 import tomllib
+from pathlib import Path
 
 # HookSpec fields in src/config.rs. Anything else (enabled, async, script, policy, ...) is ignored.
 KNOWN_KEYS = {
@@ -106,22 +105,8 @@ KNOWN_EVENTS = {
     "PermissionDenied",
     "UserPromptExpansion",
 }
-# AgentId::parse accepts these aliases, case-insensitively, after trimming.
-AGENTS = {
-    "claude",
-    "claude-code",
-    "codex",
-    "gemini",
-    "gemini-cli",
-    "grok",
-    "grok-build",
-    "hermes",
-    "copilot",
-    "github-copilot",
-    "opencode",
-    "open-code",
-    "mastra",
-}
+# omp's bridge announces itself as claude; retain both binary aliases for it.
+AGENTS = {"codex", "mastra", "claude", "claude-code"}
 # humantime accepts many unit spellings and spaces; only reject strings with no number+unit shape at all.
 DURATION = re.compile(r"^\s*(\d+(\.\d+)?\s*[a-zA-Zµμ]+\s*)+$")
 # Events whose payload carries a matcher-able field (tool name, source, trigger, ...).

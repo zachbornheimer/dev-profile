@@ -48,7 +48,7 @@ readonly -a SELF_TEST_REQUIRED_WORDING=(
 )
 readonly SELF_TEST_RETIRED_WORDING='read_skill|find_skills|search_tools'
 # Commands that mean a harness session or an MCP gateway started under the hook.
-readonly FORBIDDEN_CHILD_PATTERN='(^|/| )(grok|claude --print|claude -p|codex exec|docker mcp|chrome-devtools)'
+readonly FORBIDDEN_CHILD_PATTERN='(^|/| )(codex exec|docker mcp|chrome-devtools)'
 readonly SELF="${BASH_SOURCE[0]}"
 
 # --- payload ---------------------------------------------------------------------------------------------
@@ -68,13 +68,13 @@ run_capability() {
 	local out="$1" cwd="$2" name="$3" flag="$4" value="$5" freshness="${6:-yes}"
 	(
 		cd "$cwd" 2>/dev/null || cd "$HOME" || exit 0
-		# AGENTMUX_NESTED_RUN marks everything below as nested, so no hook it reaches runs this one again.
+		# OMP_NESTED_RUN marks everything below as nested, so no hook it reaches runs this one again.
 		if [[ "$freshness" == yes && -n "${PROMPT_SUBMIT_FRESH:-}" ]]; then
-			AGENTMUX_NESTED_RUN=1 AGENTMUX_MODEL_TIMEOUT_MS="$MODEL_TIMEOUT_MS" \
+			OMP_NESTED_RUN=1 OMP_MODEL_TIMEOUT_MS="$MODEL_TIMEOUT_MS" \
 				timeout "$CAPABILITY_WALL_SECONDS" capability run "$name" --fresh "$flag" "$value" \
 				>"$out" 2>/dev/null
 		else
-			AGENTMUX_NESTED_RUN=1 AGENTMUX_MODEL_TIMEOUT_MS="$MODEL_TIMEOUT_MS" \
+			OMP_NESTED_RUN=1 OMP_MODEL_TIMEOUT_MS="$MODEL_TIMEOUT_MS" \
 				timeout "$CAPABILITY_WALL_SECONDS" capability run "$name" "$flag" "$value" \
 				>"$out" 2>/dev/null
 		fi
@@ -361,7 +361,7 @@ descendant_commands() {
 # name lands here even where `ps` is not permitted (a sandbox).
 write_canaries() {
 	local dir="$1" name
-	for name in grok claude codex docker chrome-devtools; do
+	for name in codex docker chrome-devtools; do
 		printf '#!/bin/sh\necho "%s $*" >>"%s/called"\nexit 1\n' "$name" "$dir" >"$dir/$name"
 		chmod +x "$dir/$name"
 	done
@@ -513,7 +513,7 @@ STUB
 # <dir>/forbidden. The stubs in <dir>/bin answer every capability call.
 observe_hook() {
 	local dir="$1" payload="$2" output="$3" pid started
-	PATH="$dir:$PATH" PROMPT_SUBMIT_FRESH=1 env -u AGENTMUX_NESTED_RUN \
+	PATH="$dir:$PATH" PROMPT_SUBMIT_FRESH=1 env -u OMP_NESTED_RUN \
 		CAPABILITY_BIN_DIR="$dir/bin" \
 		"$SELF" --skip-guard <<<"$payload" >"$output" &
 	pid=$!
@@ -678,7 +678,7 @@ main() {
 	fi
 	case "${1:-}" in
 	--skip-guard) ;;
-	*) [[ -z "${AGENTMUX_NESTED_RUN:-}" ]] && "$NESTED_RUN_GUARD" || return 0 ;;
+	*) [[ -z "${OMP_NESTED_RUN:-}" ]] && "$NESTED_RUN_GUARD" || return 0 ;;
 	esac
 	export PATH="$CAPABILITY_BIN_DIR:$PATH"
 	run_hook

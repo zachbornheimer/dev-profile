@@ -9,9 +9,10 @@ You already know the languages. This skill is the **code Zach approves** bar —
 composition + the defaults models break — not a restatement of the language.
 
 **Before writing or reviewing non-trivial code, read**
-`references/approval-dossier.md` (atomic composition, jazz subtraction, checklist)
-and `references/domain-composition.md` (ownership naming, comments-as-diagnostic,
+`~/.claude/rules/domain-composition.md` (ownership naming, comments-as-diagnostic,
 invariants-in-types, progressive disclosure, effects/authority, deletion test).
+For designing or reviewing a single function (honest vs dishonest, signatures,
+one level of abstraction per body), read `references/function-design.md`.
 For full craft/taste philosophy load `bar`. For language footguns:
 `references/<lang>.md` and `references/gotchas.md`.
 

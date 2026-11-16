@@ -86,12 +86,9 @@ The `aubx-skills` wrapper **mechanically enforces** that skills write only to `~
 1. **Isolation**: Installer runs under a scratch `$HOME` (deleted on exit)
 2. **Auditing**: Compares filesystem state before/after the install
 3. **Link removal**: Automatically removes any links to harness directories:
-   - `~/.claude/skills/`
-   - `~/.codex/skills/`
-   - `~/.grok/skills/`
-   - `~/.cursor/skills/`
-   - `~/.config/opencode/skills/`
-   - `~/.gemini/skills/`
+   - `~/.codex/skills/` (the Codex desktop app, the one supported harness link)
+   - leftover `~/.claude/skills/`, `~/.grok/skills/`, `~/.cursor/skills/`,
+     `~/.config/opencode/skills/`, `~/.gemini/skills/` from removed harnesses
 4. **Tripwire**: If anything is written outside `available-skills`, exit status 3
 
 All skills operations (add, update, remove) via `aubx-skills` target `~/.agents/available-skills` exclusively.

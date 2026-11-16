@@ -16,7 +16,7 @@ from dataclasses import dataclass
 MAX_RULES = 3
 RETIRED_TOOLS = tuple(
     t.strip()
-    for t in os.environ.get("MEMORY_LEARN_RETIRED_TOOLS", "agentmux").split(",")
+    for t in os.environ.get("MEMORY_LEARN_RETIRED_TOOLS", "omp-board").split(",")
     if t.strip()
 )
 ELISION = re.compile(r"\.\.\.|…")
@@ -166,7 +166,7 @@ class FactCheck:
 def fact_check_prompt(rules: list[Rule]) -> str:
     listing = "\n".join(f"{n}. {r.content}" for n, r in enumerate(rules))
     return f"""Fact-check memory rules for AI coding agents against CURRENT official docs.
-Use WebSearch/WebFetch for every rule about a public tool, service, or API. Rules about a
+Use the available web search and fetch tools for every rule about a public tool, service, or API. Rules about a
 private codebase cannot be checked on the web: mark them "unverifiable".
 
 For each rule decide:

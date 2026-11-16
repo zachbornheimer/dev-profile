@@ -9,7 +9,7 @@ These rot. Re-verify before acting; each line says how. Repo HEAD was `9d1855e`;
   `scripts/audit-catalog.py`. Evidence: the scripts' last `hooks.log` lines are 2026-10-15/16 (11 named guards).
   Row name -> script that exists in `~/.agents/hooks/` (executable):
   pretooluse-two-strikes-gate, -gate-bypass-tripwire (x2 rows, one script), -layout-guard (x2 rows, one script),
-  -tip-verify-rm-deny, -process-kill-guard, -worktree-lifecycle-guard, -subagent-model-guard, -ghx-reminder,
+  -process-kill-guard, -worktree-lifecycle-guard, -subagent-model-guard, -ghx-reminder,
   posttooluse-bash-signature-record (`bash-signature-record.py`), posttooluse-edit-record (`edit-record.py`),
   posttooluse-agent-spawn-record (`agent-spawn-record.py`). `pretooluse-tool-steer` is superseded by the live
   `bash-tool-steer`. **No script exists** for output-budget, output-limit, wait-loop, repeat-command, python-editor.
@@ -32,32 +32,15 @@ These rot. Re-verify before acting; each line says how. Repo HEAD was `9d1855e`;
 
 - **Context cap panic**: `capped_context` in `src/adapters/claude.rs` slices the context at byte 10 000. A multibyte
   character on that boundary panics (exit 101). Reproduced with 9999 ASCII bytes plus `é`, on both the installed
-  binary and HEAD. Applies to Claude, Grok, OpenCode, Mastra, Copilot (Claude-adapter encode); Codex, Gemini,
-  Hermes are uncapped. The cap applies to the joined context of all hooks.
-- **Hermes selectors**: the installer writes `pre_verify`, `on_session_end`, `post_llm_call`, `agent_loop_stopped`,
-  but `normalize_event` (`src/events.rs`) lacks them, so those selectors warn "skipping unknown selector" and
-  `turn.stop`/`session.end` hooks never run on Hermes via the installed command. Also, hooks listing `session.start`
-  run on `pre_llm_call` only when selected by name or group, not through the generated `agent-hooks pre_llm_call`.
-- **Copilot**: in the installed binary a payload with neither `hook_event_name` nor `eventName` decodes as
-  `preToolUse`, so camelCase `sessionStart`, `postToolUse`, `userPromptSubmitted`, `agentStop` are unreliable; only
-  `preToolUse` and PascalCase `PreCompact` are known to work. HEAD adds `infer_native_event`, which maps a camelCase
-  payload carrying `trigger` plus `transcriptPath`/`customInstructions` to `preCompact`. Copilot deny is encoded flat,
-  and context/system messages are dropped on deny.
-- **Gemini**: the installer writes `PostCompact`, `PermissionRequest`, and `SubagentStart/Stop` entries Gemini does not
-  define; they are dead entries. Gemini also treats any non-JSON stdout as invalid output.
+  binary and HEAD. Applies to omp's shared adapter encode; Codex is uncapped.
+  The cap applies to the joined context of all hooks.
 - **Codex**: the encoder emits top-level `decision:"deny"|"ask"|"allow"` and, for Stop retry/halt, `deny` while
   dropping `stopReason`. Codex's published schemas accept `decision` as `approve`/`block` and Stop only as `block`
   [INFERENCE from upstream schema and `codex.rs`; not exercised against a live Codex], so Codex denies and Stop
   blocks may be rejected as invalid output.
 - **Signal-killed hooks**: a hook killed by a signal has no exit code, and the adapters treat that as 0, a silent pass
   even under `on_failure="block"`.
-- **`permission.request`**: encoded in the PreToolUse shape (`permissionDecision`); a native `decision.behavior`
-  reply is dropped. Verify against a live Claude before relying on it.
 - **Duplicate-name check is dead code**: `validate` can never see duplicates because assembly replaces them first.
-- **Stale installed binary**: `~/.cargo/bin/agent-hooks` writes Gemini `timeout` in seconds (not ms) and installs
-  no Copilot `PreCompact` or Gemini `PreCompress`. Rebuild with `cargo install --path ~/Developer/Personal/agent-hooks`.
-- **Docs drift**: `README.md` still says "Claude Code, Codex, and Gemini CLI"; `LAYOUT.md` omits the copilot and
-  hermes adapters; `SPEC.md` is a stub.
 
 ## TypeSafe hook plumbing (see `typesafe-batching.md`)
 

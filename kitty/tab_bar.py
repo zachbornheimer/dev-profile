@@ -25,7 +25,7 @@ from kitty.tab_bar import DrawData, ExtraData, TabBarData, apply_title_template,
 
 ICONS_CONF = Path(__file__).with_name("tab-icons.conf")
 
-AGENT_PROCESSES = frozenset({"grok", "claude", "codex", "nvim"})
+AGENT_PROCESSES = frozenset({"omp", "codex", "nvim"})
 TITLE_SEP = " - "
 ELLIPSIS = "…"
 MAX_SPINNER_LEN = 2

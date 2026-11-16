@@ -12,7 +12,7 @@ A chat prompt with `schema: {type: string}` is not a question. Neither is an ins
 
 ## Write the file
 
-Top-level map. No `questions:` wrapper. No `type:` key. Kind comes from the shape, the same way AgentMux `questionnaire.Load` reads a result struct.
+Top-level map. No `questions:` wrapper. No `type:` key. Kind comes from the shape, the same way a typed loader reads a result struct.
 
 ````yaml
 Ready: # result field. Letter first.

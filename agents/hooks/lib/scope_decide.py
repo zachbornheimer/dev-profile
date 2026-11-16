@@ -26,7 +26,11 @@ from typing import Any
 
 import yaml
 from completion_gate_session_state import ISO_SECONDS_CHARS, RejectLedger
-from completion_gate_transcript import read_recent_facts, read_transcript_facts
+from completion_gate_transcript import (
+    READ_ONLY_TOOLS,
+    read_recent_facts,
+    read_transcript_facts,
+)
 from completion_gate_transcript_events import command_of
 from hook_common import Clock, Decision, HookEvent, HookSettings, sha256_digest
 from scope_guard_rules import (
@@ -371,15 +375,9 @@ def _candidate(request: ScopeRequest) -> str:
     return _clip(f"{request.tool}: {command}", CANDIDATE_CHARS)
 
 
-# Tools that only look; like a read-only shell probe, they cannot act on the
-# world, so judging them costs a model call and risks denying a legitimate read.
-# Claude's names, omp's own, and the capability gateway's (prefix stripped).
-READ_ONLY_TOOLS = frozenset(
-    {"Read", "Grep", "Glob", "LS", "NotebookRead"}
-    | {"read", "grep", "glob", "find", "ast_grep"}
-    | {"bash_status", "wait"}
-)
-GATEWAY_PREFIX = re.compile(r"^mcp__capability_{1,2}agentmux_capability_")
+# Claude's names, omp's own, and the capability gateway's (prefix stripped) all count; the set itself lives in
+# completion_gate_transcript, which the Stop digest shares.
+GATEWAY_PREFIX = re.compile(r"^mcp__capability_{1,2}omp_capability_")
 
 
 def _is_read_only_tool(tool: str) -> bool:

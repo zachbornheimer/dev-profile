@@ -33,7 +33,5 @@ uv 0.12.24
 github:rohansx/workz 0.11.0
 tflint 0.64.0
 buf 1.73.0
-npm:@agentclientprotocol/codex-acp 2.1.1
-npm:@agentclientprotocol/claude-agent-acp 0.88.0
 PINS
 exit 0

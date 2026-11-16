@@ -1,4 +1,4 @@
-# Converted from /Users/zbornheimer/Developer/Personal/.worktrees/mastra-feat-mastra-reads-masters/mastra/src/agents/report-task/report-task.yaml by import_mastra.py.
+# Converted from mastra/src/agents/report-task/report-task.yaml by import_mastra.py.
 schema: agents/v1
 name: report-task
 description: Answers a question about a short text the caller gives it, such as reporting

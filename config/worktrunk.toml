@@ -8,7 +8,16 @@ worktree-path = "{{ repo_path }}/../.worktrees/{{ repo }}-{{ branch | sanitize }
 # per-session files); a worktree needs none of it. This file is merged over the
 # tracked ~/.config/worktrunk/config.toml on every bootstrap, so an exclude added
 # only to the live file is dropped fleet-wide (2026-11-10).
-exclude = [".venv/", "**/.venv/", "backups/", "**/backups/", "public/assets/", "**/public/assets/", "agents/hooks/state/", "**/agents/hooks/state/"]
+exclude = [
+  ".venv/",
+  "**/.venv/",
+  "backups/",
+  "**/backups/",
+  "public/assets/",
+  "**/public/assets/",
+  "agents/hooks/state/",
+  "**/agents/hooks/state/",
+]
 
 [commit.generation]
 command = "_llm"
@@ -157,6 +166,8 @@ if ! wt switch --create \"$id\" -x git -- stash pop \"$stash_ref\"; then
   exit \"$status\"
 fi
 {% endif %}"""
+# wt land pushes the branch and opens an auto-merging PR (wt pr-auto) in every repo. Only an explicit
+# --landing=merge runs a local wt merge. commit-unstaged below is explicit about merging and keeps that.
 land = """
 {% if not branch %}
 echo \"wt land: detached HEAD (a pull --rebase, rebase, or checkout of a commit is in progress); finish or abort it, or switch to a branch, then rerun. Nothing was committed.\" >&2
@@ -165,40 +176,10 @@ exit 1
 if ! git rev-parse --verify -q HEAD >/dev/null 2>&1; then
   exec wt step commit
 fi
-wt tree-for-changes -- wt land --landing=merge
-{% elif landing | default(\"\") == \"merge\" %}
-if ! git diff --quiet || ! git diff --cached --quiet; then
-  wt step commit --stage=tracked || exit 1
-fi
-untracked=$(git ls-files --others --exclude-standard)
-if [ -n \"$untracked\" ]; then
-  echo 'wt land: left these untracked files uncommitted (git add the ones you mean to keep):' >&2
-  echo \"$untracked\" >&2
-fi
-wt merge --stage=tracked
-{% elif landing | default(\"\") == \"pr\" %}
-if ! git diff --quiet || ! git diff --cached --quiet; then
-  wt step commit --stage=tracked || exit 1
-fi
-untracked=$(git ls-files --others --exclude-standard)
-if [ -n \"$untracked\" ]; then
-  echo 'wt land: left these untracked files uncommitted (git add the ones you mean to keep):' >&2
-  echo \"$untracked\" >&2
-fi
-wt pr-auto --stage=tracked
-{% elif landing | default(\"\") != \"\" %}
-echo \"wt land: --landing must be merge or pr\" >&2
+wt tree-for-changes -- wt land{% if landing | default(\"\") != \"\" %} --landing={{ landing }}{% endif %}
+{% elif landing | default(\"\") != \"\" and landing != \"merge\" and landing != \"pr\" and landing != \"pr-auto\" %}
+echo \"wt land: --landing must be pr, pr-auto, or merge\" >&2
 exit 1
-{% elif owner | default(\"\") | lower == \"zachbornheimer\" or \"github.com/zachbornheimer/\" in remote_url | default(\"\") | lower or \"github.com:zachbornheimer/\" in remote_url | default(\"\") | lower %}
-if ! git diff --quiet || ! git diff --cached --quiet; then
-  wt step commit --stage=tracked || exit 1
-fi
-untracked=$(git ls-files --others --exclude-standard)
-if [ -n \"$untracked\" ]; then
-  echo 'wt land: left these untracked files uncommitted (git add the ones you mean to keep):' >&2
-  echo \"$untracked\" >&2
-fi
-wt merge --stage=tracked
 {% else %}
 if ! git diff --quiet || ! git diff --cached --quiet; then
   wt step commit --stage=tracked || exit 1
@@ -208,13 +189,15 @@ if [ -n \"$untracked\" ]; then
   echo 'wt land: left these untracked files uncommitted (git add the ones you mean to keep):' >&2
   echo \"$untracked\" >&2
 fi
-wt pr-auto --stage=tracked
+{% if landing | default(\"\") == \"merge\" %}
+wt merge --stage=tracked
+{% elif landing | default(\"\") == \"pr\" %}
+wt pr
+{% else %}
+wt pr-auto
+{% endif %}
 {% endif %}"""
-commit-unstaged = """
-if ! git rev-parse --verify -q HEAD >/dev/null 2>&1; then
-  exec wt step commit
-fi
-wt tree-for-changes -- wt land --landing=merge"""
+commit-unstaged = "wt land --landing=merge"
 commit-fix = "~/.local/share/dev-profile/bin/dev-profile-commit-fix step commit {{ args }}"
 sync = """
 if [ -n \"{{ branch | default(\"\") }}\" ] && [ \"$(git branch --show-current)\" != \"{{ branch | default(\"\") }}\" ]; then

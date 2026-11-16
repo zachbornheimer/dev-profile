@@ -79,7 +79,7 @@ def test_port_decides_like_run_sh(hooks: HookRunner, case: FixtureCase) -> None:
 
 
 PAYLOAD_CASES: dict[str, dict] = {
-    "grok-camelcase-mkdir-work": {
+    "camelcase-mkdir-work": {
         "toolName": "run_terminal_command",
         "toolInput": {"command": "mkdir -p ~/work/x"},
     },
@@ -124,7 +124,7 @@ PAYLOAD_CASES: dict[str, dict] = {
     },
 }
 PAYLOAD_EXPECTED_DECISION: dict[str, str] = {
-    "grok-camelcase-mkdir-work": DENY,
+    "camelcase-mkdir-work": DENY,
     "unrelated-tool-silent": SILENT,
     "empty-command-silent": SILENT,
     "empty-stdin-silent": SILENT,

@@ -2038,28 +2038,6 @@
       ]
     },
     {
-      "full_name": "zachbornheimer/agentmux",
-      "description_current": null,
-      "description_proposed": "Local-first orchestrator that runs Grok/Claude Code/Codex CLIs in supervised tmux, with an optional multi-device control plane.",
-      "description_current_accurate": null,
-      "confidence": "high",
-      "language": "Go",
-      "pushed_at": "2026-09-23T15:46:42Z",
-      "archived": false,
-      "local_path": "/Users/zbornheimer/Developer/Personal/agentmux",
-      "keywords": [
-        "agentmux",
-        "orchestrator",
-        "tmux",
-        "grok",
-        "claude-code",
-        "codex",
-        "control-plane",
-        "job",
-        "handoff"
-      ]
-    },
-    {
       "full_name": "zachbornheimer/ai-articles",
       "description_current": "Self-describing archive of AI engineering articles (Anthropic blog, provenance-tracked Markdown)",
       "description_proposed": "Private provenance-tracked Markdown archive of AI engineering articles, starting with Anthropic's claude.com/blog.",

@@ -64,7 +64,7 @@ def detour(hooks: HookSession, transcript: Path) -> HookRun:
         event(
             "PreToolUse",
             transcript,
-            tool_name="mcp__capability_agentmux_capability_run_command",
+            tool_name="mcp__capability_omp_capability_run_command",
             tool_input={"command": DETOUR},
         ),
     )

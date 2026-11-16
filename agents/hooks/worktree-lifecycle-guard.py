@@ -9,7 +9,7 @@ Denies raw git that Worktrunk (`wt`) owns — staging, committing, creating,
 switching, merging, rebasing and removing branches/worktrees, plus `gh pr checkout` — and names
 the `wt` command to run instead. Rules live in lib/worktree_lifecycle_rules.py.
 
-Registered for Claude Code, Codex, Grok and OpenCode. Fails OPEN on parse
+Registered for Codex (Claude Code, Grok and OpenCode are removed and unsupported). Fails OPEN on parse
 errors or unexpected input, like every guard here.
 """
 
@@ -56,9 +56,9 @@ def decide(event: HookEvent) -> Decision | None:
     command = bash_command(event)
     if not command:
         return None
-    return check_bash_command(command, event.field("cwd", "cwd") or None) or Decision.no_objection(
-        "Bash:no-raw-lifecycle-git"
-    )
+    return check_bash_command(
+        command, event.field("cwd", "cwd") or None
+    ) or Decision.no_objection("Bash:no-raw-lifecycle-git")
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-# Converted from /Users/zbornheimer/Developer/Personal/.worktrees/mastra-feat-mastra-reads-masters/mastra/src/agents/execution-forensics/execution-forensics.yaml by import_mastra.py.
+# Converted from mastra/src/agents/execution-forensics/execution-forensics.yaml by import_mastra.py.
 schema: agents/v1
 name: execution-forensics
 description: 'Diagnoses one agent execution from its own records: reconstructs what
@@ -148,7 +148,7 @@ prompt: |
   - `grep`
   - `stat`
 
-  These reach any absolute path on this machine: this repository (relative paths), the harness transcript stores (for Claude Code `~/.claude/projects/<project>/<session>.jsonl`; others as the measurement names them), hook configs (`~/.config/agent-hooks/hooks.toml`, `~/.agents/hooks/`), skills (`~/.agents/available-skills/`), and other repositories under `~/Developer`. Read what the diagnosis needs; cite the path.
+  These reach any absolute path on this machine: this repository (relative paths), the harness transcript stores (omp's session store and `~/.codex/sessions`), hook configs (`~/.config/agent-hooks/hooks.toml`, `~/.agents/hooks/`), skills (`~/.agents/available-skills/`), and other repositories under `~/Developer`. Read what the diagnosis needs; cite the path.
 
   Other tools must be discovered through `search_tools`.
 
@@ -170,9 +170,9 @@ prompt: |
 
   When the request carries the execution's trace inline, that trace is the complete record. Do not run `recent-turns` or read the transcript again; call `run_command` only for a follow-up the trace cannot answer, such as a full tool result.
 
-  Otherwise, for an execution identifier such as `hermes:20261019_091318_31d5df`:
+  Otherwise, for an execution identifier such as `omp:01a1c0b2`:
 
-  Harnesses: `agentmux` `grok` `claude` `cursor` `codex` `hermes` `opencode` `copilot` `pi` `omp`.
+  Supported harnesses: `omp` and the Codex desktop app (`codex`).
 
   1. From `mastra/`, `aube run recent-turns -- <harness>:<id>` locates the execution and returns recent conversational context. It omits tool calls, results, reasoning, and usage. Read its `source.path` and `dropped` metadata.
   2. Use the source path with an authorized read-only command to retrieve the underlying tool calls, arguments, results, timestamps, and usage. This is the principal evidence for forensic reconstruction.

@@ -70,21 +70,34 @@ init_repo "${work}/personal-ssh" feature "git@github.com:zachbornheimer/example.
 init_repo "${work}/other" feature "https://github.com/ZAB-AI-LLC/example.git"
 init_repo "${work}/other-ssh" feature "git@github.com:ZAB-AI-LLC/example.git"
 
-has "default branch" "wt tree-for-changes -- wt land --landing=merge" "${work}/default" land
+has "default branch" "wt tree-for-changes -- wt land" "${work}/default" land
+lacks "default branch follow-up uses the default" "wt land --landing" "${work}/default" land
 lacks "default branch ignores --landing" "wt pr-auto" "${work}/default" land -- --landing=pr
 has "force merge" "wt merge" "${work}/other" land -- --landing=merge
 has "force merge skips a clean commit" "git diff --quiet" "${work}/other" land -- --landing=merge
 lacks "force merge" "wt pr-auto" "${work}/other" land -- --landing=merge
-has "force pr" "wt pr-auto" "${work}/personal" land -- --landing=pr
+has "force pr" "wt pr" "${work}/personal" land -- --landing=pr
+lacks "force pr skips auto-merge" "wt pr-auto" "${work}/personal" land -- --landing=pr
 lacks "force pr" "wt merge" "${work}/personal" land -- --landing=pr
-has "bad landing" "wt land: --landing must be merge or pr" "${work}/personal" land -- --landing=nope
-has "https personal" "wt merge" "${work}/personal" land
-lacks "https personal" "wt pr-auto" "${work}/personal" land
-has "ssh personal" "wt merge" "${work}/personal-ssh" land
+has "force pr-auto" "wt pr-auto" "${work}/personal" land -- --landing=pr-auto
+lacks "force pr-auto" "--landing must be" "${work}/personal" land -- --landing=pr-auto
+lacks "force pr-auto" "wt merge" "${work}/personal" land -- --landing=pr-auto
+has "bad landing" "wt land: --landing must be pr, pr-auto, or merge" "${work}/personal" land -- --landing=nope
+has "https personal defaults to pr-auto" "wt pr-auto" "${work}/personal" land
+lacks "https personal defaults to pr-auto" "wt merge" "${work}/personal" land
+has "ssh personal defaults to pr-auto" "wt pr-auto" "${work}/personal-ssh" land
+lacks "ssh personal defaults to pr-auto" "wt merge" "${work}/personal-ssh" land
+# pr-auto is an alias for `wt switch ... -x dev-profile-pr`; a flag like --stage is rejected by wt switch.
+lacks "pr-auto takes no flags" "wt pr-auto --" "${work}/personal" land
+lacks "pr-auto takes no flags (explicit)" "wt pr-auto --" "${work}/other" land -- --landing=pr-auto
+lacks "pr takes no flags" "wt pr --" "${work}/other" land -- --landing=pr
 has "https other" "wt pr-auto" "${work}/other" land
 lacks "https other" "wt merge" "${work}/other" land
 has "ssh other" "wt pr-auto" "${work}/other-ssh" land
-has "commit-unstaged" "wt tree-for-changes -- wt land --landing=merge" "${work}/other" commit-unstaged
+has "commit-unstaged shares land" "wt land --landing=merge" "${work}/other" commit-unstaged
+has "default branch preserves merge" "wt tree-for-changes -- wt land --landing=merge" "${work}/default" land -- --landing=merge
+has "default branch preserves pr" "wt tree-for-changes -- wt land --landing=pr" "${work}/default" land -- --landing=pr
+has "default branch preserves pr-auto" "wt tree-for-changes -- wt land --landing=pr-auto" "${work}/default" land -- --landing=pr-auto
 has "tree bare" 'wt switch --create "$id" -x git -- stash pop "$stash_ref"' "${work}/other" tree-for-changes
 lacks "tree bare" "--no-cd -x sh" "${work}/other" tree-for-changes
 has "tree follow-up" "--no-cd -x sh -- -c 'git stash pop \"\$1\" && shift && exec" "${work}/other" tree-for-changes -- wt land --landing=merge

@@ -110,7 +110,7 @@ def _write_adding_pragma_to_file(tmp: Path) -> dict[str, Any]:
     return _write(existing, PRAGMA_LINE_CONTENT)
 
 
-# Inputs the fixtures don't cover: the Write disk read, Grok field names,
+# Inputs the fixtures don't cover: the Write disk read, camelCase field names,
 # unparseable quoting (text layer alone), and silent paths.
 PayloadFactory = Callable[[Path], "dict[str, Any] | str"]
 PAYLOAD_CASES: dict[str, PayloadFactory] = {
@@ -119,7 +119,7 @@ PAYLOAD_CASES: dict[str, PayloadFactory] = {
     "write-new-file-with-pragma": lambda tmp: _write(
         tmp / "new.ts", PRAGMA_LINE_CONTENT
     ),
-    "grok-camelcase-force-push": lambda _tmp: {
+    "camelcase-force-push": lambda _tmp: {
         "toolName": "run_terminal_command",
         "toolInput": {"command": "git push -f origin main"},
     },
@@ -143,7 +143,7 @@ PAYLOAD_EXPECTED_DECISION: dict[str, str] = {
     "write-keeps-existing-pragma": SILENT,
     "write-adds-pragma-to-existing-file": DENY,
     "write-new-file-with-pragma": DENY,
-    "grok-camelcase-force-push": DENY,
+    "camelcase-force-push": DENY,
     "unmatched-quote-falls-back-to-text": DENY,
     "text-layer-short-n-across-and": DENY,
     "unrelated-tool-silent": SILENT,

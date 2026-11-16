@@ -4,8 +4,8 @@ Only what a tool actually returned counts as evidence: a tool call and its
 result, paired by id. A test result line that appears in a Read, in printed
 source code, or in the assistant's own prose is not a test run.
 
-Claude JSONL transcripts, omp session logs and Grok ``updates.jsonl`` update
-streams are read. Anything else, such as legacy plain-text fixtures, yields
+Claude JSONL transcripts (legacy) and omp session logs are read; omp is the
+supported format. Anything else, such as legacy plain-text fixtures, yields
 ``None``; callers keep their raw-text behavior for it. Only the log's tail is read, so a FAIL older than that no longer counts.
 """
 
@@ -19,7 +19,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from completion_gate_claude_transcript import claude_events
-from completion_gate_grok_transcript import grok_events, is_grok_update_stream
 from completion_gate_omp_transcript import (
     PROMPT_ATTRIBUTIONS,
     is_omp_session,
@@ -37,6 +36,13 @@ from omp_session_store import readable_transcript
 
 # ~0.5 s to decode under load; older test results than this are stale anyway.
 TRANSCRIPT_TAIL_BYTES = 8_000_000
+# Tools that only look: they cannot change the world. Claude's names and omp's own; a tool outside this set (a shell
+# call, an edit, anything unknown) counts as acting, so a turn is never called read-only on a guess.
+READ_ONLY_TOOLS = frozenset(
+    {"Read", "Grep", "Glob", "LS", "NotebookRead"}
+    | {"read", "grep", "glob", "find", "ast_grep"}
+    | {"bash_status", "wait"}
+)
 SHELL_TOOL = "Bash"
 SUBAGENT_TOOL = "Agent"
 TASK_NOTIFICATION_COMMAND = "task-notification"
@@ -163,8 +169,6 @@ def _decoder_for(
     log: Path, prompt_attributions: frozenset[str] = PROMPT_ATTRIBUTIONS
 ) -> Callable[[Iterable[str]], Iterator[TranscriptEvent]]:
     """The decoder for ``log``'s format, named by its head: the tail read drops the header."""
-    if is_grok_update_stream(log):
-        return grok_events
     if is_omp_session(log):
         return lambda lines: omp_events(lines, prompt_attributions)
     return claude_events

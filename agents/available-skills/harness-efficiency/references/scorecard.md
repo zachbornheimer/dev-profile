@@ -6,11 +6,8 @@ never loads JSONL into context.
 
 ## Agent choice
 
-- Claude JSONL (`harness: claude`): spawn `session-forensics`
-  (`~/.claude/agents/session-forensics.md`).
-- Grok / Codex / Cursor / others: spawn `explore` with this brief and stream
-  that harness's files from `path` on the `worst` row. Do not send those
-  transcripts to `session-forensics`.
+- Spawn `explore` with this brief and stream the Codex session file from `path`
+  on the `worst` row. Only Codex sessions are indexed; omp has no parser here.
 
 Write `$HE_STATE/forensics/<session_id>.md` (default
 `~/.local/state/harness-efficiency/forensics/`). Return the path plus a
@@ -18,8 +15,7 @@ one-paragraph verdict. Parent reads the report, never the JSONL.
 
 ## Eight sections
 
-Use the eight standard sections in `~/.claude/agents/session-forensics.md`
-("The eight standard sections"). Do not paste that agent file here.
+Use these eight standard sections:
 
 1. Task
 2. Time accounting

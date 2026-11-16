@@ -9,7 +9,7 @@ asking questions on already-authorized work).
 Input (stdin, JSON): session_id, transcript_path, last_assistant_message,
 turn_number, hook_event_name. Docs: https://code.claude.com/docs/en/hooks
 
-Order of checks, each able to end the decision: Grok's non-end-turn Stop,
+Order of checks, each able to end the decision: a non-end-turn Stop (a legacy Grok behavior; Grok is removed),
 re-entrancy, the turn budget, the per-turn loop guard, an exhausted /goal,
 then the message itself. TypeSafe judges the message (a deferred handoff,
 an unproven claim). When TypeSafe can't answer (no response, a non-200, garbage),

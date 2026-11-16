@@ -1,7 +1,7 @@
 ---
 name: ui-decompose
 description: Exhaustively decomposes a UI design source into an implementation-neutral, schema-validated specification, then requires fresh independent adversarial audits before emitting the final Markdown. Use before UI-kit mapping or implementation when omissions are unacceptable.
-compatibility: "Claude Code v2.1.196+; Python 3 with jsonschema; source-specific MCP/browser tools as required"
+compatibility: "omp or the Codex desktop app; Python 3 with jsonschema; source-specific MCP/browser tools as required"
 argument-hint: "<design implementation prompt, path, URL, or attachment>"
 disable-model-invocation: true
 ---
@@ -40,7 +40,7 @@ If the user explicitly requests another Markdown output path, honor it.
 
 Every decomposition, structural repair, correction, and adversarial review must use a **new non-fork** `Agent` invocation. Never resume a previous subagent and never provide parent-conversation conclusions.
 
-The delegation prompt must contain only the minimum artifact paths and contract files described below. Claude Code may still inject its standard non-fork subagent context (for example project `CLAUDE.md`); do not add conversation summaries or conclusions. Subagents must inspect the actual source themselves.
+The delegation prompt must contain only the minimum artifact paths and contract files described below. The harness may still inject its standard non-fork subagent context (for example project `AGENTS.md`); do not add conversation summaries or conclusions. Subagents must inspect the actual source themselves.
 
 Do not set this coordinator skill to `context: fork`; the main session must coordinate several sequential independent subagents.
 

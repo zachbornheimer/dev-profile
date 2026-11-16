@@ -1,4 +1,4 @@
-"""One hook invocation's stdin payload, in Claude Code or Grok shape."""
+"""One hook invocation's stdin payload, in snake_case or camelCase shape (the removed Claude Code and Grok shapes)."""
 
 from __future__ import annotations
 
@@ -10,12 +10,12 @@ from typing import Any
 
 RUN_COMMAND_TOOL = re.compile(r"^mcp__[\w-]*run_command$")
 
-# Grok tool names normalized to Claude Code's, so one `match` serves both.
+# camelCase-payload tool names normalized to the snake_case names, so one `match` serves both.
 TOOL_NAME_ALIASES = {
     # run_command is the only shell runner the instructions allow, so the
     # prefix harnesses use for the capability must normalize like Bash.
-    "mcp__capability__agentmux_capability_run_command": "Bash",
-    "agentmux_capability_run_command": "Bash",
+    "mcp__capability__omp_capability_run_command": "Bash",
+    "omp_capability_run_command": "Bash",
     "run_terminal_command": "Bash",
     "search_replace": "Edit",
     "write": "Write",
@@ -85,7 +85,7 @@ class HookEvent:
         name = self.field("tool_name", "toolName")
         if name in TOOL_NAME_ALIASES:
             return TOOL_NAME_ALIASES[name]
-        # Every MCP server's run_command (omp: mcp__capability_agentmux_capability_run_command,
+        # Every MCP server's run_command (omp: mcp__capability_omp_capability_run_command,
         # mcp__capability_always_on_…; ZYS-1758) is a shell runner too.
         return "Bash" if RUN_COMMAND_TOOL.match(name) else name
 
@@ -107,7 +107,7 @@ class HookEvent:
     def subagent_type(self) -> str:
         """``.tool_input.subagent_type // .toolInput.subagentType``.
 
-        Grok renames the key as well as the section, so tool_input(name)
+        A camelCase payload renames the key as well as the section, so tool_input(name)
         alone misses it.
         """
         return self.tool_input("subagent_type") or as_text(

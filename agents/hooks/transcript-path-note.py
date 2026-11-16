@@ -5,7 +5,7 @@
 # ///
 """UserPromptSubmit — surface the session transcript path so a compaction never
 orphans the agent from its own history. The omp bridge adds transcript_path to
-UserPromptSubmit payloads; Claude Code payloads carry it natively. One line per
+UserPromptSubmit payloads. One line per
 prompt: a compaction summary does not say where the full pre-compaction history
 lives, and sessions have spent dozens of commands rediscovering it. Never
 blocks. Fails open on any error (via run_hook).

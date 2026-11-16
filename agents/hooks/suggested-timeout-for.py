@@ -129,17 +129,23 @@ def observe_hook_speed(
         str(timed),
     ]
     child_env = dict(env)
-    # Time the Claude path: a Grok session would make quality-guard-run defer.
-    child_env.pop("GROK_SESSION_ID", None)
+    # Time the hook in isolation: the child must not inherit this session's id.
+    child_env.pop("PI_SESSION_ID", None)
     child_env.pop("QUALITY_GUARD_SOURCE", None)
     child_env["HC_STATE_DIR_OVERRIDE"] = str(scratch / "hook-state")
     (scratch / "hook-state").mkdir()
     done = subprocess.run(argv, env=child_env, check=False)
     if done.returncode != 0 or not export_file.is_file():
-        raise RuntimeError(f"hyperfine exited {done.returncode} without a JSON export for {hook}")
+        raise RuntimeError(
+            f"hyperfine exited {done.returncode} without a JSON export for {hook}"
+        )
     result = json.loads(export_file.read_text())
     results = result.get("results")
-    if not isinstance(results, list) or len(results) != 1 or not isinstance(results[0], dict):
+    if (
+        not isinstance(results, list)
+        or len(results) != 1
+        or not isinstance(results[0], dict)
+    ):
         raise ValueError("hyperfine JSON must contain exactly one results object")
     command = (str(hook), *hook_args)
     observation = observation_from_hyperfine(
@@ -153,7 +159,9 @@ def observe_hook_speed(
     return decide_timeout(observation)
 
 
-def suggested_timeout_for(argv: Sequence[str], env: Mapping[str, str]) -> list[dict[str, object]]:
+def suggested_timeout_for(
+    argv: Sequence[str], env: Mapping[str, str]
+) -> list[dict[str, object]]:
     """Product operation: observe hyperfine logs, decide p95, return JSON list."""
     args = parse_args(argv)
     hook = args.hook.expanduser()
@@ -177,7 +185,9 @@ def suggested_timeout_for(argv: Sequence[str], env: Mapping[str, str]) -> list[d
 
 def main(argv: Sequence[str] | None = None) -> int:
     try:
-        payload = suggested_timeout_for(argv if argv is not None else sys.argv[1:], os.environ)
+        payload = suggested_timeout_for(
+            argv if argv is not None else sys.argv[1:], os.environ
+        )
     except argparse.ArgumentError as exc:
         print(exc, file=sys.stderr)
         return 2

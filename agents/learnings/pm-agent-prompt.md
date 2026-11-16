@@ -29,12 +29,12 @@ The user operates multiple isolated Linear accounts (at minimum: **Personal** an
 
 1. **Map affected repositories to the required Linear account class:**
 
-   | Target Path / Scope                                                           | Required Linear Account Class                                                                                        |
-   | ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-   | `~/Developer/Personal/*` (`mastra`, `agentmux`, `atask`, `dev-profile`, etc.) | **Personal**                                                                                                         |
-   | `~/.agents/*`, `~/.config/agent-hooks/*`, `~/.claude/*`, `~/.omp/*`           | **Personal**                                                                                                         |
-   | `~/Developer/Software-Automation-Holdings/*` or `~/Dropbox/Zysys/Software/*`  | **Work / SAH**                                                                                                       |
-   | Mixed Personal + Work findings in one session                                 | Keep only reusable Personal tooling/harness defects for Personal Linear; split or ask before filing Work repo issues |
+   | Target Path / Scope                                                                               | Required Linear Account Class                                                                                        |
+   | ------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+   | `~/Developer/Personal/*` (`mastra`, `omp`, `atask`, `dev-profile`, etc.) | **Personal**                                                                                                         |
+   | `~/.agents/*`, `~/.config/agent-hooks/*`, `~/.claude/*`, `~/.omp/*`                               | **Personal**                                                                                                         |
+   | `~/Developer/Software-Automation-Holdings/*` or `~/Dropbox/Zysys/Software/*`                      | **Work / SAH**                                                                                                       |
+   | Mixed Personal + Work findings in one session                                                     | Keep only reusable Personal tooling/harness defects for Personal Linear; split or ask before filing Work repo issues |
 
 2. **Probe the connected Linear MCP live (never trust memory or hardcode IDs):**
    - If Linear tools are not immediately visible, run `tool_search` with `{"query": "linear issues projects teams"}`.
@@ -43,7 +43,7 @@ The user operates multiple isolated Linear accounts (at minimum: **Personal** an
    - Record the workspace slug from returned URLs (`https://linear.app/<workspace-slug>/...`).
 
 3. **Verify account match or stop:**
-   - Confirm that the connected workspace's teams and projects match the expected account class (e.g., **Linear Personal** for `mastra`, `agentmux`, `dev-profile`, or harness tooling).
+   - Confirm that the connected workspace's teams and projects match the expected account class (e.g., **Linear Personal** for `mastra`, `omp`, `dev-profile`, or harness tooling).
    - If the connected MCP points to Work/SAH when the targets are in `~/Developer/Personal/*` (or vice versa), **STOP** before creating or updating any issue. Report the connected workspace identity vs. the required account class and ask the user to switch Linear auth or confirm the target workspace.
    - **GraphQL API Fallback (only when MCP is down/unmounted):** Use `curl` via `run_command` against `https://api.linear.app/graphql`. Before any mutation, query `{ viewer { name email organization { name urlKey } } teams { nodes { id key name } } }` to verify the API key's workspace `urlKey` matches the required account class. Never write Personal issues using a Work/SAH API key.
 
@@ -137,7 +137,7 @@ Follow the Linear Method: **write issues, not user stories**, use **imperative e
 
 ### When to use a Single Issue vs. Parent + Child Sub-Issues:
 
-- **Single Atomic Issue:** The root cause is resolved by a coherent change in **one repository** under **one invariant** verified by **one** **`RED -> GREEN`** **check** (e.g., documenting and enforcing `wait_seconds <= 25` on `agentmux_capability_bash` in `mastra`).
+- **Single Atomic Issue:** The root cause is resolved by a coherent change in **one repository** under **one invariant** verified by **one** **`RED -> GREEN`** **check** (e.g., documenting and enforcing `wait_seconds <= 25` on `omp_capability_bash` in `mastra`).
 - **Parent + Atomic Child Sub-Issues (`parentId`):** Use whenever a forensic causal chain requires:
   - Changes across **multiple repositories** (e.g., `mastra` + `~/.agents/hooks`), **OR**
   - Multiple distinct **layers** (`tool-wiring` + `harness-hook` + `instructions`), **OR**
@@ -162,9 +162,9 @@ Follow the Linear Method: **write issues, not user stories**, use **imperative e
 - **Imperative, outcome-shaped end-state** scannable on a board without opening the issue.
 - Never write user stories ("As an agent, I want…") and never use vague theme titles ("Architecture", "Fix bash timeout", "Hook improvements", "Investigate nudge").
 - Good examples:
-  - `Cap agentmux_capability_bash wait_seconds at 25 in schema and return poll remedy on validation error`
+  - `Cap omp_capability_bash wait_seconds at 25 in schema and return poll remedy on validation error`
   - `Stop omp continuation nudge from triggering tool execution after advisory-only replies`
-  - `[Experiment] Compare always-on run_command injection vs. PreToolUse Bash-denial steer on claude-code sessions`
+  - `[Experiment] Compare always-on run_command injection vs. PreToolUse Bash-denial steer on claude-code sessions` (historical ticket title; Claude Code is removed)
 
 ### Noise Stripping Rules
 
@@ -266,7 +266,7 @@ Strip the following from all ticket bodies before filing:
 
 ```bash
 # Run or register the Mastra experiment / evaluation slice:
-<exact command or agentmux_capability_create_experiment invocation>
+<exact command or omp_capability_create_experiment invocation>
 ```
 ````
 

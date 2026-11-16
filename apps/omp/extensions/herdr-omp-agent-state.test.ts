@@ -110,6 +110,18 @@ test("leaves every other source to Herdr's built-in omp resume", () => {
   expect(extension.resumeArgvForSource("herdr:omp", SESSION_ID)).toBeUndefined();
 });
 
+// Herdr's built-in restore runs `omp --resume <reported path>` on the machine
+// whose Herdr owns the pane. The alias maps this machine's path to the shared
+// store's key (the Mac's /Users path), which omp on the box cannot open, so only
+// a pane forwarded to the Mac's Herdr may report the storage key.
+test("reports the path this machine resumes, the storage key only when forwarded", () => {
+  const alias = "/home/zbornheimer=/Users/zbornheimer";
+  const storageKey = SESSION_PATH.replace("/home/zbornheimer", "/Users/zbornheimer");
+  expect(extension.reportedSessionPath("herdr:omp", SESSION_PATH, alias)).toBe(SESSION_PATH);
+  expect(extension.reportedSessionPath(FORWARDED_SOURCE, SESSION_PATH, alias)).toBe(storageKey);
+  expect(extension.reportedSessionPath(FORWARDED_SOURCE, SESSION_PATH, undefined)).toBe(SESSION_PATH);
+});
+
 afterAll(async () => {
   server.close();
   await rm(dir, { recursive: true, force: true });

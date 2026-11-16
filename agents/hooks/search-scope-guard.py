@@ -73,7 +73,7 @@ PATTERN_FIRST_COMMANDS = {"fd", "rg", "ag", "ack"}
 PATH_ONLY_COMMANDS = {"du", "tree"}
 SCOPE_COMMANDS = PATTERN_FIRST_COMMANDS | PATH_ONLY_COMMANDS | {"ls"}
 # Harness search tools whose arguments name a root. Lowercase is what omp and
-# Grok emit; hook_common does not alias these, so raw_tool_name is the key.
+# omp emits; hook_common does not alias these, so raw_tool_name is the key.
 SEARCH_TOOL_NAMES = frozenset({"Glob", "Grep", "glob", "grep"})
 GLOB_META_RE = re.compile(r"[*?\[{]")
 

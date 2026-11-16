@@ -5,8 +5,8 @@ what the worker needs; do not recopy into every trivial one-shot.
 
 ## Code approval brief (implement / code-edit orders)
 
-Point them at skill `code-style` + `references/approval-dossier.md` and require
-they load it before editing, or paste:
+Point them at skill `code-style` (+ `references/function-design.md` for function
+work) and require they load it before editing, or paste:
 
 ```text
 Write code Zach would approve.

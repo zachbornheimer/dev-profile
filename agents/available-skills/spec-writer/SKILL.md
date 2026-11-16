@@ -29,7 +29,7 @@ Then the user can say `/speckit.socratic.interview`. That command calls these sa
 ## Loop
 
 1. **Start.** Call `interview` with `{ idea: <the user's words, verbatim>, cwd: <current working directory> }`. If the user names a repo or atask project, pass `project`. When `cwd` is `~` or outside git, the work is greenfield. Inside a repo, it is brownfield and the repo becomes context.
-2. **Ask.** Show `question` through the harness's own ask tool when it has one (omp `ask`, Claude Code `AskUserQuestion`), as free text. Otherwise ask it in plain chat. Each turn, add one short line: `round N · ambiguity 0.xx (<milestone>)`. Scoring starts after round 3. Don't answer for the user, and don't stack questions.
+2. **Ask.** Show `question` through the harness's own ask tool when it has one (omp `ask`), as free text. Otherwise ask it in plain chat. Each turn, add one short line: `round N · ambiguity 0.xx (<milestone>)`. Scoring starts after round 3. Don't answer for the user, and don't stack questions.
 3. **Continue.** Call `interview` with `{ session_id, answer: <the user's reply, verbatim> }`. Repeat steps 2 and 3 until `status` is `ready`.
    - If the user says "just write it" or "skip", go to step 4 with `force: true`. The spec then records `gate_forced`.
    - To resume later, call `interview` with the stored `session_id` and the answer to its pending question.

@@ -65,7 +65,9 @@ MAIN_FENCE_RE = re.compile(r"```yaml\s*\n(.*?)```", re.DOTALL)
 PATCH_FENCE_RE = re.compile(r"```work_order_patch\s*\n(.*?)```", re.DOTALL)
 
 TURN_CAP_PROSE_RE = re.compile(r"turn cap:\s*(\d+)", re.IGNORECASE)
-TOKEN_BUDGET_PROSE_RE = re.compile(r"token budget:\s*~?\s*(\d+(?:\.\d+)?)\s*(k)?", re.IGNORECASE)
+TOKEN_BUDGET_PROSE_RE = re.compile(
+    r"token budget:\s*~?\s*(\d+(?:\.\d+)?)\s*(k)?", re.IGNORECASE
+)
 
 # Implement workers already have the compiled order plus the code-approval
 # brief. Path-reading these skills every spawn was 145+102 sessions in the
@@ -159,7 +161,9 @@ def _parse_yaml_order(text: str) -> tuple[dict | None, list[dict]]:
     except yaml.YAMLError as exc:
         return None, [_err("/work_order", "yaml_parse_error", str(exc))]
     if not isinstance(parsed, dict):
-        return None, [_err("/work_order", "type", "fenced block did not parse to a YAML mapping")]
+        return None, [
+            _err("/work_order", "type", "fenced block did not parse to a YAML mapping")
+        ]
     return parsed, []
 
 
@@ -181,7 +185,9 @@ def _apply_patch(order: dict, patch_text: str) -> tuple[dict | None, list[dict]]
     except jsonpatch.JsonPatchException as exc:
         return None, [_err("/work_order_patch", "patch_apply_error", str(exc))]
     if not isinstance(patched, dict):
-        return None, [_err("/work_order_patch", "type", "patched result is not a JSON object")]
+        return None, [
+            _err("/work_order_patch", "type", "patched result is not a JSON object")
+        ]
     return patched, []
 
 
@@ -190,7 +196,9 @@ def _validate_against_schema(order: dict) -> list[dict]:
         schema = json.load(fh)
     validator = Draft202012Validator(schema)
     errors = []
-    for error in sorted(validator.iter_errors(order), key=lambda e: list(e.absolute_path)):
+    for error in sorted(
+        validator.iter_errors(order), key=lambda e: list(e.absolute_path)
+    ):
         path = "/" + "/".join(str(part) for part in error.absolute_path)
         errors.append(_err(path, error.validator, error.message))
     return errors
@@ -246,7 +254,9 @@ def _main_repo_root(resolved: str) -> str | None:
     toplevel = _git_output(check_dir, "rev-parse", "--show-toplevel")
     if not toplevel:
         return None
-    common_dir = _git_output(check_dir, "rev-parse", "--path-format=absolute", "--git-common-dir")
+    common_dir = _git_output(
+        check_dir, "rev-parse", "--path-format=absolute", "--git-common-dir"
+    )
     if common_dir and os.path.basename(common_dir) == ".git":
         return os.path.dirname(common_dir)
     return toplevel
@@ -265,10 +275,11 @@ def _is_exempt_target(raw_path: str, cwd: str, scratchpad_dir: str) -> bool:
 
 def _target_repo(order: dict, cwd: str, scratchpad_dir: str) -> tuple[str, list[dict]]:
     """The one git repo an isolation:worktree spawn's non-exempt
-    primary_targets live in ("" when every target is exempt). The gate hands
-    it to worktree-provision.sh so the worktree follows the order's target,
-    not the session's cwd. Targets spanning repos cannot share one worktree."""
-    primary_targets = order.get("work_order", {}).get("scope", {}).get("primary_targets", [])
+    primary_targets live in ("" when every target is exempt).
+    Targets spanning repos cannot share one worktree."""
+    primary_targets = (
+        order.get("work_order", {}).get("scope", {}).get("primary_targets", [])
+    )
     repos: dict[str, str] = {}
     for target in primary_targets:
         if _is_exempt_target(target, cwd, scratchpad_dir):
@@ -290,8 +301,12 @@ def _target_repo(order: dict, cwd: str, scratchpad_dir: str) -> tuple[str, list[
     return next(iter(repos), ""), []
 
 
-def _check_path_policy(order: dict, cwd: str, scratchpad_dir: str, isolation: str) -> list[dict]:
-    primary_targets = order.get("work_order", {}).get("scope", {}).get("primary_targets", [])
+def _check_path_policy(
+    order: dict, cwd: str, scratchpad_dir: str, isolation: str
+) -> list[dict]:
+    primary_targets = (
+        order.get("work_order", {}).get("scope", {}).get("primary_targets", [])
+    )
     if not primary_targets:
         return []
     all_exempt = all(_is_exempt_target(t, cwd, scratchpad_dir) for t in primary_targets)
@@ -337,7 +352,11 @@ def _parse_prose_token_budget(prompt: str) -> int | None:
 
 
 def _compile_execution(call_params: dict, prompt: str, defaults: dict) -> dict:
-    turn_cap = call_params.get("turn_cap") or _parse_prose_turn_cap(prompt) or defaults["turn_cap"]
+    turn_cap = (
+        call_params.get("turn_cap")
+        or _parse_prose_turn_cap(prompt)
+        or defaults["turn_cap"]
+    )
     token_budget = (
         call_params.get("token_budget")
         or _parse_prose_token_budget(prompt)
@@ -375,7 +394,9 @@ def _write_entry_covers_skill(write_entry: str, suffix: str) -> bool:
 def _banned_skill_paths_to_drop(order: dict) -> list[str]:
     scope = (order.get("work_order") or {}).get("scope") or {}
     required = list(scope.get("required_inputs") or [])
-    writes = list(scope.get("allowed_writes") or []) + list(scope.get("primary_targets") or [])
+    writes = list(scope.get("allowed_writes") or []) + list(
+        scope.get("primary_targets") or []
+    )
     drop: list[str] = []
     for path in required:
         for suffix in BANNED_IMPLEMENT_SKILL_READS:
@@ -456,7 +477,11 @@ def compile_order() -> dict:
         return {
             "ok": False,
             "errors": [
-                _err("/", "missing_fence", "prompt has no leading ```yaml work_order block")
+                _err(
+                    "/",
+                    "missing_fence",
+                    "prompt has no leading ```yaml work_order block",
+                )
             ],
         }
 
@@ -478,7 +503,8 @@ def compile_order() -> dict:
 
     isolation = envelope.get("isolation") or ""
     # The isolation policy applies to any order with a declared write scope,
-    # not only Claude-typed edit spawns: Hermes delegate_task sends no
+    # not only typed edit spawns: a delegate_task-style spawn (Hermes, removed)
+    # sends no
     # subagent_type (so is_edit_type is always False there), yet its orders
     # carry allowed_writes and must not slip past the requirement.
     # Read-only orders (explore/reviewer) declare no allowed_writes and stay
@@ -486,7 +512,11 @@ def compile_order() -> dict:
     declares_write_scope = bool(
         order.get("work_order", {}).get("scope", {}).get("allowed_writes")
     )
-    if envelope.get("is_edit_type") or envelope.get("harness_worktree_isolation") or declares_write_scope:
+    if (
+        envelope.get("is_edit_type")
+        or envelope.get("harness_worktree_isolation")
+        or declares_write_scope
+    ):
         policy_errors = _check_path_policy(order, cwd, scratchpad_dir, isolation)
         if policy_errors:
             return {"ok": False, "errors": policy_errors}
@@ -502,7 +532,9 @@ def compile_order() -> dict:
     execution = _compile_execution(envelope, prompt, defaults)
     order_id = _order_id(order)
     compiled = _inject_compiled_header(prompt, order_id, execution)
-    compiled = _strip_banned_required_input_paths(compiled, _banned_skill_paths_to_drop(order))
+    compiled = _strip_banned_required_input_paths(
+        compiled, _banned_skill_paths_to_drop(order)
+    )
 
     return {
         "ok": True,
@@ -516,9 +548,9 @@ def compile_order() -> dict:
 
 
 def target_repo_of_envelope() -> dict:
-    """`target-repo` entry point, used by worktree-provision.sh: the repo an
-    envelope's order targets ("" when it has none or does not parse). The
-    gate already denied invalid and multi-repo orders, so no errors here."""
+    """`target-repo` entry point: the repo an envelope's order targets
+    ("" when it has none or does not parse). The gate already denied invalid
+    and multi-repo orders, so no errors here."""
     envelope = _read_envelope()
     prompt = envelope.get("prompt") or ""
     fence_text = _extract_fence(MAIN_FENCE_RE, prompt)
@@ -543,7 +575,10 @@ def main(argv: list[str]) -> int:
     if argv[:1] == ["lint-schema"]:
         target = Path(argv[1]) if len(argv) > 1 else SCHEMA_PATH
         errors = lint_schema_no_duplicate_keys(target)
-        result = {"ok": not errors, "errors": [_err("$schema", "duplicate_key", e) for e in errors]}
+        result = {
+            "ok": not errors,
+            "errors": [_err("$schema", "duplicate_key", e) for e in errors],
+        }
         print(json.dumps(result))
         return 0
     # default: compile

@@ -21,7 +21,7 @@ skill implements then lands.
 (`workspace_for` / `mcp_server_for`). `ZYS` → personal / `linear-personal`.
 `SAH` → work / `linear-sah`. Unknown prefix is an error, not a personal default.
 
-Work `SAH-` from this Grok session: if the `linear-sah` MCP is missing, do not
+Work `SAH-` from this omp session: if the `linear-sah` MCP is missing, do not
 pretend to land — report the blocker. Prefix routing still works in tests.
 
 ## Spine

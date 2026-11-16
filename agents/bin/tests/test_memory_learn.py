@@ -1,4 +1,4 @@
-"""memory-learn: transcript -> _llm -> cm add, with an idempotent ledger."""
+"""memory-learn: transcript -> omp -> cm add, with an idempotent ledger."""
 
 from __future__ import annotations
 
@@ -43,13 +43,14 @@ class FakeShell:
         self.capability_calls: list = []
 
     def run(self, args, *, stdin: str = "", timeout: float = 0) -> str:
-        self.calls.append((list(args), stdin))
-        if args[0] == "claude":
-            return json.dumps({"is_error": False, "result": self.facts})
-        if args[0] == "_llm":
-            return (
-                self.verdicts if "review proposed memory rules" in stdin else self.reply
-            )
+        prompt = args[-1] if args[0] == "omp" else stdin
+        self.calls.append((list(args), prompt))
+        if args[0] == "omp":
+            if "review proposed memory rules" in prompt:
+                return self.verdicts
+            if "<session>" in prompt:
+                return self.reply
+            return self.facts
         if args[:3] == ["cm", "onboard", "prompt"]:
             return "INSTRUCTIONS"
         if args[:2] == ["cm", "add"]:
@@ -75,9 +76,12 @@ class FakeShell:
         }
 
 
-def _session(tmp_path: Path, agent: str = "claude_code") -> ml.Session:
+def _session(tmp_path: Path, agent: str = "codex") -> ml.Session:
     """A session whose recorded file holds LONG_TRANSCRIPT, the evidence source."""
-    path = tmp_path / "s.jsonl"
+    path = (
+        tmp_path
+        / "rollout-2026-10-20T16-32-42-01a15b04-2a3d-76b1-9ff5-32475fedae21.jsonl"
+    )
     path.write_text(LONG_TRANSCRIPT)
     return ml.Session(str(path), agent, 123)
 
@@ -99,14 +103,14 @@ def test_one_judge_call_covers_every_session_in_a_batch(tmp_path, monkeypatch) -
     monkeypatch.setattr(ml, "LEDGER", tmp_path / "l.json")
     paths = []
     for name in ("a", "b"):
-        path = tmp_path / f"{name}.jsonl"
+        path = tmp_path / f"rollout-{name}-01a15b04-2a3d-76b1-9ff5-32475fedae21.jsonl"
         path.write_text(LONG_TRANSCRIPT)
         paths.append(str(path))
     verdicts = '[{"index": 0, "keep": true, "reason": "x"}, {"index": 1, "keep": true, "reason": "y"}]'
     shell = FakeShell(verdicts=verdicts)
     assert ml.main(paths, shell=shell) == 0
     judge_calls = [
-        c for c in shell.calls if c[0][0] == "_llm" and "review proposed" in c[1]
+        c for c in shell.calls if c[0][0] == "omp" and "review proposed" in c[1]
     ]
     assert len(judge_calls) == 1
     assert sum(1 for args, _ in shell.calls if args[:2] == ["cm", "add"]) == 2
@@ -146,11 +150,6 @@ def test_parse_rules_rejects_reply_without_array() -> None:
         rule_quality.parse_rules("I could not find anything")
 
 
-def test_grok_reads_chat_history_beside_indexed_updates() -> None:
-    session = ml.Session("/x/.grok/sessions/w/id/updates.jsonl", "grok")
-    assert sessions.reader_ref(session) == "/x/.grok/sessions/w/id/chat_history.jsonl"
-
-
 def test_learn_adds_rules_then_ledger_skips_same_size(tmp_path) -> None:
     shell, ledger, session = (
         FakeShell(),
@@ -187,60 +186,24 @@ def test_short_transcript_is_skipped_without_model_call(tmp_path) -> None:
     assert _learn(
         shell, ml.Ledger(tmp_path / "l.json"), _session(tmp_path), "I", dry_run=False
     ).startswith("skip")
-    assert not any(args[0] == "_llm" for args, _ in shell.calls)
+    assert not any(args[0] == "omp" for args, _ in shell.calls)
 
 
 def test_bad_model_reply_fails_the_run(tmp_path, monkeypatch, capsys) -> None:
     monkeypatch.setattr(ml, "LEDGER", tmp_path / "l.json")
-    path = tmp_path / "s.jsonl"
+    path = tmp_path / "rollout-x-01a15b04-2a3d-76b1-9ff5-32475fedae21.jsonl"
     path.write_text("{}")
     assert ml.main([str(path)], shell=FakeShell(reply="nope")) == 1
     assert "FAILED" in capsys.readouterr().err
-
-
-def test_cursor_transcripts_newer_than_cutoff_are_found(tmp_path) -> None:
-    old = tmp_path / "p1" / "agent-transcripts" / "a" / "a.jsonl"
-    new = tmp_path / "p2" / "agent-transcripts" / "b" / "b.jsonl"
-    for f, mtime in ((old, 1_000), (new, 9_000)):
-        f.parent.mkdir(parents=True)
-        f.write_text("{}")
-        os.utime(f, (mtime, mtime))
-    found = ml.recent_cursor_sessions(tmp_path, cutoff=5_000)
-    assert [s.path for s in found] == [str(new)]
-    assert found[0].agent == "cursor"
-
-
-def test_since_cutoff_handles_relative_days_and_hours() -> None:
-    assert ml.since_cutoff("-2d", now=200_000) == 200_000 - 2 * 86_400
-    assert ml.since_cutoff("-6h", now=200_000) == 200_000 - 6 * 3_600
-
-
-def test_cursor_path_maps_to_cursor_reader() -> None:
-    assert (
-        ml.session_for_path("/u/.cursor/projects/x/agent-transcripts/i/i.jsonl").agent
-        == "cursor"
-    )
 
 
 @pytest.mark.parametrize(
     ("agent", "path", "ref"),
     [
         (
-            "claude_code",
-            "/u/.claude/projects/-p/6b255199-3c25-46a2-9ed2-1968057f7a0e.jsonl",
-            "claude:6b255199-3c25-46a2-9ed2-1968057f7a0e",
-        ),
-        ("grok", "/u/.grok/sessions/%2Fw/01a1/updates.jsonl", "grok:01a1"),
-        ("grok", "/u/.grok/sessions/%2Fw/01a1/chat_history.jsonl", "grok:01a1"),
-        (
             "codex",
             "/u/.codex/sessions/2026/10/20/rollout-2026-10-20T16-32-42-01a15b04-2a3d-76b1-9ff5-32475fedae21.jsonl",
             "codex:01a15b04-2a3d-76b1-9ff5-32475fedae21",
-        ),
-        (
-            "cursor",
-            "/u/.cursor/projects/x/agent-transcripts/d772/d772.jsonl",
-            "cursor:d772",
         ),
     ],
 )
@@ -263,7 +226,11 @@ def test_render_turns_labels_speakers_and_drops_harness_system_text() -> None:
                 "messages": [
                     {"from": "user", "timestamp": None, "content": "fix it"},
                     {"from": "agent", "timestamp": "t", "content": "done"},
-                    {"from": "system", "timestamp": None, "content": "Stop hook feedback: x"},
+                    {
+                        "from": "system",
+                        "timestamp": None,
+                        "content": "Stop hook feedback: x",
+                    },
                 ],
             }
         ]
@@ -279,13 +246,13 @@ def test_transcript_text_asks_for_the_newest_turns_within_the_char_cap(
     text = sessions.transcript_text(shell, _session(tmp_path))
     tool, arguments = shell.capability_calls[0]
     assert tool == "run_get_recent_turns"
-    assert arguments["conversation"].startswith("claude:")
+    assert arguments["conversation"].startswith("codex:")
     assert arguments["max_tokens"] == 25
     assert arguments["length_limit"] == sessions.MESSAGE_CHARS
     assert len(text) == 100 and text.endswith("ASSISTANT: newest\n\n")
 
 
-FAKE_MCP_SERVER = '''#!/usr/bin/env python3
+FAKE_MCP_SERVER = """#!/usr/bin/env python3
 import json, sys
 if sys.argv[1:] != ["mcp"]:
     sys.exit(2)
@@ -303,7 +270,7 @@ for line in sys.stdin:
         text = json.dumps({"echo": msg["params"]["arguments"], "pid": __import__("os").getpid()})
         result = {"content": [{"type": "text", "text": text}]}
     print(json.dumps({"jsonrpc": "2.0", "id": msg["id"], "result": result}), flush=True)
-'''
+"""
 
 
 def test_shell_capability_reuses_one_mcp_server_and_reports_tool_errors(
@@ -315,9 +282,9 @@ def test_shell_capability_reuses_one_mcp_server_and_reports_tool_errors(
     monkeypatch.setenv("PATH", f"{tmp_path}:{os.environ['PATH']}")
     shell = sessions.Shell()
     try:
-        first = shell.capability("run_get_recent_turns", {"conversation": "claude:a"})
-        second = shell.capability("run_get_recent_turns", {"conversation": "claude:b"})
-        assert first["echo"] == {"conversation": "claude:a"}
+        first = shell.capability("run_get_recent_turns", {"conversation": "codex:a"})
+        second = shell.capability("run_get_recent_turns", {"conversation": "codex:b"})
+        assert first["echo"] == {"conversation": "codex:a"}
         assert first["pid"] == second["pid"]
         with pytest.raises(RuntimeError, match="no transcript found"):
             shell.capability("run_get_recent_turns", {"fail": True})
@@ -330,7 +297,7 @@ def test_shell_capability_reuses_one_mcp_server_and_reports_tool_errors(
 
 def test_standing_instructions_skip_path_scoped_rules(tmp_path, monkeypatch) -> None:
     (tmp_path / "rules").mkdir()
-    (tmp_path / "CLAUDE.md").write_text("Never use *-LLC org names.")
+    (tmp_path / "AGENTS.md").write_text("Never use *-LLC org names.")
     (tmp_path / "rules" / "always.md").write_text("Edit the live path, then re-add.")
     (tmp_path / "rules" / "go.md").write_text(
         "---\npaths:\n  - '**/*.go'\n---\nGo rules"
@@ -375,7 +342,7 @@ def test_raw_session_text_includes_tool_output_unescaped(tmp_path) -> None:
             }
         )
     )
-    text = sessions.raw_session_text(ml.Session(str(raw), "claude_code"))
+    text = sessions.raw_session_text(ml.Session(str(raw), "codex"))
     assert "a config include must be a git:: URL" in text
 
 
@@ -409,7 +376,7 @@ def test_rules_parse_when_prose_with_brackets_precedes_the_array() -> None:
 def test_extraction_prompt_fences_transcript_and_ends_with_contract() -> None:
     shell = FakeShell()
     ml.extract_rules(shell, "INSTRUCTIONS", "USER: please answer me directly")
-    prompt = next(stdin for args, stdin in shell.calls if args[0] == "_llm")
+    prompt = next(stdin for args, stdin in shell.calls if args[0] == "omp")
     assert (
         prompt.index("<session>")
         < prompt.index("please answer me")

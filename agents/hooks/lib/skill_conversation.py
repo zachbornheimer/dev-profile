@@ -15,7 +15,7 @@ from typing import Any
 
 TIMEOUT_SECONDS = 0.25
 HISTORY_TURNS = 2
-HARNESSES = frozenset({"claude", "grok", "codex", "hermes"})
+HARNESSES = frozenset({"omp", "codex"})
 DEFAULT_HOME = Path.home() / "Developer/Personal/mastra"
 HOME_ENV = "TYPESAFE_CONTEXT_HOME"
 

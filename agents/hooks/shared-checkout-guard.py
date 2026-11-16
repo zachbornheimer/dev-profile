@@ -9,7 +9,7 @@
 # ~/Developer/.../isjac main checkout; lefthook's hide-unstaged step
 # reverted 78 uncommitted files. Subagents mutate git state ONLY inside a
 # worktree (~/Developer/<Org>/.worktrees/...) per the orchestrator contract
-# in ~/.claude/CLAUDE.md — they never touch a shared main checkout's git
+# in ~/.agents/AGENTS.md — they never touch a shared main checkout's git
 # state, because a main checkout's working tree is shared with whatever the
 # human (or another agent) is mid-edit on.
 #
@@ -93,7 +93,7 @@ def read_stdin_json() -> dict:
 
 
 def field(payload: dict, snake: str, camel: str):
-    """First non-empty of payload[snake] / payload[camel] — Grok camelCase
+    """First non-empty of payload[snake] / payload[camel] — camelCase
     compat, mirroring hook-common.sh's hc_field."""
     val = payload.get(snake)
     if val:
@@ -249,17 +249,11 @@ def invocation_is_mutating(tokens, git_index, subcmd) -> bool:
 
 
 def path_is_worktree_or_scratch(path: str) -> bool:
-    """True for a canonical <repo-parent>/.worktrees/... worktree (the
-    placement worktree-provision.sh uses for every repo, regardless of
-    where it's rooted), a per-repo Claude Code default worktree
-    (<repo>/.claude/worktrees/<name> — the placement Claude Code's
-    built-in flow would use absent a WorktreeCreate hook), or scratch
-    space."""
+    """True for a canonical <repo-parent>/.worktrees/... worktree or scratch space."""
     if not path:
         return False
     return (
         "/.worktrees/" in path
-        or "/.claude/worktrees/" in path
         or path.startswith(("/tmp/", "/private/tmp/"))
         or "/scratchpad/" in path
     )

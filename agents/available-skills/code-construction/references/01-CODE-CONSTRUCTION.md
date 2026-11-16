@@ -69,6 +69,11 @@ must remove a concept, duplicate rule, or unsafe state—not merely add a layer.
 Observation gathers all facts needed for one decision into a coherent domain
 value. It reports facts; it does not decide eligibility or desired action.
 
+Judge a function by its signature, not by purity: it is honest when it touches
+the outside world only through its arguments, so an in-place sort is honest and
+a clock read is not. A function that calls a dishonest one is dishonest, so
+keep effects at the outermost layer. Details and signature rules:
+`code-style` → `references/function-design.md`.
 Decision code accepts domain values and returns an explicit plan. It performs no
 network, filesystem, database, clock, random, logging, queue, retry, callback, or
 framework effects. Plans carry the primary decision, independent effects,

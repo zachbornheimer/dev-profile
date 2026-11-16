@@ -1,0 +1,12 @@
+# GitHub owners (users and orgs) whose repositories this profile treats as its own: it trusts
+# their mise config and applies its formatters and hooks to them. One lowercase login per
+# line; blank lines and # comments are ignored. A repository owned by anyone else keeps its
+# own conventions.
+#
+# bin/dev-profile-owners reads this file. DEV_PROFILE_OWNERS (a file path) replaces it, so a
+# profile built on this one lists its own owners without editing this file.
+zachbornheimer
+zysys
+software-automation-holdings
+software-automation-holdings-llc
+zab-ai-llc

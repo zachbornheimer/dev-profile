@@ -4,7 +4,7 @@ description: Use only when user explicitly asks for pre-commit or the repo alrea
 user-invokable: true
 disable-model-invocation: true
 argument-hint: "[path-to-repo]"
-allowed-tools: Bash Read Write Edit Glob Grep
+allowed-tools: mcp__capability__omp_capability_run_command Read Write Edit Glob Grep
 ---
 
 # Setup Pre-commit

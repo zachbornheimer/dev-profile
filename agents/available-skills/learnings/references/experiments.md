@@ -6,10 +6,10 @@ Nine local invocations: {'failed': 3, 'completed': 6}; completed windows cover 3
 | --------------------- | --------- | ----------------: | ---------------------: |
 | dev-profile-1         | failed    |                 0 |                   45.9 |
 | dev-profile-2         | completed |                 0 |                 22.849 |
-| agentmux-live-3       | completed |                 0 |                 24.572 |
+| omp-live-3       | completed |                 0 |                 24.572 |
 | zq-live-4             | completed |                 0 |                 53.766 |
-| agentmux-baseline-5   | completed |                 0 |                 13.553 |
-| agentmux-revised-6    | completed |                 3 |                 42.641 |
+| omp-baseline-5   | completed |                 0 |                 13.553 |
+| omp-revised-6    | completed |                 3 |                 42.641 |
 | dev-profile-revised-7 | failed    |                 0 |                 20.328 |
 | dev-profile-revised-8 | failed    |                 0 |                 18.804 |
 | dev-profile-bounded-9 | completed |                 0 |                 22.387 |
@@ -18,13 +18,13 @@ Nine local invocations: {'failed': 3, 'completed': 6}; completed windows cover 3
 
 Initial consolidation paraphrased events and mislabeled assistant behavior as user prompt style. A RED test proved assistant-only prompt-act evidence was accepted; the guard now requires human evidence. Consolidation instructions now distinguish reconstructed goals from accepted goals, request actionable lessons, and bound observation/quote lengths. Historical proof replays the saved prompt version, not the latest prompt.
 
-The revised AgentMux run produced three review candidates: user prompting act, task family, and a scoped lesson to confirm intended outcome before edits when implementation was withheld. Satisfaction and measured quality remain unknown. Thresholds were not lowered.
+The revised omp run produced three review candidates: user prompting act, task family, and a scoped lesson to confirm intended outcome before edits when implementation was withheld. Satisfaction and measured quality remain unknown. Thresholds were not lowered.
 
 Three failed runs were preserved: schema/JSON/output failures. The final bounded dev-profile rerun completed but all candidates remained below the gate. Model instructions are not guarantees; schema and quote checks fail closed.
 
-The initial AgentMux pruning run retained all 325 input characters and recorded 24.572 seconds across responses. Its no-pruning baseline also retained all 325 and recorded 13.553 seconds. These small windows do not demonstrate compression benefit. Revised extraction changed prompt/output budget, so it is not a controlled quality comparison.
+The initial omp pruning run retained all 325 input characters and recorded 24.572 seconds across responses. Its no-pruning baseline also retained all 325 and recorded 13.553 seconds. These small windows do not demonstrate compression benefit. Revised extraction changed prompt/output budget, so it is not a controlled quality comparison.
 
-All inference used local Ollama endpoints: Jev System One pruning/verification and GPT-OSS consolidation. No hosted fallback. The raw reports and requests/responses live under `~/.hermes/profiles/zach/cache/scratch/learnings/`; summary: `experiment-summary.json`.
+All inference used local Ollama endpoints: Jev System One pruning/verification and GPT-OSS consolidation. No hosted fallback. The raw reports and requests/responses were recorded under the removed Hermes profile cache (`~/.hermes/`, Hermes is removed and unsupported); summary: `experiment-summary.json`.
 
 This is a feasibility experiment, not a calibrated satisfaction model. More complete contextual windows and independent session-level labels are required before automatic rule promotion.
 
@@ -35,7 +35,7 @@ ratings independently of historical reports. Invalid schema/JSON or a length fin
 regenerates the whole response with bounded attempts and token growth. Nothing repairs
 or coerces evidence; the original quote/role and Jev gates still decide disposition.
 
-Actual serial local runs under `~/.hermes/profiles/zach/cache/scratch/learnings-fix/`:
+Actual serial local runs, recorded under the removed Hermes profile cache (Hermes is unsupported):
 
 | Run                         | Result                                    | Calls | Total recorded call seconds |
 | --------------------------- | ----------------------------------------- | ----: | --------------------------: |
@@ -60,8 +60,8 @@ This is one counterfactual, not a calibrated evaluation dataset.
 The real window retained all 807 characters; the counterfactual retained all 59.
 These tiny windows show no compression savings. Pruning cost remains visible.
 Current retry-sequence proof and counterfactual proof passed; historical default,
-dev-profile-bounded-9 and agentmux-revised-6 replay also passed without rewriting
-their artifacts. Reading the last historical fixture does not invoke AgentMux.
+dev-profile-bounded-9 and omp-revised-6 replay also passed without rewriting
+their artifacts. Reading the last historical fixture does not invoke omp.
 
 Regression first reproduced truncated JSON, oversized quotes, category-invalid
 ratings, ignored length termination and exhaustion; saved historical failures

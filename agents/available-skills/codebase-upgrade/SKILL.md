@@ -89,7 +89,15 @@ interface + real impl + fake/mock + lint rule + all call sites migrated. See
 Files over 500 lines → split by responsibility (types, service, repository,
 handler, helpers). Functions over 50 lines → extract named sub-functions.
 
-### 7. Test quality
+### 7. Function design
+
+Make hidden inputs explicit: a function that reads a global, the clock, or a
+RNG takes it as a parameter, and the caller seeds it at the top. Split bodies
+that mix abstraction levels (section comments are the tell) into one function
+per level. Replace hand-written algorithms with the standard library's.
+Rules and the outline method: `code-style` → `references/function-design.md`.
+
+### 8. Test quality
 
 Rename `TestSQLiteStore` → `TestEventStore_SavesAndRetrieves`. Add missing
 assertions. Replace direct system calls with fakes. Remove timing dependencies

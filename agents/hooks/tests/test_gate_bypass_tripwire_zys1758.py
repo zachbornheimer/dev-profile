@@ -174,13 +174,13 @@ def test_tripwire_bash_row_matches_run_command_aliases() -> None:
         for r in _hooks_toml()["hooks"]
         if r["name"] == "pretooluse-gate-bypass-tripwire"
     )
-    for alias in ("Bash", "agentmux_capability_run_command", "run_terminal_command"):
+    for alias in ("Bash", "omp_capability_run_command", "run_terminal_command"):
         assert alias in row["matcher"].split("|"), alias
 
 
 # --- omp: run_command arrives as `write xd://…run_command` or inside `eval` ----
 # The omp bridge passes the raw tool name. The ZYS-1758 push was
-#   write {path: "xd://mcp__capability_agentmux_capability_run_command",
+#   write {path: "xd://mcp__capability_omp_capability_run_command",
 #          content: "{\"command\":\"cd … && git push --no-verify origin main …\"}"}
 # and the f4bd6e86 commit was the same shape with `HK=0 git commit`.
 
@@ -188,7 +188,7 @@ import json as _json
 
 
 def _omp_run_command(
-    command: str, server: str = "mcp__capability_agentmux_capability_run_command"
+    command: str, server: str = "mcp__capability_omp_capability_run_command"
 ) -> dict[str, Any]:
     content = _json.dumps({"command": command, "purpose": "x", "timeout_seconds": 180})
     return {
@@ -204,7 +204,7 @@ def _omp_run_command(
 
 def _omp_eval(command: str) -> dict[str, Any]:
     call = _json.dumps({"command": command, "timeout_seconds": 120})
-    code = f"r=await tool.mcp__capability_agentmux_capability_run_command({call})\nprint(r)"
+    code = f"r=await tool.mcp__capability_omp_capability_run_command({call})\nprint(r)"
     return {
         "tool_name": "eval",
         "toolName": "eval",
@@ -222,7 +222,7 @@ OMP_CASES: dict[str, tuple[dict[str, Any], str]] = {
     "omp-always-on-hk0-commit": (
         _omp_run_command(
             "cd /Users/x/mastra && HK=0 git commit -m \"$(cat <<'EOF'\nfix: x\nEOF\n)\" -- a.ts",
-            server="mcp__capability_always_on_agentmux_capability_run_command",
+            server="mcp__capability_always_on_omp_capability_run_command",
         ),
         DENY,
     ),

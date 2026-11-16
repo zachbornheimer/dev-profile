@@ -37,7 +37,7 @@ The third argument is a glossary prompt: the tool and product names the video is
 
 A 45-minute video takes about 5 minutes on Apple Silicon.
 
-**Runner timeouts matter more than speed.** Background jobs often have a default deadline (omp `bash` backgrounded jobs cap at 300 s unless started with `nohup`). A killed run leaves a partial log and no output files. Give the job an explicit timeout of 3600 s. If the outputs are missing, look at the last timestamp in `whisper.log` before suspecting Whisper itself.
+**Runner timeouts matter more than speed.** Background jobs often have a default deadline (`run_command` background jobs stop at 600 s). A killed run leaves a partial log and no output files. Give the job an explicit timeout of 3600 s. If the outputs are missing, look at the last timestamp in `whisper.log` before suspecting Whisper itself.
 
 ## 2. Read the transcript and fix misheard terms against the screen
 

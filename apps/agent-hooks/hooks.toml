@@ -5,30 +5,16 @@ max_concurrency = 32
 default_timeout = "30s"
 
 [defaults]
-agents = ["claude", "codex", "gemini", "grok", "hermes", "copilot", "opencode", "mastra"]
+agents = ["codex", "mastra"]
 protocol = "native"
 shell = true
 timeout = "30s"
 
 [[hooks]]
 name = "elicitationresult-aoe-status-sh"
-events = ["ElicitationResult", "prompt.submit"]
+events = ["prompt.submit"]
 command = ["$HOME/.agents/hooks/aoe-status.sh running"]
 timeout = "2s"
-
-[[hooks]]
-name = "notification-aoe-status-sh"
-events = ["Notification"]
-command = ["$HOME/.agents/hooks/aoe-status.sh waiting"]
-timeout = "2s"
-matcher = "permission_prompt|elicitation_dialog|agent_needs_input"
-
-[[hooks]]
-name = "notification-aoe-status-sh-2"
-events = ["Notification"]
-command = ["$HOME/.agents/hooks/aoe-status.sh idle"]
-timeout = "2s"
-matcher = "idle_prompt|agent_completed"
 
 [[hooks]]
 name = "posttooluse-bash-signature-record"
@@ -77,21 +63,12 @@ name = "precompact-goals-note-compaction-py"
 events = ["context.compact.before"]
 command = ["$HOME/.agents/hooks/goals-note-compaction.py"]
 timeout = "15s"
-# No matcher: see precompact-agentmux. A "manual|auto" filter only ever excluded payloads with
-# no trigger value, i.e. it could only turn a compaction into a silent miss.
-
-[[hooks]]
-name = "precompact-agentmux"
-events = ["context.compact.before"]
-command = ["agentmux save-transcript --harness \"$AGENT_HOOKS_HARNESS\" --hook-payload"]
-timeout = "15s"
-# No matcher: agent-hooks tests `trigger` (Claude, Codex, Copilot, Gemini) or `source` (Grok)
-# and the OpenCode bridge sends neither, so "manual|auto" would silently skip OpenCode.
+# No matcher: the omp bridge sends neither `trigger` nor `source`, so "manual|auto" would silently skip omp.
 
 # Rewrites <state dir>/handoff/<harness>-<session id>.md from the session's transcript (mastra
 # create_session_handoff_doc, no model call) so the takeover doc matches the session as of its latest
 # compaction. ~11 s per run, concurrent with the other compaction hooks; a slow or failed render keeps
-# the previous doc. No matcher, for the reason given at precompact-agentmux.
+# the previous doc. No matcher, for the reason given at the other compaction hooks above.
 [[hooks]]
 name = "precompact-handoff-doc-refresh"
 events = ["context.compact.before"]
@@ -151,7 +128,7 @@ name = "pretooluse-main-branch-guard"
 events = ["tool.before"]
 command = ["$HOME/.agents/hooks/main-branch-guard.py"]
 timeout = "5s"
-matcher = "Write|write|Bash|bash|sh|zsh|shell|terminal|exec|run_terminal_cmd|run_terminal_command|mcp__capability__agentmux_capability_run_command|agentmux_capability_run_command|mcp__capability_agentmux_capability_run_command"
+matcher = "Write|write|Bash|bash|sh|zsh|shell|terminal|exec|run_terminal_cmd|run_terminal_command|mcp__capability__omp_capability_run_command|omp_capability_run_command|mcp__capability_omp_capability_run_command"
 on_failure = "block"
 
 # Raw `lavish-axi <file>.html` opens skip the preflight gate (at-51q2ph /
@@ -166,7 +143,7 @@ name = "pretooluse-lavish-preflight-steer"
 events = ["tool.before"]
 command = ["$HOME/.agents/hooks/lavish-preflight-steer.py"]
 timeout = "15s"
-matcher = "Bash|bash|sh|zsh|shell|terminal|exec|run_terminal_cmd|run_terminal_command|mcp__capability__agentmux_capability_run_command|agentmux_capability_run_command"
+matcher = "Bash|bash|sh|zsh|shell|terminal|exec|run_terminal_cmd|run_terminal_command|mcp__capability__omp_capability_run_command|omp_capability_run_command"
 on_failure = "block"
 
 # AGENTS.md's promotion gate says one entry per distinct mechanism. Nothing
@@ -205,7 +182,7 @@ events = ["tool.before"]
 # whose code can call run_command directly.
 command = ["$HOME/.agents/hooks/gate-bypass-tripwire.py"]
 timeout = "5s"
-matcher = "Bash|bash|sh|zsh|shell|terminal|exec|run_terminal_cmd|run_terminal_command|mcp__capability__agentmux_capability_run_command|agentmux_capability_run_command|eval|mcp__capability_agentmux_capability_run_command|mcp__capability_always_on_agentmux_capability_run_command|mcp__capability_agentmux__capability_run_command"
+matcher = "Bash|bash|sh|zsh|shell|terminal|exec|run_terminal_cmd|run_terminal_command|mcp__capability__omp_capability_run_command|omp_capability_run_command|eval|mcp__capability_omp_capability_run_command|mcp__capability_always_on_omp_capability_run_command|mcp__capability_omp__capability_run_command"
 on_failure = "block"
 
 [[hooks]]
@@ -235,7 +212,7 @@ name = "pretooluse-search-scope-guard"
 events = ["tool.before"]
 command = ["$HOME/.agents/hooks/search-scope-guard.py"]
 timeout = "5s"
-matcher = "Bash|Glob|Grep|glob|grep|mcp__capability__agentmux_capability_run_command|agentmux_capability_run_command"
+matcher = "Bash|Glob|Grep|glob|grep|mcp__capability__omp_capability_run_command|omp_capability_run_command"
 on_failure = "block"
 
 [[hooks]]
@@ -267,14 +244,6 @@ name = "pretooluse-shared-checkout-guard-py"
 events = ["tool.before"]
 command = ["$HOME/.agents/hooks/shared-checkout-guard.py"]
 timeout = "30s"
-matcher = "Bash"
-on_failure = "block"
-
-[[hooks]]
-name = "pretooluse-tip-verify-rm-deny"
-events = ["tool.before"]
-policy = "tip-verify-rm-deny"
-timeout = "5s"
 matcher = "Bash"
 on_failure = "block"
 
@@ -376,14 +345,6 @@ command = [
 timeout = "5s"
 
 [[hooks]]
-name = "stop-find"
-events = ["turn.stop"]
-command = [
-  "find -L $HOME/.claude/skills \\( -name \"*.py\" -o -name \"*.sh\" \\) -newer /tmp/.claude_lint_sentinel 2>/dev/null | grep -q . && { touch /tmp/.claude_lint_sentinel; (cd $HOME/.claude && mise run lint || true); }; touch /tmp/.claude_lint_sentinel",
-]
-timeout = "15s"
-
-[[hooks]]
 name = "stop-completion-gate-py"
 events = ["turn.stop"]
 command = ["$HOME/.agents/hooks/completion-gate.py"]
@@ -408,7 +369,7 @@ timeout = "15s"
 
 [[hooks]]
 name = "stop-aoe-status-sh"
-events = ["turn.stop", "StopFailure", "session.end"]
+events = ["turn.stop", "session.end"]
 command = ["$HOME/.agents/hooks/aoe-status.sh idle"]
 timeout = "2s"
 
@@ -417,19 +378,6 @@ name = "subagentstop-work-order-verify-py"
 events = ["subagent.stop"]
 command = ["$HOME/.agents/hooks/work-order-verify.py"]
 timeout = "300s"
-
-[[hooks]]
-name = "worktreecreate-worktree-provision-py"
-events = ["worktree.create"]
-command = ["$HOME/.agents/hooks/worktree-provision.py"]
-timeout = "300s"
-provides = ["worktree_path"]
-
-[[hooks]]
-name = "worktreeremove-wt-step-prune"
-events = ["worktree.remove"]
-command = ["wt step prune --yes --min-age=0s"]
-timeout = "15s"
 
 [[hooks]]
 name = "sessionstart-atask-contract"
@@ -452,33 +400,12 @@ command = ["atask context --hook --changed"]
 timeout = "5s"
 
 # Compaction destroys the record of where the full session history lives; this one line keeps the raw
-# JSONL path in reach on every prompt (the omp bridge and Claude Code both carry transcript_path).
+# JSONL path in reach on every prompt (the omp bridge carries transcript_path).
 [[hooks]]
 name = "promptsubmit-transcript-path"
 events = ["prompt.submit"]
 command = ["$HOME/.agents/hooks/transcript-path-note.py"]
 timeout = "5s"
-
-[[hooks]]
-name = "hindsight-claude-sessionstart"
-events = ["session.start"]
-agents = ["claude"]
-command = ['exec "$HOME/.agents/hooks/hindsight-hook.sh" claude-sessionstart-hook.js']
-timeout = "30s"
-
-[[hooks]]
-name = "hindsight-claude-prompt"
-events = ["prompt.submit"]
-agents = ["claude"]
-command = ['exec "$HOME/.agents/hooks/hindsight-hook.sh" claude-hook.js']
-timeout = "30s"
-
-[[hooks]]
-name = "hindsight-claude-stop"
-events = ["turn.stop"]
-agents = ["claude"]
-command = ['exec "$HOME/.agents/hooks/hindsight-hook.sh" claude-stop-hook.js']
-timeout = "60s"
 
 [[hooks]]
 name = "hindsight-codex-sessionstart"
@@ -501,27 +428,6 @@ agents = ["codex"]
 command = ['exec node "$HOME/.hindsight/coding-agents/dist/codex-stop-hook.js"']
 timeout = "60s"
 
-[[hooks]]
-name = "hindsight-grok-sessionstart"
-events = ["session.start"]
-agents = ["grok"]
-command = ['exec node "$HOME/.hindsight/coding-agents/dist/grok-sessionstart-hook.js"']
-timeout = "30s"
-
-[[hooks]]
-name = "hindsight-grok-prompt"
-events = ["prompt.submit", "tool.after"]
-agents = ["grok"]
-command = ['exec node "$HOME/.hindsight/coding-agents/dist/grok-hook.js"']
-timeout = "30s"
-
-[[hooks]]
-name = "hindsight-grok-stop"
-events = ["turn.stop"]
-agents = ["grok"]
-command = ['exec node "$HOME/.hindsight/coding-agents/dist/grok-stop-hook.js"']
-timeout = "60s"
-
 # One prompt-submit batch answers frustration, dictation (for prompts of at least 500 characters), and skill/tool fit.
 # The final hook forwards those answers to their consumers and keeps its capability XML last.
 [[hooks]]
@@ -534,16 +440,10 @@ timeout = "45s"
 # that gets the agent back to a working command runner.
 [[hooks]]
 name = "permissiondenied-shell-denial-steer-py"
-events = ["PermissionDenied", "PostToolUseFailure"]
+events = ["PostToolUseFailure"]
 command = ["$HOME/.agents/hooks/shell-denial-steer.py"]
 timeout = "5s"
 matcher = "Bash|sh|zsh|exec|shell|terminal|run_terminal_command"
-
-[[hooks]]
-name = "stop-agentmux-board-wake"
-events = ["turn.stop", "session.start"]
-command = ["$HOME/.agents/hooks/board-wake.sh"]
-timeout = "75s"
 
 # Weekly quota at <= 10% left -> one detached `capability run quota-burn-review` per
 # provider:account:limit:reset window (ledger: ~/.agents/learnings/quota-reviews.jsonl).

@@ -55,7 +55,10 @@ Do not invent a testing-practices-level marker.
    evidence.
 6. **Prevent the class where you can** — a facade/abstraction that makes the misuse
    impossible, a stronger type that makes the bad state unrepresentable, or a
-   lint/scan rule that fails the pattern in CI. State what class is now prevented,
+   lint/scan rule that fails the pattern in CI. Making the function honest is one
+   such fix: a function that took a hidden global, clock, or RNG takes it as a
+   parameter, and its tests pass a fixed seed or a fake clock
+   (`code-style` → `references/function-design.md`). State what class is now prevented,
    or why it can't be.
 
 ## What to add on any change

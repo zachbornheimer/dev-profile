@@ -1,6 +1,6 @@
 ---
 name: assume-session
-description: Use whenever a prompt contains a session ref (grok|claude|codex|copilot|pi|omp|cursor|opencode|hermes:<id>, a bare id with a harness named, or `<harness>:latest`) or a Mastra thread URL — to fetch, read, analyze, review, summarize, or debug that session's transcript BY ID (read-only lookup, the default), or to take the session over and continue its work (`--then continue|confirm`). Also the entry for "analyze/look at/what happened in session omp:01a1…", "why did that session fail", "find out what session X did". Resolves the id through the capability tools (`get_recent_turns`, `create_session_handoff_doc`); never hand-grep session directories.
+description: Use whenever a prompt contains a session ref (omp:<id>, codex:<id>, a bare id with a harness named, or `<harness>:latest`) or a Mastra thread URL — to fetch, read, analyze, review, summarize, or debug that session's transcript BY ID (read-only lookup, the default), or to take the session over and continue its work (`--then continue|confirm`). Only omp and the Codex desktop app are supported; refs for removed harnesses (grok, claude, copilot, pi, cursor, opencode, hermes) resolve only to transcripts they already left behind. Also the entry for "analyze/look at/what happened in session omp:01a1…", "why did that session fail", "find out what session X did". Resolves the id through the capability tools (`get_recent_turns`, `create_session_handoff_doc`); never hand-grep session directories.
 user-invokable: true
 argument-hint: "<tool>:<session-id> | <mastra-thread-url>  [--then continue|confirm]   (omit --then to only read/analyze)"
 ---
@@ -43,7 +43,6 @@ are `capability/run_<name>`.
 | Per-turn cost, waste, corrections, tokens                              | `get_transcript` `{sources: ["<ref>"], annotate: true}`, then read the `path` it returns (`annotation` on each line)  |
 | Adversarial review: what the session wasted, how to do better          | `extract_hypotheses` `{sources: ["<ref>"]}`                                                                           |
 | Turn a bad session into filed fixes                                    | `learn_from_transcript` `{source: "<ref>"}` (only when asked; it files tickets)                                       |
-| Claude session's native transcript path, jobId or pid                  | the `find-session` skill                                                                                              |
 
 Report what the transcript shows with turn numbers or verbatim quotes, and mark
 inference as inference. An ambiguous prefix or title is refused with candidates:
@@ -86,23 +85,16 @@ to actually do the work.
 
 ```text
 /assume-session omp:01a1c0b2-1775-76e8-adc1-ab04fb9d04f4            # lookup: read/analyze only
-/assume-session claude:663aeacb why did it stall?                    # lookup with a question
-/assume-session claude:663aeacb-9509-4229-8c87-c248defeac34 --then confirm
-/assume-session grok:01a020ee-d80c-7540-a2fe-a4a518d46c2e --then continue
+/assume-session omp:01a1c0b2 why did it stall?                       # lookup with a question
 /assume-session codex:able-efgh-1234 --then confirm
-/assume-session copilot:014575b7-cc61-4292-84cb-7d26fcc29d2f --then confirm
-/assume-session pi:<id> --then continue
 /assume-session omp:<id> --then continue
-/assume-session grok:latest --then confirm
-/assume-session cursor:DevOps conformance rollout review --then confirm
-/assume-session claude:663aeacb --then confirm
+/assume-session omp:latest --then confirm
 /assume-session https://stable.mastra.localhost/agents/code-improver/threads/a3927124-9c47-4d02-b417-133c06c71385 --then confirm
 ```
 
 Two reference forms:
 
-- `<harness>:<id>` — harness is one of `grok`, `claude`, `codex`, `copilot`, `pi`,
-  `omp` (also `cursor`, `opencode`, `hermes`).
+- `<harness>:<id>` — harness is `omp` or `codex`, the only supported harnesses. The capability can still resolve old transcripts left by removed harnesses (`grok`, `claude`, `copilot`, `pi`, `cursor`, `opencode`, `hermes`); that is legacy read-only lookup, not support.
 - A Mastra chat-thread URL, `https://<host>/agents/<agentId>/threads/<threadId>`
   (the capability reads it as `mastra:thread:<threadId>`).
 
@@ -407,8 +399,8 @@ None.
 ## Gotchas
 
 - **The capability is the locator now.** `run_get_recent_turns` and
-  `run_create_session_handoff_doc` find the session themselves for grok, claude,
-  codex, copilot, pi, omp, cursor, opencode, hermes. A bare id or a malformed URL is
+  `run_create_session_handoff_doc` find the session themselves for omp and codex (and, as legacy read-only lookup of old transcripts, grok, claude,
+  copilot, pi, cursor, opencode, hermes). A bare id or a malformed URL is
   refused with the accepted forms; relay it, do not retry another shape.
 - **Mastra thread URLs** (`https://<host>/agents/<agentId>/threads/<threadId>`)
   are read from the shared Mastra store (the Neon `mastra` database). The store is

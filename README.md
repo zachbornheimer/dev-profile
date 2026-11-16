@@ -4,6 +4,10 @@ The files in this repo are the source. mise dot apply links them into place. The
 
 Pins are in languages/<lang>/tools.toml, one file per language, merged by profile/mise.toml through `include`. Hook steps are in hk/hk.pkl. CI installs the pins and runs mise run test.
 
+## Supported agent harnesses
+
+Only omp and the Codex desktop app are supported. Claude Code, the Codex CLI, Grok Build, OpenCode, Hermes, Gemini CLI, Copilot CLI, Cursor, pi and every other agent tool have been removed: no hook, skill, config, package pin or script here is maintained for them. A mention of one of them in this repo is a removal note or legacy data (old session transcripts the tools still read), and is never extended. Add support for another harness only on request.
+
 ## Adopt it
 
 Clone this repo anywhere. The path does not matter: after the first apply the profile finds itself from where `~/.config/mise/conf.d/dev-profile` links.
@@ -28,6 +32,11 @@ mise dot apply
 
 `mise run test:adoption` proves all of this with the real mise in a scratch HOME. The shell file linked at ~/.local/share/dev-profile/shell.zsh is what a new shell should source.
 
+## Make it yours
+
+- **Owners.** `config/owners` lists the GitHub logins whose repositories the profile treats as its own (trusted mise config, its formatters and hooks apply). Set `DEV_PROFILE_OWNERS` to another file to replace the list without editing a script. `mise run test:owners` covers it.
+- **Agent stack.** `mise run setup:personal` adds the author's upstream skills and omp setup on top of `setup`. A plain `mise run setup` skips both.
+
 Licensed under the MIT License (see `LICENSE`).
 
 Login zsh loads the `org.zysys.op-service-account` Keychain entry for the current
@@ -38,7 +47,7 @@ an interactive terminal and never runs for a no-TTY `zsh -lic` command.
 
 ## What stays out of this public repo
 
-SSH private keys, home/ssh/config, known_hosts, the opencode password, and agents/hooks/state are gitignored. A clone does not restore them. Automatic pull of tracked files needs a private origin. This repo is not that origin.
+SSH private keys, home/ssh/config, known_hosts, and agents/hooks/state are gitignored. A clone does not restore them. Automatic pull of tracked files needs a private origin. This repo is not that origin.
 
 ## Self-saving dotfiles (`mise dot`) and protections
 

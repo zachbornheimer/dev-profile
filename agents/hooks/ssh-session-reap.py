@@ -34,7 +34,7 @@ from ssh_session_reap_process import ProcessKiller, ProcessTable
 from ssh_session_reap_targets import ANCESTOR_WALK_DEFAULT, select_reap_targets
 
 HOOK_NAME = "ssh-session-reap"
-# Session ids from hook stdin are UUIDs / grok ids. Shorter tokens are too
+# Session ids from hook stdin are UUIDs or omp ids. Shorter tokens are too
 # easy to substring-match in an unrelated command line.
 MIN_SESSION_ID_CHARS = 8
 UNMATCHABLE_SESSION_ID = re.compile(r"[^A-Za-z0-9._-]")
@@ -61,7 +61,9 @@ def main() -> None:
     if event is None:
         return
 
-    session_id = event.field("session_id", "sessionId") or os.environ.get("GROK_SESSION_ID", "")
+    session_id = event.field("session_id", "sessionId") or os.environ.get(
+        "PI_SESSION_ID", ""
+    )
     if not session_id:
         return
     if UNMATCHABLE_SESSION_ID.search(session_id):
@@ -75,7 +77,9 @@ def main() -> None:
     if not table:
         return
 
-    targets = select_reap_targets(table, session_id, _self_pids(), ANCESTOR_WALK_DEFAULT)
+    targets = select_reap_targets(
+        table, session_id, _self_pids(), ANCESTOR_WALK_DEFAULT
+    )
     killer = ProcessKiller(os.environ.get("SSH_REAP_KILL_FILE"))
     for pid in targets:
         killer.terminate(int(pid))

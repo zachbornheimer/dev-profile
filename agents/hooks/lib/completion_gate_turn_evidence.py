@@ -12,7 +12,13 @@ from collections import Counter
 from typing import Any
 
 from completion_gate_evidence import EvidenceClaim
-from completion_gate_transcript import SHELL_TOOL, HistoryTurn, ToolRun, TranscriptFacts
+from completion_gate_transcript import (
+    READ_ONLY_TOOLS,
+    SHELL_TOOL,
+    HistoryTurn,
+    ToolRun,
+    TranscriptFacts,
+)
 
 # Guard against absurd input (pasted dumps); sized from measured lengths so normal turns are never cut (replies p99 ≈ 5.8k, prompts p95 ≈ 9.7k).
 TEXT_SAFETY_CHARS = 10_000
@@ -52,12 +58,27 @@ def _evidence_block_status(claim: EvidenceClaim) -> dict[str, Any]:
     }
 
 
+def acting_tools(runs: tuple[ToolRun, ...]) -> list[str]:
+    """Distinct tools this turn that could change the world, in first-use order.
+
+    Anything outside READ_ONLY_TOOLS counts, shell calls included: a turn is called read-only only when every
+    tool it used only looks, never on a guess about what a command did.
+    """
+    return list(
+        dict.fromkeys(run.tool for run in runs if run.tool not in READ_ONLY_TOOLS)
+    )
+
+
 def build_digest(facts: TranscriptFacts | None, claim: EvidenceClaim) -> dict[str, Any]:
     runs = facts.turn_runs if facts is not None else ()
+    acting = acting_tools(runs)
     commands = [run for run in runs if run.tool == SHELL_TOOL]
     reports = [run for run in runs if run.tool in SUBAGENT_TOOLS]
     return {
         "transcript_readable": facts is not None,
+        # A turn with no acting tool can still be a pure answer or review; the judge must not read it as stalled work.
+        "turn_type": "acted" if acting else "read_only",
+        "acting_tools_this_turn": acting,
         "tool_counts_this_turn": dict(Counter(run.tool for run in runs)),
         "commands_this_turn": [
             _command_entry(run) for run in commands[-COMMANDS_KEPT:]

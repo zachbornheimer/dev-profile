@@ -171,7 +171,7 @@ def _device_args(content: Any) -> Any:
 
 
 def _canonical_tool(name: str) -> str:
-    """omp's tool spelling in the Claude Code names the gate's rules match on."""
+    """omp's tool spelling in the legacy Claude Code names (a removed harness) the gate's rules match on."""
     if name in SHELL_TOOL_NAMES or RUN_COMMAND_TOOL.match(name):
         return "Bash"
     return TOOL_NAME_ALIASES.get(name, name)

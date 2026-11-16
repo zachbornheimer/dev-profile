@@ -30,12 +30,12 @@ ALIASES: dict[str, str] = {
     "mastra_workspace_grep": "grep",
     "mastra_workspace_file_stat": "stat",
     "mastra_workspace_mkdir": "mkdir",
-    "agentmux_capability_": "",
+    "omp_capability_": "",
 }
 
 # A tool name this importer cannot place: it stays in the prompt, and the run
 # prints it so a human maps it rather than guessing.
-UNKNOWN_TOOL = re.compile(r"\b(mastra_[a-z_]+|agentmux_[a-z_]+)\b")
+UNKNOWN_TOOL = re.compile(r"\b(mastra_[a-z_]+|omp_[a-z_]+)\b")
 
 ALWAYS = ["read", "write", "edit", "glob", "grep", "list", "stat"]
 SEARCHABLE = [

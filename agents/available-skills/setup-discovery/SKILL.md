@@ -49,6 +49,6 @@ not evidence that it wrote where you wanted.
 - Treat the tool's success output as proof of confinement. Snapshot the write
   roots before and after and diff them.
 - Assume a symlink means escape, or a missing escape. Resolve the path and
-  compare inodes: a write reached through `~/.grok/skills` may land inside
+  compare inodes: a write reached through a skills symlink may land inside
   `~/.agents/available-skills` and be perfectly correct.
 - Hand-edit a lock file or generated tree to make a check pass.

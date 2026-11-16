@@ -1,8 +1,8 @@
 # within — run a command under a deadline.
 #
 #   within 1s -- true
-#   within 30s -- grok --single 'Respond with exactly pong' --output-format json
-#   within 30s -- 'grok --single "Respond with exactly pong" --output-format json | jq -e ".text == \"pong\""'
+#   within 30s -- curl -fsS https://example.com
+#   within 30s -- 'curl -fsS https://example.com | grep -q Example'
 #
 # Units: d, h, m (minutes), s, ms. A pipe is shell syntax, so a pipeline has
 # to be one quoted argument — the shell binds `|` before within runs.

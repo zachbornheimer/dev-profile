@@ -148,58 +148,6 @@ args = ["mcp", "gateway", "run", "--profile", "zach"]
 [mcp_servers.MCP_DOCKER.env]
 DOCKER_HOST = "unix:///Users/zbornheimer/.docker/run/docker.sock"
 
-[mcp_servers.agentmux]
-command = "agentmux"
-args = ["mcp", "--harness", "codex"]
-
-[mcp_servers.agentmux.tools.agentmux_board_focus]
-approval_mode = "approve"
-
-[mcp_servers.agentmux.tools.agentmux_board_post]
-approval_mode = "approve"
-
-[mcp_servers.agentmux.tools.agentmux_board_read]
-approval_mode = "approve"
-
-[mcp_servers.agentmux.tools.agentmux_board_subscribe]
-approval_mode = "approve"
-
-[mcp_servers.agentmux.tools.agentmux_board_unsubscribe]
-approval_mode = "approve"
-
-[mcp_servers.agentmux.tools.agentmux_goals]
-approval_mode = "approve"
-
-[mcp_servers.agentmux.tools.agentmux_inbox_ack]
-approval_mode = "approve"
-
-[mcp_servers.agentmux.tools.agentmux_inbox_read]
-approval_mode = "approve"
-
-[mcp_servers.agentmux.tools.agentmux_list_agents]
-approval_mode = "approve"
-
-[mcp_servers.agentmux.tools.agentmux_progress]
-approval_mode = "approve"
-
-[mcp_servers.agentmux.tools.agentmux_run]
-approval_mode = "approve"
-
-[mcp_servers.agentmux.tools.agentmux_send_to_agent]
-approval_mode = "approve"
-
-[mcp_servers.agentmux.tools.agentmux_session]
-approval_mode = "approve"
-
-[mcp_servers.agentmux.tools.agentmux_session_overview]
-approval_mode = "approve"
-
-[mcp_servers.agentmux.tools.list_agents]
-approval_mode = "approve"
-
-[mcp_servers.agentmux.tools.send_to_agent]
-approval_mode = "approve"
-
 [mcp_servers.node_repl]
 command = "/Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node_repl"
 startup_timeout_sec = 120.0
@@ -283,9 +231,6 @@ trust_level = "trusted"
 trust_level = "trusted"
 
 [projects."/Users/zbornheimer/Developer/Software-Automation-Holdings/infra"]
-trust_level = "trusted"
-
-[projects."/Users/zbornheimer/Developer/Personal/capability-replicas"]
 trust_level = "trusted"
 
 [projects."/Users/zbornheimer/Developer/Personal/cli-proxy-multi"]

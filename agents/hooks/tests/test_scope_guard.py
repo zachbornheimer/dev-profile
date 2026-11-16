@@ -363,7 +363,7 @@ def test_a_probe_shape_that_writes_still_reaches_the_judge(state: HookSession) -
 
 @pytest.mark.parametrize(
     "tool",
-    ["read", "mcp__capability_agentmux_capability_grep"],
+    ["read", "mcp__capability_omp_capability_grep"],
     ids=["omp-read", "gateway-grep"],
 )
 def test_a_read_only_tool_is_allowed_without_the_judge(

@@ -2,13 +2,11 @@
 name: agent-hooks
 description: >-
   Operate the agent-hooks system (~/Developer/Personal/agent-hooks): a Rhai handler pipeline whose live
-  deployment (~/.config/agent-hooks/pipeline) runs guards and gates for the harnesses installed on this
-  machine — omp (through the generated extension) and Claude Code — and can install into Codex, Gemini,
-  Grok, Hermes, Copilot, OpenCode or Mastra if one returns. Use it to pick the event an intent belongs on
+  deployment (~/.config/agent-hooks/pipeline) runs guards and gates for the only supported harnesses:
+  omp (through the generated extension) and the Codex desktop app. Use it to pick the event an intent belongs on
   (behavior from user input -> prompt.submit; may the turn stop -> turn.stop; allow/deny/rewrite a tool
   call -> tool.before; react to a tool result -> tool.after; session setup -> session.start; survive
-  compaction -> context.compact.before; verify a subagent -> subagent.stop; worktree lifecycle ->
-  worktree.create/remove), and whenever the user adds, edits, tests,
+  compaction -> context.compact.before), and whenever the user adds, edits, tests,
   deploys, or debugs a hook, guard, or gate: a PreToolUse deny/ask, scope guard, edit/tool steer,
   PostToolUse record, Stop completion gate, UserPromptSubmit or SessionStart context, PreCompact;
   Rhai handlers under pipeline/handlers; fixtures under pipeline/tests; question YAML under
@@ -50,18 +48,16 @@ Two layers, one repo (`~/Developer/Personal/agent-hooks`):
 Read the left column first: the intent picks the event, and the event decides what the hook is allowed to
 do. Full per-harness names and quirks: `references/events-and-harnesses.md`.
 
-| When you want to …                                                                  | Event (canonical / native)               | The hook may                                                                                       |
-| ----------------------------------------------------------------------------------- | ---------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| change behavior from what the user typed (classify, add context, reject the prompt) | `prompt.submit` / UserPromptSubmit       | inject context, **block** the prompt                                                               |
-| decide whether a finished turn may stop (completion gate, keep-working nudge)       | `turn.stop` / Stop                       | **block** (the agent keeps working), context                                                       |
-| allow, ask about, or reject a tool call, or rewrite its arguments                   | `tool.before` / PreToolUse               | deny, ask, allow, rewrite tool input                                                               |
-| react to a tool's result (record it, steer the next call, budget the output)        | `tool.after` / PostToolUse               | context only                                                                                       |
-| catch a denied or failed tool call                                                  | `PermissionDenied`, `PostToolUseFailure` | context only (Claude-only event names)                                                             |
-| set a session up (identity, recall, contracts)                                      | `session.start` / SessionStart           | context only                                                                                       |
-| preserve state across compaction (handoff, save transcript)                         | `context.compact.before` / PreCompact    | context only                                                                                       |
-| verify or score what a subagent returned                                            | `subagent.stop` / SubagentStop           | context only                                                                                       |
-| prepare a worktree before an agent starts in it                                     | `worktree.create` / WorktreeCreate       | stdout is the bare path; **exactly one** hook may `provides = ["worktree_path"]`; cannot fail open |
-| clean up after a worktree is removed                                                | `worktree.remove` / WorktreeRemove       | **blockable**; a hook whose result nobody consumes belongs in the background                       |
+| When you want to …                                                                  | Event (canonical / native)            | The hook may                                 |
+| ----------------------------------------------------------------------------------- | ------------------------------------- | -------------------------------------------- |
+| change behavior from what the user typed (classify, add context, reject the prompt) | `prompt.submit` / UserPromptSubmit    | inject context, **block** the prompt         |
+| decide whether a finished turn may stop (completion gate, keep-working nudge)       | `turn.stop` / Stop                    | **block** (the agent keeps working), context |
+| allow, ask about, or reject a tool call, or rewrite its arguments                   | `tool.before` / PreToolUse            | deny, ask, allow, rewrite tool input         |
+| react to a tool's result (record it, steer the next call, budget the output)        | `tool.after` / PostToolUse            | context only                                 |
+| catch a failed tool call                                                            | `PostToolUseFailure` (omp)            | context only                                 |
+| set a session up (identity, recall, contracts)                                      | `session.start` / SessionStart        | context only                                 |
+| preserve state across compaction (handoff, save transcript)                         | `context.compact.before` / PreCompact | context only                                 |
+| verify or score what a subagent returned                                            | `subagent.stop` / SubagentStop        | context only                                 |
 
 Two rules that keep this maintainable:
 
@@ -242,13 +238,9 @@ handler for the pattern.
 
 ## Legacy script rows
 
-After the Rhai cutover the live `hooks.toml` is 20 rows: 8 `policy = "*-question-pipeline"` rows (the
-handler pipeline), 9 Rust-native `policy` rows (`layout-guard`, `layout-guard-write`,
-`record-bash-signature`, `record-edit`, `output-budget`, `output-limit`, `repeat-command`,
-`two-strikes-gate`, `worktree-lifecycle-guard`), and 3 `command` rows that stay external on purpose:
-`stop-find`, `worktreeremove-wt-step-prune`, and `worktreecreate-worktree-provision-py` (the only row
-with `provides = ["worktree_path"]`, and the only one that cannot be backgrounded). Every other hook
-that used to be a Python row is now a handler; do not add a command row for a judgment.
+The Rhai pipeline owns hook judgments. Remaining `command` rows stay external when
+needed for process, filesystem, or model-call boundaries; do not add a command row
+for a judgment.
 
 The `SPEC.md` retention ledger is the authority on which commands stay and the condition for porting
 each. A ported policy's Python original is NOT dead code: it is the reference the native policy is

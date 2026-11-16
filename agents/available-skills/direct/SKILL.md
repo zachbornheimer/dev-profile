@@ -1,6 +1,6 @@
 ---
 name: direct
-description: Use when the user says "/direct", "let me do this hands-on", or "stop delegating for a bit" — allows this main session (Claude Code or Grok) to edit files and run mutating shell commands directly for the rest of the session, bypassing the orchestrator-only PreToolUse gate.
+description: Use when the user says "/direct", "let me do this hands-on", or "stop delegating for a bit" — allows this main session (omp) to edit files and run mutating shell commands directly for the rest of the session, bypassing the orchestrator-only PreToolUse gate.
 user-invokable: true
 ---
 
@@ -20,11 +20,11 @@ This is the one Bash command the gate itself allows the main session to run
 without already being in direct mode (see `orchestrator-only.py`'s
 `direct-mode.py` exception) — nothing else needs to run first.
 
-The script binds `GROK_SESSION_ID` when set, else `CLAUDE_CODE_SESSION_ID`, else
+The script binds `PI_SESSION_ID` (set by omp) when set, else
 the newest per-session state file. Print exactly the script's own output line
 back to the user (`direct mode ON for session <id>`) — do not paraphrase it,
 since that line is the only confirmation that the marker landed on the right
-session. On Grok, `<id>` must equal `$GROK_SESSION_ID`.
+session. In omp, `<id>` must equal `$PI_SESSION_ID`.
 
 If the script instead prints `no session state found yet`, run any read-only
 command first (e.g. `git status`), then retry — that path is only for a session

@@ -30,7 +30,7 @@ seo.identify.heading_structure
 seo.assemble_facts
 ```
 
-The description says what the caller gets back and when to call it. Not how the insides work. That description is what Claude Code, Codex, and other agents read over MCP.
+The description says what the caller gets back and when to call it. Not how the insides work. That description is what omp, the Codex desktop app, and other agents read over MCP.
 
 ## Safe to run
 

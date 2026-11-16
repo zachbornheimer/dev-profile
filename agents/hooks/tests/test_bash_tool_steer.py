@@ -12,7 +12,7 @@ import pytest
 from hook_harness import HookRunner
 
 HOOK = "bash-tool-steer.py"
-RUN_COMMAND = "mcp__capability__agentmux_capability_run_command"
+RUN_COMMAND = "mcp__capability__omp_capability_run_command"
 SEARCH_TOOLS = 'search_tools("command execution")'
 
 
@@ -22,7 +22,7 @@ def _bash(command: str = "ls") -> dict:
 
 OTHER_TOOLS = (
     "run_command",
-    "mcp__capability__agentmux_capability_run_command",
+    "mcp__capability__omp_capability_run_command",
     "Read",
     "Edit",
     "Write",

@@ -5,8 +5,6 @@ license: MIT
 metadata:
   author: Kun Chen (kunchenguid)
   argument-hint: <what the artifact should show>
-  hermes-tags: html, review, artifacts, visualization
-  hermes-category: productivity
 ---
 
 # Lavish Editor

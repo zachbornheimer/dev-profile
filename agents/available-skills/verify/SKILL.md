@@ -34,7 +34,7 @@ run it the same way every time; don't improvise a spot-check.
 5. **Fresh-start every observation.** Rebuild/install, then observe a _newly
    started_ process or session — never a stale binary or a reused chat/tab. The
    binary on disk being current is not verification; the process you're looking
-   at must have started after the rebuild. (Full drill: `agentmux-verify` skill.)
+   at must have started after the rebuild.
 6. **Re-drive integrated end-to-end yourself.** A subagent's "done" is a claim,
    not evidence — per-worker green does not imply integrated green. Before
    accepting, run the real end-to-end path yourself on the merged/installed
@@ -64,7 +64,7 @@ is clean and stays clean across two runs (rule 8).
 - **CLI:** run the actual command in a real shell (tmux if it needs a TTY); assert
   output, exit code, files written; run twice for idempotence.
 - **Batch/destructive/multi-file:** `analyze → changes.json → validate_plan.py →
-execute → verify` — validate the plan before it touches real state.
+  execute → verify` — validate the plan before it touches real state.
 - **Fresh-context adversarial review:** spawn a read-only subagent briefed with
   only the goal + changed files (no prior context) to find what self-review can't.
 
@@ -112,10 +112,6 @@ sustained over Z" — or "Unit-tested; live effect NOT yet confirmed; watching f
 W." A claim without its matrix attached is a guess wearing a lab coat.
 
 ## Scripts
-
-`scripts/check-tests.sh` — Stop hook template: blocks turn-end until the test
-suite passes. Superseded for completion-claim gating by the deployed
-`completion-gate.py`; still useful as a repo-local test-only gate.
 
 `scripts/verify-endpoint.sh` — curl with status + body assertion against a
 fixture. Usage: `./scripts/verify-endpoint.sh <url> <expected-status> <fixture-file>`

@@ -1,8 +1,8 @@
 """Where agent sessions live, which ones are recent, and how to read them as text.
 
-Covers every harness cass indexes plus Cursor agent transcripts, which cass's
-Cursor connector misses. External CLIs go through Shell so tests can fake them;
-transcripts are read by the capability runtime's get_recent_turns workflow.
+Reads Codex desktop sessions indexed by cass. External CLIs go through Shell so
+tests can fake them; transcripts are read by the capability runtime's
+get_recent_turns workflow.
 """
 
 from __future__ import annotations
@@ -22,12 +22,7 @@ MAX_TRANSCRIPT_CHARS = int(os.environ.get("MEMORY_LEARN_MAX_CHARS", "60000"))
 SWEEP_LIMIT = 200
 CLI_TIMEOUT_SECONDS = 60
 # cass agent slug -> get_recent_turns harness.
-CAPABILITY_HARNESS = {
-    "claude_code": "claude",
-    "grok": "grok",
-    "codex": "codex",
-    "cursor": "cursor",
-}
+CAPABILITY_HARNESS = {"codex": "codex"}
 # The capability keeps whole turns newest-first until a bound bites. These
 # make the character cap the only one that does, as the old reader's did.
 TURNS_ALL = 10_000
@@ -36,13 +31,7 @@ CHARS_PER_TOKEN = 4  # the capability's own estimate
 SPEAKER_LABEL = {"user": "USER", "agent": "ASSISTANT"}  # system text is harness noise
 UUID = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
 CODEX_ROLLOUT_ID = re.compile(rf"rollout-.*-(?P<id>{UUID})\.jsonl")
-CURSOR_PROJECTS = Path.home() / ".cursor/projects"
-CURSOR_TRANSCRIPT_GLOB = "*/agent-transcripts/*/*.jsonl"
-HARNESS_DIR_AGENT = (
-    ("/.grok/", "grok"),
-    ("/.codex/", "codex"),
-    ("/.cursor/", "cursor"),
-)
+HARNESS_DIR_AGENT = (("/.codex/", "codex"),)
 # Undo the JSON string escapes that matter for matching quoted text.
 JSON_ESCAPES = (
     ("\\n", "\n"),
@@ -52,8 +41,6 @@ JSON_ESCAPES = (
     ("\\u003c", "<"),
     ("\\u0026", "&"),
 )
-RELATIVE_SINCE = re.compile(r"-(?P<count>\d+)(?P<unit>[dh])")
-SINCE_UNIT_SECONDS = {"d": 86_400, "h": 3_600}
 
 
 @dataclass(frozen=True, slots=True)
@@ -143,9 +130,7 @@ class Shell:
     def _request(self, method: str, params: dict, deadline: float) -> dict:
         self._next_id += 1
         wanted = self._next_id
-        self._send(
-            {"jsonrpc": "2.0", "id": wanted, "method": method, "params": params}
-        )
+        self._send({"jsonrpc": "2.0", "id": wanted, "method": method, "params": params})
         while True:
             line = self._read_line(deadline)
             try:
@@ -186,38 +171,15 @@ def recent_sessions(shell: Shell, since: str) -> list[Session]:
         if r.get("path")
         and "/subagents/" not in r["path"]
         and r.get("human_turns", 1) > 0
-    ]
-
-
-def since_cutoff(since: str, now: float) -> float:
-    """Epoch seconds for a cass-style relative window ("-2d", "-6h")."""
-    match = RELATIVE_SINCE.fullmatch(since)
-    if not match:
-        raise ValueError(f"--since must look like -2d or -6h, got {since!r}")
-    return now - int(match["count"]) * SINCE_UNIT_SECONDS[match["unit"]]
-
-
-def recent_cursor_sessions(root: Path, cutoff: float) -> list[Session]:
-    """Cursor agent transcripts cass does not index (its connector misses this layout)."""
-    return [
-        Session(str(f), "cursor", stat.st_size)
-        for f in sorted(root.glob(CURSOR_TRANSCRIPT_GLOB))
-        if (stat := f.stat()).st_mtime >= cutoff
+        and r.get("agent") in CAPABILITY_HARNESS
     ]
 
 
 def session_for_path(path: str) -> Session:
     agent = next(
-        (agent for marker, agent in HARNESS_DIR_AGENT if marker in path), "claude_code"
+        (agent for marker, agent in HARNESS_DIR_AGENT if marker in path), "codex"
     )
     return Session(path, agent, Path(path).stat().st_size if Path(path).exists() else 0)
-
-
-def reader_ref(session: Session) -> str:
-    """Grok sessions are indexed by updates.jsonl; the readable turns live beside it."""
-    if session.agent == "grok":
-        return str(Path(session.path).with_name("chat_history.jsonl"))
-    return session.path
 
 
 def conversation_ref(session: Session) -> str:
@@ -226,14 +188,10 @@ def conversation_ref(session: Session) -> str:
     if harness is None:
         raise RuntimeError(f"no transcript reader for agent {session.agent!r}")
     path = Path(session.path)
-    if harness == "grok":  # <session id>/chat_history.jsonl or updates.jsonl
-        return f"grok:{path.parent.name}"
-    if harness == "codex":  # rollout-<time>-<session id>.jsonl
-        rollout = CODEX_ROLLOUT_ID.fullmatch(path.name)
-        if rollout is None:
-            raise RuntimeError(f"not a codex rollout file: {session.path}")
-        return f"codex:{rollout['id']}"
-    return f"{harness}:{path.stem}"  # claude <id>.jsonl; cursor <id>/<id>.jsonl
+    rollout = CODEX_ROLLOUT_ID.fullmatch(path.name)
+    if rollout is None:
+        raise RuntimeError(f"not a codex rollout file: {session.path}")
+    return f"codex:{rollout['id']}"
 
 
 def render_turns(recent: dict) -> str:
@@ -265,7 +223,7 @@ def raw_session_text(session: Session) -> str:
     The readable transcript drops tool output, but rule evidence usually quotes it
     (an error message, a test result), so evidence is checked against this instead.
     """
-    paths = dict.fromkeys([Path(session.path), Path(reader_ref(session))])
+    paths = [Path(session.path)]
     texts = []
     for path in paths:
         try:

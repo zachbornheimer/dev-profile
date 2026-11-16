@@ -1,7 +1,6 @@
 # Linear
 
-Personal Linear MCP. Team **Zysys**. Project **AI Harness Code Efficiency**
-(renamed from Claude Code Harness Efficiency).
+Personal Linear MCP. Team **Zysys**. Project **AI Harness Code Efficiency**.
 
 - id: `05c39a34-e16e-4a08-94ed-38e61ae2c7b9`
 - url: <https://linear.app/zysys/project/ai-harness-code-efficiency-ecf68853de26>

@@ -74,11 +74,6 @@ CONTRACTS = {
     "chezmoi-guard.py": Contract(
         frozenset({0, 1}), "non-hook stdin runs the --check CLI"
     ),
-    # WorktreeCreate has no open state: without a path on stdout there is
-    # no worktree. Every failure is fail()'s one-line reason and exit 1.
-    "worktree-provision.py": Contract(
-        frozenset({1}), "WorktreeCreate fails closed with a reason"
-    ),
     # A launcher: it execs the quality-guard binary, whose own exit status
     # (1 on an unparseable payload; non-blocking) is the hook's.
     "quality-guard-run.py": Contract(
@@ -149,9 +144,7 @@ def _run_with_fault(
     injector_dir = tmp_path / "injector"
     injector_dir.mkdir()
     shutil.copy(FAULT_INJECTOR, injector_dir / "sitecustomize.py")
-    env = {
-        key: value for key, value in os.environ.items() if not key.startswith("GROK_")
-    }
+    env = {key: value for key, value in os.environ.items() if not key.startswith("PI_")}
     env.update(
         HOME=str(home),
         UV_CACHE_DIR=str(REAL_UV_CACHE_DIR),

@@ -15,7 +15,7 @@ gone.
 ### Minimal (harvest + summarize only)
 
 ```text
-/schedule every Monday at 6am: run the self-improve skill — harvest the last 7 days of corrections across all tools, cluster by theme, and show me a summary of recurring patterns with their frequencies. Do not auto-apply anything.
+/schedule every Monday at 6am: run the self-improve skill — harvest the last 7 days of corrections from Codex desktop sessions, cluster by theme, and show me a summary of recurring patterns with their frequencies. Do not auto-apply anything.
 ```
 
 ### Full adversarial pipeline
@@ -23,16 +23,16 @@ gone.
 ```text
 /schedule every Monday at 6am:
   /goal: mine the last 7 days of corrections with
-  `uv run /Users/zbornheimer/.claude/skills/self-improve/scripts/harvest-corrections.py --days 7`,
+  `uv run ~/.agents/available-skills/self-improve/scripts/harvest-corrections.py --days 7`,
   cluster into thematic buckets with parallel subagents, adversarially verify each
-  cluster (≥3 threshold, check against existing CLAUDE.md and skills/ rules), and
+  cluster (≥3 threshold, check against existing AGENTS.md and skills/ rules), and
   present a proposed unified diff for surviving candidates — one diff, ready to
   review. Do not stop until the diff is ready or no candidates survive the gate.
   Turn limit: 25.
 ```
 
 The cloud routine runs even when your laptop is closed. Per-run output appears in
-Claude Code notifications when you next open a session.
+the scheduler's notifications when you next open a session.
 
 ## The human-approval gate
 
@@ -68,7 +68,7 @@ Pass `--days N` to `harvest-corrections.py`:
 Run anytime outside the schedule:
 
 ```bash
-uv run /Users/zbornheimer/.claude/skills/self-improve/scripts/harvest-corrections.py --days 30 \
+uv run ~/.agents/available-skills/self-improve/scripts/harvest-corrections.py --days 30 \
   > /tmp/corrections-$(date +%F).ndjson
 
 # Then drive the cluster + verify pipeline with the self-improve skill:
