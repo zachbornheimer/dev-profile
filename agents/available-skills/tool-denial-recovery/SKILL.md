@@ -20,7 +20,7 @@ Use this skill when you call a tool and receive "No such tool available", "disab
    - Do NOT ask user before attempting discovery
 
 3. **If alternatives found**: Use them. Example:
-   - Bash denied → ToolSearch("command execution") → found `agentmux_capability_run_command` → use it
+   - Bash denied → ToolSearch("command execution") → found `omp_capability_run_command` → use it
 
 4. **If no alternatives found**: Research the capability via web/docs:
    - Search for "how to <capability> in <environment>"

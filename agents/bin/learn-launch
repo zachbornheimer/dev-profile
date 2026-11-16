@@ -7,7 +7,7 @@
 
 Both /learn (the omp command) and the agent-hooks question pipeline's learn effect call
 this. The source is `<harness>:<id>` (omp or codex; Claude Code, Grok, Cursor, Copilot,
-OpenCode, pi, Hermes and agentmux are removed and unsupported), a bare omp id, or a Mastra thread
+OpenCode, pi, and Hermes are removed and unsupported), a bare omp id, or a Mastra thread
 (`mastra:thread:<id>` or a Studio thread URL). The workflow resolves and
 annotates the transcript, runs its forensics passes in one thread, saves the
 thread, and files and dispatches every ticket it names as an atask objective by
@@ -120,7 +120,7 @@ def find_local_transcript(source: str, home: Path | None = None) -> Path | None:
     if harness == "omp":
         patterns.append(f".omp/agent/sessions/*/*_{sid}.jsonl")
     elif harness == "codex":
-        patterns.extend([f".config/agentmux/transcripts/codex.{sid}.jsonl", f".codex/sessions/*/*/*/rollout-*-{sid}.jsonl"])
+        patterns.extend([f".local/share/omp/transcripts/codex.{sid}.jsonl", f".codex/sessions/*/*/*/rollout-*-{sid}.jsonl"])
     for pattern in patterns:
         hits = sorted(base.glob(pattern), key=lambda p: p.stat().st_mtime if p.is_file() else 0, reverse=True)
         for hit in hits:
@@ -196,7 +196,7 @@ def fleet_command(source: str, dispatch: bool, platform: str | None = None, host
         "if [ -z \"${OP_SERVICE_ACCOUNT_TOKEN:-}\" ] && [ -s ~/.config/dev-env/secrets/op-service-account-token ]; then "
         "export OP_SERVICE_ACCOUNT_TOKEN=\"$(cat ~/.config/dev-env/secrets/op-service-account-token)\"; fi; "
         "export PATH=\"$HOME/Developer/Personal/dev-profile/bin:$HOME/.local/bin:$HOME/.local/share/aube/bin:$HOME/.local/share/mise/shims:$HOME/.bun/bin:$PATH\"; "
-        "export LEARNER=1 AGENTMUX_NESTED_RUN=1; "
+        "export LEARNER=1 OMP_NESTED_RUN=1; "
         f"bun ~/.local/bin/capability run learn-from-transcript --input {shlex_quote(payload)}"
     )
     return ["ssh", "-o", "BatchMode=yes", host, remote_cmd]
@@ -251,7 +251,7 @@ def main() -> None:
         **os.environ,
         "PATH": f"{extra_path}:{current_path}",
         "LEARNER": "1",
-        "AGENTMUX_NESTED_RUN": "1",
+        "OMP_NESTED_RUN": "1",
         "OMP_REMOTE": os.environ.get("OMP_REMOTE") or ("0" if os.environ.get("LEARN_ON_FLEET") == "0" else "auto"),
     }
     offloaded = fleet_command(source, args.dispatch)

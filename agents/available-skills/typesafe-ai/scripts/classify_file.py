@@ -601,7 +601,7 @@ def _catalog_token_document_frequency(
     catalog_entries: list[dict[str, Any]],
 ) -> dict[str, int]:
     """How many catalog repos carry each token — the rarity signal that separates a
-    distinctive match (e.g. "agentmux", 1 repo) from an ambiguous one (e.g.
+    distinctive match (e.g. "orchestrator", 1 repo) from an ambiguous one (e.g.
     "obsidian", 3 repos)."""
     document_frequency: dict[str, int] = {}
     for entry in catalog_entries:
@@ -901,7 +901,7 @@ def _linear_sibling_for(project: str, linear_projects: list[dict[str, Any]]) -> 
     """The Linear project this file's resolved project can attach evidence to or file
     an issue list into, if any -- `project` itself when it already is a Linear
     project, or the Linear project whose normalized name matches the repo's basename
-    (design P4's attach rule: AgentMux -> agentmux, ZQ -> zq, Flight -> flight --
+    (design P4's attach rule: Orchestrator -> orchestrator, ZQ -> zq, Flight -> flight --
     mapped onto today's flat catalog instead of a persisted taxonomy). None means the
     resolved project (or "none"/a personal bucket) has no Linear home."""
     if project_kind(project) == FILE_PROJECT_KIND_LINEAR:

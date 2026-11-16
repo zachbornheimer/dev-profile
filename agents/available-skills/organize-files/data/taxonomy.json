@@ -191,37 +191,6 @@
       "derived_by": "singleton"
     },
     {
-      "id": "product:agentmux",
-      "parent": "area:personal-software",
-      "depth": 2,
-      "type": "product",
-      "label": "agentmux",
-      "criteria": "Products: zachbornheimer/agentmux; agentmux, claude, claude-code, clis, code, codex",
-      "tokens": [
-        "agentmux",
-        "claude",
-        "claude-code",
-        "clis",
-        "code",
-        "codex",
-        "control",
-        "control-plane",
-        "device",
-        "first",
-        "grok",
-        "handoff",
-        "job",
-        "multi",
-        "optional",
-        "orchestrator",
-        "plane",
-        "runs",
-        "supervised",
-        "tmux"
-      ],
-      "derived_by": "singleton"
-    },
-    {
       "id": "product:ai-articles",
       "parent": "area:personal-software",
       "depth": 2,
@@ -3676,20 +3645,6 @@
       "derived_by": "linear-attach"
     },
     {
-      "id": "leaf:linear:AgentMux",
-      "parent": "product:agentmux",
-      "depth": 3,
-      "type": "leaf",
-      "leaf_kind": "linear",
-      "project_key": "linear:AgentMux",
-      "linear_id": "P-ZYS-20",
-      "criteria": "Linear project: AgentMux",
-      "tokens": [
-        "agentmux"
-      ],
-      "derived_by": "linear-attach"
-    },
-    {
       "id": "leaf:linear:Ansible for Zysys Hosting",
       "parent": "product:ansible-infra",
       "depth": 3,
@@ -6621,40 +6576,6 @@
         "wp-runtime",
         "zwsip",
         "zysys-wp-runtime"
-      ],
-      "derived_by": "repo"
-    },
-    {
-      "id": "leaf:repo:zachbornheimer/agentmux",
-      "parent": "product:agentmux",
-      "depth": 3,
-      "type": "leaf",
-      "leaf_kind": "repo",
-      "project_key": "zachbornheimer/agentmux",
-      "local_path": "/Users/zbornheimer/Developer/Personal/agentmux",
-      "aliases": [],
-      "criteria": "Local-first orchestrator that runs Grok/Claude Code/Codex CLIs in supervised tmux, with an optional multi-device control plane.",
-      "tokens": [
-        "agentmux",
-        "claude",
-        "claude-code",
-        "clis",
-        "code",
-        "codex",
-        "control",
-        "control-plane",
-        "device",
-        "first",
-        "grok",
-        "handoff",
-        "job",
-        "multi",
-        "optional",
-        "orchestrator",
-        "plane",
-        "runs",
-        "supervised",
-        "tmux"
       ],
       "derived_by": "repo"
     },

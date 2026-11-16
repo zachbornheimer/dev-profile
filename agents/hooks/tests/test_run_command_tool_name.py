@@ -16,8 +16,8 @@ REPO_CWD = "/Users/zbornheimer/Developer/Personal/zq"
 # The prefixed name Claude Code sends, and the bare capability name other
 # harnesses send.
 RUN_COMMAND_TOOL_NAMES = (
-    "mcp__capability__agentmux_capability_run_command",
-    "agentmux_capability_run_command",
+    "mcp__capability__omp_capability_run_command",
+    "omp_capability_run_command",
 )
 
 

@@ -377,7 +377,7 @@ def _candidate(request: ScopeRequest) -> str:
 
 # Claude's names, omp's own, and the capability gateway's (prefix stripped) all count; the set itself lives in
 # completion_gate_transcript, which the Stop digest shares.
-GATEWAY_PREFIX = re.compile(r"^mcp__capability_{1,2}agentmux_capability_")
+GATEWAY_PREFIX = re.compile(r"^mcp__capability_{1,2}omp_capability_")
 
 
 def _is_read_only_tool(tool: str) -> bool:

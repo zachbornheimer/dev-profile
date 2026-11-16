@@ -128,7 +128,7 @@ runs the annotator first (declared input, no cycles).
 
 - `autoresearch/workflow.ts` — the DAG above, reading as the flowchart.
 - `autoresearch/` one file per arm; sibling `questions/*.yaml` where the arm asks the
-  model (match the AgentMux question shape; no prompt text in TypeScript).
+  model (match the omp question shape; no prompt text in TypeScript).
 - Checkers as plain scripts under `autoresearch/checks/`.
 - Composes with existing pieces: `annotate.ts` (annotation), `wastes.ts` /
   `waste_detectors.ts` (census inputs), `session_items.ts` (item source),

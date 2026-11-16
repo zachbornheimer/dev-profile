@@ -88,4 +88,3 @@ future rebuilds (same identifier + same signing identity).
 
 - Canonical recipe: `~/Zysys/Software/obsidian-backup/mise.toml` (`[tasks.build]`)
   and `~/Zysys/Software/obsidian-backup/entitlements.plist`.
-- Adopted in agentmux with identifier `com.zysys.agentmux`.

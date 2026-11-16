@@ -38,7 +38,7 @@ Reusable loop for ISJAC support → Linear → **fix product/tech bugs**.
 
 3. **Dedup Linear** — project ISJAC by reporter, email, symptom. Link related (e.g. cancel UX → ZYS-363 class).
 4. **File tickets** — product/tech only. `tickets` template + Gmail URL + live labels.
-5. **Fix** — prioritize auth lockouts, payment/cart, account/form breakage. Prefer agentmux `run --goal-file` / local worktrees when Cloud Agents unavailable.
+5. **Fix** — prioritize auth lockouts, payment/cart, account/form breakage. Prefer local worktrees when Cloud Agents unavailable.
 6. **Report** — ADHD digest of **tech** ticket ids + status. No pile of “draft reply to X” next actions.
 
 ## Non-goals

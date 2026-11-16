@@ -148,7 +148,6 @@ Choice option keys are generated slugs `o0..oN` plus `other`. The request builde
   - If the family has no live member, it becomes one leaf with `"archived": true` under its product. Legality then drops move-to-repo (see 4.2).
 - **P4 Linear attach.** Normalize a Linear project name into tokens, removing launch/exit/summit/years and similar filler with a tiny stoplist in the builder.
   - Attach it as a `leaf:linear:*` sibling under the product whose name or tokens contain one of its tokens with DF ≤ 2. Examples:
-    - AgentMux → agentmux
     - ZQ → zq
     - Flight → flight
     - Evident Output → evident-output

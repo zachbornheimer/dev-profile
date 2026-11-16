@@ -102,9 +102,9 @@ def catalog_entry(full_name: str, keywords: list[str], local_path: str = "") -> 
 # weighting behave like the real corpus (not just a two-repo toy fixture).
 SAMPLE_CATALOG = [
     catalog_entry(
-        "zachbornheimer/agentmux",
-        ["agentmux", "orchestrator", "tmux", "go"],
-        local_path="/Users/zbornheimer/Developer/Personal/agentmux",
+        "zachbornheimer/orchestrator",
+        ["orchestrator", "tmux", "go"],
+        local_path="/Users/zbornheimer/Developer/Personal/oh-my-pi",
     ),
     catalog_entry("zachbornheimer/zq", ["zq", "worktree", "lefthook", "mise", "go"]),
     catalog_entry(
@@ -135,11 +135,11 @@ SAMPLE_CATALOG = [
     catalog_entry("zachbornheimer/homelab", ["homelab", "nas", "docker", "compose"]),
     catalog_entry("zachbornheimer/nas-recovery", ["nas-recovery", "synology", "btrfs"]),
     # noise: many unrelated repos sharing common words like "go"/"cli"/"sdk" that must
-    # not dilute a strong single-repo signal for e.g. "agentmux" or "zq".
+    # not dilute a strong single-repo signal for e.g. "orchestrator" or "zq".
     *[catalog_entry(f"org/generic-tool-{i}", ["go", "cli", "sdk", "tooling"]) for i in range(6)],
 ]
 SAMPLE_LINEAR_PROJECTS = [
-    {"name": "AgentMux"},
+    {"name": "Orchestrator"},
     {"name": "ZQ"},
     {"name": "Evident Output"},
     {"name": "Flight"},
@@ -215,11 +215,11 @@ class ProjectCandidateScoringTests(unittest.TestCase):
     labels and most files fell below the confidence floor. These prove deterministic
     candidate narrowing (typesafe-skills examples 14/19) fixes it structurally."""
 
-    def test_agentmux_filename_is_a_strong_unique_match(self) -> None:
-        observation = observation_for("agentmux-ui-research-pass.md")
+    def test_orchestrator_filename_is_a_strong_unique_match(self) -> None:
+        observation = observation_for("orchestrator-ui-research-pass.md")
         self.assertEqual(
             classify_file.strong_project_match(observation, SAMPLE_CATALOG),
-            "zachbornheimer/agentmux",
+            "zachbornheimer/orchestrator",
         )
 
     def test_zq_filename_is_a_strong_unique_match(self) -> None:
@@ -262,10 +262,10 @@ class ProjectCandidateScoringTests(unittest.TestCase):
         self.assertLess(len(candidates), len(SAMPLE_CATALOG) + len(SAMPLE_LINEAR_PROJECTS))
 
     def test_same_named_linear_project_is_shadowed_by_matching_repo(self) -> None:
-        observation = observation_for("agentmux-ui-research-pass.md")
+        observation = observation_for("orchestrator-ui-research-pass.md")
         candidates = shortlist_names(observation, SAMPLE_CATALOG, SAMPLE_LINEAR_PROJECTS)
-        self.assertIn("zachbornheimer/agentmux", candidates)
-        self.assertNotIn("linear:AgentMux", candidates)
+        self.assertIn("zachbornheimer/orchestrator", candidates)
+        self.assertNotIn("linear:Orchestrator", candidates)
 
     def test_shortlist_always_includes_personal_buckets(self) -> None:
         observation = observation_for("random-desktop-notes.md")
@@ -432,11 +432,11 @@ class CatalogAndLinearLoadTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "repo-catalog.json"
             path.write_text(
-                json.dumps({"repos": [{"full_name": "zachbornheimer/agentmux"}]}),
+                json.dumps({"repos": [{"full_name": "zachbornheimer/orchestrator"}]}),
                 encoding="utf-8",
             )
             entries = classify_file.load_catalog(str(path))
-            self.assertEqual(entries, [{"full_name": "zachbornheimer/agentmux"}])
+            self.assertEqual(entries, [{"full_name": "zachbornheimer/orchestrator"}])
 
     def test_linear_projects_accepts_plain_strings(self) -> None:
         projects = classify_file.load_linear_projects(json.dumps(["ZAP Protocol"]))
@@ -456,7 +456,7 @@ class BuildRequestTests(unittest.TestCase):
     computed by decide(), not asked)."""
 
     def test_offers_one_noul_per_shortlisted_candidate(self) -> None:
-        observation = observation_for("agentmux-ui-research-pass.md")
+        observation = observation_for("orchestrator-ui-research-pass.md")
         request = classify_file.build_request(observation, SAMPLE_CATALOG, SAMPLE_LINEAR_PROJECTS)
         shortlist = classify_file._shortlist(observation, SAMPLE_CATALOG, SAMPLE_LINEAR_PROJECTS)
         noul_questions = [q for q in request["questions"] if q.startswith("match_")]
@@ -467,7 +467,7 @@ class BuildRequestTests(unittest.TestCase):
     def test_single_request_never_more_than_one_call_worth_of_questions(self) -> None:
         # Structural proof there is exactly one state/questions payload per file, not
         # a sequence of calls: kind and the flags ride with the project Nouls.
-        observation = observation_for("agentmux-ui-research-pass.md")
+        observation = observation_for("orchestrator-ui-research-pass.md")
         request = classify_file.build_request(observation, SAMPLE_CATALOG, [])
         self.assertIn("kind", request["questions"])
         self.assertNotIn("disposition", request["questions"])
@@ -479,23 +479,23 @@ class BuildRequestTests(unittest.TestCase):
         # Disposition is computed in decide() from project/kind/flags, never asked —
         # this is the structural fix for "the model picks disposition before the
         # project is known" (design section 0).
-        observation = observation_for("agentmux-ui-research-pass.md")
+        observation = observation_for("orchestrator-ui-research-pass.md")
         request = classify_file.build_request(observation, [], [])
         self.assertNotIn("disposition", request["questions"])
 
     def test_offers_all_5_disposition_flag_nouls(self) -> None:
-        observation = observation_for("agentmux-ui-research-pass.md")
+        observation = observation_for("orchestrator-ui-research-pass.md")
         request = classify_file.build_request(observation, [], [])
         for flag_id in constants.FILE_FLAGS:
             self.assertEqual(request["questions"][flag_id]["type"], "noul")
 
     def test_pre_decided_project_skips_candidate_nouls(self) -> None:
-        observation = observation_for("agentmux-ui-research-pass.md")
+        observation = observation_for("orchestrator-ui-research-pass.md")
         request = classify_file.build_request(
-            observation, SAMPLE_CATALOG, SAMPLE_LINEAR_PROJECTS, project="zachbornheimer/agentmux"
+            observation, SAMPLE_CATALOG, SAMPLE_LINEAR_PROJECTS, project="zachbornheimer/orchestrator"
         )
         self.assertFalse(any(q.startswith("match_") for q in request["questions"]))
-        self.assertEqual(request["state"]["project"], "zachbornheimer/agentmux")
+        self.assertEqual(request["state"]["project"], "zachbornheimer/orchestrator")
 
     def test_pre_decided_project_still_asks_kind_and_flags(self) -> None:
         # Only project Nouls are skipped — kind and the 5 flags are still needed to
@@ -509,15 +509,15 @@ class BuildRequestTests(unittest.TestCase):
 
 class DecideTests(unittest.TestCase):
     def _observation(self) -> dict:
-        return observation_for("agentmux-notes.md", excerpt="notes")
+        return observation_for("orchestrator-notes.md", excerpt="notes")
 
     def test_winning_candidate_above_threshold_becomes_project(self) -> None:
         observation = self._observation()
         answers = answers_for(
-            observation, SAMPLE_CATALOG, [], matches={"zachbornheimer/agentmux": 0.9}
+            observation, SAMPLE_CATALOG, [], matches={"zachbornheimer/orchestrator": 0.9}
         )
         result = classify_file.decide(answers, observation, SAMPLE_CATALOG, [])
-        self.assertEqual(result.project, "zachbornheimer/agentmux")
+        self.assertEqual(result.project, "zachbornheimer/orchestrator")
         self.assertEqual(result.disposition, "move-to-repo")
         self.assertEqual(result.reason, "selected")
 
@@ -580,9 +580,9 @@ class DecideTests(unittest.TestCase):
         observation = self._observation()
         answers = answers_for(observation, SAMPLE_CATALOG, [])
         result = classify_file.decide(
-            answers, observation, SAMPLE_CATALOG, [], project="zachbornheimer/agentmux"
+            answers, observation, SAMPLE_CATALOG, [], project="zachbornheimer/orchestrator"
         )
-        self.assertEqual(result.project, "zachbornheimer/agentmux")
+        self.assertEqual(result.project, "zachbornheimer/orchestrator")
         self.assertEqual(result.disposition, "move-to-repo")
 
 
@@ -594,12 +594,12 @@ class GateByConsequenceTests(unittest.TestCase):
         # A resolved repo project whose kind never qualifies for move-to-repo (R4)
         # falls to the R8 archive fallback (design section 4.1) at the same
         # confidence as the project match.
-        observation = observation_for("agentmux-notes.md")
+        observation = observation_for("orchestrator-notes.md")
         answers = answers_for(
             observation,
             SAMPLE_CATALOG,
             [],
-            matches={"zachbornheimer/agentmux": 0.56},
+            matches={"zachbornheimer/orchestrator": 0.56},
             kind="scratch",
         )
         result = classify_file.decide(answers, observation, SAMPLE_CATALOG, [])
@@ -613,7 +613,7 @@ class GateByConsequenceTests(unittest.TestCase):
         # realistic flag input can land below them end-to-end. The gate itself still
         # must fire as designed (design section 4.1) when a disposition is below its
         # floor, so we exercise it directly for defense-in-depth.
-        observation = observation_for("agentmux-notes.md")
+        observation = observation_for("orchestrator-notes.md")
         answers = answers_for(observation, [], [])
         with mock.patch.object(
             classify_file,
@@ -643,7 +643,7 @@ class LegalDispositionInvariantTests(unittest.TestCase):
         self.assertEqual(classify_file.project_kind("none"), "none")
         self.assertEqual(classify_file.project_kind("linear:ZAP Protocol"), "linear")
         self.assertEqual(classify_file.project_kind("personal:finance"), "personal")
-        self.assertEqual(classify_file.project_kind("zachbornheimer/agentmux"), "repo")
+        self.assertEqual(classify_file.project_kind("zachbornheimer/orchestrator"), "repo")
 
     def test_move_to_repo_is_illegal_for_every_non_repo_project_kind(self) -> None:
         for project in ("none", "linear:ZAP Protocol", "personal:finance"):
@@ -651,7 +651,7 @@ class LegalDispositionInvariantTests(unittest.TestCase):
                 self.assertNotIn("move-to-repo", classify_file.legal_dispositions_for(project))
 
     def test_personal_docs_is_illegal_outside_personal_projects(self) -> None:
-        for project in ("none", "linear:ZAP Protocol", "zachbornheimer/agentmux"):
+        for project in ("none", "linear:ZAP Protocol", "zachbornheimer/orchestrator"):
             with self.subTest(project=project):
                 self.assertNotIn("personal-docs", classify_file.legal_dispositions_for(project))
 
@@ -1006,8 +1006,8 @@ class ClassifyFileCliTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             catalog_path = Path(tmp) / "repo-catalog.json"
             catalog_path.write_text(json.dumps({"repos": SAMPLE_CATALOG}), encoding="utf-8")
-            first = Path(tmp) / "agentmux-ui-research-pass.md"
-            first.write_text("design notes for agentmux", encoding="utf-8")
+            first = Path(tmp) / "orchestrator-ui-research-pass.md"
+            first.write_text("design notes for orchestrator", encoding="utf-8")
             second = Path(tmp) / "2025-taxes.pdf"
             second.write_bytes(b"not a real pdf")
 
@@ -1016,7 +1016,7 @@ class ClassifyFileCliTests(unittest.TestCase):
             )
             urlopen = mock.Mock(
                 side_effect=[
-                    # first: strong_project_match resolves "agentmux" deterministically,
+                    # first: strong_project_match resolves "orchestrator" deterministically,
                     # so this call only carries kind/flags, not project Nouls.
                     FakeHTTPResponse(
                         {
@@ -1044,7 +1044,7 @@ class ClassifyFileCliTests(unittest.TestCase):
             self.assertEqual(code, 0)
             self.assertEqual(len(results), 2)
             self.assertEqual(urlopen.call_count, 2)  # one request per file, not two
-            self.assertEqual(results[0]["project"], "zachbornheimer/agentmux")
+            self.assertEqual(results[0]["project"], "zachbornheimer/orchestrator")
             self.assertEqual(results[1]["project"], "personal:finance")
 
     def test_move_to_repo_never_shipped_for_a_personal_project_end_to_end(self) -> None:

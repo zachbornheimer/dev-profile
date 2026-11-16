@@ -6,7 +6,7 @@
 # PreToolUse (Bash matcher) — blocks unscoped whole-filesystem searches.
 #
 # Incident (2026-09-17): across 5+ different sessions (ninja-quoter,
-# agentmux, eapp-system, mail-automation) agents ran `find /` or
+# orchestrator, eapp-system, mail-automation) agents ran `find /` or
 # `bfs ... /` — rooted at bare "/" — to locate a directory/file by name.
 # None of them ever finished: each burned 10-40% CPU continuously for
 # 15 minutes to 21+ hours (Time Machine and network mounts included in the

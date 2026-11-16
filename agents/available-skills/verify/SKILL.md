@@ -34,7 +34,7 @@ run it the same way every time; don't improvise a spot-check.
 5. **Fresh-start every observation.** Rebuild/install, then observe a _newly
    started_ process or session — never a stale binary or a reused chat/tab. The
    binary on disk being current is not verification; the process you're looking
-   at must have started after the rebuild. (Full drill: `agentmux-verify` skill.)
+   at must have started after the rebuild.
 6. **Re-drive integrated end-to-end yourself.** A subagent's "done" is a claim,
    not evidence — per-worker green does not imply integrated green. Before
    accepting, run the real end-to-end path yourself on the merged/installed

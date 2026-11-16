@@ -5,7 +5,7 @@
 # ///
 """PreToolUse (Bash) — the Bash tool is dead surface on this machine.
 
-Every command runs through ``mcp__capability__agentmux_capability_run_command``.
+Every command runs through ``mcp__capability__omp_capability_run_command``.
 A Bash call is not a mistake to retry, a permission to ask about, or a reason to
 reach for another shell; it is a routing signal. This hook denies it and injects
 the one instruction that fixes it.
@@ -57,8 +57,8 @@ DENY_REASON = (
     "Bash is disabled; use run_command. "
     "The Bash tool is dead surface on this machine — never call it, not once, "
     "not even for a bare `ls`. Run every command through "
-    "mcp__capability__agentmux_capability_run_command "
-    "(harnesses that prefix it show `mcp__capability__agentmux_capability_run_command`). "
+    "mcp__capability__omp_capability_run_command "
+    "(harnesses that prefix it show `mcp__capability__omp_capability_run_command`). "
     'If that tool is not in your tool list, call search_tools("command execution") '
     "right then, before any other tool call. A failing run_command is fixed by "
     "rephrasing the command, never by switching shells."

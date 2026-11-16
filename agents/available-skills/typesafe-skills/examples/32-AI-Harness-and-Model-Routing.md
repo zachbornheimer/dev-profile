@@ -79,9 +79,9 @@ Skill suggestion, tested on 488 requests against `claude-haiku-4-5-20251001` ove
 
 2.3x fewer wrong loads, 2.4x fewer needless ones; the suggestion fixed 37 previously-wrong requests but broke 7 previously-correct ones.
 
-## Pitfalls (AgentMux relevance flagged)
+## Pitfalls (relevance flagged)
 
-- A confident wrong suggestion is more persuasive than no suggestion at all — the skill-suggestion cookbook explicitly reports it _breaks_ some previously-correct baseline selections, not only fixes wrong ones. **AgentMux relevance:** any skill/tool auto-suggestion layer built this way needs to measure regressions, not just gains.
+- A confident wrong suggestion is more persuasive than no suggestion at all — the skill-suggestion cookbook explicitly reports it _breaks_ some previously-correct baseline selections, not only fixes wrong ones. **Relevance here:** any skill/tool auto-suggestion layer built this way needs to measure regressions, not just gains.
 - The gate threshold (mean of the three wide `Noul` questions) and the shortlist size (3 candidates) both need calibration per catalog size; a much larger roster than 182 skills may need hierarchical ranking instead of one flat wide pass.
 - The suggestion-block wording is a measured cache key, not decorative prose — editing it invalidates cached rankings.
 - Confidence thresholds in intent routing must be set per decision's stakes; low confidence on a critical routing decision should trigger human review, not silent automation.

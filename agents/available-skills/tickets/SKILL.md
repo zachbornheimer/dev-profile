@@ -97,7 +97,7 @@ Run **before** drafting or creating any issue:
    | `~/Developer/Personal/…`                     | **Personal**                                     |
    | `~/Developer/Software-Automation-Holdings/…` | **Work / SAH**                                   |
    | Dropbox `Zysys/Software/…` legacy work trees | **Work / SAH** (confirm if mixed)                |
-   | User names a project (“agentmux”, “eapp”, …) | Resolve project **after** account class is known |
+   | User names a project (“orchestrator”, “eapp”, …) | Resolve project **after** account class is known |
    | Ambiguous / no repo                          | **Ask** which Linear account                     |
 
 2. **Probe the connected MCP** (live discovery only)
@@ -133,7 +133,7 @@ Report that lock when you publish ticket IDs (“Filed in personal Linear → te
 | Bad                                                   | Good                                                       |
 | ----------------------------------------------------- | ---------------------------------------------------------- |
 | Default team `Zysys`                                  | `list_teams` → use what this connection returns            |
-| “agentmux always goes to ZYS”                         | Find `agentmux` via `list_projects` on **this** connection |
+| “orchestrator always goes to ZYS”                         | Find `orchestrator` via `list_projects` on **this** connection |
 | Reuse label list from last week                       | `list_issue_labels` on this team/workspace                 |
 | Create project on the wrong account to “make it work” | Stop; fix MCP account or get explicit approval             |
 | Silent file when project missing                      | Treat as account mismatch until proven otherwise           |
@@ -454,9 +454,9 @@ An acceptance criterion that cannot be checked by a human, a test, or a command 
 ## Example (filing discipline, not a default target)
 
 ````markdown
-Workspace lock: personal (repo ~/Developer/Personal/agentmux)
+Workspace lock: personal (repo ~/Developer/Personal/oh-my-pi)
 teams visible: <from list_teams>
-project: agentmux (from list_projects)
+project: orchestrator (from list_projects)
 team: <from project.teams>
 Title: Unify A2A wire-format codec under one protocol owner
 Label: Improvement (verified via list_issue_labels)
