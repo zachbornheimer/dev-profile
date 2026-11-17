@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# Daily: fast-forward every zachbornheimer fork's mirror branch to upstream, then
+# start each managed fork's build. The build checks the merged tree, publishes a
+# prerelease, installs it on CI runners with mise and only then promotes it;
+# `mise up` (omp-daily-sync, 05:00) installs what was promoted.
+#
+# The fork tool (~/.omp/agent/tools/fork) owns both steps; this is its launchd entry.
+# A mirror that has its own commits is never rewritten: `fork sync` reports it.
+# Exit: 0 every mirror is current; 1 some mirror could not fast-forward; 2 tool error.
+set -euo pipefail
+
+PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:/opt/homebrew/bin:$PATH"
+export PATH
+
+cli="$HOME/.omp/agent/tools/fork/cli.ts"
+command -v bun >/dev/null 2>&1 || {
+	echo "fork sync: bun is required" >&2
+	exit 2
+}
+[[ -f "${cli}" ]] || {
+	echo "fork sync: ${cli} is missing" >&2
+	exit 2
+}
+
+out="$(bun "${cli}" sync)" || {
+	echo "${out}" >&2
+	exit 2
+}
+echo "${out}"
+
+# Managed forks also build on their own daily schedule; a dispatch right after the
+# fast-forward ships upstream's changes the same morning.
+bun "${cli}" status | jq -r '.[] | select(.managed) | .repo' | while IFS= read -r repo; do
+	if gh workflow run fork.yml -R "zachbornheimer/${repo}" --ref fork >/dev/null 2>&1; then
+		echo "fork sync: started ${repo} build"
+	else
+		echo "fork sync: could not start ${repo} build" >&2
+	fi
+done
+
+if echo "${out}" | jq -e 'any(.[]; .action == "refuse" or (.action == "fast_forward" and (.detail | startswith("fast-forwarded") | not)))' >/dev/null; then
+	echo "fork sync: some mirrors did not fast-forward (see above)" >&2
+	exit 1
+fi
