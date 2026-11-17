@@ -144,7 +144,7 @@ if [ -z \"$stash_ref\" ]; then
   echo \"wt tree-for-changes: the stash just created ($stash_after) is not in refs/stash; run 'git stash apply $stash_after' to recover it.\" >&2
   exit 1
 fi
-id=$(uuidgen) || { git stash pop \"$stash_ref\"; exit 1; }
+id=$(uuidgen 2>/dev/null || cat /proc/sys/kernel/random/uuid 2>/dev/null) || { git stash pop \"$stash_ref\"; exit 1; }
 id=$(printf '%s' \"$id\" | tr '[:upper:]' '[:lower:]')
 [ -n \"$id\" ] || { git stash pop \"$stash_ref\"; exit 1; }
 {% if args %}
