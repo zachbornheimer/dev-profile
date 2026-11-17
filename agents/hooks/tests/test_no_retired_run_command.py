@@ -24,7 +24,6 @@ INSTRUCTION_FILES = (
     REPO / "agents" / "hooks" / "shell-denial-steer.py",
     REPO / "agents" / "hooks" / "eval-sleep-guard.py",
     REPO / "agents" / "hooks" / "search-scope-guard.py",
-    REPO / "agents" / "hooks" / "scope-guard-directives.yaml",
 )
 
 # A sentence that names the retired tool in order to say it is retired is the fix, not the bug.
