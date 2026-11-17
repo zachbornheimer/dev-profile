@@ -11,12 +11,28 @@ fail() {
 }
 HK_FILE="$root/hk/hk.pkl" hk validate >/dev/null || fail hk/hk.pkl
 dprint output-resolved-config --config "$root/config/dprint.jsonc" >/dev/null || fail config/dprint.jsonc
-zsh -n "$root/shell/shell.zsh" || fail shell/shell.zsh
+# zsh's own syntax and fixture checks. zsh is a system tool the profile expects:
+# dev-env/mise.linux.toml bootstraps it on Linux and CI apt-installs it beside
+# the other tools doctor needs. A box without it cannot run these checks, and
+# failing them made `mise bootstrap` die on a machine that was otherwise fine
+# (ZYS-9630). Skip them loudly instead; every other check still runs.
+skipped=()
+zsh_check() {
+	local what="$1"
+	shift
+	if ! command -v zsh >/dev/null 2>&1; then
+		echo "SKIP: $what (no zsh on this machine)"
+		skipped+=("$what")
+		return 0
+	fi
+	"$@" >/dev/null || fail "$what"
+}
+zsh_check shell/shell.zsh zsh -n "$root/shell/shell.zsh"
 for f in "$root"/shell/zsh/*.zsh; do
-	zsh -n "$f" || fail "shell/zsh/${f##*/}"
+	zsh_check "shell/zsh/${f##*/}" zsh -n "$f"
 done
-bash "$root/tests/output-fixture.sh" >/dev/null || fail "output fixture"
-zsh -f "$root/tests/cd-latency-fixture.zsh" >/dev/null || fail "cd latency fixture"
+zsh_check "output fixture" bash "$root/tests/output-fixture.sh"
+zsh_check "cd latency fixture" zsh -f "$root/tests/cd-latency-fixture.zsh"
 bash "$root/tests/hook-path-free.sh" >/dev/null || fail "hook path fixture"
 bash "$root/tests/foreign-home-paths-fixture.sh" "$root" >/dev/null || fail "foreign-home-paths fixture"
 bash "$root/tests/ban-trunk-prettier-fixture.sh" >/dev/null || fail "ban-trunk-prettier fixture"
@@ -70,4 +86,8 @@ if [ "${#failed[@]}" -gt 0 ]; then
 	echo "FAIL: ${#failed[@]} check(s) failed" >&2
 	exit 1
 fi
-echo "ok"
+if [ "${#skipped[@]}" -gt 0 ]; then
+	echo "ok (${#skipped[@]} zsh check(s) skipped: no zsh on this machine)"
+else
+	echo "ok"
+fi
