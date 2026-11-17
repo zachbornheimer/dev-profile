@@ -140,7 +140,10 @@ ompr() {
 	fi
 	# /switch-to-local on the box (omp extension switch-session) exits 75 and leaves a marker
 	# naming the session; resume it here, which takes it back from Neon and the box.
-	((rc == 75)) && { _ompr_return_to_mac; return $?; }
+	((rc == 75)) && {
+		_ompr_return_to_mac
+		return $?
+	}
 	return $rc
 }
 
@@ -261,9 +264,9 @@ omp() {
 					rows = await sql`SELECT path, mtime_ms FROM omp_session_files WHERE path LIKE ${"%/" + bucket + "/%.jsonl"} ORDER BY mtime_ms DESC LIMIT 1`;
 				}
 				rows = rows
-					.map((r) => ({ ...r, localPath: toLocal(r.path) }))
+					.map((r) =>({ ...r, localPath: toLocal(r.path) }))
 					.filter((r) => home && r.localPath.startsWith(home + "/"));
-				const stale = rows.filter((r) => {
+				const stale = rows.filter((r) =>{
 					const diskMtime = existsSync(r.localPath) ? Math.trunc(statSync(r.localPath).mtimeMs) : -1;
 					return diskMtime < Number(r.mtime_ms);
 				});
@@ -299,8 +302,8 @@ omp() {
 						const lastCwd = cwds.length ? cwds[cwds.length - 1] : (m ? m[1] : "");
 						if (
 							process.env.OMP_FORCE_REMOTE_TAKEOVER === "1" ||
-							main.path.startsWith("/home/") ||
-							lastCwd.startsWith("/home/")
+							main.path.startsWith("/home/") || // portable-home-ok: detects a session written on the Linux compute arm
+							lastCwd.startsWith("/home/") // portable-home-ok: same detection
 						) {
 							tookOver = true;
 						}
@@ -370,14 +373,23 @@ _omp_park_wait() {
 	[[ -p $dir/wake.fifo ]] || return 1
 	cmd=$(<$dir/cmd)
 	print -u2 "[omp] tool running: ${cmd[1,60]} | Ctrl+C interrupts it | any other key attaches"
-	exec {fd}<> "$dir/wake.fifo" || return 1
+	exec {fd}<>"$dir/wake.fifo" || return 1
 	# Check after opening: completion before open need not leave a FIFO byte behind.
 	if [[ ! -f $dir/done.json ]]; then
-		zselect -r $input $fd -a ready || { exec {fd}>&-; return 1; }
-		if (( ${ready[(Ie)$input]} )); then
-			read -r -k1 -u $input byte || { exec {fd}>&-; return 1; }
+		zselect -r $input $fd -a ready || {
+			exec {fd}>&-
+			return 1
+		}
+		if ((${ready[(Ie)$input]})); then
+			read -r -k1 -u $input byte || {
+				exec {fd}>&-
+				return 1
+			}
 			if [[ $byte == $'\x03' ]]; then
-				"$OMP_JOBOWNER" kill "$sid" "$key" || { exec {fd}>&-; return 1; }
+				"$OMP_JOBOWNER" kill "$sid" "$key" || {
+					exec {fd}>&-
+					return 1
+				}
 			fi
 		fi
 	fi
@@ -394,18 +406,27 @@ _omp_run_parkable() {
 	if [[ -z ${OMP_JOBOWNER:-} && -f $HOME/Developer/Personal/dev-env/apps/omp-broker/jobowner.sh ]]; then
 		export OMP_JOBOWNER=$HOME/Developer/Personal/dev-env/apps/omp-broker/jobowner.sh
 	fi
-	marker=$(mktemp "${TMPDIR:-/tmp}/omp-park.XXXXXX") || { command omp "$@"; return; }
+	marker=$(mktemp "${TMPDIR:-/tmp}/omp-park.XXXXXX") || {
+		command omp "$@"
+		return
+	}
 	OMP_TERMINAL_PARK_MARKER=$marker command omp "$@"
 	rc=$?
 	while [[ -s $marker ]]; do
-		{ IFS= read -r sid; read -r kind key; } < "$marker"
-		: > "$marker"
+		{
+			IFS= read -r sid
+			read -r kind key
+		} <"$marker"
+		: >"$marker"
 		[[ $kind == tool ]] || key=""
 		# Raw mode makes Ctrl+C a readable byte instead of killing the holder shell.
 		saved=$(stty -g </dev/tty) || break
 		stty -icanon -echo -isig min 1 time 0 </dev/tty
-		{ _omp_park_wait "$sid" "$key"; rc=$?; } always { stty "$saved" </dev/tty; }
-		(( rc == 0 )) || break
+		{
+			_omp_park_wait "$sid" "$key"
+			rc=$?
+		} always { stty "$saved" </dev/tty; }
+		((rc == 0)) || break
 		OMP_TERMINAL_PARK_MARKER=$marker command omp --resume "$sid"
 		rc=$?
 	done
