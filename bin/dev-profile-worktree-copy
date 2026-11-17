@@ -11,7 +11,17 @@ set -euo pipefail
 # the autoloader by hand. Do it here, so entering a worktree just works. A repo
 # without a built autoloader is untouched.
 #
-# The repair is advisory: an autoloader that cannot be rebuilt leaves the
+# The copy is not the whole of a usable worktree. A fresh one looks ready before
+# it is: the reflink carries a source checkout's installed dependencies only
+# when that source had them, and a narrow clone (a fetch refspec naming one
+# branch, which a shallow or CI clone leaves) never stores a remote-tracking
+# ref for any other branch. `git push -u` then records an upstream that no local
+# ref backs, and the next `gh pr create` fails on head inference. A branch
+# deleted upstream stays advertised too, so the next push aims at a ref that is
+# gone. Both are repaired here, once, for every creator of a worktree.
+#
+# The repair is advisory: an autoloader that cannot be rebuilt, a dependency
+# that cannot be installed, or a remote that cannot be fetched leaves the
 # worktree usable and says what to run, but never fails the start. The copy
 # itself keeps its own failure, since a start without the copied files is wrong,
 # once it has been retried (see below).
@@ -105,14 +115,10 @@ if [[ -d "${primary}" && "${primary}" != "${current}" ]]; then
 	fi
 fi
 
-# Both markers: composer.json alone is a repo whose dependencies were never
-# installed, and a vendor/ without autoload.php is not an autoloader to rebuild.
-[[ -f composer.json && -f vendor/autoload.php ]] || exit 0
-
 repair_timeout="${DEV_PROFILE_WORKTREE_COPY_TIMEOUT:-60}" # seconds
 
-# Bounded without timeout(1), which a clean machine need not have: a post-start
-# hook that hangs blocks every switch.
+# Bounded without timeout(1), which a clean machine need not have: a hook that
+# hangs blocks every switch.
 bounded() { # <seconds> <cmd...>
 	local limit="$1" pid watchdog status=0
 	shift
@@ -128,6 +134,85 @@ bounded() { # <seconds> <cmd...>
 	wait "${watchdog}" 2>/dev/null || :
 	return "${status}"
 }
+
+# Install only a dependency the checkout declares and does not already hold,
+# from the lockfile the repo committed, so a worktree can run its own tests
+# without a repo-wide install. A declared setup task is not that install: in
+# this profile it bootstraps the machine, and a checkout can declare packages
+# in a subdirectory the task never touches. So the lockfile install runs for
+# every declared package that is absent, and the setup task runs as well,
+# advisory. A checkout that declares nothing is left alone.
+install_one() { # <dir>
+	local dir="$1"
+	[[ -f "${dir}/package.json" && ! -d "${dir}/node_modules" ]] || return 0
+	if [[ -f "${dir}/pnpm-lock.yaml" ]] && command -v pnpm >/dev/null 2>&1; then
+		(cd "${dir}" && bounded "${repair_timeout}" command pnpm install --frozen-lockfile) ||
+			echo "dev-profile-worktree-copy: pnpm install failed in ${dir}; run: pnpm install --frozen-lockfile" >&2
+	elif [[ -f "${dir}/bun.lock" || -f "${dir}/bun.lockb" ]] && command -v bun >/dev/null 2>&1; then
+		(cd "${dir}" && bounded "${repair_timeout}" command bun install --frozen-lockfile) ||
+			echo "dev-profile-worktree-copy: bun install failed in ${dir}; run: bun install --frozen-lockfile" >&2
+	fi
+}
+
+install_declared_deps() {
+	local dir
+	install_one "."
+	# One and two levels down: a repo keeps its runnable packages in
+	# subdirectories (cloudflare/relay-edge) while the root declares none.
+	for dir in */ */*/; do
+		[[ -d "${dir}" ]] || continue
+		install_one "${dir%/}"
+	done
+	if [[ -f go.mod && ! -d vendor ]] && command -v go >/dev/null 2>&1 && command grep -q '^require ' go.mod; then
+		bounded "${repair_timeout}" command go mod download ||
+			echo "dev-profile-worktree-copy: go mod download failed; run: go mod download" >&2
+	fi
+	if [[ -f mise.toml ]] && command -v mise >/dev/null 2>&1 &&
+		command mise tasks ls --json 2>/dev/null | command grep -q '"name":"setup"'; then
+		if bounded "${repair_timeout}" command mise run setup; then
+			echo "dev-profile-worktree-copy: ran the declared setup task"
+		else
+			echo "dev-profile-worktree-copy: the declared setup task failed; run: mise run setup" >&2
+		fi
+	fi
+}
+
+
+# A fetch refspec that names one branch never stores a tracking ref for any
+# other, so widen it to every branch and fetch. Prune drops a branch deleted
+# upstream, which a narrow refspec would keep advertising. Once the branch this
+# worktree is on has a stored tracking ref, point its upstream at that ref, so
+# a draft pull request can name its head without inferring one.
+ensure_remote_refs() {
+	git rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 0
+	local remote refspec branch
+	remote="$(git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null | cut -d/ -f1 || true)"
+	[[ -n "${remote}" && "${remote}" != "@{upstream}" ]] || remote="$(git config --get "branch.$(git branch --show-current).remote" 2>/dev/null || true)"
+	[[ -n "${remote}" ]] || remote="origin"
+	git remote get-url "${remote}" >/dev/null 2>&1 || return 0
+	refspec="$(git config --get-all "remote.${remote}.fetch" 2>/dev/null || true)"
+	if [[ "${refspec}" != *'refs/heads/*'* ]]; then
+		git config --replace-all "remote.${remote}.fetch" "+refs/heads/*:refs/remotes/${remote}/*" ||
+			echo "dev-profile-worktree-copy: could not widen the fetch refspec; run: git config --replace-all remote.${remote}.fetch '+refs/heads/*:refs/remotes/${remote}/*'" >&2
+	fi
+	if ! bounded "${repair_timeout}" git fetch --prune "${remote}"; then
+		echo "dev-profile-worktree-copy: could not fetch remote refs; run: git fetch --prune ${remote}" >&2
+		return 1
+	fi
+	branch="$(git branch --show-current)"
+	if [[ -n "${branch}" ]] && git rev-parse --verify -q "refs/remotes/${remote}/${branch}" >/dev/null; then
+		git branch --set-upstream-to="${remote}/${branch}" "${branch}" >/dev/null 2>&1 || true
+	fi
+	echo "dev-profile-worktree-copy: remote refs ready for ${remote}"
+}
+
+# Advisory: a start that cannot install or fetch is noisy, not broken.
+install_declared_deps || true
+ensure_remote_refs || true
+
+# Both markers: composer.json alone is a repo whose dependencies were never
+# installed, and a vendor/ without autoload.php is not an autoloader to rebuild.
+[[ -f composer.json && -f vendor/autoload.php ]] || exit 0
 
 if ! command -v composer >/dev/null 2>&1; then
 	reason="composer is not installed"

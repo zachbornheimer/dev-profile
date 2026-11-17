@@ -136,7 +136,7 @@ expect 'composer dump-autoload failed: the copied vendor/ points at another chec
 # ship composer in /usr/bin, so trimming the system PATH would not make it absent.
 mkdir -p "${work}/bin-wt"
 cp "${work}/bin/wt" "${work}/bin-wt/wt"
-for tool in env bash git; do
+for tool in env bash git dirname cut grep; do
 	ln -s "$(command -v "${tool}")" "${work}/bin-wt/${tool}"
 done
 reset_logs
