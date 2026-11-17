@@ -41,7 +41,8 @@ import sys
 import tomllib
 
 service = tomllib.loads(pathlib.Path(sys.argv[1]).read_text())["bootstrap"]["services"]["mise-history"]
-expected = '\"{{env.HOME}}/.local/share/mise/shims/mise\" exec github:zachbornheimer/mise -- mise dot watch'
+expected = '~/.local/share/mise/shims/mise exec github:zachbornheimer/mise -- mise dot watch'
+assert "{{" not in service.get("command", ""), "service commands do not render templates; launchd would receive a literal {{"
 assert service.get("command") == expected, "history watcher must explicitly select the fork; mise's own shim bypasses tool selection"
 assert "builtin" not in service, "history watcher must not capture the bootstrap binary"
 assert service.get("restart") == "on-failure", "history watcher must restart after a failure"
