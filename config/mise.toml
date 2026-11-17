@@ -43,7 +43,19 @@ history.fetch_interval = "60s"
 # mise calls the GitHub API itself for private repositories (ghx) and rate-limited `latest`
 # lookups. gh keeps its token in the macOS Keychain, so mise cannot read hosts.yml: ask gh.
 [settings.github]
-credential_command = 'gh auth token --hostname "$MISE_CREDENTIAL_HOST"'
+credential_command = '''
+tok=$(gh auth token --hostname "$MISE_CREDENTIAL_HOST" 2>/dev/null) || exit 1
+# An exhausted core pool still returns a token, and mise then sends it on every
+# release lookup. GitHub answers 403 for the whole install, so `mise bootstrap --yes`
+# fails on a relay box whose token already spent the hour (2026-11-17, e2b: 0/5000,
+# 17 aqua/github tools). No token makes those public lookups anonymous (60/hour,
+# a separate pool). Private repos still need the token, exhausted or not.
+remain=$(curl -fsS -m 5 -o /dev/null -D - -H "Authorization: Bearer $tok" https://api.github.com/rate_limit | awk 'tolower($1)=="x-ratelimit-remaining:" {gsub(/\r/,"",$2); print $2; exit}')
+case "$remain" in
+''|0|00) exit 1 ;;
+esac
+printf %s "$tok"
+'''
 
 [settings.age]
 key_file = "/home/zbornheimer/.config/mise/age.txt"
