@@ -98,7 +98,7 @@ description = "Exercise OMP health-check success and failure cases"
 run = "bash tests/omp-tools-fixture.sh"
 
 # The backlog review's transport bounds. The tool is mise-dot tracked, so the
-# test lives beside it and this task is the registered runner.
+# test imports the installed copy and this task is the registered runner.
 [tasks."test:backlog-transport"]
 description = "Bound every backlog-review request by parent cancellation and one deadline"
 run = "bun test tests/backlog_transport.test.ts"
