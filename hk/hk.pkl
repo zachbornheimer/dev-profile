@@ -142,20 +142,23 @@ local shellcheckFilter =
   done
   """
 
-// True unless the repository root declares another formatter (oxfmt, biome, prettier) and has no
-// dprint config of its own. dprint resolves its config from the repository upward and falls back to
-// the profile's (~/Developer/Personal/dprint.jsonc), whose 2-space TypeScript style rewrote every
-// file of an oxfmt repository on commit (tests/dprint-repo-formatter-fixture.sh). A dprint config
-// at the root is the repository opting in, whatever else it declares; a repository declaring no
-// formatter keeps the profile's dprint. The check reads the repository root only, never a parent
-// directory, because a parent's dprint config is exactly the fallback this guards against.
+// True when the repository root has a dprint config of its own, or declares no other formatter
+// (oxfmt, biome, prettier) and is owned (dev-profile-repo-owned). dprint resolves its config from
+// the repository upward and falls back to the profile's (~/Developer/Personal/dprint.jsonc), whose
+// 2-space TypeScript style rewrote every file of an oxfmt repository on commit
+// (tests/dprint-repo-formatter-fixture.sh), and whose TOML key order rewrote a fork's whole
+// Cargo.toml for a one-line change (zachbornheimer/hexyl, 2026-11-17). An unowned codebase, a fork
+// of one included, keeps its upstream's formatting, as dev-profile-format already rules. A dprint
+// config at the root is the repository opting in, whatever else it declares. The check reads the
+// repository root only, never a parent directory, because a parent's dprint config is exactly the
+// fallback this guards against.
 local dprintApplies =
   """
   root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
   cd "$root" || exit 0
   for f in dprint.json dprint.jsonc .dprint.json .dprint.jsonc .config/dprint.json .config/dprint.jsonc; do [ -f "$f" ] && exit 0; done
   for f in .oxfmtrc.json .oxfmtrc.jsonc oxfmt.json biome.json biome.jsonc .prettierrc .prettierrc.* prettier.config.*; do [ -f "$f" ] && exit 1; done
-  exit 0
+  dev-profile-repo-owned
   """
 
 local fixers = new Mapping<String, Step> {
@@ -401,7 +404,13 @@ local gates = new Mapping<String, Step> {
     glob = List("**/Gemfile.lock")
     exclusive = true
   }
-  ["cargo-deny"] = (Builtins.cargo_deny) {
+  // cargo-deny judges the whole crate graph, never the pushed files, so a fork inherits every error its
+  // upstream's graph carries (zachbornheimer/hexyl: 46 license rejections and one advisory, all on
+  // sharkdp/hexyl's master, blocked a one-line Cargo.toml change). dev-profile-cargo-deny-introduced
+  // checks the workspace and its merge base under the same deny.toml and fails only on errors the base
+  // lacks; the base's are printed as pre-existing (tests/cargo-deny-introduced-fixture.sh).
+  ["cargo-deny"] {
+    check = "dev-profile-cargo-deny-introduced"
     glob = List("**/Cargo.toml", "**/Cargo.lock", "**/deny.toml", "**/.deny.toml")
     dir = "{{workspace}}"
     workspace_indicator = "Cargo.lock"
