@@ -362,7 +362,7 @@ or a new `*-LLC` org folder. Full rules: `~/.claude/rules/machine-layout.md`.
 Fleet `dev-env` setup is Nix-managed (`~/Developer/Personal/dev-env/flake.nix`, `nix/`).
 Personal dotfiles in `~` are `mise dot`-managed (`mode = "track"`, auto-saved by
 `mise dot watch` and synced every `60s` to `zachbornheimer/dotfiles.git#history`;
-use `mise dot save && mise dot sync` / `mise dot pull` for immediate sync). `chezmoi`
+agent turns publish with `dev-profile-dot-save-turn <ticket> <path>…` then `mise dot sync`, and non-agent edits with `mise dot save && mise dot sync` / `mise dot pull`)
 is retired — never call `chezmoi`. `~/.agents` is symlinked to
 `~/Developer/Personal/dev-profile/agents` (`~/.claude/CLAUDE.md` symlinks here);
 edit `~/.agents/...` on the live path and commit/push in `~/Developer/Personal/dev-profile`.
