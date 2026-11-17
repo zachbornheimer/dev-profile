@@ -36,6 +36,12 @@ fi
 # betterleaks directly.
 if [[ "$(git rev-parse --is-bare-repository 2>/dev/null)" == "true" ]]; then
 	git_dir="$(git rev-parse --git-dir)"
+	# The profile's betterleaks allowlist corrects false positives the stock
+	# generic-password rule reports on the dotfiles config (1Password product
+	# names). The stock rule set still applies through [extend] useDefault.
+	betterleaks_config="$(cd "$(dirname "$(realpath "${BASH_SOURCE[0]}")")/.." && pwd)/config/betterleaks.toml"
+	betterleaks_args=()
+	[[ -f "${betterleaks_config}" ]] && betterleaks_args=(-c "${betterleaks_config}")
 	all_zeros='^0+$'
 	while read -r _local_ref local_sha _remote_ref remote_sha; do
 		[[ -n "${local_sha:-}" && ! "${local_sha}" =~ ${all_zeros} ]] || continue
@@ -49,7 +55,7 @@ if [[ "$(git rev-parse --is-bare-repository 2>/dev/null)" == "true" ]]; then
 			gitleaks git --redact --no-banner --log-opts="${range}" "${git_dir}"
 		fi
 		if command -v betterleaks >/dev/null 2>&1; then
-			betterleaks git --redact --no-banner --log-opts="${range}" "${git_dir}"
+			betterleaks git --redact --no-banner "${betterleaks_args[@]}" --log-opts="${range}" "${git_dir}"
 		fi
 		if git --git-dir="${git_dir}" log -p "${range}" |
 			grep -Eq '^\+.*-----BEGIN (RSA |DSA |EC |OPENSSH |PGP )?PRIVATE KEY( BLOCK)?-----'; then

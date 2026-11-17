@@ -1,0 +1,27 @@
+# betterleaks config for the dev-profile pre-push scan.
+#
+# It extends the stock rule set, so every default rule keeps firing. The single
+# allowlist below corrects a false positive, it does not disable a rule:
+#
+# `generic-password` matches the substring `password" = "` inside a dotfiles
+# entry that names the 1Password product, for example
+# `"brew-cask:1password" = "1password"`, `"aqua:1password/cli" = "2.30.0"`,
+# `"vfox:jdx/vfox-1password" = "2.42.0"`, or the tracked directory
+# `"~/.config/1Password" = "~/.config/1Password"`. Those lines name a program or
+# a path; nothing on them is a credential.
+#
+# The match is narrow on purpose: the allowlist reads the whole line and needs
+# the complete key to be one of those 1Password product names. A real password
+# key in this file, and this product name in any other file, is still reported.
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "config.toml entries that name the 1Password program: a brew cask, an aqua or vfox package, or a tracked 1Password directory"
+paths = ['''^config/config\.toml$''']
+regexTarget = "line"
+regexes = [
+  '''"(brew-cask:1password(-cli)?|aqua:1password/cli|vfox:jdx/vfox-1password)" *= *"''',
+  '''"~/[^"]*1[Pp]assword[^"]*" *= *"''',
+]
