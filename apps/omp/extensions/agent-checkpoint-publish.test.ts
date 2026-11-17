@@ -507,6 +507,9 @@ function miseBox(opts: { mode?: string; origin?: "dead"; every?: number; declare
     PATH: `${bin}:${process.env.PATH}`,
   } as Record<string, string>;
   delete env.MISE_HISTORY_MANUAL_SAVE_EVERY_S;
+  // Under `mise bootstrap` (doctor runs this suite) the outer run exports its own history operation id. The nested
+  // `mise bootstrap --adopt` inherits it, believes it belongs to that run, and refuses incoming application.
+  delete env.__MISE_HISTORY_OPERATION;
   if (opts.every) env.MISE_HISTORY_MANUAL_SAVE_EVERY_S = String(opts.every);
   process.env = env;
   const declare = (canonical: string | false) =>
