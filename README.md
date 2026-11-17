@@ -82,8 +82,12 @@ blocked worker discovery in an interactive terminal.
 
 Fuzzy `cd` and `z` resolve their target with the native zoxide binary selected
 by `_zsh_binpath`, without changing PATH or running the mise shim. This lookup
-must complete before changing PWD; `zoxide add` remains detached (`&!`).
-The cd fixture uses an isolated database and a failing shim to guard this path.
+must complete before changing PWD, and it excludes the current directory from
+`$PWD` (`${PWD:A}` when the cached init resolves symlinks) with no `pwd`
+subshell; `zoxide add` remains detached (`&!`).
+The cd fixture uses an isolated database, a failing shim, and a held
+`__zoxide_pwd` FIFO to guard this path, plus logical and physical symlink
+exclusion.
 
 The mise config-stamp ancestry walk stops at the filesystem root or an unchanged
 parent, so shells started in deleted directories finish startup.
