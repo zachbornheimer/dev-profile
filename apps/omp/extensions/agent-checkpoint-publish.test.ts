@@ -3,7 +3,7 @@ import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import install, { type Job, jobPath, readJob, writeJob } from "./agent-checkpoint-publish.ts";
+import install, { type Job, jobPath, miseSettled, readJob, writeJob } from "./agent-checkpoint-publish.ts";
 
 const source = path.resolve(import.meta.dir, "agent-checkpoint-publish.ts");
 const dirs: string[] = [];
@@ -534,7 +534,10 @@ function miseBox(opts: { mode?: string; origin?: "dead"; every?: number; declare
     const notices: string[] = [];
     const handlers = new Map<string, Function>();
     install({ on: (n, fn) => void handlers.set(n, fn) });
-    await handlers.get("agent_end")!({}, { cwd: home, ui: { notify: (t: string) => void notices.push(t) } });
+    const ctx = { cwd: home, ui: { notify: (t: string) => void notices.push(t) } };
+    await handlers.get("agent_end")!({}, ctx);
+    await miseSettled();
+    await handlers.get("agent_start")!({}, ctx);
     return { notices, mise: notices.filter(n => n.startsWith("mise-dotfiles:")), argv: lines() };
   };
   return { root, home, origin, config, mise, write, declare, touchStamp, stamp, report };
@@ -672,6 +675,32 @@ test("mise: absent from PATH omits the outcome entirely", async () => {
   const notices: string[] = [];
   const handlers = new Map<string, Function>();
   install({ on: (n, fn) => void handlers.set(n, fn) });
-  await handlers.get("agent_end")!({}, { cwd: b.home, ui: { notify: (t: string) => void notices.push(t) } });
+  const ctx = { cwd: b.home, ui: { notify: (t: string) => void notices.push(t) } };
+  await handlers.get("agent_end")!({}, ctx);
+  await miseSettled();
+  await handlers.get("agent_start")!({}, ctx);
   expect(notices.filter(n => n.startsWith("mise-dotfiles:"))).toEqual([]);
 });
+
+test("mise: agent_end returns before slow mise work finishes; the report arrives on the next agent_start", async () => {
+  const b = miseBox();
+  b.mise("dot", "save");
+  fs.writeFileSync(
+    path.join(b.root, "bin/mise"),
+    `#!/usr/bin/env bash\nsleep 2\nexec "${realMise}" "$@"\n`,
+    { mode: 0o755 },
+  );
+  const notices: string[] = [];
+  const handlers = new Map<string, Function>();
+  install({ on: (n, fn) => void handlers.set(n, fn) });
+  const ctx = { cwd: b.home, ui: { notify: (t: string) => void notices.push(t) } };
+  const t0 = Date.now();
+  await handlers.get("agent_end")!({}, ctx);
+  expect(Date.now() - t0).toBeLessThan(1_000);
+  expect(notices.filter(n => n.startsWith("mise-dotfiles:"))).toEqual([]);
+  await miseSettled();
+  await handlers.get("agent_start")!({}, ctx);
+  expect(notices.filter(n => n.startsWith("mise-dotfiles:"))).toHaveLength(1);
+  await handlers.get("agent_start")!({}, ctx);
+  expect(notices.filter(n => n.startsWith("mise-dotfiles:"))).toHaveLength(1);
+}, 90_000);
