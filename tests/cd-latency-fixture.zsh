@@ -111,4 +111,18 @@ expect $'\r\nZJUMPED:'"$work/places/fuzzy-target"$'\r\n'
 zpty -w prompttest 'cd -- "$CD_TEST_WORK/places" && cd ./fuzzy-target && print -r -- "LITERAL:$PWD"; old=$PWD; cd no-such-fixture-destination >/dev/null 2>&1; rc=$?; [[ $rc != 0 && $PWD == "$old" ]] && print -r -- FAILEDUNCHANGED'
 expect $'\r\nLITERAL:'"$work/places/fuzzy-target"$'\r\n'
 expect $'FAILEDUNCHANGED\r\n'
+# The lookup must not consult __zoxide_pwd: a held FIFO there would block the
+# jump if the exclusion path were read through a subshell.
+mkfifo "$work/pwdhold"
+zpty -w prompttest '__zoxide_pwd() { read -r < "$CD_TEST_WORK/pwdhold"; builtin pwd -L; }; builtin cd -q /; print -r -- PWDHOLDSET'
+expect $'\r\nPWDHOLDSET\r\n'
+zpty -w prompttest 'cd fuzzy-target && print -r -- "UNHELD:$PWD"'
+expect $'\r\nUNHELD:'"$work/places/fuzzy-target"$'\r\n' 1
+# Real isolated database: link/spot outranks real/spot, so only the right
+# exclusion selects the other. __zoxide_cd reports the chosen target before
+# cd's own handling of symlinks can hide it.
+zpty -w prompttest 'rw=${CD_TEST_WORK:A}; mkdir -p "$rw/sym/real/spot" "$rw/database2"; ln -s real "$rw/sym/link"; _ZO_DATA_DIR="$rw/database2"; "$native" add -- "$rw/sym/real/spot"; repeat 2 "$native" add -- "$rw/sym/link/spot"; builtin source "$CD_TEST_ROOT/shell/zsh/40-zoxide.defer.zsh"; __zoxide_hook() { :; }; __zoxide_cd() { print -r -- "ARG:$1"; builtin cd -- "$1"; }; builtin cd -q "$rw/sym/link/spot"; cd spot'
+expect $'\r\nARG:'"${work:A}/sym/real/spot"$'\r\n' 15
+zpty -w prompttest '_ZSH_INIT_CACHE=$rw/physcache; mkdir -p $_ZSH_INIT_CACHE; _ZO_RESOLVE_SYMLINKS=1 "$native" init zsh --cmd cd >| "$_ZSH_INIT_CACHE/zoxide.zsh"; builtin source "$CD_TEST_ROOT/shell/zsh/40-zoxide.defer.zsh"; __zoxide_hook() { :; }; __zoxide_cd() { print -r -- "ARG:$1"; builtin cd -- "$1"; }; builtin cd -q "$rw/sym/link/spot"; cd spot'
+expect $'\r\nARG:'"${work:A}/sym/link/spot"$'\r\n' 15
 print -r -- 'cd-latency fixture ok'
