@@ -1,4 +1,7 @@
 [tools]
-uv = "latest"
+# Pinned, not "latest": a `latest` pin lists api.github.com releases on every
+# bootstrap, and one timed-out listing failed `mise bootstrap --yes` on a fresh Relay box
+# (uv@latest failed, pypi:yamllint skipped as its dependent).
+uv = "0.13.8"
 ruff = "0.16.10"
 "pypi:yamllint" = "1.38.0"
