@@ -253,6 +253,8 @@ exclude = ["**"]
 "~/.config/mise/conf.d/dev-profile" = { source = "profile", mode = "symlink" }
 "~/.config/worktrunk/config.toml/dev-profile" = { source = "config/worktrunk.toml", merge = true }
 "~/.config/yamllint/config" = { source = "config/yamllint.yaml", mode = "symlink" }
+"~/.local/bin/mux-wait" = { source = "agents/bin/mux-wait", mode = "symlink" }
+# ^ outside ~/.local/share so the command resolves on the plain PATH every session inherits.
 "~/.local/share/dev-profile/bin" = { source = "bin", mode = "symlink" }
 "~/.local/share/dev-profile/mise.zsh" = { source = "shell/mise.zsh", mode = "symlink" }
 "~/.local/share/dev-profile/shell.zsh" = { source = "shell/shell.zsh", mode = "symlink" }
