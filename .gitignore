@@ -29,6 +29,7 @@
 !/tests/*.pkl
 !/tests/*.pcf
 !/tests/*.py
+!/tests/*.ts
 !/tests/contract/
 !/tests/contract/*.sh
 !/tests/guards/
