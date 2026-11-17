@@ -39,6 +39,11 @@ shims.exclude = [
 ]
 history.sync_interval = "60s"
 history.fetch_interval = "60s"
+# `history.sync` is the sharing mode, and `fetch-only` is mise's default when it is
+# unset. A `fetch-only` node never publishes: Relay 0d6f6d73 saved 5,284 checkpoints
+# and landed none, and a hand edit to the machine-local ~/.config/mise/config.local.toml
+# could drop it back with no tracked file to correct it. Declare publishing here.
+history.sync = "sync"
 
 # mise calls the GitHub API itself for private repositories (ghx) and rate-limited `latest`
 # lookups. gh keeps its token in the macOS Keychain, so mise cannot read hosts.yml: ask gh.
