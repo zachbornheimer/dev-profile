@@ -13,7 +13,12 @@ _zsh_binpath() {
 		return 1
 	fi
 	local p dir
-	for dir in /opt/homebrew/bin "$HOME/.local/bin" /usr/local/bin /usr/bin; do
+	# mise's install dirs hold the real binary of a mise-declared tool (Linux has no Homebrew); the shim
+	# on PATH execs through mise and costs ~0.5-0.9s per call. `latest` is mise's symlink to the newest install.
+	local mise_data="${MISE_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/mise}"
+	for dir in /opt/homebrew/bin "$HOME/.local/bin" /usr/local/bin /usr/bin \
+		"$mise_data/installs/$name/latest" "$mise_data/installs/$name/latest/bin" \
+		"$mise_data/installs/$name/latest/.mise-bins"; do
 		[[ -x $dir/$name ]] && print -r -- "$dir/$name" && return 0
 	done
 	p="${commands[$name]}"

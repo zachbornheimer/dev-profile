@@ -3,6 +3,8 @@
 setopt err_exit no_unset
 zmodload zsh/zpty zsh/zselect zsh/datetime
 root=${0:A:h:h}
+# The direnv step below swaps HOME; mise's real install dir must stay resolvable for _zsh_binpath.
+export MISE_DATA_DIR=${MISE_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/mise}
 [[ -n ${CD_TEST_ROOT:-} ]] && root=$CD_TEST_ROOT
 work=$(mktemp -d)
 trap 'zpty -d prompttest 2>/dev/null || true; rm -rf "$work"' EXIT
