@@ -596,6 +596,25 @@ export function reportMise(r: MiseReport) {
     parts.length ? ` ${parts.join(" ; ")}` : ""
   }`;
 }
+// omp kills an extension handler after 30 s. Mise reconciliation shells out to `mise dot status`, `git ls-remote` and
+// `mise dot sync` (each capped at 8-20 s, serial), so it can never run inside the handler. It runs detached; its
+// report is queued and surfaced by the next `agent_start`. One run at a time: a turn ending while one is in flight skips.
+let miseRun: Promise<void> | undefined;
+let miseNotice: { text: string; level: "info" | "warning" } | undefined;
+export const miseSettled = () => miseRun ?? Promise.resolve();
+function startMise() {
+  if (miseRun) return;
+  miseRun = (async () => {
+    try {
+      const mise = await reconcileMise();
+      if (mise) miseNotice = { text: reportMise(mise), level: mise.outcome === "verified" ? "info" : "warning" };
+    } catch (e) {
+      miseNotice = { text: `mise-dotfiles: blocked failing: ${e instanceof Error ? e.message : e}`, level: "warning" };
+    }
+  })().finally(() => {
+    miseRun = undefined;
+  });
+}
 export default function install(pi: { on(name: string, handler: (event: any, ctx: Context) => unknown): void }) {
   let start: string | undefined, turn = randomUUID();
   const cwd = (ctx: Context) => ctx.cwd ?? ctx.sessionManager?.getCwd?.() ?? process.cwd();
@@ -616,6 +635,10 @@ export default function install(pi: { on(name: string, handler: (event: any, ctx
   pi.on("agent_start", (_event, ctx) => {
     if (process.env.AGENT_CHECKPOINT_PUBLISH === "1") return;
     surface(ctx);
+    if (miseNotice) {
+      ctx.ui?.notify?.(miseNotice.text, miseNotice.level);
+      miseNotice = undefined;
+    }
     turn = randomUUID();
     try {
       start = local(cwd(ctx), ["rev-parse", "HEAD"]);
@@ -623,16 +646,11 @@ export default function install(pi: { on(name: string, handler: (event: any, ctx
       start = undefined;
     }
   });
-  // Two independent outcomes in one `agent_end` report: the repository checkpoint and the mise dotfiles.
+  // Two independent outcomes: the repository checkpoint (reported now) and the mise dotfiles (detached, reported next turn).
   pi.on("agent_end", async (event, ctx) => {
     if (event.willContinue === true || process.env.AGENT_CHECKPOINT_PUBLISH === "1") return;
     await checkpoint(ctx);
-    try {
-      const mise = await reconcileMise();
-      if (mise) ctx.ui?.notify?.(reportMise(mise), mise.outcome === "verified" ? "info" : "warning");
-    } catch (e) {
-      ctx.ui?.notify?.(`mise-dotfiles: blocked failing: ${e instanceof Error ? e.message : e}`, "warning");
-    }
+    startMise();
   });
   const checkpoint = async (ctx: Context) => {
     const repo = cwd(ctx);
