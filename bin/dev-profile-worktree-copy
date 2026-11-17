@@ -137,33 +137,47 @@ bounded() { # <seconds> <cmd...>
 
 # Install only a dependency the checkout declares and does not already hold,
 # from the lockfile the repo committed, so a worktree can run its own tests
-# without a repo-wide install. The declared setup task wins; a checkout with no
-# such task gets the installer its lockfile names. A checkout that declares
-# nothing is left alone.
+# without a repo-wide install. A declared setup task is not that install: in
+# this profile it bootstraps the machine, and a checkout can declare packages
+# in a subdirectory the task never touches. So the lockfile install runs for
+# every declared package that is absent, and the setup task runs as well,
+# advisory. A checkout that declares nothing is left alone.
+install_one() { # <dir>
+	local dir="$1"
+	[[ -f "${dir}/package.json" && ! -d "${dir}/node_modules" ]] || return 0
+	if [[ -f "${dir}/pnpm-lock.yaml" ]] && command -v pnpm >/dev/null 2>&1; then
+		(cd "${dir}" && bounded "${repair_timeout}" command pnpm install --frozen-lockfile) ||
+			echo "dev-profile-worktree-copy: pnpm install failed in ${dir}; run: pnpm install --frozen-lockfile" >&2
+	elif [[ -f "${dir}/bun.lock" || -f "${dir}/bun.lockb" ]] && command -v bun >/dev/null 2>&1; then
+		(cd "${dir}" && bounded "${repair_timeout}" command bun install --frozen-lockfile) ||
+			echo "dev-profile-worktree-copy: bun install failed in ${dir}; run: bun install --frozen-lockfile" >&2
+	fi
+}
+
 install_declared_deps() {
-	if [[ -f mise.toml ]] && command -v mise >/dev/null 2>&1 &&
-		command mise tasks ls --json 2>/dev/null | command grep -q '"name":"setup"'; then
-		if bounded "${repair_timeout}" command mise run setup; then
-			echo "dev-profile-worktree-copy: ran the declared setup task"
-			return 0
-		fi
-		echo "dev-profile-worktree-copy: the declared setup task failed; run: mise run setup" >&2
-		return 1
-	fi
-	if [[ -f package.json && ! -d node_modules ]]; then
-		if [[ -f pnpm-lock.yaml ]] && command -v pnpm >/dev/null 2>&1; then
-			bounded "${repair_timeout}" command pnpm install --frozen-lockfile ||
-				echo "dev-profile-worktree-copy: pnpm install failed; run: pnpm install --frozen-lockfile" >&2
-		elif [[ -f bun.lock || -f bun.lockb ]] && command -v bun >/dev/null 2>&1; then
-			bounded "${repair_timeout}" command bun install --frozen-lockfile ||
-				echo "dev-profile-worktree-copy: bun install failed; run: bun install --frozen-lockfile" >&2
-		fi
-	fi
+	local dir
+	install_one "."
+	# One and two levels down: a repo keeps its runnable packages in
+	# subdirectories (cloudflare/relay-edge) while the root declares none.
+	for dir in */ */*/; do
+		[[ -d "${dir}" ]] || continue
+		install_one "${dir%/}"
+	done
 	if [[ -f go.mod && ! -d vendor ]] && command -v go >/dev/null 2>&1 && command grep -q '^require ' go.mod; then
 		bounded "${repair_timeout}" command go mod download ||
 			echo "dev-profile-worktree-copy: go mod download failed; run: go mod download" >&2
 	fi
+	if [[ -f mise.toml ]] && command -v mise >/dev/null 2>&1 &&
+		command mise tasks ls --json 2>/dev/null | command grep -q '"name":"setup"'; then
+		if bounded "${repair_timeout}" command mise run setup; then
+			echo "dev-profile-worktree-copy: ran the declared setup task"
+		else
+			echo "dev-profile-worktree-copy: the declared setup task failed; run: mise run setup" >&2
+		fi
+	fi
 }
+
+# A fetch refspec that names one branch never stores a tracking ref for any
 
 # A fetch refspec that names one branch never stores a tracking ref for any
 # other, so widen it to every branch and fetch. Prune drops a branch deleted

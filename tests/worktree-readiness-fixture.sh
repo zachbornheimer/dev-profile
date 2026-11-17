@@ -120,4 +120,32 @@ bare="${scratch}/bare"
 (cd "${narrow}" && dev-profile-worktree-copy) || fail "a second run must succeed"
 [[ ! -s "${BUN_LOG}" ]] || fail "a checkout that already holds its dependencies must not be reinstalled"
 
+# A package declared two levels down, beside a setup task that is not an
+# install, still gets installed, and the setup task still runs.
+mkdir -p "${narrow}/cloudflare/relay-edge"
+rm -rf "${narrow}/node_modules"
+mv "${narrow}/package.json" "${narrow}/bun.lock" "${narrow}/cloudflare/relay-edge/"
+printf '[tasks.setup]\nrun = "true"\n' >"${narrow}/mise.toml"
+cat >"${stub_bin}/mise" <<'EOF'
+#!/usr/bin/env bash
+if [[ "${1:-} ${2:-}" == "tasks ls" ]]; then
+	printf '%s\n' '[{"name":"setup"}]'
+	exit 0
+fi
+if [[ "${1:-} ${2:-}" == "run setup" ]]; then
+	printf '%s\n' "run setup" >>"${MISE_LOG}"
+	exit 0
+fi
+echo "unexpected mise call: $*" >&2
+exit 1
+EOF
+chmod +x "${stub_bin}/mise"
+export MISE_LOG="${scratch}/mise.log"
+: >"${BUN_LOG}"
+: >"${MISE_LOG}"
+(cd "${narrow}" && dev-profile-worktree-copy) || fail "a nested package must still be prepared"
+[[ -f "${narrow}/cloudflare/relay-edge/node_modules/e2b/package.json" ]] ||
+	fail "a package declared two levels down must be installed"
+grep -qxF "run setup" "${MISE_LOG}" || fail "the declared setup task must still run"
+
 echo "ok worktree-readiness (${elapsed}s)"
