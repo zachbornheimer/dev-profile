@@ -177,7 +177,6 @@ install_declared_deps() {
 	fi
 }
 
-# A fetch refspec that names one branch never stores a tracking ref for any
 
 # A fetch refspec that names one branch never stores a tracking ref for any
 # other, so widen it to every branch and fetch. Prune drops a branch deleted
