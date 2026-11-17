@@ -341,8 +341,8 @@ omp() {
 					fi
 					# Scale down only on an explicit "idle" answer, never on a timeout or ssh failure.
 					if [[ "$("${rssh[@]}" backend.ai.lan.zachandaj.com "if pgrep -u zbornheimer -f '(^|/)(omp|atask)([[:space:]]|$)' >/dev/null || [ \"\$(who | grep -c 'pts/')\" -gt 0 ]; then echo busy; else echo idle; fi" 2>/dev/null)" == idle ]]; then
-						print -u2 "[omp] no other active sessions on remote box; scaling down in background..."
-						(nohup mise -C "$HOME/Developer/Personal/dev-env" run vps:down >/dev/null 2>&1 </dev/null &)
+						# Hetzner create/delete was retired (ZYS-9510), so an idle box is left for its own reaper.
+						print -u2 "[omp] no other active sessions on remote box; leaving it up for the idle reaper"
 					fi
 				fi
 			fi

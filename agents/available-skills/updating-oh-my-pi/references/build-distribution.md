@@ -43,7 +43,7 @@ list). The assembly fails when `main` holds a commit upstream lacks that touches
   main-lock reference-transaction hook survives inside `bin/dev-profile-omp-machine-setup` (run by `mise run setup`),
   which also creates the stable entrypoint.
 - Fleet symlink `~/.local/bin/omp -> ~/Developer/Personal/oh-my-pi/...` (source-checkout target) replaced by the stable
-  entrypoint above. dev-env `tools/vps/vps-up.sh` no longer builds/installs omp per box; its `vps:up` warm-gate checks
+  entrypoint above. Hetzner provisioning was retired (ZYS-9510), so no box provisioner builds or installs omp; the warm-gate checks
   both `~/.local/bin/omp` and the mise shim.
 - `omp.url` pin + `nix/modules/omp.nix` in dev-env: KEPT — `checks/container.ts` runs `omp --version` inside the
   docker image built from the flake, which reaches omp only via `programs.omp`.
