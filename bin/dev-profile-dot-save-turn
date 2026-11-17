@@ -1,0 +1,119 @@
+#!/usr/bin/env bash
+# Save a turn's checkpoint with provenance, then report what it really captured.
+#
+# `mise dot save` records a snapshot of every tracked `autosave = true` path,
+# whatever the caller names: the `[PATH]…` argument only force-includes
+# `autosave = false` entries (mise `history/checkpoint.rs`, `manual_plan`). A
+# checkpoint therefore cannot be a delta, so this wrapper makes it an honest
+# snapshot instead: it stamps the checkpoint as the agent's (`trigger = agent`,
+# `--task <ticket>`), reads the checkpoint's own change set back, and splits it
+# into the paths the turn named and the paths it swept in from elsewhere.
+#
+# The reply quotes the `captured-not-authored:` lines verbatim; a sweep is
+# reported, never refused — the watcher would capture the same content seconds
+# later, and a refusal would only deadlock a busy machine.
+#
+# Usage: dev-profile-dot-save-turn <ticket> <path>... [--description TEXT]
+# Exit: 0 when the checkpoint was written (a sweep included); non-zero when mise
+# refused the save, in which case no checkpoint is created and nothing is printed
+# as captured.
+set -uo pipefail
+
+usage() { sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'; }
+
+ticket=""
+description=""
+declare -a named=()
+
+while [ $# -gt 0 ]; do
+	case "$1" in
+	--description | -d)
+		description=${2:-}
+		shift 2
+		;;
+	-h | --help)
+		usage
+		exit 0
+		;;
+	-*)
+		printf 'dev-profile-dot-save-turn: unexpected argument %s\n' "$1" >&2
+		exit 64
+		;;
+	*)
+		if [ -z "$ticket" ]; then ticket=$1; else named+=("$1"); fi
+		shift
+		;;
+	esac
+done
+
+if ! printf '%s' "$ticket" | grep -Eq '^[A-Za-z][A-Za-z0-9]*-[1-9][0-9]*$'; then
+	printf 'dev-profile-dot-save-turn: first argument must be a ticket id like ZYS-9739 (got %s)\n' "${ticket:-none}" >&2
+	exit 64
+fi
+if [ ${#named[@]} -eq 0 ]; then
+	printf 'dev-profile-dot-save-turn: name at least one tracked path this turn wrote\n' >&2
+	exit 64
+fi
+
+# mise reports captured paths in `~/...` form; compare in that form.
+mise_path() {
+	local p=$1
+	while [ "${p%/}" != "$p" ] && [ "$p" != "/" ]; do p=${p%/}; done
+	case "$p" in
+	"$HOME") printf '~' ;;
+	"$HOME"/*) printf '~%s' "${p#"$HOME"}" ;;
+	/*) printf '%s' "$p" ;;
+	*) printf '~/%s' "${p#./}" ;;
+	esac
+}
+
+declare -a named_mise=()
+for p in "${named[@]}"; do named_mise+=("$(mise_path "$p")"); done
+
+# The numeric id is the newest checkpoint before the save; a save that fails
+# must not be reported against it.
+before=$(mise dot history -J -n 1 2>/dev/null | jq -r '.[0].id // empty')
+
+description=${description:-"agent: $ticket"}
+if ! save_out=$(mise dot save "${named[@]}" --trigger agent --task "$ticket" -d "$description" 2>&1); then
+	printf '%s\n' "$save_out" >&2
+	printf 'dev-profile-dot-save-turn: mise refused the save; no checkpoint was written\n' >&2
+	exit 1
+fi
+
+checkpoint=$(mise dot history show latest --json 2>/dev/null) || {
+	printf '%s\n' "$save_out" >&2
+	printf 'dev-profile-dot-save-turn: checkpoint saved but unreadable; report it as unverified\n' >&2
+	exit 1
+}
+
+id=$(printf '%s' "$checkpoint" | jq -r '.id // empty')
+if [ -n "$before" ] && [ "$id" = "$before" ]; then
+	printf '%s\n' "$save_out" >&2
+	printf 'dev-profile-dot-save-turn: no checkpoint was written (latest is still %s)\n' "$id" >&2
+	exit 1
+fi
+
+trigger=$(printf '%s' "$checkpoint" | jq -r '.trigger // "?"')
+task=$(printf '%s' "$checkpoint" | jq -r '.task // "?"')
+source=$(printf '%s' "$checkpoint" | jq -r '.description_source // "?"')
+
+printf 'checkpoint %s  trigger=%s  task=%s  description_source=%s\n' "$id" "$trigger" "$task" "$source"
+
+declare -a authored=() swept=()
+while IFS= read -r path; do
+	[ -n "$path" ] || continue
+	seen=0
+	for n in "${named_mise[@]}"; do [ "$path" = "$n" ] && seen=1 && break; done
+	if [ "$seen" -eq 1 ]; then authored+=("$path"); else swept+=("$path"); fi
+done < <(printf '%s' "$checkpoint" | jq -r '(.changes.modified // [])[]?' 2>/dev/null)
+
+printf 'authored:\n'
+if [ ${#authored[@]} -eq 0 ]; then printf '  (none: no named path changed since the last checkpoint)\n'; fi
+for p in "${authored[@]}"; do printf '  %s\n' "$p"; done
+
+printf 'captured-not-authored:\n'
+if [ ${#swept[@]} -eq 0 ]; then printf '  (none)\n'; fi
+for p in "${swept[@]}"; do printf '  %s\n' "$p"; done
+
+exit 0
