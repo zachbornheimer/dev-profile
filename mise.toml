@@ -103,10 +103,17 @@ run = "bash tests/omp-tools-fixture.sh"
 description = "Bound every backlog-review request by parent cancellation and one deadline"
 run = "bun test tests/backlog_transport.test.ts"
 
+# The rule fixture gate is mise-dot tracked and installed at ~/.omp/agent/rules, so
+# the test evaluates the live rule set rather than a copy: a rule that matches its own
+# text fails this task, and ci runs it.
+[tasks."test:rules"]
+description = "Fail when a rule in the installed rule set matches its own text"
+run = "bun test ~/.omp/agent/rules/rule_conditions.test.ts"
+
 [tasks."list:skills:unmanaged"]
 alias = ["list:skills:unamanaged", "skills:unmanaged"]
 description = "List skills in ~/.agents/available-skills not tracked in .skill-lock.json"
 run = "~/.agents/bin/aubx-skills unmanaged"
 [tasks.ci]
-description = "lint, then the file check"
-run = ["mise run lint", "mise run test"]
+description = "lint, the file check, then the rule fixture gate"
+run = ["mise run lint", "mise run test", "mise run test:rules"]
