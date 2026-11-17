@@ -113,7 +113,12 @@ process_type = "Background"
 # process_type = "Background"
 
 [bootstrap.services.mise-history]
-builtin = "history-watch"
+scope = "user"
+# A builtin freezes the mise executable that ran bootstrap (possibly Homebrew).
+# The shim selects the configured fork again on every start and tool upgrade.
+command = '"{{env.HOME}}/.local/share/mise/shims/mise" dot watch'
+restart = "on-failure"
+requires_tools = true
 
 [history]
 git_email = "mise@{hostname}"

@@ -33,4 +33,19 @@ printf '%s' "${src}" | env -i HOME="${scratch}" PATH="${bare}" \
 	exit 1
 }
 
+# A builtin records whichever mise bootstrapped the service, which may be the
+# older Homebrew binary. Resolve the configured mise tool at every service start.
+python3 - "$repo/config/mise.toml" <<'PY'
+import pathlib
+import sys
+import tomllib
+
+service = tomllib.loads(pathlib.Path(sys.argv[1]).read_text())["bootstrap"]["services"]["mise-history"]
+expected = '\"{{env.HOME}}/.local/share/mise/shims/mise\" dot watch'
+assert service.get("command") == expected, "history watcher must use the configured mise shim, not the bootstrap binary"
+assert "builtin" not in service, "history watcher must not capture the bootstrap binary"
+assert service.get("restart") == "on-failure", "history watcher must restart after a failure"
+assert service.get("scope") == "user", "history watcher must remain a user service"
+assert service.get("requires_tools") is True, "history watcher must start after tools are installed"
+PY
 echo "ok bin-path-free"
