@@ -50,7 +50,8 @@ export const spawnRepair: Spawner = (prompt, logPath, cwd) => {
   const out = openSync(logPath, "a");
   // OMP_NESTED_RUN: this extension and the Stop reviewers stay quiet inside the repair session.
   const env = { ...process.env, OMP_NESTED_RUN: "1", OMP_SESSION_REVIEW: "0", OMP_TURN_WASTE: "0" };
-  return spawn(process.env.OMP_BIN ?? "omp", ["-p", prompt], { cwd, stdio: ["ignore", out, out], env, detached: true });
+  // A literal binary path: the spawn seam tests need is `Spawner`, so no env var selects what runs.
+  return spawn("omp", ["-p", prompt], { cwd, stdio: ["ignore", out, out], env, detached: true });
 };
 
 export function handleSettled(
