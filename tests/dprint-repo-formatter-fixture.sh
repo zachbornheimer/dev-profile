@@ -7,7 +7,9 @@
 # into a 37,000-line diff. Run through git's real `git commit` with the profile's hk config:
 #  1. A repo declaring oxfmt, biome or prettier and no dprint config commits its file byte-identical.
 #  2. A repo with its own dprint config still has the file formatted.
-#  3. A repo declaring no formatter at all still gets the profile's dprint (parent fallback).
+#  3. An owned repo declaring no formatter at all still gets the profile's dprint (parent fallback).
+#  4. An unowned repo (a fork of an external upstream) declaring no formatter commits its file
+#     byte-identical: the fallback reordered a fork's whole Cargo.toml for a one-line change.
 # Only the dprint step runs, so another step's verdict cannot decide this fixture.
 set -euo pipefail
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -111,5 +113,14 @@ dir="$(new_repo bare)"
 commit "${dir}" || fail "bare: a tab-indented TypeScript file must commit"
 [[ "$(committed_ts "${dir}")" == "${spaced_ts%$'\n'}" ]] ||
 	fail "bare: dprint must keep formatting a repo that declares no formatter, got: $(committed_ts "${dir}")"
+
+# 4. A fork of an external upstream declares no formatter: its upstream's formatting stands. The
+# remotes classify it without the network (dev-profile-repo-owned reads an external upstream first).
+dir="$(new_repo fork)"
+"${git_bin}" -C "${dir}" remote add origin https://github.com/zachbornheimer/hexyl.git
+"${git_bin}" -C "${dir}" remote add upstream https://github.com/sharkdp/hexyl.git
+commit "${dir}" || fail "fork: a tab-indented TypeScript file must commit"
+[[ "$(committed_ts "${dir}")" == "${tabbed_ts%$'\n'}" ]] ||
+	fail "fork: the profile's dprint must not rewrite an unowned repo, got: $(committed_ts "${dir}")"
 
 echo "ok dprint-repo-formatter"

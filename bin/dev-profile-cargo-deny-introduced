@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# dev-profile-cargo-deny-introduced [which…]: cargo-deny the workspace in the current
+# directory and fail only on the errors this branch introduces. Run from the
+# workspace root (hk's dir = "{{workspace}}"); [which…] narrows the checks
+# (licenses, bans, sources, advisories) and defaults to all of them.
+#
+# cargo-deny judges the whole dependency graph, never the files a push touched, so a
+# gate that failed on every error would reject every push to a repository whose
+# graph already carries one: an upstream crate's license the profile's allow-list
+# lacks, an advisory published against a pinned dependency. Those are what the push
+# inherited. The workspace is checked twice, as it is and as the merge base with the
+# upstream default branch had it, under the same config: the one cargo-deny resolves
+# for the workspace (deny.toml, .deny.toml or .cargo/deny.toml in the workspace
+# directory or a parent), so the base is judged by the policy the push is. An error
+# is pre-existing when the base reports the same one: check code, advisory id, crate
+# name and labelled span, without the crate version, so a bump that keeps a crate's
+# license or advisory does not count as new. Pre-existing errors are printed, never
+# hidden, and do not fail the push; an error the base lacks does. With no base, or a
+# workspace the base lacks, every error is introduced. A run that does not finish
+# (no summary) fails the push. CI keeps the whole-graph view.
+command -v cargo-deny >/dev/null 2>&1 || exit 0
+[[ -f Cargo.toml ]] || exit 0
+
+which=("$@")
+work="$(pwd -P)"
+root="$(git rev-parse --show-toplevel)"
+root="$(cd "${root}" && pwd -P)"
+rel="${work#"${root}"}"
+rel="${rel#/}"
+
+# The config cargo-deny resolves from the workspace manifest, searched the way it does.
+config=()
+dir="${work}"
+while :; do
+	for name in deny.toml .deny.toml .cargo/deny.toml; do
+		if [[ -f "${dir}/${name}" ]]; then
+			config=(--config "${dir}/${name}")
+			break 2
+		fi
+	done
+	[[ "${dir}" != / ]] || break
+	dir="$(dirname "${dir}")"
+done
+
+# The merge base of HEAD with the first default branch it shares history with.
+# A fork whose GitHub default branch is an orphan config branch shares none with
+# origin/HEAD, so the mirror (origin/main or origin/master) is tried next.
+default_base() {
+	local ref base
+	for ref in "$(git symbolic-ref -q --short refs/remotes/origin/HEAD || true)" origin/main origin/master; do
+		[[ -n "${ref}" ]] && git rev-parse -q --verify "${ref}^{commit}" >/dev/null || continue
+		if base="$(git merge-base HEAD "${ref}" 2>/dev/null)"; then
+			printf '%s\n' "${base}"
+			return 0
+		fi
+	done
+}
+
+tmp="$(mktemp -d)"
+trap 'rm -rf "${tmp}"' EXIT
+
+# deny <dir> <out>: cargo-deny's JSON diagnostics for the workspace in <dir>. Errors
+# are judged by the comparison; a run without a summary line did not finish.
+deny() {
+	local code=0
+	(cd "$1" && cargo-deny --locked --workspace --format json "${config[@]}" check "${which[@]}") \
+		>/dev/null 2>"$2" || code=$?
+	if ! jq -e 'select(.type == "summary")' "$2" >/dev/null 2>&1; then
+		cat "$2" >&2
+		echo "dev-profile-cargo-deny-introduced: cargo-deny did not finish (exit ${code}) in $1" >&2
+		return 1
+	fi
+}
+
+# errors <json lines>: one object per error, keyed without the crate version.
+errors() {
+	jq -c 'select(.type == "diagnostic" and .fields.severity == "error") | .fields
+		| {key: ([.code, (.advisory.id // ""), (.graphs[0].Krate.name // ""),
+			([.labels[]? | "\(.message)=\(.span)"] | join(";")), (if .graphs then "" else .message end)]
+			| join("|")),
+		   line: "  [\(.code)] \(.graphs[0].Krate.name // "-") \(.graphs[0].Krate.version // "")  \(.advisory.id // .message)"}' "$1"
+}
+
+deny "${work}" "${tmp}/head.json"
+errors "${tmp}/head.json" >"${tmp}/head.errors"
+
+: >"${tmp}/base.errors"
+base="$(default_base)"
+if [[ -z "${base}" ]]; then
+	echo "dev-profile-cargo-deny-introduced: no upstream default branch; every error counts as introduced" >&2
+elif git cat-file -e "${base}:${rel:+${rel}/}Cargo.lock" 2>/dev/null; then
+	mkdir -p "${tmp}/base"
+	git archive "${base}" | tar -x -C "${tmp}/base"
+	deny "${tmp}/base/${rel}" "${tmp}/base.json"
+	errors "${tmp}/base.json" >"${tmp}/base.errors"
+fi
+
+jq -s --slurpfile base "${tmp}/base.errors" \
+	'($base | map({(.key): true}) | add // {}) as $seen | map(select($seen[.key] | not)) | unique_by(.key)' \
+	"${tmp}/head.errors" >"${tmp}/introduced.json"
+jq -s --slurpfile base "${tmp}/base.errors" \
+	'($base | map({(.key): true}) | add // {}) as $seen | map(select($seen[.key])) | unique_by(.key)' \
+	"${tmp}/head.errors" >"${tmp}/preexisting.json"
+
+introduced="$(jq length "${tmp}/introduced.json")"
+echo "cargo-deny ${rel:-.}: ${introduced} introduced, $(jq length "${tmp}/preexisting.json") pre-existing (pre-existing never blocks)" >&2
+if [[ "$(jq length "${tmp}/preexisting.json")" -gt 0 ]]; then
+	echo "pre-existing errors (already on the base, not introduced by this push):" >&2
+	jq -r '.[].line' "${tmp}/preexisting.json" >&2
+fi
+if [[ "${introduced}" -gt 0 ]]; then
+	echo "errors introduced by this push:" >&2
+	jq -r '.[].line' "${tmp}/introduced.json" >&2
+	exit 1
+fi
