@@ -11,6 +11,11 @@ Both run the `learn-from-transcript` workflow
 and annotates the session itself, asks its analyze and synthesize questions in one thread, and
 files every ticket it names as a Linear issue. atask is not the backlog: it is the execution claim created only when a worker is dispatched. There is no handoff note and no
 `## Full annotated transcript` prompt anymore.
+`/learn <problem>` files one Linear issue for the problem typed after it. The command steers a single
+filing turn into the current session: it picks the workspace, dedupes against open issues, and creates
+the issue with the session's own Linear tools. It runs no transcript review, so it is the intake for a
+defect someone just hit — including a defect an agent wanted to report to the harness developers. The
+upstream report channel is off (`dev.autoqa: false`); `xd://report_issue` is never a fallback.
 
 `/learn` also delegates: it passes `--dispatch` through `~/.agents/bin/learn-launch`, so the
 workflow starts one `start_atask_task` worker per objective atask will claim. The pipeline's

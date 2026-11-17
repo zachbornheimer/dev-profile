@@ -462,6 +462,7 @@ Every ask: run `prompt-writer` first, then route the scoped order:
 - **Big / adversarial / many-file** → dynamic workflow (only when it earns the tokens)
 - **Recurring** → `/loop` + `/schedule`. **Grind one thing** → `atask add` + `atask verify complete`
 - **Run / delegate a filed atask objective** → the `start_atask_task` capability (claim the id into its own worktree, headless omp worker, lands merge|pr-auto|pr|nil only after `atask verify complete`). "Do at-XXXXX", "delegate at-XXXXX", or "run at-XXXXX" means call it with the id; a repeat call with the same id attaches to the live run instead of starting a second worker
+- **A tool or platform problem** → `/learn <problem>` files one Linear issue (workspace pre-flight, dedupe, then create). No defect goes upstream and none is reported as sent to the harness developers
 
 ---
 
