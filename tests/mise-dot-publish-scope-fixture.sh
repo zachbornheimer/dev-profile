@@ -5,7 +5,8 @@
 #   1. another tracked path is dirty and unnamed -> the save is refused, exit 2,
 #      and its name and reason are printed;
 #   2. --allow-extras proceeds but still names the extra as untouched;
-#   3. a save with only the authored path dirty publishes exactly that path.
+#   3. a save with only the authored path dirty publishes exactly that path;
+#   4. a save whose checkpoint names a path the turn never touched exits 3.
 set -uo pipefail
 
 repo=$(cd "$(dirname "$0")/.." && pwd)
@@ -28,7 +29,7 @@ mise dot track "$HOME/a.txt" "$HOME/b.txt" >/dev/null 2>&1 || fail "tracking the
 mise dot save --description base >/dev/null 2>&1 || fail "baseline checkpoint"
 
 names_of() {
-	mise dot history -J -n 1 -n 1 2>/dev/null | jq -r '.[0].changes.modified // [] | join(" ")'
+	mise dot history -J -n 1 2>/dev/null | jq -r '.[0].changes.modified // [] | join(" ")'
 }
 
 # 1. unnamed dirty path -> refusal, nothing saved
@@ -59,4 +60,23 @@ code=$?
 names=$(names_of)
 [ "$names" = "~/a.txt" ] || fail "checkpoint named '$names', expected only '~/a.txt'"
 
-printf 'ok: refused extras, reported accepted extras, and saved only the authored path\n'
+# 4. a save that publishes a stranger is reported, not accepted as the turn's work
+printf 'turn-a3\n' >"$HOME/a.txt"
+stub="$T/stub"
+mkdir -p "$stub"
+cat >"$stub/mise" <<'STUB'
+#!/usr/bin/env bash
+case "$*" in
+"dot status --json") printf '{"files":[],"history":{"unsaved":["~/a.txt"]}}' ;;
+"dot save"*) exit 0 ;;
+"dot history -J -n 1") printf '[{"id":9,"changes":{"modified":["~/a.txt","~/stranger.txt"]}}]' ;;
+*) exit 0 ;;
+esac
+STUB
+chmod +x "$stub/mise"
+out=$(PATH="$stub:$PATH" "$publish" --description "turn work 3" --paths "$HOME/a.txt" 2>&1)
+code=$?
+[ "$code" -eq 3 ] || fail "expected exit 3 when the checkpoint names a stranger, got $code: $out"
+printf '%s' "$out" | grep -q 'unexpected  ~/stranger.txt' || fail "the stranger was not reported: $out"
+
+printf 'ok: refused extras, reported accepted extras, saved only the authored path, and rejected a stray published path\n'
