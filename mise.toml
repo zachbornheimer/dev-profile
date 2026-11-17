@@ -103,10 +103,23 @@ run = "bash tests/omp-tools-fixture.sh"
 description = "Bound every backlog-review request by parent cancellation and one deadline"
 run = "bun test tests/backlog_transport.test.ts"
 
+# The rule set is a declarative artifact: only the fixture gate proves a rule fires
+# on an invocation and not on its own text. It reads the live rules through the
+# installed omp, so it runs where a profile is applied, not in a bare clone.
+[tasks."test:rules"]
+description = "Two-sided fixture gate for every TTSR rule in ~/.omp/agent/rules"
+run = '''
+if [ ! -d "$HOME/.omp/agent/rules" ]; then
+  echo "no ~/.omp/agent/rules on this machine; rule gate not applicable"
+  exit 0
+fi
+bun test "$HOME/.omp/agent/rules/rule_conditions.test.ts"
+'''
+
 [tasks."list:skills:unmanaged"]
 alias = ["list:skills:unamanaged", "skills:unmanaged"]
 description = "List skills in ~/.agents/available-skills not tracked in .skill-lock.json"
 run = "~/.agents/bin/aubx-skills unmanaged"
 [tasks.ci]
-description = "lint, then the file check"
-run = ["mise run lint", "mise run test"]
+description = "lint, the file check, and the rule fixture gate"
+run = ["mise run lint", "mise run test", "mise run test:rules"]
