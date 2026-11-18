@@ -124,11 +124,23 @@ escalate() {
 	return 0
 }
 
-# 1. Duplicate watchers: keep the service-manager-owned pid, kill every other.
+# True when $1 is $2 or a descendant of it. The macOS LaunchAgent runs the watcher
+# under an sh wrapper, so launchd's pid is the wrapper and the real watcher is its child.
+in_tree_of() {
+	local pid="$1" root="$2" depth=0
+	while [ -n "$pid" ] && [ "$pid" -gt 1 ] 2>/dev/null && [ "$depth" -lt 32 ]; do
+		[ "$pid" = "$root" ] && return 0
+		pid=$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' ' || true)
+		depth=$((depth + 1))
+	done
+	return 1
+}
+
+# 1. Duplicate watchers: keep the service's process tree, kill every watcher outside it.
 main_pid=$(service_pid)
 if [ -n "${main_pid:-}" ]; then
 	for pid in $(pgrep -f 'mise dot watch' || true); do
-		if [ "$pid" != "$main_pid" ]; then
+		if ! in_tree_of "$pid" "$main_pid"; then
 			kill "$pid" 2>/dev/null || true
 			log "killed duplicate watcher pid $pid (the service manager owns $main_pid)"
 		fi
