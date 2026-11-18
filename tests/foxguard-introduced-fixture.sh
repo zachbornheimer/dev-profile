@@ -108,9 +108,11 @@ grep -q 'usage:' "${work}/err" || fail "a call without --target must explain its
 
 # A file foxguard cannot parse at the target contributes no findings there, and
 # only that file: findings the target's parseable files carry stay suppressed.
-# `export type * from` is syntax foxguard skips as a parse error.
+# `export const = (;` is invalid TypeScript, which foxguard skips as a parse error. (This
+# fixture once used `export type * from`; the zachbornheimer/foxguard fork the profile
+# pins parses that, so it no longer exercised the skip.)
 git switch -q -c unparseable-target origin/main
-printf 'export type * from "./legacy";\n' >skipped.ts
+printf 'export const = (;\n' >skipped.ts
 git add skipped.ts
 git commit -q -m "target with an unparseable file"
 git update-ref refs/remotes/origin/unparseable-target HEAD
@@ -131,8 +133,9 @@ gate_unparseable_target legacy.ts skipped.ts
 [[ ${status} -eq 0 ]] || fail "a parseable target file's finding must stay suppressed beside an unparseable one, got ${status}: $(cat "${work}/out" "${work}/err")"
 grep -q 'legacy-fixed' "${work}/out" && fail "a finding the target's parseable file carries was reported"
 
-printf 'export type * from "./legacy";\n' >skipped.ts
-gate_unparseable_target skipped.ts
+# The branch breaks the parse of a file the target scans: only the branch skipped it.
+printf 'export const = (;\n' >legacy.ts
+gate_unparseable_target legacy.ts
 [[ ${status} -eq 2 ]] || fail "an unparseable branch file must fail closed, got ${status}: $(cat "${work}/out" "${work}/err")"
 
 echo "ok foxguard-introduced fixture"
