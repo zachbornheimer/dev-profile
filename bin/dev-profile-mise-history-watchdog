@@ -93,9 +93,48 @@ service_pid() {
 	esac
 }
 
+# launchd can retain stale LWCR state across login sessions (EX_CONFIG), where
+# kickstart cannot spawn the watcher. Reload its plist once per tick, and wait
+# for bootout to finish before bootstrap; never unload without a recovery plist.
+reload_attempted=0
+reload_service() {
+	local reason="$1" plist="$HOME/Library/LaunchAgents/$SERVICE.plist" attempt
+	[ "$reload_attempted" = 0 ] || return 0
+	reload_attempted=1
+	if [ ! -f "$plist" ]; then
+		log "$reason; plist missing: $plist; did not bootout $SERVICE"
+		return 0
+	fi
+	# A concurrent launch may have recovered the service since the observation.
+	[ -z "$(service_pid)" ] || return 0
+	launchctl bootout "gui/$MY_UID/$SERVICE" >/dev/null 2>&1 || true
+	for ((attempt = 0; attempt < 15; attempt++)); do
+		if ! launchctl print "gui/$MY_UID/$SERVICE" >/dev/null 2>&1; then
+			if launchctl bootstrap "gui/$MY_UID" "$plist" >/dev/null 2>&1; then
+				log "$reason; reloaded $SERVICE from $plist"
+			else
+				log "$reason; bootout completed but bootstrap failed for $SERVICE from $plist"
+			fi
+			return 0
+		fi
+		sleep 0.2
+	done
+	log "$reason; bootout timed out for $SERVICE; did not bootstrap"
+}
 restart_service() {
 	case "$OS" in
-	Darwin) launchctl kickstart -k "gui/$MY_UID/$SERVICE" 2>/dev/null || true ;;
+Darwin)
+		[ "$reload_attempted" = 0 ] || return 0
+		if [ -z "$(service_pid)" ] && launchctl print "gui/$MY_UID/$SERVICE" 2>/dev/null |
+			grep -Eq 'last exit code = 78([^0-9]|$)'; then
+			reload_service "watcher has no pid, last exit code = 78"
+		else
+			launchctl kickstart -k "gui/$MY_UID/$SERVICE" 2>/dev/null || true
+			if [ -z "$(service_pid)" ]; then
+				reload_service "watcher has no pid after kickstart"
+			fi
+		fi
+		;;
 	*) systemctl --user restart "$SERVICE_UNIT" 2>/dev/null || true ;;
 	esac
 }
@@ -145,6 +184,11 @@ if [ -n "${main_pid:-}" ]; then
 			log "killed duplicate watcher pid $pid (the service manager owns $main_pid)"
 		fi
 	done
+fi
+
+# A missing watcher has no health timestamp to trigger the frozen-watcher path.
+if [ "$OS" = Darwin ] && [ -z "${main_pid:-}" ]; then
+	restart_service
 fi
 
 # 2. Wedged watcher: the health line stops updating when the internal loop
