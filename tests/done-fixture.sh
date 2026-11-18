@@ -191,7 +191,11 @@ grep -Fq 'dry-run: fetched origin; no other changes' "${work}/dry.out" || fail "
 # --- Parallel execution across worktrees and branches (with and without --drop).
 real_git="$(command -v git)"
 export REAL_GIT="$real_git"
-export PAR_DIR="${work}/par-track"
+# A tracked call holds its slot until a peer overlaps it or the phase already proved
+# parallel, for at most PAR_WAIT_TICKS * 0.03 s. Eight ticks (0.24 s) was shorter than
+# a loaded CI runner takes to reach the next worker's call, so a parallel phase read
+# as peak=1 (run 44211611996, attempt 1, phase 'commit').
+export PAR_DIR="${work}/par-track" PAR_WAIT_TICKS=100
 mkdir -p "$PAR_DIR"
 
 cat >"${stubs}/git" <<'STUB'
@@ -230,14 +234,14 @@ if [[ "${WT_DONE_TRACK_PARALLEL:-0}" == 1 ]]; then
 		dir="${PAR_DIR}/${phase}"
 		mkdir -p "${dir}/active"
 		: >"${dir}/active/$$"
-		for _ in 1 2 3 4 5 6 7 8; do
+		for ((tick = 0; tick < PAR_WAIT_TICKS; tick++)); do
 			active=( "${dir}/active"/* )
 			count="${#active[@]}"
 			prev="$(cat "${dir}/peak" 2>/dev/null || echo 0)"
 			if ((count > prev)); then
 				printf '%s\n' "$count" >"${dir}/peak"
 			fi
-			((count >= 2)) && break
+			((count >= 2 || prev >= 2)) && break
 			sleep 0.03
 		done
 		rm -f "${dir}/active/$$"
@@ -253,14 +257,14 @@ if [[ "${WT_DONE_TRACK_PARALLEL:-0}" == 1 && "$1" == pr && "$2" == create ]]; th
 	dir="${PAR_DIR}/pr"
 	mkdir -p "${dir}/active"
 	: >"${dir}/active/$$"
-	for _ in 1 2 3 4 5 6 7 8; do
+	for ((tick = 0; tick < PAR_WAIT_TICKS; tick++)); do
 		active=( "${dir}/active"/* )
 		count="${#active[@]}"
 		prev="$(cat "${dir}/peak" 2>/dev/null || echo 0)"
 		if ((count > prev)); then
 			printf '%s\n' "$count" >"${dir}/peak"
 		fi
-		((count >= 2)) && break
+		((count >= 2 || prev >= 2)) && break
 		sleep 0.03
 	done
 	rm -f "${dir}/active/$$"
