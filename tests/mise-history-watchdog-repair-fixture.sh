@@ -71,7 +71,8 @@ esac
 exit 0
 EOF
 printf '%s\n' '#!/usr/bin/env bash' 'printf "%s\\n" "$*" >>"$NOTIFY_CALLS"' >"$work/bin/notify"
-printf '%s\n' '#!/usr/bin/env bash' 'exit 0' >"$work/bin/launchctl"
+# Repair scenarios assume a running watcher; missing-service recovery has its own fixture.
+printf '%s\n' '#!/usr/bin/env bash' '[ "$1" != list ] || printf "12345\\t0\\tdev.mise.mise-history\\n"' 'exit 0' >"$work/bin/launchctl"
 printf '%s\n' '#!/usr/bin/env bash' 'exit 1' >"$work/bin/pgrep"
 printf '%s\n' '#!/usr/bin/env bash' 'exit 0' >"$work/bin/heal-ok"
 printf '%s\n' '#!/usr/bin/env bash' 'echo "heal: multi-line entry needs a hand edit: ~/.config/x.toml" >&2' 'exit 1' >"$work/bin/heal-fail"
