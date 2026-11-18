@@ -192,9 +192,10 @@ grep -Fq 'dry-run: fetched origin; no other changes' "${work}/dry.out" || fail "
 real_git="$(command -v git)"
 export REAL_GIT="$real_git"
 # A tracked call holds its slot until a peer overlaps it or the phase already proved
-# parallel, for at most PAR_WAIT_TICKS * 0.03 s. Eight ticks (0.24 s) was shorter than
-# a loaded CI runner takes to reach the next worker's call, so a parallel phase read
-# as peak=1 (run 44211611996, attempt 1, phase 'commit').
+# parallel, for at most PAR_WAIT_TICKS * 0.03 s. With eight ticks (0.24 s) a CI run
+# reported peak=1 for phase 'commit' although three workers were spawned (run
+# 44211611996, attempt 1); the rerun of the same commit passed. The longer hold costs
+# nothing when workers overlap, because the first overlap releases every holder.
 export PAR_DIR="${work}/par-track" PAR_WAIT_TICKS=100
 mkdir -p "$PAR_DIR"
 
