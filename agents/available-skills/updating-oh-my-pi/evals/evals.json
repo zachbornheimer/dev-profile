@@ -16,25 +16,25 @@
     {
       "id": 3,
       "prompt": "The /usage command in omp prints the wrong token count. Fix it in oh-my-pi.",
-      "expected_output": "Not an extension: a repo change. Branch off origin/main in a worktree, fix, bun check + bun test, push to the fork, add .omp-build/branches/<branch>.toml on fork main through a worktree or PR, dispatch omp-build, then prove the installed binary changed.",
+      "expected_output": "Not an extension: a repo change. Load shipping-a-fork-binary-via-mise and omp-fork-conventions, use fork change oh-my-pi fix/usage-count to get an owned upstream-mirror topic, fix and run assigned checks, then fork land with that worktree. Registration is .fork/branches on fork; dispatch fork.yml on fork when an already-carried topic is pushed. Prove the installed binary behavior as well as its build identity.",
       "files": []
     },
     {
       "id": 4,
       "prompt": "I made a branch with a session-listing tweak. Get it into my omp.",
-      "expected_output": "Push the branch to fork, probe the assembly with scripts/probe-build.sh --add <branch>, add .omp-build/branches/<branch>.toml on fork main through a worktree or PR, dispatch omp-build, then mise up and prove the branch's string is in $(mise which omp). omp --version is not proof.",
+      "expected_output": "Follow shipping-a-fork-binary-via-mise: fork land oh-my-pi <branch> --worktree <owned-worktree> pushes, registers .fork/branches, waits for promotion and installs with mise. A push to an already-carried branch needs fork.yml dispatch on fork. Prove the session-listing behavior with the actual installed binary; a version string or embedded string alone is not runtime proof.",
       "files": []
     },
     {
       "id": 5,
       "prompt": "The daily omp build failed and there's a conflict issue open on the fork.",
-      "expected_output": "Read the issue's conflicting files, reproduce locally with the probe, merge upstream (never rebase or force-push a listed branch), push, re-dispatch, close the issue.",
+      "expected_output": "Read the failed fork.yml run and use the owner's fork resolve oh-my-pi start, edit the reported conflicts, then fork resolve oh-my-pi record to publish .fork/rr-cache. Keep topics independent, fix semantic failures in the responsible source topic, dispatch fork.yml on fork and prove the final committed assembly before reporting success.",
       "files": []
     },
     {
       "id": 6,
       "prompt": "omp on the VPS is stale / a release broke sessions. Get me back to a working one.",
-      "expected_output": "Pin the known-good tag in the machine-local ~/.config/mise/config.local.toml, mise install, prove the binary has the feature; remove the block and mise up once a fixed release is Latest.",
+      "expected_output": "Choose a known-good promoted build tag, override only the tool version in machine-local ~/.config/mise/config.local.toml while preserving existing options, install with mise, and prove installed identity and the broken behavior. Remove only the rollback override and use the owner's install oh-my-pi operation once a fixed release is promoted.",
       "files": []
     }
   ]

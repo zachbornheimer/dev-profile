@@ -636,27 +636,13 @@ rebasing after `main` advances, preserve imports from both sides of
 `packages/ai/src/tools/index.ts`, resolve and stage conflicts, continue the
 rebase, and rerun verification. Never overwrite another tool's registration.
 
-### 8.1 Landing a native tool branch in the oh-my-pi fork
+### 8.1 Landing an actual oh-my-pi source change
 
-One branch per tool, named `tools/<name>`. The fork's default branch is `ci`;
-`main` is a read-only mirror of upstream and is never pushed. The branches CI
-assembles into the custom omp build are listed, with a reason each, in the
-`BRANCH_MANIFEST` JSON array in `.github/workflows/omp-build.yml` on `ci`.
-
-1. Push the tool branch to the `fork` remote first, never `origin`. A listed
-   branch that is missing from `fork` fails the whole assembly, and the command
-   refuses to add one.
-2. From a checkout of `ci`, register it with the command, not by hand:
-
-```sh
-bun scripts/omp-build/branches.ts add tools/<name> --reason "<why this branch is built>"
-bun scripts/omp-build/branches.ts check
-bun scripts/omp-build/branches.ts list
-```
-
-`add` appends one `{branch, reason}` entry at the end (entries merge in listed
-order), editing only the lines it needs. Commit it signed with a conventional
-subject and push `ci` to `fork`.
+A custom tool that loads from the user tool directory needs no source carry.
+If a tool genuinely requires an oh-my-pi source change, follow
+`shipping-a-fork-binary-via-mise` for topic creation, landing, registration and
+release verification; `omp-fork-conventions` supplies omp build/test/remote
+facts. Do not maintain a second branch-registration procedure here.
 
 ## Definition of done
 

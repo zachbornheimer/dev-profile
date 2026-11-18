@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Legacy: retired with the old omp-build pipeline; removed with the pre-push cutover.
 # Global hook.* git config (hk) fires even with core.hooksPath unset; CI has no hooks. HK=0 is their documented off switch.
 export HK=0
 # probe-build.sh: run the omp-build checks locally exactly as CI runs them.
