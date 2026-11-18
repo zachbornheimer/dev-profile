@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# dev-profile-gitleaks-pushed: gitleaks the commits a push sends, from the repository
+# root, with the repository's .gitleaks.toml when it ships one.
+#
+# The range is read from DEV_PROFILE_PUSH_REFS, the pre-push stdin dev-profile-pre-push
+# captured: one `<local ref> <local sha> <remote ref> <remote sha>` line per pushed ref.
+# Each pushed tip is scanned for the commits no remote has (`<local sha> --not
+# --remotes`), less the remote ref's old tip when this repository holds it. A delete
+# (local sha all zeros) sends no commits and is skipped.
+#
+# Scanning `HEAD --not --remotes` instead judged the checkout, not the push: a branch
+# push or a delete from a checkout whose HEAD held unrelated unpushed findings was
+# refused (mise, 2026-11-17: two pushes failed on ~60 findings of a local merge they
+# did not send), and a pushed branch that was not HEAD was never scanned.
+#
+# Fail closed: without readable push refs, or with a line that is not a push ref, the
+# scan falls back to `HEAD --not --remotes` rather than scanning nothing.
+
+sha_pattern='^[0-9a-f]{40,64}$'
+all_zeros='^0+$'
+head_range="HEAD --not --remotes"
+
+config=()
+if [[ -f .gitleaks.toml ]]; then
+	config=(--config .gitleaks.toml)
+fi
+
+scan() { # <git log options>
+	gitleaks git ${config[@]+"${config[@]}"} --redact --no-banner --log-opts="$1"
+}
+
+refs="${DEV_PROFILE_PUSH_REFS:-}"
+if [[ -z "${refs}" || ! -r "${refs}" || ! -s "${refs}" ]]; then
+	printf 'dev-profile-gitleaks-pushed: no readable push refs (DEV_PROFILE_PUSH_REFS=%s); scanning %s\n' "${refs:-unset}" "${head_range}" >&2
+	scan "${head_range}"
+	exit
+fi
+
+ranges=()
+while read -r local_ref local_sha remote_ref remote_sha || [[ -n "${local_ref:-}" ]]; do
+	if [[ ! "${local_sha:-}" =~ ${sha_pattern} || ! "${remote_sha:-}" =~ ${sha_pattern} ]]; then
+		printf 'dev-profile-gitleaks-pushed: not a push ref line: %s %s %s %s; scanning %s\n' \
+			"${local_ref:-}" "${local_sha:-}" "${remote_ref:-}" "${remote_sha:-}" "${head_range}" >&2
+		scan "${head_range}"
+		exit
+	fi
+	[[ ! "${local_sha}" =~ ${all_zeros} ]] || continue
+	range="${local_sha} --not --remotes"
+	if [[ ! "${remote_sha}" =~ ${all_zeros} ]] && git cat-file -e "${remote_sha}^{commit}" 2>/dev/null; then
+		range+=" ${remote_sha}"
+	fi
+	ranges+=("${range}")
+done <"${refs}"
+
+if [[ "${#ranges[@]}" -eq 0 ]]; then
+	printf 'dev-profile-gitleaks-pushed: the push only deletes refs and sends no commits; nothing to scan\n' >&2
+	exit 0
+fi
+
+rc=0
+for range in "${ranges[@]}"; do
+	scan "${range}" || rc=$?
+done
+exit "${rc}"

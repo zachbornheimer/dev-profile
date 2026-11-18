@@ -44,6 +44,7 @@ bash "$root/tests/pre-push-refs-fixture.sh" >/dev/null || fail "pre-push refs fi
 bash "$root/tests/ruby-security-steps-fixture.sh" >/dev/null || fail "ruby security steps fixture"
 bash "$root/tests/brakeman-fixture.sh" >/dev/null || fail "brakeman introduced-only fixture"
 bash "$root/tests/cargo-deny-introduced-fixture.sh" >/dev/null || fail "cargo-deny introduced-only fixture"
+bash "$root/tests/gitleaks-pushed-range-fixture.sh" >/dev/null || fail "gitleaks pushed-range fixture"
 bash "$root/tests/oxlint-all-ignored-fixture.sh" >/dev/null || fail "oxlint all ignored fixture"
 bash "$root/tests/pre-commit-fixture.sh" >/dev/null || fail "pre-commit fixture"
 bash "$root/tests/dprint-repo-formatter-fixture.sh" >/dev/null || fail "dprint repo formatter fixture"
