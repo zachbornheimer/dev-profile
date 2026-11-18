@@ -342,11 +342,10 @@ local gates = new Mapping<String, Step> {
   ["check-symlinks"] = (Builtins.check_symlinks) { glob = List("**/*") }
   ["destroyed-symlinks"] = (Builtins.destroyed_symlinks) { glob = List("**/*") }
   ["forbid-submodules"] = (Builtins.forbid_submodules) { glob = List("**/.gitmodules") }
-  // gitleaks FTLs on a missing --config path, so pass one only when the repository ships it.
-  // It scans a commit range, not the files it is handed, so it stays exclusive.
+  // Scans the commits the push sends (DEV_PROFILE_PUSH_REFS), not the checkout's own
+  // unpushed HEAD and not the files it is handed, so it stays exclusive.
   ["gitleaks"] {
-    check =
-      "config=\"\"\nif [ -f .gitleaks.toml ]; then\n  config=\"--config .gitleaks.toml\"\nfi\ngitleaks git $config --redact --no-banner --log-opts=\"HEAD --not --remotes\""
+    check = "dev-profile-gitleaks-pushed"
     exclusive = true
   }
   ["merge-conflicts"] = (Builtins.check_merge_conflict) { glob = List("**/*") }
