@@ -66,18 +66,20 @@ WORKTRUNK_FLOW = (
     "then `wt step commit`; land with `wt land` or open a PR with `wt pr`."
 )
 OH_MY_PI_FLOW = (
-    "oh-my-pi's `main` is upstream plus one carry commit (.omp-build/ and "
-    ".github/workflows/omp-build.yml). Create a topic branch off upstream/main "
-    "or origin/main (`wt switch --create feat/<slug> --base origin/main`), "
-    "push it to `origin`, and register `.omp-build/branches/<branch>.toml` on "
-    "`main` so `omp-build` assembles it ephemerally."
+    "oh-my-pi's `main` carries .omp-build/ and its workflow. Create source topics "
+    "off the upstream commit that fork main tracks: "
+    "`git fetch upstream && base=$(git merge-base upstream/main origin/main) && "
+    "wt switch --create feat/<slug> --base \"$base\"`. "
+    "Push the topic to origin, then register `.omp-build/branches/<branch>.toml` "
+    "through a separate manifest PR to fork main."
 )
 INTEGRATION_FLOW = (
     "Integration branches (`assembled`, `next`, `seen`) only integrate topic "
     "branches via `git merge` (with `rerere.enabled=true`); never commit, "
     "cherry-pick, or rebase directly onto an integration branch. Put the change "
-    "on its own topic branch (`feat/<slug>` or `fix/<slug>`) off `origin/main` "
-    "and register it in `.omp-build/branches/<branch>.toml`."
+    "on its own topic branch (`feat/<slug>` or `fix/<slug>`) off the upstream "
+    "commit tracked by the fork; use `git merge-base upstream/main origin/main`. "
+    "Register it through the fork's manifest PR, not an integration commit."
 )
 
 
