@@ -54,6 +54,9 @@ run = "mise run doctor"
 description = "Check the installed files"
 run = "mise run doctor"
 
+[tasks."test:merge-conflicts"]
+description = "Allow rerere preimages while rejecting source conflict markers"
+run = "bash tests/merge-conflicts-fixture.sh"
 [tasks."test:agent-checkpoints"]
 description = "Exercise fail-closed checkpoint publication against signed scratch repositories"
 run = "bun test apps/omp/extensions/agent-checkpoint-publish.test.ts"
