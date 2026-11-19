@@ -212,9 +212,7 @@ def test_denies_wt_merge_and_wt_land_in_oh_my_pi(
         assert run.decision == "deny", command
 
 
-def test_allows_topic_push_in_oh_my_pi(
-    hooks: HookRunner, tmp_path: Path
-) -> None:
+def test_allows_topic_push_in_oh_my_pi(hooks: HookRunner, tmp_path: Path) -> None:
     repo = _repo(tmp_path, "oh-my-pi", "feat/x")
     run = _run_command(hooks, f"cd {repo} && git push fork feat/my-topic")
     assert run.decision == "none"
