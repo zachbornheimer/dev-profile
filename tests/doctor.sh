@@ -62,6 +62,7 @@ bash "$root/tests/php-fmt-basepath-fixture.sh" >/dev/null || fail "php fmt basep
 bash "$root/tests/mise-history-watchdog-repair-fixture.sh" >/dev/null || fail "mise history watchdog repair fixture"
 bash "$root/tests/uv-lock-cooldown-fixture.sh" "$root" >/dev/null || fail "uv-lock-cooldown fixture"
 bash "$root/tests/tools-install-fixture.sh" "$root" >/dev/null || fail "tools install fixture"
+bash "$root/tests/fork-sync-fixture.sh" "$root" >/dev/null || fail "fork sync fixture"
 bash "$root/tests/herdr-plugins-fixture.sh" >/dev/null || fail "herdr plugins fixture"
 bash "$root/tests/adoption-fixture.sh" >/dev/null || fail "adoption fixture"
 bash "$root/tests/owners-fixture.sh" >/dev/null || fail "owners fixture"
