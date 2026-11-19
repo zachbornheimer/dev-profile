@@ -24,10 +24,10 @@
 [coderabbit]
 	machineId = cli/a212caee3dfd41d0b0f8c1ea2009ea44
 [credential "https://github.com"]
-	helper = 
+	helper =
 	helper = !/usr/bin/gh auth git-credential
 [credential "https://gist.github.com"]
-	helper = 
+	helper =
 	helper = !/usr/bin/gh auth git-credential
 [tag]
 	gpgsign = true
@@ -96,7 +96,7 @@
 [hook "wt-worktree-bootstrap"]
 	command = ~/.agents/hooks/wt-post-checkout
 	event = post-checkout
-# Upstream agent skills are installed from agents/available-skills/.skill-lock.json, not
+# Upstream agent skills are installed from ~/.agents/available-skills/.skill-lock.json, not
 # committed. After a pull (merge or rebase) or checkout in the dev-profile checkout, install
 # any the record names that are missing; every other repo returns at once.
 [hook "agents-skills-sync"]

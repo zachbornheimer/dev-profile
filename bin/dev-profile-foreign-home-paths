@@ -48,7 +48,6 @@ EXEMPT_FILES = (
     "*.test.*",
     "*.spec.*",
     "docs/*",
-    "agents/learnings/*",
     "more/*",
 )
 ZEROS = re.compile(r"^0+$")

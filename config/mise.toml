@@ -247,14 +247,11 @@ exclude = ["**"]
 "~/.config/agent-checkpoints/enrollment.toml" = { source = "config/agent-checkpoints/enrollment.toml", mode = "symlink" }
 "~/.omp/agent/extensions/agent-checkpoint-publish.ts" = { source = "apps/omp/extensions/agent-checkpoint-publish.ts", mode = "symlink" }
 "~/.omp/agent/extensions/handler-timing.ts" = { source = "apps/omp/extensions/handler-timing.ts", mode = "symlink" }
-"~/.agents" = { source = "agents", mode = "symlink" }
 "~/.config/dprint/dprint.jsonc" = { source = "config/dprint.jsonc", mode = "symlink" }
 "~/.config/hk/config.pkl" = { source = "hk/hk.pkl", mode = "symlink" }
 "~/.config/mise/conf.d/dev-profile" = { source = "profile", mode = "symlink" }
 "~/.config/worktrunk/config.toml/dev-profile" = { source = "config/worktrunk.toml", merge = true }
 "~/.config/yamllint/config" = { source = "config/yamllint.yaml", mode = "symlink" }
-"~/.local/bin/mux-wait" = { source = "agents/bin/mux-wait", mode = "symlink" }
-# ^ outside ~/.local/share so the command resolves on the plain PATH every session inherits.
 "~/.local/share/dev-profile/bin" = { source = "bin", mode = "symlink" }
 "~/.local/share/dev-profile/mise.zsh" = { source = "shell/mise.zsh", mode = "symlink" }
 "~/.local/share/dev-profile/shell.zsh" = { source = "shell/shell.zsh", mode = "symlink" }
