@@ -1,4 +1,0 @@
-{
-  "tool_name": "Write",
-  "tool_input": { "file_path": "/repo/src/api.generated.ts", "content": "x" }
-}

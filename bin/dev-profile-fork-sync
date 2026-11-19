@@ -6,11 +6,14 @@
 #
 # The fork tool (~/.omp/agent/tools/fork) owns both steps; this is its launchd entry.
 # A mirror that has its own commits is never rewritten: `fork sync` reports it.
-# After the sync, the fork report lists every fork's mirror, last build and install.
-# Exit: 0 every mirror is current; 1 some mirror could not fast-forward; 2 tool error.
+# After the sync, the fork report lists every fork's mirror, last build and install, and
+# `fork doctor` checks every fork's layout. A finding is printed and fails the run, so
+# drift surfaces within a day instead of waiting for the next fast-forward to refuse.
+# Exit: 0 every mirror is current and no fork violates the layout; 1 some mirror could
+# not fast-forward; 2 tool error; 3 a fork violates the layout (`fork doctor`).
 set -euo pipefail
 
-PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:/opt/homebrew/bin:$PATH"
+PATH="${FORK_SYNC_PATH:-$HOME/.local/bin:$HOME/.local/share/mise/shims:/opt/homebrew/bin}:$PATH"
 export PATH
 
 cli="$HOME/.omp/agent/tools/fork/cli.ts"
@@ -50,4 +53,16 @@ fi
 if echo "${out}" | jq -e 'any(.[]; .action == "refuse" or (.action == "fast_forward" and (.detail | startswith("fast-forwarded") | not)))' >/dev/null; then
 	echo "fork sync: some mirrors did not fast-forward (see above)" >&2
 	exit 1
+fi
+
+# doctor changes nothing. A finding names the one thing wrong and the command that
+# fixes it; exiting here is what makes the daily job notice.
+doctor="$(bun "${cli}" doctor)" || {
+	echo "${doctor}" >&2
+	exit 2
+}
+echo "${doctor}"
+if echo "${doctor}" | jq -e 'any(.[]; .findings | length > 0)' >/dev/null; then
+	echo "${doctor}" | jq -r '.[] | select(.findings | length > 0) | .repo as $repo | .findings[] | "fork sync: \($repo) \(.check): \(.detail)"' >&2
+	exit 3
 fi
