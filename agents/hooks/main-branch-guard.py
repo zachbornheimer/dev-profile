@@ -66,12 +66,10 @@ WORKTRUNK_FLOW = (
     "then `wt step commit`; land with `wt land` or open a PR with `wt pr`."
 )
 OH_MY_PI_FLOW = (
-    "oh-my-pi's `main` carries .omp-build/ and its workflow. Create source topics "
-    "off the upstream commit that fork main tracks: "
-    "`git fetch upstream && base=$(git merge-base upstream/main origin/main) && "
-    "wt switch --create feat/<slug> --base \"$base\"`. "
-    "Push the topic to origin, then register `.omp-build/branches/<branch>.toml` "
-    "through a separate manifest PR to fork main."
+    "oh-my-pi's `main` is a fast-forward-only mirror; never commit there. "
+    "Create a topic branch from main, then "
+    "`bun ~/.omp/agent/tools/fork/cli.ts land oh-my-pi <branch>`, which pushes "
+    "it and adds it to .fork/branches on `fork`."
 )
 INTEGRATION_FLOW = (
     "Integration branches (`assembled`, `next`, `seen`) only integrate topic "

@@ -116,7 +116,7 @@ def test_denies_push_to_fork_main_in_oh_my_pi(
     run = _run_command(hooks, f"cd {repo} && git push fork main")
     assert run.decision == "deny"
     assert (
-        ".omp-build/branches/"
+        "bun ~/.omp/agent/tools/fork/cli.ts land oh-my-pi"
         in run.output["hookSpecificOutput"]["permissionDecisionReason"]
     )
 
