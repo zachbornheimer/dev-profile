@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# Install the stable omp entrypoint and the reference-transaction hook that
-# keeps oh-my-pi's `main` a read-only mirror (both run by `mise run setup`).
+# Install the stable omp entrypoint (run by `mise run setup`).
 #
 # omp itself is installed by mise from the fork's GitHub releases
 # (`github:zachbornheimer/oh-my-pi` in the global mise config). mise owns the
@@ -11,6 +10,11 @@ set -euo pipefail
 # therefore the stable entrypoint: a symlink to the mise shim, recreated
 # idempotently here on every machine. The old path (a symlink into the
 # oh-my-pi source checkout, rewritten by dev-profile-omp-sync) is gone.
+#
+# This script does not install a git hook. The per-clone reference-transaction
+# hook belongs to the fork tool (`bun ~/.omp/agent/tools/fork/cli.ts`, installed
+# by ensureClone, new, and doctor --fix). A second copy here would special-case
+# one repo and could disagree with that hook.
 
 # Where mise keeps its shims (honor MISE_DATA_DIR, default ~/.local/share/mise).
 shims_dir="${MISE_DATA_DIR:-$HOME/.local/share/mise}/shims"
@@ -19,57 +23,3 @@ shims_dir="${MISE_DATA_DIR:-$HOME/.local/share/mise}/shims"
 # shims dir atomically), or create it on a fresh machine.
 mkdir -p "$HOME/.local/bin"
 ln -sfn "$shims_dir/omp" "$HOME/.local/bin/omp"
-
-# Install the reference-transaction hook in oh-my-pi and any managed fork under
-# ~/Developer that tracks an `upstream` remote.
-install_fork_reference_transaction_hook() {
-	local repo_dir="$1"
-	local is_omp="$2"
-	[ -d "$repo_dir/.git" ] || return 0
-	mkdir -p "$repo_dir/.git/hooks"
-	cat >"$repo_dir/.git/hooks/reference-transaction" <<EOF
-#!/usr/bin/env bash
-set -euo pipefail
-state="\${1:-}"
-[ "\$state" = "prepared" ] || exit 0
-is_omp="$is_omp"
-origin_main_sha="\$(git rev-parse --verify -q refs/remotes/origin/main 2>/dev/null || true)"
-while read -r _old_value new_value ref_name; do
-	if [ "\$is_omp" = "1" ] && [ "\$ref_name" = "refs/heads/main" ] && [ -n "\$origin_main_sha" ]; then
-		if [ "\$new_value" != "0000000000000000000000000000000000000000" ] && [ "\$new_value" != "\$origin_main_sha" ]; then
-			echo "ERROR [oh-my-pi reference-transaction]: refs/heads/main must match origin/main (\$origin_main_sha)." >&2
-			echo "main is a fast-forward-only mirror. Put changes on a topic branch and run 'bun ~/.omp/agent/tools/fork/cli.ts land oh-my-pi <branch>'." >&2
-			exit 1
-		fi
-	fi
-	case "\$ref_name" in
-		refs/heads/assembled|refs/heads/next|refs/heads/seen)
-			if [ "\$new_value" != "0000000000000000000000000000000000000000" ]; then
-				short_branch="\${ref_name#refs/heads/}"
-				remote_sha="\$(git rev-parse --verify -q "refs/remotes/origin/\$short_branch" 2>/dev/null || true)"
-				if [ "\$new_value" != "\$remote_sha" ] && ! git rev-parse --verify -q "\${new_value}^2" >/dev/null 2>&1; then
-				echo "ERROR [fork reference-transaction]: \$ref_name is an integration branch; direct non-merge commits and cherry-picks are forbidden." >&2
-				echo "Create a topic branch from main and run 'bun ~/.omp/agent/tools/fork/cli.ts land oh-my-pi <branch>'." >&2
-					exit 1
-				fi
-			fi
-			;;
-	esac
-done
-EOF
-	chmod +x "$repo_dir/.git/hooks/reference-transaction"
-}
-
-REPO_DIR="$HOME/Developer/Personal/oh-my-pi"
-install_fork_reference_transaction_hook "$REPO_DIR" "1"
-
-for root in "$HOME/Developer/Personal" "$HOME/Developer/Software-Automation-Holdings"; do
-	[ -d "$root" ] || continue
-	for candidate in "$root"/*; do
-		[ -d "$candidate/.git" ] || continue
-		[ "$candidate" = "$REPO_DIR" ] && continue
-		if git -C "$candidate" remote get-url upstream >/dev/null 2>&1; then
-			install_fork_reference_transaction_hook "$candidate" "0"
-		fi
-	done
-done

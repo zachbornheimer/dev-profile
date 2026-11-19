@@ -1,15 +1,16 @@
-"""Tests for main-branch-guard.py and the reference-transaction hook that
-keeps oh-my-pi's `main` a read-only mirror."""
+"""Tests for main-branch-guard.py: every managed fork's mirror is read-only."""
 
 from __future__ import annotations
 
 import json
 import subprocess
+import time
 from pathlib import Path
 
-from hook_harness import HookRunner
+from hook_harness import HOOKS_DIR, HookRunner
 
 HOOK = "main-branch-guard.py"
+FORK_CLI = "bun ~/.omp/agent/tools/fork/cli.ts"
 
 
 def _repo(parent: Path, name: str, branch: str) -> Path:
@@ -21,6 +22,91 @@ def _repo(parent: Path, name: str, branch: str) -> Path:
         capture_output=True,
     )
     return repo
+
+
+def _commit(repo: Path, message: str) -> str:
+    subprocess.run(
+        ["git", "-C", str(repo), "commit", "--allow-empty", "-q", "-m", message],
+        check=True,
+        capture_output=True,
+    )
+    return subprocess.check_output(
+        ["git", "-C", str(repo), "rev-parse", "HEAD"], text=True
+    ).strip()
+
+
+def _managed_fork(
+    parent: Path,
+    name: str,
+    branch: str,
+    *,
+    origin: str,
+    mirror: str = "main",
+    upstream: str | None = "sharkdp/hexyl",
+    parent_repo: str | None = None,
+) -> Path:
+    """A checkout shaped like a zachbornheimer fork: origin owner plus a parent."""
+    repo = _repo(parent, name, branch)
+    mirror_sha = _commit(repo, "upstream mirror")
+    subprocess.run(
+        ["git", "-C", str(repo), "remote", "add", "origin", origin],
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repo),
+            "update-ref",
+            f"refs/remotes/origin/{mirror}",
+            mirror_sha,
+        ],
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(repo), "config", "fork.mirror", mirror],
+        check=True,
+        capture_output=True,
+    )
+    if upstream is not None:
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repo),
+                "remote",
+                "add",
+                "upstream",
+                f"https://github.com/{upstream}.git",
+            ],
+            check=True,
+            capture_output=True,
+        )
+    if parent_repo is not None:
+        (repo / ".git" / "fork-parent").write_text(parent_repo)
+    return repo
+
+
+def _reason(run) -> str:
+    return run.output["hookSpecificOutput"]["permissionDecisionReason"]
+
+
+def _edit(hooks: HookRunner, path: Path, tool: str = "Edit"):
+    return hooks.run_payload(
+        HOOK,
+        {
+            "hook_event_name": "PreToolUse",
+            "tool_name": tool,
+            "tool_input": {
+                "file_path": str(path),
+                "old_string": "a",
+                "new_string": "b",
+            },
+            "cwd": "/tmp",
+        },
+    )
 
 
 def _run_command(hooks: HookRunner, command: str, cwd: str = "/tmp"):
@@ -109,16 +195,17 @@ def test_allows_wt_land_outside_oh_my_pi(hooks: HookRunner, tmp_path: Path) -> N
     assert run.decision == "none"
 
 
-def test_denies_push_to_fork_main_in_oh_my_pi(
-    hooks: HookRunner, tmp_path: Path
-) -> None:
-    repo = _repo(tmp_path, "oh-my-pi", "feat/x")
-    run = _run_command(hooks, f"cd {repo} && git push fork main")
-    assert run.decision == "deny"
-    assert (
-        "bun ~/.omp/agent/tools/fork/cli.ts land oh-my-pi"
-        in run.output["hookSpecificOutput"]["permissionDecisionReason"]
+def test_denies_push_to_mirror_in_oh_my_pi(hooks: HookRunner, tmp_path: Path) -> None:
+    repo = _managed_fork(
+        tmp_path,
+        "oh-my-pi",
+        "feat/x",
+        origin="https://github.com/zachbornheimer/oh-my-pi.git",
+        upstream="can1357/oh-my-pi",
     )
+    run = _run_command(hooks, f"cd {repo} && git push origin main")
+    assert run.decision == "deny"
+    assert f"{FORK_CLI} land oh-my-pi" in _reason(run)
 
 
 def test_denies_direct_commit_and_cherry_pick_on_integration_branch_in_any_fork(
@@ -199,10 +286,16 @@ def test_denies_non_merge_push_to_assembled_and_allows_merge_push(
     assert run_merge.decision == "none"
 
 
-def test_denies_wt_merge_and_wt_land_in_oh_my_pi(
+def test_denies_wt_merge_and_wt_land_on_a_fork_mirror(
     hooks: HookRunner, tmp_path: Path
 ) -> None:
-    repo = _repo(tmp_path, "oh-my-pi", "feat/x")
+    repo = _managed_fork(
+        tmp_path,
+        "oh-my-pi",
+        "main",
+        origin="https://github.com/zachbornheimer/oh-my-pi.git",
+        upstream="can1357/oh-my-pi",
+    )
     for command in (
         f"cd {repo} && wt merge",
         f"wt -C {repo} merge",
@@ -210,6 +303,7 @@ def test_denies_wt_merge_and_wt_land_in_oh_my_pi(
     ):
         run = _run_command(hooks, command)
         assert run.decision == "deny", command
+        assert f"{FORK_CLI} change oh-my-pi" in _reason(run)
 
 
 def test_allows_topic_push_in_oh_my_pi(hooks: HookRunner, tmp_path: Path) -> None:
@@ -226,47 +320,113 @@ def test_topic_branch_commit_in_oh_my_pi_is_allowed(
     assert run.decision == "none"
 
 
-def test_git_reference_transaction_hook_blocks_non_upstream_main_mutation() -> None:
-    omp_repo = Path.home() / "Developer" / "Personal" / "oh-my-pi"
-    hook_file = omp_repo / ".git" / "hooks" / "reference-transaction"
-    assert hook_file.is_file()
-    proc = subprocess.run(
-        ["git", "-C", str(omp_repo), "update-ref", "refs/heads/main", "HEAD"],
-        capture_output=True,
-        text=True,
-        timeout=30,
-        check=False,
+def test_denies_commit_on_mirror_of_a_non_omp_fork(
+    hooks: HookRunner, tmp_path: Path
+) -> None:
+    repo = _managed_fork(
+        tmp_path,
+        "hexyl",
+        "main",
+        origin="https://github.com/zachbornheimer/hexyl.git",
     )
-    assert proc.returncode != 0
-    assert "refs/heads/main" in proc.stderr and "origin/main" in proc.stderr
+    run = _run_command(hooks, f"cd {repo} && git commit -m 'direct commit on mirror'")
+    assert run.decision == "deny"
+    reason = _reason(run)
+    assert f"{FORK_CLI} change hexyl" in reason, (reason, run.log, run.stderr)
+    assert f"{FORK_CLI} land hexyl" in reason
+    assert f"{FORK_CLI} sync hexyl" in reason
+    assert "never use branch protection" in reason
 
-    # Verify non-merge commit update on refs/heads/assembled is also rejected by reference-transaction.
-    single_parent = subprocess.check_output(
-        [
-            "git",
-            "-C",
-            str(omp_repo),
-            "rev-list",
-            "--max-parents=1",
-            "-n",
-            "1",
-            "refs/remotes/origin/main",
-        ],
-        text=True,
-    ).strip()
-    proc_assembled = subprocess.run(
-        [
-            "git",
-            "-C",
-            str(omp_repo),
-            "update-ref",
-            "refs/heads/assembled",
-            single_parent,
-        ],
-        capture_output=True,
-        text=True,
-        timeout=30,
-        check=False,
+
+def test_allows_commit_on_topic_branch_of_a_non_omp_fork(
+    hooks: HookRunner, tmp_path: Path
+) -> None:
+    repo = _managed_fork(
+        tmp_path,
+        "hexyl",
+        "feat/color",
+        origin="git@github.com:zachbornheimer/hexyl.git",
     )
-    assert proc_assembled.returncode != 0
-    assert "refs/heads/assembled is an integration branch" in proc_assembled.stderr
+    run = _run_command(hooks, f"cd {repo} && git commit -m 'topic work'")
+    assert run.decision == "none"
+
+
+def test_allows_ff_only_pull_on_a_fork_mirror(
+    hooks: HookRunner, tmp_path: Path, monkeypatch
+) -> None:
+    repo = _managed_fork(
+        tmp_path,
+        "hexyl",
+        "main",
+        origin="https://github.com/zachbornheimer/hexyl.git",
+    )
+    monkeypatch.setenv("DEV_PROFILE_ALLOW_DEFAULT_BRANCH_COMMIT", "1")
+    for command in (
+        f"cd {repo} && git merge --ff-only origin/main",
+        f"git -C {repo} pull --ff-only",
+        f"cd {repo} && gh repo sync",
+    ):
+        run = _run_command(hooks, command)
+        assert run.decision == "none", command
+
+
+def test_denies_edit_inside_a_fork_mirror_checkout(
+    hooks: HookRunner, tmp_path: Path
+) -> None:
+    repo = _managed_fork(
+        tmp_path,
+        "hexyl",
+        "main",
+        origin="https://github.com/zachbornheimer/hexyl.git",
+        parent_repo="sharkdp/hexyl",
+        upstream=None,
+    )
+    target = repo / "src" / "main.rs"
+    target.parent.mkdir()
+    target.write_text("fn main() {}\n")
+    run = _edit(hooks, target)
+    assert run.decision == "deny"
+    assert f"{FORK_CLI} change hexyl" in _reason(run)
+
+
+def test_allows_edit_on_a_fork_topic_branch(hooks: HookRunner, tmp_path: Path) -> None:
+    repo = _managed_fork(
+        tmp_path,
+        "hexyl",
+        "feat/color",
+        origin="https://github.com/zachbornheimer/hexyl.git",
+    )
+    target = repo / "src" / "main.rs"
+    target.parent.mkdir()
+    target.write_text("fn main() {}\n")
+    assert _edit(hooks, target, "Write").decision == "none"
+
+
+def test_fork_detection_is_cached(tmp_path: Path) -> None:
+    import sys
+
+    repo = _managed_fork(
+        tmp_path,
+        "hexyl",
+        "main",
+        origin="https://github.com/zachbornheimer/hexyl.git",
+    )
+    sys.path.insert(0, str(HOOKS_DIR / "lib"))
+    import managed_fork as module
+
+    assert module.managed_fork(str(repo)) == {"name": "hexyl", "mirror": "main"}
+    started = time.perf_counter()
+    for _ in range(20):
+        assert module.managed_fork(str(repo))["mirror"] == "main"
+    elapsed_ms = (time.perf_counter() - started) * 1000 / 20
+    assert elapsed_ms < 5, elapsed_ms
+
+
+def test_machine_setup_does_not_install_a_clone_hook() -> None:
+    script = (
+        Path(__file__).resolve().parents[3] / "bin" / "dev-profile-omp-machine-setup"
+    )
+    text = script.read_text()
+    assert "cat >" not in text
+    assert "install_fork_reference_transaction_hook" not in text
+    assert "chmod +x" not in text

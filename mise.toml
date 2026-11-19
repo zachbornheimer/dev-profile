@@ -20,11 +20,11 @@ run = [
 ]
 
 [tasks."setup:personal"]
-description = "The author's agent stack on top of setup: upstream skills, then omp (entrypoint + oh-my-pi main lock)"
+description = "The author's agent stack on top of setup: upstream skills, then the omp entrypoint"
 depends = ["setup"]
 # Upstream skills are not committed; aubx-skills installs them from agents/available-skills/.skill-lock.json.
-# dev-profile-omp-machine-setup installs the stable omp entrypoint (~/.local/bin/omp -> the mise shim) and
-# the reference-transaction hook keeping oh-my-pi's main a read-only upstream mirror.
+# dev-profile-omp-machine-setup installs only the stable omp entrypoint
+# (~/.local/bin/omp -> the mise shim). The fork tool owns the per-clone hook.
 run = [
   "~/.agents/bin/aubx-skills sync",
   "~/.local/share/dev-profile/bin/dev-profile-omp-machine-setup",
