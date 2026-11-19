@@ -60,7 +60,6 @@ bash "$root/tests/pre-push-upstream-merge.sh" >/dev/null || fail "pre-push upstr
 bash "$root/tests/mise-dot-encryption-heal-fixture.sh" >/dev/null || fail "mise dot encryption heal fixture"
 bash "$root/tests/php-fmt-basepath-fixture.sh" >/dev/null || fail "php fmt basepath fixture"
 bash "$root/tests/mise-history-watchdog-repair-fixture.sh" >/dev/null || fail "mise history watchdog repair fixture"
-bash "$root/tests/probe-build-fixture.sh" >/dev/null || fail "probe-build fixture"
 bash "$root/tests/uv-lock-cooldown-fixture.sh" "$root" >/dev/null || fail "uv-lock-cooldown fixture"
 bash "$root/tests/tools-install-fixture.sh" "$root" >/dev/null || fail "tools install fixture"
 bash "$root/tests/herdr-plugins-fixture.sh" >/dev/null || fail "herdr plugins fixture"

@@ -116,7 +116,7 @@ def test_denies_push_to_fork_main_in_oh_my_pi(
     run = _run_command(hooks, f"cd {repo} && git push fork main")
     assert run.decision == "deny"
     assert (
-        ".omp-build/branches/"
+        "bun ~/.omp/agent/tools/fork/cli.ts land oh-my-pi"
         in run.output["hookSpecificOutput"]["permissionDecisionReason"]
     )
 
@@ -212,11 +212,9 @@ def test_denies_wt_merge_and_wt_land_in_oh_my_pi(
         assert run.decision == "deny", command
 
 
-def test_allows_topic_push_and_omp_build_in_oh_my_pi(
-    hooks: HookRunner, tmp_path: Path
-) -> None:
-    repo = _repo(tmp_path, "oh-my-pi", "omp-build")
-    run = _run_command(hooks, f"cd {repo} && git push fork feat/my-topic omp-build")
+def test_allows_topic_push_in_oh_my_pi(hooks: HookRunner, tmp_path: Path) -> None:
+    repo = _repo(tmp_path, "oh-my-pi", "feat/x")
+    run = _run_command(hooks, f"cd {repo} && git push fork feat/my-topic")
     assert run.decision == "none"
 
 
@@ -233,7 +231,7 @@ def test_git_reference_transaction_hook_blocks_non_upstream_main_mutation() -> N
     hook_file = omp_repo / ".git" / "hooks" / "reference-transaction"
     assert hook_file.is_file()
     proc = subprocess.run(
-        ["git", "-C", str(omp_repo), "update-ref", "refs/heads/main", "omp-build"],
+        ["git", "-C", str(omp_repo), "update-ref", "refs/heads/main", "HEAD"],
         capture_output=True,
         text=True,
         timeout=30,
