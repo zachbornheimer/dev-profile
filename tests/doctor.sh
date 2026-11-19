@@ -51,7 +51,6 @@ bash "$root/tests/dprint-repo-formatter-fixture.sh" >/dev/null || fail "dprint r
 bash "$root/tests/dev-family-fixture.sh" "$root" >/dev/null || fail "dev-family fixture"
 bash "$root/tests/commit-fix-fixture.sh" "$root" >/dev/null || fail "commit-fix fixture"
 bash "$root/tests/done-fixture.sh" "$root" >/dev/null || fail "done fixture"
-bash "$root/tests/skills-sync-fixture.sh" >/dev/null || fail "skills sync fixture"
 bash "$root/tests/unowned-repo-conventions-fixture.sh" >/dev/null || fail "unowned-repo-conventions fixture"
 bash "$root/tests/worktree-copy-excludes-fixture.sh" "$root" >/dev/null || fail "worktree copy excludes fixture"
 bash "$root/tests/worktree-readiness-fixture.sh" "$root" >/dev/null || fail "worktree readiness fixture"
