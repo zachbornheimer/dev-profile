@@ -4,7 +4,7 @@
 # dependencies = []
 # ///
 
-"""PreToolUse: no agent writes to `main`/`master` directly. Work in a worktree.
+"""PreToolUse: no agent writes a fork mirror, or any repo's default branch.
 
 Rules, every repository:
 
@@ -17,13 +17,16 @@ Rules, every repository:
   `--continue`, `--quit`, `--skip`) stays allowed: that is recovery.
 - `wt merge` / `wt land` are allowed (that is how a worktree branch lands).
 
-oh-my-pi is stricter, because its `main` is a read-only mirror of
-can1357/oh-my-pi: `wt merge` and `wt land` are denied there too.
+A managed fork is stricter, and it is recognized by shape, never by name: its
+`origin` owner is zachbornheimer, and it has an `upstream` remote or a recorded
+GitHub parent. Its mirror (the upstream default branch) refuses commits,
+cherry-picks, rebases, merges, resets, pushes, `wt` commits, and file edits
+while that branch is checked out. A fast-forward of the mirror stays allowed.
+`assembled`, `next`, and `seen` stay merge-only in every repository.
 
 Fails OPEN on parse errors, a missing git, or unexpected input, like every
 guard here: a false block costs more than a missed check.
 """
-
 from __future__ import annotations
 
 import json
@@ -36,6 +39,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
 
 from command_words import simple_commands
 from hook_common import Decision, HookEvent, run_hook
+from managed_fork import fork_flow, managed_fork
 from orchestrator_only_git import dash_c_dir, skip_global_options
 
 HOOK_NAME = "main-branch-guard"
@@ -60,17 +64,17 @@ ALLOW_ENVS = (
 PUSH_OPTIONS_WITH_ARG = frozenset(
     {"-o", "--push-option", "--repo", "--receive-pack", "--exec"}
 )
+FF_ONLY_FLAGS = frozenset({"--ff-only", "--ff=only"})
+FILE_TOOLS = frozenset({"Write", "Edit", "MultiEdit", "NotebookEdit"})
 
 WORKTRUNK_FLOW = (
     "Work in a worktree instead: `wt switch --create <branch> --base origin/main`, "
     "then `wt step commit`; land with `wt land` or open a PR with `wt pr`."
 )
-OH_MY_PI_FLOW = (
-    "oh-my-pi's `main` is a fast-forward-only mirror; never commit there. "
-    "Create a topic branch from main, then "
-    "`bun ~/.omp/agent/tools/fork/cli.ts land oh-my-pi <branch>`, which pushes "
-    "it and adds it to .fork/branches on `fork`."
-)
+
+
+
+
 INTEGRATION_FLOW = (
     "Integration branches (`assembled`, `next`, `seen`) only integrate topic "
     "branches via `git merge` (with `rerere.enabled=true`); never commit, "
@@ -79,7 +83,6 @@ INTEGRATION_FLOW = (
     "commit tracked by the fork; use `git merge-base upstream/main origin/main`. "
     "Register it through the fork's manifest PR, not an integration commit."
 )
-
 
 def extract_command(event: HookEvent) -> str:
     """The shell string, whether it arrives directly or nested in a
@@ -118,14 +121,6 @@ def _inside_repo(repo: str) -> bool:
     return bool(_git(repo, "rev-parse", "--is-inside-work-tree"))
 
 
-def _repo_name(repo: str) -> str:
-    """The repository's own directory name, shared by all of its worktrees."""
-    common_dir = _git(repo, "rev-parse", "--git-common-dir")
-    if not common_dir:
-        return ""
-    if not os.path.isabs(common_dir):
-        common_dir = os.path.join(repo, common_dir)
-    return os.path.basename(os.path.dirname(os.path.normpath(common_dir)))
 
 
 def _current_branch(repo: str) -> str:
@@ -218,6 +213,31 @@ def push_writes_non_merge_to_integration(
     return False
 
 
+def _ff_only(args: list[str]) -> bool:
+    """A merge or pull that can only fast-forward, so it cannot invent a commit."""
+    return _has_flag(args, FF_ONLY_FLAGS)
+
+
+def _mirror_checkout(repo: str, branch: str) -> tuple[str, str] | None:
+    facts = managed_fork(repo)
+    if facts is None or branch != facts["mirror"]:
+        return None
+    return facts["name"], facts["mirror"]
+
+
+def _edit_target(event: HookEvent) -> str:
+    return event.tool_input("file_path") or event.tool_input("path")
+
+
+def _repo_of_path(path: str) -> str:
+    expanded = os.path.expanduser(path)
+    if not os.path.isabs(expanded):
+        expanded = os.path.abspath(expanded)
+    directory = expanded if os.path.isdir(expanded) else os.path.dirname(expanded)
+    top = _git(directory, "rev-parse", "--show-toplevel")
+    return top or directory
+
+
 def _deny(shown: str, flow: str, detail: str) -> Decision:
     return Decision.deny(
         f"`{shown}` writes to the default branch, which agents must not do "
@@ -234,10 +254,40 @@ def _deny_integration(shown: str, detail: str) -> Decision:
     )
 
 
+def _push_targets(args: list[str], branch: str, target: str) -> bool:
+    """True when a push writes `target`, including an implicit current-branch push."""
+    refspecs = _push_refspecs(args)
+    if not refspecs:
+        return branch == target
+    for refspec in refspecs:
+        destination = refspec.lstrip("+").split(":", 1)[-1].strip()
+        if destination == "HEAD":
+            destination = branch
+        if destination.removeprefix("refs/heads/") == target:
+            return True
+    return False
+
+
 def decide(event: HookEvent) -> Decision | None:
-    if event.tool_name not in {"Bash", "Write"}:
-        return None
     command = extract_command(event)
+    if event.tool_name in FILE_TOOLS and not command:
+        target = _edit_target(event)
+        if not target:
+            return None
+        repo = _repo_of_path(target)
+        if not os.path.isdir(repo) or not _inside_repo(repo):
+            return None
+        mirror = _mirror_checkout(repo, _current_branch(repo))
+        if mirror is None:
+            return None
+        return Decision.deny(
+            f"editing `{target}` writes the mirror checkout of {mirror[0]}. "
+            f"{fork_flow(mirror[0])}",
+            log_detail="edit-mirror",
+        )
+
+    if event.tool_name not in {"Bash", "Write", *FILE_TOOLS}:
+        return None
     if not command:
         return None
     if any(os.environ.get(name) or f"{name}=" in command for name in ALLOW_ENVS):
@@ -249,6 +299,8 @@ def decide(event: HookEvent) -> Decision | None:
         if argv[0] == "cd" and len(argv) == 2:
             cwd = argv[1]
             continue
+        if argv[0] == "gh" and "repo" in argv and "sync" in argv:
+            continue
         if argv[0] not in {"git", "wt"}:
             continue
 
@@ -256,8 +308,10 @@ def decide(event: HookEvent) -> Decision | None:
         if not os.path.isdir(repo) or not _inside_repo(repo):
             continue
         branch = _current_branch(repo)
-        in_oh_my_pi = _repo_name(repo) == "oh-my-pi"
-        flow = OH_MY_PI_FLOW if in_oh_my_pi else WORKTRUNK_FLOW
+        facts = managed_fork(repo)
+        on_mirror = facts is not None and branch == facts["mirror"]
+        mirror = (facts["name"], facts["mirror"]) if on_mirror and facts else None
+        flow = fork_flow(facts["name"]) if facts else WORKTRUNK_FLOW
 
         if argv[0] == "wt":
             wt_args = skip_global_options(argv[1:])
@@ -270,14 +324,20 @@ def decide(event: HookEvent) -> Decision | None:
                 and not _merge_in_progress(repo)
             ):
                 return _deny_integration(shown, "wt-step-commit-integration")
-            if sub in WT_SUBCOMMANDS and in_oh_my_pi:
-                return _deny(shown, OH_MY_PI_FLOW, "omp-wt-merge-main")
+            if sub == "step" and len(wt_args) > 1 and wt_args[1] == "commit" and mirror:
+                return _deny(shown, flow, "wt-step-commit-mirror")
+            if sub in WT_SUBCOMMANDS and mirror:
+                return _deny(shown, flow, "fork-wt-merge-mirror")
             continue
 
         sub, args = _git_subcommand(argv)
         if sub == "push":
-            if push_targets_default_branch(args, branch):
-                return _deny(shown, flow, "push-main")
+            mirror_name = facts["mirror"] if facts else ""
+            writes_mirror = bool(mirror_name) and _push_targets(
+                args, branch, mirror_name
+            )
+            if push_targets_default_branch(args, branch) or writes_mirror:
+                return _deny(shown, flow, "push-mirror" if writes_mirror else "push-main")
             if push_writes_non_merge_to_integration(repo, args, branch):
                 return _deny_integration(shown, "push-non-merge-integration")
             continue
@@ -293,9 +353,15 @@ def decide(event: HookEvent) -> Decision | None:
             if sub == "commit" and _merge_in_progress(repo):
                 continue
             return _deny_integration(shown, f"{sub}-integration")
-        if branch not in PROTECTED_BRANCHES:
+        if mirror and sub in {"merge", "pull"} and _ff_only(args):
             continue
-        return _deny(shown, flow, f"{sub}-main")
+        if mirror is None:
+            if branch not in PROTECTED_BRANCHES:
+                continue
+            return _deny(shown, flow, f"{sub}-main")
+        return _deny(shown, flow, f"{sub}-mirror")
+
+    return None
 
     return None
 
