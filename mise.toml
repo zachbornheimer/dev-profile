@@ -20,11 +20,11 @@ run = [
 ]
 
 [tasks."setup:personal"]
-description = "The author's agent stack on top of setup: upstream skills, then omp (entrypoint + oh-my-pi main lock)"
+description = "The author's agent stack on top of setup: upstream skills, then the fork install"
 depends = ["setup"]
 # Upstream skills are not committed; aubx-skills installs them from agents/available-skills/.skill-lock.json.
-# dev-profile-omp-machine-setup installs the stable omp entrypoint (~/.local/bin/omp -> the mise shim) and
-# the reference-transaction hook keeping oh-my-pi's main a read-only upstream mirror.
+# Fork binaries install only through mise (`mise install` / `mise up`). `fork doctor` is the layout check;
+# `shipping-a-fork-binary-via-mise` owns the process. Do not add a manual copy, symlink, or source build here.
 run = [
   "~/.agents/bin/aubx-skills sync",
   "~/.local/share/dev-profile/bin/dev-profile-omp-machine-setup",

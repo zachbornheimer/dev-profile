@@ -362,10 +362,8 @@ or a new `*-LLC` org folder. Full rules: `~/.claude/rules/machine-layout.md`.
 Fleet `dev-env` setup is Nix-managed (`~/Developer/Personal/dev-env/flake.nix`, `nix/`).
 Personal dotfiles in `~` are `mise dot`-managed (`mode = "track"`, auto-saved by
 `mise dot watch` and synced every `60s` to `zachbornheimer/dotfiles.git#history`;
-agent turns publish with `dev-profile-dot-save-turn <ticket> <path>…` then `mise dot sync`, and non-agent edits with `mise dot save && mise dot sync` / `mise dot pull`)
-is retired — never call `chezmoi`. `~/.agents` is symlinked to
-`~/Developer/Personal/dev-profile/agents` (`~/.claude/CLAUDE.md` symlinks here);
-edit `~/.agents/...` on the live path and commit/push in `~/Developer/Personal/dev-profile`.
+agent turns publish with `dev-profile-dot-save-turn <ticket> <path>…` then `mise dot sync`, and non-agent edits with `mise dot save && mise dot sync` / `mise dot pull`).
+`~/.agents` and `~/.omp/agent/managed-skills` are strictly `mise dot`-managed. Neither is a checkout of this repo, and neither is a symlink into it. User-authored skills live in this repo at `agents/available-skills` and change only by a pull request here. Managed skills change only through the native skill manager with `MANAGED_SKILLS_ROOT=~/.omp/agent/managed-skills` (its default root, `~/.agents/managed-skills`, is not the live root). Do not write a path that assumes `~/.agents` is this repo.
 Durable machine facts (which tool runs commands, where a roster lives, what a
 wrapper does) go to session memory or this file — never `~/.claude/projects/*/memory/`,
 which only the one project that wrote it ever reads.

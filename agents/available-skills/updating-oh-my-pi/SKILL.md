@@ -16,7 +16,7 @@ user-invokable: true
 
 ## Install the promoted release
 
-Normal install follows the owner's `install oh-my-pi` operation. The mise tool is `github:zachbornheimer/oh-my-pi`, version `latest`, with `version_prefix = "build-"`; preserve all existing keys, including platform restrictions and asset matching. Never replace the release install with a source-checkout binary or a local source symlink.
+The only install route is `mise install` or `mise up` (the owner's `install oh-my-pi` calls mise). The mise tool is `github:zachbornheimer/oh-my-pi`, version `latest`, with `version_prefix = "build-"`; preserve all existing keys, including platform restrictions and asset matching. Never replace the release install with a source-checkout binary, a manual copy, a Homebrew formula, or a local source symlink.
 
 ```bash
 bun ~/.omp/agent/tools/fork/cli.ts install oh-my-pi

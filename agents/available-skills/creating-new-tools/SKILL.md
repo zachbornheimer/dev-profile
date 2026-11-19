@@ -45,12 +45,12 @@ path selects the tool correctly.** Test discovery separately from execution.
 
 Decide by **who invokes it**, before anything else.
 
-| The request                                                                                                                              | Home                                                                                                                                                                                     | Load                   |
-| ---------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
-| A tool or fixed workflow an omp agent calls ("a new tool for omp", "port this tool/workflow to omp", "move X into `~/.omp/agent/tools`") | self-contained in `~/.omp/agent/tools/<name>.ts` or `~/.omp/agent/tools/<name>/index.ts` (personal) or `.omp/tools/<name>.ts` in a repo (§4.2); zero `@zab-ai/ai` or `@mastra/*` imports | this skill (§4.2)      |
-| A tool non-omp harnesses call over the MCP gateway ("expose it over MCP", "add it to zab-ai")                                            | `@zab-ai/ai` kit + Mastra mount (§4); `mastra/adapters/omp/zab-ai-tools` (§4.1) is legacy and being migrated into `~/.omp/agent/tools/`                                                  | this skill (§4)        |
-| Behavior the user triggers or sees: slash command, display toggle, transcript hide, session hook                                         | self-contained extension in `~/.omp/agent/extensions/`, auto-discovered                                                                                                                  | `updating-oh-my-pi` §1 |
-| A bug or feature in omp itself, or landing a branch into the custom build                                                                | topic branch on the fork, listed on `ci`                                                                                                                                                 | `updating-oh-my-pi` §2 |
+| The request                                                                                                                              | Home                                                                                                                                                                                     | Load                              |
+| ---------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
+| A tool or fixed workflow an omp agent calls ("a new tool for omp", "port this tool/workflow to omp", "move X into `~/.omp/agent/tools`") | self-contained in `~/.omp/agent/tools/<name>.ts` or `~/.omp/agent/tools/<name>/index.ts` (personal) or `.omp/tools/<name>.ts` in a repo (§4.2); zero `@zab-ai/ai` or `@mastra/*` imports | this skill (§4.2)                 |
+| A tool non-omp harnesses call over the MCP gateway ("expose it over MCP", "add it to zab-ai")                                            | `@zab-ai/ai` kit + Mastra mount (§4); `mastra/adapters/omp/zab-ai-tools` (§4.1) is legacy and being migrated into `~/.omp/agent/tools/`                                                  | this skill (§4)                   |
+| Behavior the user triggers or sees: slash command, display toggle, transcript hide, session hook                                         | self-contained extension in `~/.omp/agent/extensions/`, auto-discovered                                                                                                                  | `updating-oh-my-pi` §1            |
+| A bug or feature in omp itself, or landing a branch into the custom build                                                                | topic branch cut from the mirror, registered by `fork land`                                                                                                                              | `shipping-a-fork-binary-via-mise` |
 
 "An extension to OhMyPie that does X, Y, and Z" is ambiguous. If an agent calls
 X, Y, and Z, it is a tool: continue here. If the user invokes or watches them,
@@ -658,7 +658,7 @@ Before reporting completion, verify all of the following:
   verified. Discovery tests cover both selection and non-selection.
 - A native custom tool loads under omp's own `pi.zod`, was called from a fresh
   pane agent that could not fall back to a Mastra twin, and its branch is
-  registered with `branches.ts add` on `ci` and pushed to `fork` (§4.2, §7.8, §8.1).
+  registered by `fork land` (`shipping-a-fork-binary-via-mise`; §8.1).
 - PR merged, required CI green, and the implementation is confirmed on `main`.
 
 Report the merged PR/commit, capability name, meaningful tests performed,

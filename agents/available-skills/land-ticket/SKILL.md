@@ -57,4 +57,4 @@ Do not spawn tmux.
 - Do not reopen ZYS-756.
 - Missing work `linear-sah` MCP ≠ landed. Report the blocker.
 - Never silent-default an unknown prefix to personal.
-- After editing `~/.agents`, `chezmoi re-add ~/.agents` before `chezmoi apply`. Run `~/.agents/hooks/chezmoi-guard.py --check` first — apply of unre-added live work silently reverts it (ZYS-755).
+- Do not edit `~/.agents` as if it were this repo. It is mise-dot managed and is not a symlink into dev-profile. A user-authored skill or hook changes only by a pull request on `agents/` in this repo (ZYS-755).

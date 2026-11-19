@@ -5,7 +5,7 @@ description: Use before forking a project or repairing a fork: decide plugin ver
 
 # Forking projects: keep the delta small
 
-A fork costs something whenever upstream moves. This skill explains the design; **`shipping-a-fork-binary-via-mise` is the single operational how-to** for adoption, changes, upstream sync, conflict resolution, dropping absorbed carries, installation and verification. Oh-my-pi follows that same process; `omp-fork-conventions` contains only its build/test/remote specifics.
+A fork costs something whenever upstream moves. This skill explains the design. **`shipping-a-fork-binary-via-mise` is the single operational how-to**, including the ordered steps and the four enforcement layers. Do not restate those steps here. Oh-my-pi follows that same process; `omp-fork-conventions` contains only its build/test/remote specifics. Machines install a fork binary only with `mise install` or `mise up`.
 
 ## 1. Avoid a fork when possible
 
@@ -19,12 +19,12 @@ Before moving a branch into a plugin directory, inspect its complete diff: a bra
 
 ## 2. Use one branch layout
 
-| Branch | Role |
-| --- | --- |
-| Upstream-named `main` or `master` | Exact, fast-forward-only upstream mirror; no fork commits |
-| Default `fork` | Only `.github/workflows/fork.yml`, `.fork/branches`, `.fork/rr-cache` |
+| Branch                               | Role                                                                     |
+| ------------------------------------ | ------------------------------------------------------------------------ |
+| Upstream-named `main` or `master`    | Exact, fast-forward-only upstream mirror; no fork commits                |
+| Default `fork`                       | Only `.github/workflows/fork.yml`, `.fork/branches`, `.fork/rr-cache`    |
 | `feat/<slug>` or `fix/<slug>` topics | Independent, upstream-PR-ready source customizations cut from the mirror |
-| CI-owned `assembled` | Disposable merge result, never a source branch or place for direct edits |
+| CI-owned `assembled`                 | Disposable merge result, never a source branch or place for direct edits |
 
 The pristine mirror and absence of blocking protection preserve GitHub's **Sync fork** button. Keep the workflow on default `fork`, where GitHub can discover scheduled/manual triggers; do not put workflow configuration on the mirror to avoid a second branch.
 
@@ -32,11 +32,11 @@ Use the fork tool to create topics and register them. It chooses the mirror base
 
 ## 3. Sort and isolate customizations
 
-| Kind | Home |
-| --- | --- |
-| Outside the source | Your own plugin, tool, skill, hook or config directory |
-| Upstream-bound | One independent topic with one concern and tests |
-| Personal | A cohesive source topic, still independent and free of fork configuration |
+| Kind               | Home                                                                      |
+| ------------------ | ------------------------------------------------------------------------- |
+| Outside the source | Your own plugin, tool, skill, hook or config directory                    |
+| Upstream-bound     | One independent topic with one concern and tests                          |
+| Personal           | A cohesive source topic, still independent and free of fork configuration |
 
 Every carry needs an explainable purpose. Keep topics independent rather than merging one topic into another to hide assembly conflicts. If there is a real dependency, make its ordering explicit and submit the base upstream first. Names describe the change, not a session identifier.
 
