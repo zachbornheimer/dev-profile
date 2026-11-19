@@ -50,7 +50,9 @@ done
 default_base() {
 	local ref base
 	for ref in "$(git symbolic-ref -q --short refs/remotes/origin/HEAD || true)" origin/main origin/master; do
-		[[ -n "${ref}" ]] && git rev-parse -q --verify "${ref}^{commit}" >/dev/null || continue
+		if [[ -z "${ref}" ]] || ! git rev-parse -q --verify "${ref}^{commit}" >/dev/null; then
+			continue
+		fi
 		if base="$(git merge-base HEAD "${ref}" 2>/dev/null)"; then
 			printf '%s\n' "${base}"
 			return 0
@@ -93,7 +95,18 @@ if [[ -z "${base}" ]]; then
 elif git cat-file -e "${base}:${rel:+${rel}/}Cargo.lock" 2>/dev/null; then
 	mkdir -p "${tmp}/base"
 	git archive "${base}" | tar -x -C "${tmp}/base"
-	deny "${tmp}/base/${rel}" "${tmp}/base.json"
+	# cargo is a mise shim. The unpacked tree is not a trusted checkout, so a
+	# mise.toml (or .mise.toml, mise/config.toml, .config/mise.toml,
+	# .tool-versions) there makes the shim refuse and cargo metadata fail.
+	# Ignore that tree for this run only: mise then loads none of it, so nothing
+	# unpacked is executed or trusted. The physical path is what mise matches;
+	# macOS reports the temp dir as /private/var while mktemp prints /var.
+	# Checked on mise 2026.11.10: MISE_IGNORED_CONFIG_PATHS set to that path lets
+	# cargo metadata finish in an untrusted directory holding a mise.toml, and
+	# cargo still resolves. Trusting the temp dir is the fallback only if a later
+	# mise stops resolving cargo once its config is ignored.
+	base_dir="$(cd "${tmp}/base" && pwd -P)"
+	MISE_IGNORED_CONFIG_PATHS="${base_dir}" deny "${tmp}/base/${rel}" "${tmp}/base.json"
 	errors "${tmp}/base.json" >"${tmp}/base.errors"
 fi
 

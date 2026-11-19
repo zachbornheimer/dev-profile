@@ -348,7 +348,13 @@ local gates = new Mapping<String, Step> {
     check = "dev-profile-gitleaks-pushed"
     exclusive = true
   }
-  ["merge-conflicts"] = (Builtins.check_merge_conflict) { glob = List("**/*") }
+  // Git rerere preimages intentionally retain conflict markers. Only its canonical
+  // fork metadata path is exempt; postimages and source files remain checked.
+  // tests/merge-conflicts-fixture.sh exercises the real step during a merge.
+  ["merge-conflicts"] = (Builtins.check_merge_conflict) {
+    glob = List("**/*")
+    exclude = List(".fork/rr-cache/[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]/preimage")
+  }
   // hk's detect_private_key builtin carries the same `types = ["text"]` filter and drops
   // the same extension-less key file (tests/pre-push-empty-file-list-fixture.sh pins it:
   // a pushed .deploy-key must fail the push). Its command runs verbatim without the filter.

@@ -26,6 +26,10 @@ fi
 # Target lookup must finish before cd can change this shell's PWD. Resolve it
 # with the native binary, never the mise shim; PATH and detached adds stay intact.
 # Ordinary paths and directory-stack jumps need no query or probe subshell.
+# The cached init bakes _ZO_RESOLVE_SYMLINKS into __zoxide_pwd (pwd -L or -P);
+# read that once here so lookups use $PWD (or its :A form) without a subshell.
+typeset -gi _zoxide_physical=0
+[[ ${functions[__zoxide_pwd]} == *'pwd -P'* ]] && _zoxide_physical=1
 if ((${+functions[__zoxide_z]})); then
 	__zoxide_z() {
 		__zoxide_doctor
@@ -56,8 +60,9 @@ if ((${+functions[__zoxide_z]})); then
 				done
 			fi
 		fi
-		local result
-		result="$("$_zoxide_bin" query --exclude "$(__zoxide_pwd)" -- "$@")" && __zoxide_cd "$result"
+		local result here=$PWD
+		((_zoxide_physical)) && here=${PWD:A}
+		result="$("$_zoxide_bin" query --exclude "$here" -- "$@")" && __zoxide_cd "$result"
 	}
 	cd() { __zoxide_z "$@"; }
 	z() { __zoxide_z "$@"; }

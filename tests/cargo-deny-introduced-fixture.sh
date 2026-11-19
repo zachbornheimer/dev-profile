@@ -58,7 +58,9 @@ commit() { # <name> <message>
 	git -C "${work}/$1" commit -qm "$2"
 }
 # run <name>: the gate from the workspace root, as hk's dir = "{{workspace}}" runs it.
-run() { (cd "${work}/$1" && dev-profile-cargo-deny-introduced licenses bans sources) >"${work}/out.txt" 2>&1; }
+run() {
+	(cd "${work}/$1" && dev-profile-cargo-deny-introduced licenses bans sources) >"${work}/out.txt" 2>&1
+}
 expect_out() { grep -qF -- "$1" "${work}/out.txt" || fail "$2: output must contain: $1"; }
 expect_no_out() { ! grep -qF -- "$1" "${work}/out.txt" || fail "$2: output must not contain: $1"; }
 
@@ -105,5 +107,88 @@ git -C "${work}/d" update-ref -d refs/remotes/origin/main
 if run d; then fail "without a base every error is introduced and must fail the push"; fi
 expect_out "no upstream default branch" "no base"
 expect_out "errors introduced by this push" "no base"
+
+# 5. A base commit that carries a mise.toml. cargo is a mise shim; an unpacked
+# copy is not a trusted checkout, and a config there that is neither ignored nor
+# trusted makes the shim exit the way the real one does ("Config files in
+# <dir>/mise.toml are not trusted"), so cargo-deny never finishes. The base run
+# must finish anyway. The inherited license stays pre-existing; a license the
+# push adds still fails. The stub stands in only while the gate runs, so the
+# real cargo still locks the crate. The stub stands in for the mise shim, so
+# it execs the real binary the shim fronts: the first cargo on PATH that is not
+# a mise shim.
+real_cargo=""
+while IFS= read -r candidate; do
+	if [[ -n "${candidate}" && "${candidate}" != */mise/shims/* ]]; then
+		real_cargo="${candidate}"
+		break
+	fi
+done < <(type -ap cargo 2>/dev/null || true)
+[[ -n "${real_cargo}" && -x "${real_cargo}" ]] || fail "could not find a cargo that is not the mise shim"
+real_deny="$(command -v cargo-deny)"
+stubs="${work}/stubs"
+mkdir -p "${stubs}"
+cat >"${stubs}/cargo" <<STUB
+#!/usr/bin/env bash
+set -euo pipefail
+# A checkout is trusted: its mise config is already on the machine. The unpacked
+# base is a temp copy, and a mise config there that is neither ignored nor trusted
+# fails the way the real shim does. Ignoring or trusting that directory lets the
+# real cargo run.
+dir="\$(pwd -P)"
+case "\${dir}" in
+"${work}"/*) ;;
+*)
+	while [[ "\${dir}" != / ]]; do
+		if [[ -f "\${dir}/mise.toml" || -f "\${dir}/.mise.toml" || -f "\${dir}/mise/config.toml" || -f "\${dir}/.config/mise.toml" || -f "\${dir}/.tool-versions" ]]; then
+			case ":\${MISE_IGNORED_CONFIG_PATHS-}:\${MISE_TRUSTED_CONFIG_PATHS-}:" in
+			*":\${dir}:"*) ;;
+			*)
+				echo "mise ERROR Config files in \${dir}/mise.toml are not trusted." >&2
+				exit 1
+				;;
+			esac
+			break
+		fi
+		dir="\$(dirname "\${dir}")"
+	done
+	;;
+esac
+exec "${real_cargo}" "\$@"
+STUB
+cat >"${stubs}/cargo-deny" <<STUB
+#!/usr/bin/env bash
+set -euo pipefail
+# cargo-deny asks the shim for the crate graph before it reports anything. An
+# untrusted config fails that ask, so the diagnostic is the trust error and the
+# real checker never runs. A trusted or ignored config falls through.
+if ! "${stubs}/cargo" metadata --offline --format-version 1 >/dev/null; then
+	exit 1
+fi
+exec "${real_deny}" "\$@"
+STUB
+chmod +x "${stubs}/cargo" "${stubs}/cargo-deny"
+repo_with_base e GPL-3.0-only
+# repo_with_base leaves one commit, and that commit is the base. Amend the
+# mise.toml onto it and push; the source edit is a new commit on top, so HEAD
+# and the base differ by that change only.
+printf '[tools]\npython = "3.12.11"\n' >"${work}/e/mise.toml"
+git -C "${work}/e" add mise.toml
+git -C "${work}/e" commit -q --amend --no-edit
+git -C "${work}/e" push -qf origin HEAD:main
+printf 'fn main() { println!("fork"); }\n' >"${work}/e/src/main.rs"
+commit e "feat: print fork"
+PATH="${stubs}:${PATH}" run e || fail "a mise.toml on the base must not stop the base run"
+expect_out "0 introduced, 1 pre-existing" "untrusted mise.toml"
+expect_no_out "did not finish" "untrusted mise.toml"
+expect_no_out "not trusted" "untrusted mise.toml"
+sed 's/^license = .*/license = "AGPL-3.0-only"/' "${work}/e/Cargo.toml" >"${work}/e/Cargo.toml.new"
+mv "${work}/e/Cargo.toml.new" "${work}/e/Cargo.toml"
+(cd "${work}/e" && "${real_cargo}" generate-lockfile --offline) >"${work}/out.txt" 2>&1 || fail "could not relock e"
+commit e "chore: relicense"
+if PATH="${stubs}:${PATH}" run e; then fail "a license the push introduces must still fail when the base carries a mise.toml"; fi
+expect_out "errors introduced by this push" "introduced over mise.toml"
+expect_out "[rejected] fixture" "introduced over mise.toml"
+expect_no_out "did not finish" "introduced over mise.toml"
 
 echo "cargo-deny-introduced fixture ok"
