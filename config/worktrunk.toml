@@ -225,8 +225,8 @@ retire-legacy-hooks = "~/.local/share/dev-profile/bin/dev-profile-retire-legacy-
 [pre-merge]
 protect-omp-main = """
 {% if repo == 'oh-my-pi' and (target == 'main' or target == 'master') %}
-echo "Merging into '{{ target }}' in oh-my-pi is forbidden ('main' is a read-only mirror of upstream can1357/oh-my-pi)." >&2
-echo "Push the topic branch to the fork, then 'bun ~/.omp/agent/tools/fork/cli.ts land oh-my-pi {{ branch }}' (adds it to .fork/branches on 'fork'); 'mise up' installs the build." >&2
+echo "Merging into '{{ target }}' in oh-my-pi is forbidden (the upstream-named branch is a fast-forward-only mirror)." >&2
+echo "Run 'bun ~/.omp/agent/tools/fork/cli.ts change oh-my-pi {{ branch }}', then 'bun ~/.omp/agent/tools/fork/cli.ts land oh-my-pi {{ branch }}'. 'mise up' installs the build." >&2
 exit 1
 {% else %}
 true

@@ -23,8 +23,9 @@ run = [
 description = "The author's agent stack on top of setup: upstream skills, then the omp entrypoint"
 depends = ["setup"]
 # Upstream skills are not committed; aubx-skills installs them into ~/.agents/available-skills/ (tracked by mise dot, not this repo).
-# dev-profile-omp-machine-setup installs only the stable omp entrypoint
-# (~/.local/bin/omp -> the mise shim). The fork tool owns the per-clone hook.
+# dev-profile-omp-machine-setup installs only the stable omp entrypoint (~/.local/bin/omp -> the mise shim).
+# Fork binaries install only through mise (`mise install` / `mise up`); the fork tool owns the per-clone hook and
+# `fork doctor` is the layout check. `shipping-a-fork-binary-via-mise` owns the process.
 run = [
   "~/.agents/bin/aubx-skills sync",
   "~/.local/share/dev-profile/bin/dev-profile-omp-machine-setup",
