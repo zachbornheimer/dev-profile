@@ -114,8 +114,16 @@ expect_out "errors introduced by this push" "no base"
 # <dir>/mise.toml are not trusted"), so cargo-deny never finishes. The base run
 # must finish anyway. The inherited license stays pre-existing; a license the
 # push adds still fails. The stub stands in only while the gate runs, so the
-# real cargo still locks the crate.
-real_cargo="$(/bin/bash -lc 'type -a cargo' | awk -F' is ' '/cargo is / && $2 !~ /mise\/shims/ {print $2; exit}')"
+# real cargo still locks the crate. The stub stands in for the mise shim, so
+# it execs the real binary the shim fronts: the first cargo on PATH that is not
+# a mise shim.
+real_cargo=""
+while IFS= read -r candidate; do
+	if [[ -n "${candidate}" && "${candidate}" != */mise/shims/* ]]; then
+		real_cargo="${candidate}"
+		break
+	fi
+done < <(type -ap cargo 2>/dev/null || true)
 [[ -n "${real_cargo}" && -x "${real_cargo}" ]] || fail "could not find a cargo that is not the mise shim"
 real_deny="$(command -v cargo-deny)"
 stubs="${work}/stubs"
@@ -123,23 +131,29 @@ mkdir -p "${stubs}"
 cat >"${stubs}/cargo" <<STUB
 #!/usr/bin/env bash
 set -euo pipefail
-# A checkout is trusted. The unpacked base is the hook's temp copy, named base,
-# and a mise config there that is neither ignored nor trusted fails the way the
-# real shim does. Ignoring or trusting that directory lets the real cargo run.
+# A checkout is trusted: its mise config is already on the machine. The unpacked
+# base is a temp copy, and a mise config there that is neither ignored nor trusted
+# fails the way the real shim does. Ignoring or trusting that directory lets the
+# real cargo run.
 dir="\$(pwd -P)"
-while [[ "\${dir}" != / ]]; do
-	if [[ "\$(basename "\${dir}")" == base ]]; then
-		case ":\${MISE_IGNORED_CONFIG_PATHS-}:\${MISE_TRUSTED_CONFIG_PATHS-}:" in
-		*":\${dir}:"*) ;;
-		*)
-			echo "mise ERROR Config files in \${dir}/mise.toml are not trusted." >&2
-			exit 1
-			;;
-		esac
-		break
-	fi
-	dir="\$(dirname "\${dir}")"
-done
+case "\${dir}" in
+"${work}"/*) ;;
+*)
+	while [[ "\${dir}" != / ]]; do
+		if [[ -f "\${dir}/mise.toml" || -f "\${dir}/.mise.toml" || -f "\${dir}/mise/config.toml" || -f "\${dir}/.config/mise.toml" || -f "\${dir}/.tool-versions" ]]; then
+			case ":\${MISE_IGNORED_CONFIG_PATHS-}:\${MISE_TRUSTED_CONFIG_PATHS-}:" in
+			*":\${dir}:"*) ;;
+			*)
+				echo "mise ERROR Config files in \${dir}/mise.toml are not trusted." >&2
+				exit 1
+				;;
+			esac
+			break
+		fi
+		dir="\$(dirname "\${dir}")"
+	done
+	;;
+esac
 exec "${real_cargo}" "\$@"
 STUB
 cat >"${stubs}/cargo-deny" <<STUB
@@ -155,12 +169,13 @@ exec "${real_deny}" "\$@"
 STUB
 chmod +x "${stubs}/cargo" "${stubs}/cargo-deny"
 repo_with_base e GPL-3.0-only
-printf '[tools]
-python = "3.12.11"
-' >"${work}/e/mise.toml"
+# repo_with_base leaves one commit, and that commit is the base. Amend the
+# mise.toml onto it and push; the source edit is a new commit on top, so HEAD
+# and the base differ by that change only.
+printf '[tools]\npython = "3.12.11"\n' >"${work}/e/mise.toml"
 git -C "${work}/e" add mise.toml
-git -C "${work}/e" commit -qm --amend --no-edit
-git -C "${work}/e" push -qf origin main
+git -C "${work}/e" commit -q --amend --no-edit
+git -C "${work}/e" push -qf origin HEAD:main
 printf 'fn main() { println!("fork"); }\n' >"${work}/e/src/main.rs"
 commit e "feat: print fork"
 PATH="${stubs}:${PATH}" run e || fail "a mise.toml on the base must not stop the base run"
