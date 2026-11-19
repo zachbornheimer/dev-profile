@@ -27,6 +27,7 @@ while that branch is checked out. A fast-forward of the mirror stays allowed.
 Fails OPEN on parse errors, a missing git, or unexpected input, like every
 guard here: a false block costs more than a missed check.
 """
+
 from __future__ import annotations
 
 import json
@@ -73,8 +74,6 @@ WORKTRUNK_FLOW = (
 )
 
 
-
-
 INTEGRATION_FLOW = (
     "Integration branches (`assembled`, `next`, `seen`) only integrate topic "
     "branches via `git merge` (with `rerere.enabled=true`); never commit, "
@@ -83,6 +82,7 @@ INTEGRATION_FLOW = (
     "commit tracked by the fork; use `git merge-base upstream/main origin/main`. "
     "Register it through the fork's manifest PR, not an integration commit."
 )
+
 
 def extract_command(event: HookEvent) -> str:
     """The shell string, whether it arrives directly or nested in a
@@ -119,8 +119,6 @@ def _git(repo: str, *args: str) -> str:
 
 def _inside_repo(repo: str) -> bool:
     return bool(_git(repo, "rev-parse", "--is-inside-work-tree"))
-
-
 
 
 def _current_branch(repo: str) -> str:
@@ -337,7 +335,9 @@ def decide(event: HookEvent) -> Decision | None:
                 args, branch, mirror_name
             )
             if push_targets_default_branch(args, branch) or writes_mirror:
-                return _deny(shown, flow, "push-mirror" if writes_mirror else "push-main")
+                return _deny(
+                    shown, flow, "push-mirror" if writes_mirror else "push-main"
+                )
             if push_writes_non_merge_to_integration(repo, args, branch):
                 return _deny_integration(shown, "push-non-merge-integration")
             continue

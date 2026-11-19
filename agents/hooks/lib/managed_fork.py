@@ -167,7 +167,10 @@ def managed_fork(repo: str) -> dict[str, str] | None:
     """The clone's fork facts, or None when it is not a zachbornheimer fork."""
     key = os.path.realpath(repo)
     remembered = _PROCESS_CACHE.get(key)
-    if remembered is not None and time.monotonic() - remembered[0] <= DETECTION_TTL_SECONDS:
+    if (
+        remembered is not None
+        and time.monotonic() - remembered[0] <= DETECTION_TTL_SECONDS
+    ):
         return remembered[1] if remembered[1]["mirror"] else None
     common_dir = _common_dir(repo)
     if not common_dir:

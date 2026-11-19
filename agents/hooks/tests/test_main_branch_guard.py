@@ -23,6 +23,7 @@ def _repo(parent: Path, name: str, branch: str) -> Path:
     )
     return repo
 
+
 def _commit(repo: Path, message: str) -> str:
     subprocess.run(
         ["git", "-C", str(repo), "commit", "--allow-empty", "-q", "-m", message],
@@ -54,14 +55,20 @@ def _managed_fork(
     )
     subprocess.run(
         [
-            "git", "-C", str(repo), "update-ref",
-            f"refs/remotes/origin/{mirror}", mirror_sha,
+            "git",
+            "-C",
+            str(repo),
+            "update-ref",
+            f"refs/remotes/origin/{mirror}",
+            mirror_sha,
         ],
-        check=True, capture_output=True,
+        check=True,
+        capture_output=True,
     )
     subprocess.run(
         ["git", "-C", str(repo), "config", "fork.mirror", mirror],
-        check=True, capture_output=True,
+        check=True,
+        capture_output=True,
     )
     if upstream is not None:
         subprocess.run(
@@ -92,7 +99,11 @@ def _edit(hooks: HookRunner, path: Path, tool: str = "Edit"):
         {
             "hook_event_name": "PreToolUse",
             "tool_name": tool,
-            "tool_input": {"file_path": str(path), "old_string": "a", "new_string": "b"},
+            "tool_input": {
+                "file_path": str(path),
+                "old_string": "a",
+                "new_string": "b",
+            },
             "cwd": "/tmp",
         },
     )
@@ -184,17 +195,18 @@ def test_allows_wt_land_outside_oh_my_pi(hooks: HookRunner, tmp_path: Path) -> N
     assert run.decision == "none"
 
 
-def test_denies_push_to_mirror_in_oh_my_pi(
-    hooks: HookRunner, tmp_path: Path
-) -> None:
+def test_denies_push_to_mirror_in_oh_my_pi(hooks: HookRunner, tmp_path: Path) -> None:
     repo = _managed_fork(
-        tmp_path, "oh-my-pi", "feat/x",
+        tmp_path,
+        "oh-my-pi",
+        "feat/x",
         origin="https://github.com/zachbornheimer/oh-my-pi.git",
         upstream="can1357/oh-my-pi",
     )
     run = _run_command(hooks, f"cd {repo} && git push origin main")
     assert run.decision == "deny"
     assert f"{FORK_CLI} land oh-my-pi" in _reason(run)
+
 
 def test_denies_direct_commit_and_cherry_pick_on_integration_branch_in_any_fork(
     hooks: HookRunner, tmp_path: Path
@@ -278,11 +290,17 @@ def test_denies_wt_merge_and_wt_land_on_a_fork_mirror(
     hooks: HookRunner, tmp_path: Path
 ) -> None:
     repo = _managed_fork(
-        tmp_path, "oh-my-pi", "main",
+        tmp_path,
+        "oh-my-pi",
+        "main",
         origin="https://github.com/zachbornheimer/oh-my-pi.git",
         upstream="can1357/oh-my-pi",
     )
-    for command in (f"cd {repo} && wt merge", f"wt -C {repo} merge", f"cd {repo} && wt land"):
+    for command in (
+        f"cd {repo} && wt merge",
+        f"wt -C {repo} merge",
+        f"cd {repo} && wt land",
+    ):
         run = _run_command(hooks, command)
         assert run.decision == "deny", command
         assert f"{FORK_CLI} change oh-my-pi" in _reason(run)
@@ -371,9 +389,7 @@ def test_denies_edit_inside_a_fork_mirror_checkout(
     assert f"{FORK_CLI} change hexyl" in _reason(run)
 
 
-def test_allows_edit_on_a_fork_topic_branch(
-    hooks: HookRunner, tmp_path: Path
-) -> None:
+def test_allows_edit_on_a_fork_topic_branch(hooks: HookRunner, tmp_path: Path) -> None:
     repo = _managed_fork(
         tmp_path,
         "hexyl",
@@ -390,11 +406,14 @@ def test_fork_detection_is_cached(tmp_path: Path) -> None:
     import sys
 
     repo = _managed_fork(
-        tmp_path, "hexyl", "main",
+        tmp_path,
+        "hexyl",
+        "main",
         origin="https://github.com/zachbornheimer/hexyl.git",
     )
     sys.path.insert(0, str(HOOKS_DIR / "lib"))
     import managed_fork as module
+
     assert module.managed_fork(str(repo)) == {"name": "hexyl", "mirror": "main"}
     started = time.perf_counter()
     for _ in range(20):
@@ -404,7 +423,9 @@ def test_fork_detection_is_cached(tmp_path: Path) -> None:
 
 
 def test_machine_setup_does_not_install_a_clone_hook() -> None:
-    script = Path(__file__).resolve().parents[3] / "bin" / "dev-profile-omp-machine-setup"
+    script = (
+        Path(__file__).resolve().parents[3] / "bin" / "dev-profile-omp-machine-setup"
+    )
     text = script.read_text()
     assert "cat >" not in text
     assert "install_fork_reference_transaction_hook" not in text
