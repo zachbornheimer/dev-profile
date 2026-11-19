@@ -6,6 +6,7 @@
 #
 # The fork tool (~/.omp/agent/tools/fork) owns both steps; this is its launchd entry.
 # A mirror that has its own commits is never rewritten: `fork sync` reports it.
+# After the sync, the fork report lists every fork's mirror, last build and install.
 # Exit: 0 every mirror is current; 1 some mirror could not fast-forward; 2 tool error.
 set -euo pipefail
 
@@ -37,6 +38,14 @@ bun "${cli}" status | jq -r '.[] | select(.managed) | .repo' | while IFS= read -
 		echo "fork sync: could not start ${repo} build" >&2
 	fi
 done
+
+# The table is a log of health, not a gate: a stale install or a missing release
+# does not change the exit code. Exit 1 stays reserved for a mirror that could not
+# fast-forward.
+report="$HOME/.omp/agent/tools/fork/report.ts"
+if [[ -f "${report}" ]]; then
+	bun "${report}" || echo "fork sync: report failed" >&2
+fi
 
 if echo "${out}" | jq -e 'any(.[]; .action == "refuse" or (.action == "fast_forward" and (.detail | startswith("fast-forwarded") | not)))' >/dev/null; then
 	echo "fork sync: some mirrors did not fast-forward (see above)" >&2
