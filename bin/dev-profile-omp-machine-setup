@@ -20,8 +20,8 @@ shims_dir="${MISE_DATA_DIR:-$HOME/.local/share/mise}/shims"
 mkdir -p "$HOME/.local/bin"
 ln -sfn "$shims_dir/omp" "$HOME/.local/bin/omp"
 
-# Install the reference-transaction hook in oh-my-pi and any fork repo under
-# ~/Developer that tracks an `upstream` remote or holds `.omp-build/`.
+# Install the reference-transaction hook in oh-my-pi and any managed fork under
+# ~/Developer that tracks an `upstream` remote.
 install_fork_reference_transaction_hook() {
 	local repo_dir="$1"
 	local is_omp="$2"
@@ -38,7 +38,7 @@ while read -r _old_value new_value ref_name; do
 	if [ "\$is_omp" = "1" ] && [ "\$ref_name" = "refs/heads/main" ] && [ -n "\$origin_main_sha" ]; then
 		if [ "\$new_value" != "0000000000000000000000000000000000000000" ] && [ "\$new_value" != "\$origin_main_sha" ]; then
 			echo "ERROR [oh-my-pi reference-transaction]: refs/heads/main must match origin/main (\$origin_main_sha)." >&2
-			echo "origin/main is upstream plus one carry commit, changed only through the fork (see the updating-oh-my-pi skill). Put changes on a topic branch pushed to 'origin' and add a file under .omp-build/branches/ so CI builds it." >&2
+			echo "main is a fast-forward-only mirror. Put changes on a topic branch and run 'bun ~/.omp/agent/tools/fork/cli.ts land oh-my-pi <branch>'." >&2
 			exit 1
 		fi
 	fi
@@ -48,8 +48,8 @@ while read -r _old_value new_value ref_name; do
 				short_branch="\${ref_name#refs/heads/}"
 				remote_sha="\$(git rev-parse --verify -q "refs/remotes/origin/\$short_branch" 2>/dev/null || true)"
 				if [ "\$new_value" != "\$remote_sha" ] && ! git rev-parse --verify -q "\${new_value}^2" >/dev/null 2>&1; then
-					echo "ERROR [fork reference-transaction]: \$ref_name is an integration branch; direct non-merge commits and cherry-picks are forbidden." >&2
-					echo "Create a topic branch off origin/main instead and register it under .omp-build/branches/<topic>.toml." >&2
+				echo "ERROR [fork reference-transaction]: \$ref_name is an integration branch; direct non-merge commits and cherry-picks are forbidden." >&2
+				echo "Create a topic branch from main and run 'bun ~/.omp/agent/tools/fork/cli.ts land oh-my-pi <branch>'." >&2
 					exit 1
 				fi
 			fi
@@ -68,7 +68,7 @@ for root in "$HOME/Developer/Personal" "$HOME/Developer/Software-Automation-Hold
 	for candidate in "$root"/*; do
 		[ -d "$candidate/.git" ] || continue
 		[ "$candidate" = "$REPO_DIR" ] && continue
-		if [ -d "$candidate/.omp-build" ] || git -C "$candidate" remote get-url upstream >/dev/null 2>&1; then
+		if git -C "$candidate" remote get-url upstream >/dev/null 2>&1; then
 			install_fork_reference_transaction_hook "$candidate" "0"
 		fi
 	done

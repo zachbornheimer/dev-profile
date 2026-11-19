@@ -270,11 +270,7 @@ def decide(event: HookEvent) -> Decision | None:
                 and not _merge_in_progress(repo)
             ):
                 return _deny_integration(shown, "wt-step-commit-integration")
-            if (
-                sub in WT_SUBCOMMANDS
-                and in_oh_my_pi
-                and "omp-build" not in " ".join(wt_args[1:])
-            ):
+            if sub in WT_SUBCOMMANDS and in_oh_my_pi:
                 return _deny(shown, OH_MY_PI_FLOW, "omp-wt-merge-main")
             continue
 
