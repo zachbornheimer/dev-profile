@@ -1,7 +1,0 @@
-{
-  "session_id": "hgtest-cg9",
-  "hook_event_name": "Stop",
-  "reason": "end_turn",
-  "transcript_path": "/Users/zbornheimer/.claude/hooks/tests/fixtures/completion-transcript-no-evidence.txt",
-  "last_assistant_message": "Done.\n\n<evidence-check>\n<claim>the menu renders correctly</claim>\n<type>render</type>\n<ref>/Users/zbornheimer/.claude/hooks/tests/fixtures/completion-transcript-no-evidence.txt</ref>\n<scope>live</scope>\n</evidence-check>\n"
-}

@@ -22,7 +22,7 @@ run = [
 [tasks."setup:personal"]
 description = "The author's agent stack on top of setup: upstream skills, then the omp entrypoint"
 depends = ["setup"]
-# Upstream skills are not committed; aubx-skills installs them from agents/available-skills/.skill-lock.json.
+# Upstream skills are not committed; aubx-skills installs them into ~/.agents/available-skills/ (tracked by mise dot, not this repo).
 # dev-profile-omp-machine-setup installs only the stable omp entrypoint
 # (~/.local/bin/omp -> the mise shim). The fork tool owns the per-clone hook.
 run = [
@@ -93,7 +93,7 @@ run = "kitty +runpy \"import runpy; runpy.run_path('tests/kitty_tabs.py', run_na
 # by path with a fake judge, so they need no network and no omp session.
 [tasks."test:scope-guard"]
 description = "Run the scope-guard hook tests"
-run = "pytest agents/hooks/tests/test_scope_guard.py"
+run = "pytest ~/.agents/hooks/tests/test_scope_guard.py"
 
 # Check tool import graphs and real extension registration without a model call.
 # CI also exercises the validator against isolated healthy and broken modules.
