@@ -196,3 +196,20 @@ The three Relay follow-ups landed in `zachbornheimer/oh-my-pi` branch `feat/arch
 **Inference, not verified:** the installed build probably predates the merged fork fixes. Its version string is a build stamp dated 2026-11-19 21:12 (hash `4530cba`, which is not an object in the fork checkout I have), while the fork head `c44cd91` is dated 2026-11-19 23:19, and the outage probe still fails as before. I did not confirm which commits the binary contains, and I could not build the fork to test the fixes.
 
 Still not verified: a pinned-build probe of ZYS-10145 and ZYS-10146, Mac, interactive, resume, compaction, a second worktree, System One latency (no key), original benchmark fixtures.
+
+## 15. ZYS-10146 fix verified at unit level; ZYS-10145 not run (2026-11-20 04:47)
+
+The ZYS-10146 fix is not on the memory branch. It merged into `oh-my-pi` `chore/fork-upstream-compat-4530cba` as #95 `d1763e2` and #98 `ff636221`, whose parent is upstream `4530cba`, the same hash as the installed build `20261119211213-4530cba`. So the installed binary's base is the right line, but I did not establish whether the binary includes `d1763e2` or `ff636221`.
+
+`docs/design/agent-memory-session-store-fallback-zys-10118.test.ts` imports the real `session-storage-env.ts` at `ff636221` with its native-dependent imports mocked, and passes (2 tests, 5 expects):
+
+| Case | Result |
+|---|---|
+| `SESSIONS_DB_URL` pointing at a closed port | `resolveSessionStorage` returns `FileSessionStorage` twice, with exactly one `Session store unreachable` stderr notice |
+| `SESSIONS_DB_URL` unset | `FileSessionStorage`, no notice |
+
+This shows the fixed logic degrades instead of throwing. It does **not** show the installed binary does: the same `omp -p` outage probe at 04:37 still exited 1 with `PostgresError`. Either the binary predates the fix or a second code path reads the URL outside `resolveSessionStorage`; I could not tell which.
+
+ZYS-10145 (no-transcript outcome #94/#96, drain #97) lives in `feat/archive-memory-backend`. Its own tests need the native module, which needs a Rust toolchain absent here, so they were not run. Only the capture probe on a rebuilt binary can close it.
+
+Still open: rebuild the fork into the pinned binary and repeat the section 13 probes; Mac, interactive, resume, compaction; System One latency; original fixtures.
