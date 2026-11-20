@@ -123,7 +123,7 @@ reload_service() {
 }
 restart_service() {
 	case "$OS" in
-Darwin)
+	Darwin)
 		[ "$reload_attempted" = 0 ] || return 0
 		if [ -z "$(service_pid)" ] && launchctl print "gui/$MY_UID/$SERVICE" 2>/dev/null |
 			grep -Eq 'last exit code = 78([^0-9]|$)'; then
@@ -249,7 +249,29 @@ else
 	escalate heal-failed "the heal tool is missing or not executable: $HEAL"
 fi
 
-# 5. Any failing publish or conflict blocks every path while local checkpoints
+# 5. The plaintext-history policy: `history.allow_plaintext_history` must be
+# false on every machine, and only the config can say otherwise. Nothing local
+# keeps it false by itself: the setting rides in the shared config the history
+# sync carries, and a machine whose working copy still holds the old value
+# republishes it in the same minute it syncs (measured 2026-11-20: the mini
+# restored `true` two minutes after the fleet was set false, and mise's own
+# gate had nothing to refuse because the publish itself carried the setting).
+# The fix is a settings write, which `mise dot save` then captures; the
+# watcher publishes it. A build too old to answer `settings get` is not a
+# failure: only an explicit true is a policy break.
+policy="$("$MISE_BIN" settings get history.allow_plaintext_history 2>/dev/null || true)"
+case "${policy:-}" in
+true | 1 | yes | on)
+	if "$MISE_BIN" settings set history.allow_plaintext_history false >/dev/null 2>&1 &&
+		"$MISE_BIN" dot save >/dev/null 2>&1; then
+		log "restored history.allow_plaintext_history = false and saved it"
+	else
+		escalate plaintext-policy "history.allow_plaintext_history is true and could not be set false"
+	fi
+	;;
+esac
+
+# 6. Any failing publish or conflict blocks every path while local checkpoints
 # wait, and only `mise dot status` says so: the 2026-11-01 outage was silent for
 # hours, the 2026-11-02 one for 21, and the 2026-11-04 one notified every five
 # minutes from 10:42 to 17:52 without repairing anything. Report whatever error
@@ -278,7 +300,7 @@ if [ -n "$stall" ]; then
 	escalate publishing-blocked "$stall"
 fi
 
-# 6. `mise dot apply --dry-run` checks that every `[dotfiles]` entry (symlinks,
+# 7. `mise dot apply --dry-run` checks that every `[dotfiles]` entry (symlinks,
 # copies, templates, and edits) can apply cleanly without writing anything. A
 # non-zero exit (conflicting target type, missing source, or broken template)
 # escalates to an omp worker to reconcile the target and source by hand.
@@ -288,7 +310,7 @@ if ! apply_out="$("$MISE_BIN" dot apply --dry-run 2>&1)"; then
 	escalate apply-failed "${apply_err:-mise dot apply --dry-run exited non-zero}"
 fi
 
-# 7. Manual-save files (autosave = false, like ~/.gitconfig, which tools rewrite
+# 8. Manual-save files (autosave = false, like ~/.gitconfig, which tools rewrite
 # constantly) never reach history on their own. Save each one once every 24
 # hours so history is never more than a day behind. The stamp is only renewed
 # when every save succeeded, so a failed save is retried on the next tick.
