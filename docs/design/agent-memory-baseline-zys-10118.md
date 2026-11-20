@@ -193,6 +193,6 @@ The three Relay follow-ups landed in `zachbornheimer/oh-my-pi` branch `feat/arch
 | Fork's own `archive.test.ts` at `c44cd91` | Could not run here: `bun test` fails to load the native module (`packages/natives/native/index.js`), a build prerequisite of this sandbox, not a test result. |
 | Outage probe on the **installed** binary (omp 19.0.0 build 20261119211213-4530cba) | Unchanged: exit 1, `PostgresError ERR_POSTGRES_CONNECTION_REFUSED`, no answer. |
 
-The installed build predates the merged fork fixes: its version string is a build stamp dated 2026-11-19 21:12, and the ZYS-10146 and ZYS-10145 commits are later. So the outage and capture fixes are merged in the fork but **not in the binary that runs sessions here**, and I could not build the fork to test them. Closing criterion 1 needs the fork rebuilt into the OMP binary the profile pins, then the section 13 probes repeated.
+**Inference, not verified:** the installed build probably predates the merged fork fixes. Its version string is a build stamp dated 2026-11-19 21:12 (hash `4530cba`, which is not an object in the fork checkout I have), while the fork head `c44cd91` is dated 2026-11-19 23:19, and the outage probe still fails as before. I did not confirm which commits the binary contains, and I could not build the fork to test the fixes.
 
 Still not verified: a pinned-build probe of ZYS-10145 and ZYS-10146, Mac, interactive, resume, compaction, a second worktree, System One latency (no key), original benchmark fixtures.
