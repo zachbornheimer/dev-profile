@@ -81,11 +81,19 @@ tick
 called 'settings set history.allow_plaintext_history false' && fail "(c) unreadable policy was rewritten"
 [ ! -s "$log" ] || fail "(c) unreadable policy generated noise"
 
-# (d) a policy that cannot be written back is the watchdog's own failing tooling.
+# (d) a policy that cannot be written back is a worker's job, and the class it
+# escalates to must be one the repair tool accepts: an unknown class is dropped
+# with a message, so the failure would be reported to nobody.
 reset
 POLICY=true SET_FAILS=1
 tick
-grep -q -- '--class plaintext-policy' "$REPAIRS" || fail "(d) unwritable policy was not escalated"
-grep -q 'plaintext-policy' "$log" || fail "(d) the escalation verdict was not logged"
+grep -q -- '--class publishing-blocked' "$REPAIRS" || fail "(d) unwritable policy was not escalated"
+class="$(sed -n 's/^--class \([^ ]*\).*/\1/p' "$REPAIRS" | head -1)"
+[ -n "$class" ] || fail "(d) the escalation carried no class"
+if bash "$root/bin/dev-profile-mise-history-repair" --class "$class" --detail fixture --dry-run 2>&1 |
+	grep -q 'unknown class'; then
+	fail "(d) the repair tool does not accept the class it was given: $class"
+fi
+grep -q 'publishing-blocked' "$log" || fail "(d) the escalation verdict was not logged"
 
 echo 'mise history watchdog plaintext policy: ok'
