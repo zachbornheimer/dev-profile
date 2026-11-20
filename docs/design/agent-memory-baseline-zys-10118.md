@@ -213,3 +213,5 @@ This shows the fixed logic degrades instead of throwing. It does **not** show th
 ZYS-10145 (no-transcript outcome #94/#96, drain #97) lives in `feat/archive-memory-backend`. Its own tests need the native module, which needs a Rust toolchain absent here, so they were not run. Only the capture probe on a rebuilt binary can close it.
 
 Still open: rebuild the fork into the pinned binary and repeat the section 13 probes; Mac, interactive, resume, compaction; System One latency; original fixtures.
+
+Narrowing the outage abort (read from source at `ff636221`, not run): `SESSIONS_DB_URL` has two readers. `session-storage-env.ts` now degrades (verified above). The archive memory backend's `openArchiveClient` is lazy and `backend.ts` wraps its queries in `catch`, so it does not throw on an unreachable store either. Neither reader explains the installed binary's exit 1, which points to a build without the fix; I could not confirm that without running the fork.
