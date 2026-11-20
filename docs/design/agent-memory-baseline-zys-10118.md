@@ -140,24 +140,6 @@ So supersession exists and is non-destructive for consolidation; the open gaps a
 
 ## 11. Benchmark: recovered run, re-run, and memory on vs off
 
-  ## 12. Interrupt guard with a real model as judge (2026-11-20, supersedes the fake-judge-only status in section 6)
-
-  `docs/design/agent-memory-guard-real-judge-zys-10118.test.ts` drives the shipped guard (`hooks/memory_guard.ts`, `hooks/tool_use.ts` `decidePreToolUse`, `createMemoryStopGate`) with a real model as judge: `omp -p --no-session --no-tools --no-extensions` asked the same yes/no question as `prompts/memory_conflict.yaml`. This sandbox has no System One / OpenRouter key (all three env vars unset), so this is **not** Jev: it shows the guard's behaviour with a real judge, not Jev's precision. Seeded decision: "this project installs dependencies with bun only; never run npm or pnpm install", repository `dev-profile`. Run: `cd ~/.omp/agent/extensions && bun test <file>`.
-
-  | Case | Blocks | Ran | Judge calls | Result |
-  |---|---|---|---|---|
-  | conflict: `npm install`, then `bun install` | 1 | `bun install` | 1 | agent revises course; answer streamed once |
-  | no conflict: `bun install` | 0 | `bun install` | 2 | no interruption (judge scored 0.02) |
-  | outdated memory (superseded body, 2025) | 0 | `npm install` | 0 | does not steer; judge never reached |
-  | cross-repo and no-repo memory | 0 | `npm install` | 0 | does not steer; judge never reached |
-  | conflicting final answer at Stop | 1 | n/a | 1 | one correction; the corrected answer is accepted, no loop |
-
-  Real judge scores: `npm install` 0.97, `bun install` 0.02 (against the 0.8 threshold). 6 tests, 9 expects, pass.
-
-  **Finding (ZYS-10143, filed and delegated to Relay).** The first run, with nothing cached, failed: the conflicting `npm install` ran (blocks 0). A real judge call took 7.5-9.6 s and `MEMORY_DEADLINE_MS` is 2.5 s, so `withDeadline` cut it off and the guard failed open. The passing run above pre-scores each state once without a deadline, so it proves the decision logic and not the deadline. In production the judge is System One, whose `judge_ms` on this sandbox was 276-4692 ms (prompt-hook trace), so the 2.5 s budget can also fail open there. That is a real gap in criterion 2's "in time".
-
-  Still not measured: Jev's precision and recall, false interrupts over real traffic, stale injections, rework avoided.
-
 **Recovered run** (section 5, 2026-11-04, 4 transcripts, 8 questions). Re-run on the live store today, same 8 answer tokens, `plainto_tsquery` + `ts_rank` over chunks of session `01a1a776`, top-5: 8/8 hit, 8/8 rank 1, 0.77-1.02 s per query from this sandbox (store now holds 1,446 chunks + 217 facts for that session vs 1,737 chunks then). This is an easier question than 2026-11-04's prose questions, so it is not a like-for-like score. The original fixtures and scorer are in a Mac worktree that was unreachable.
 
 **Memory on vs off**, `docs/design/agent-memory-ab-zys-10118.sh`: 5 prompts ("From our earlier work: ...") whose answers exist only as archived facts, same answer model, `omp -p --no-session --no-tools`. Off = `memory.backend: off` plus `--no-extensions` (without `--no-extensions` the prompt hook still recalled: the first off attempt answered from memory, so that arm was discarded).
@@ -169,3 +151,21 @@ So supersession exists and is non-destructive for consolidation; the open gaps a
 | wall time mean | 17.2 s | 8.0-20.3 s per prompt (n=5, noisy) |
 
 No wrong answers in either arm. On a fresh Relay sandbox the first run with extensions disabled in the off arm also wrote one junk fact (`memory_ingest` "noop") to the shared store; I deleted that one row by id. Fixture ids are the five prompts in the script; n=5 and one model, so this shows direction, not a rate. Not measured: interrupts, false interrupts, stale injections, rework avoided, time from turn to recallable memory, warm vs cold injection latency (only `memory_ms` 115-172 ms from the prompt hook and recall p50 63 ms / p95 213 ms, section 3).
+
+## 12. Interrupt guard with a real model as judge (2026-11-20)
+
+`docs/design/agent-memory-guard-real-judge-zys-10118.test.ts` drives the shipped guard (`hooks/memory_guard.ts`, `decidePreToolUse` in `hooks/tool_use.ts`, `createMemoryStopGate`) with a real model as judge: `omp -p --no-session --no-tools --no-extensions` asked the same yes/no question as `prompts/memory_conflict.yaml`. This sandbox has no System One / OpenRouter key (all three env vars unset), so this is **not** Jev: it shows the guard's behaviour with a real judge, not Jev's precision. Seeded decision: "this project installs dependencies with bun only; never run npm or pnpm install", repository `dev-profile`. Run: `cd ~/.omp/agent/extensions && bun test <file>`.
+
+| Case | Blocks | Ran | Judge calls | Result |
+|---|---|---|---|---|
+| conflict: `npm install`, then `bun install` | 1 | `bun install` | 1 | agent revises course; answer streamed once |
+| no conflict: `bun install` | 0 | `bun install` | 2 | no interruption (judge scored 0.02) |
+| outdated memory (superseded body, 2025) | 0 | `npm install` | 0 | does not steer; judge never reached |
+| cross-repo and no-repo memory | 0 | `npm install` | 0 | does not steer; judge never reached |
+| conflicting final answer at Stop | 1 | n/a | 1 | one correction; the corrected answer is accepted, no loop |
+
+Real judge scores: `npm install` 0.97, `bun install` 0.02 (against the 0.8 threshold). 6 tests, 9 expects, pass.
+
+**Finding (ZYS-10143, filed and delegated to Relay).** The first run, with nothing cached, failed: the conflicting `npm install` ran (blocks 0). A real judge call took 7.5-9.6 s and `MEMORY_DEADLINE_MS` is 2.5 s, so `withDeadline` cut it off and the guard failed open. The passing run pre-scores each state once without a deadline, so it proves the decision logic and not the deadline. In production the judge is System One, whose `judge_ms` on this sandbox was 276-4692 ms (prompt-hook trace), so the 2.5 s budget can fail open there too. That is a real gap in criterion 2's "in time".
+
+Still not measured: Jev's precision and recall, false interrupts over real traffic, stale injections, rework avoided.
