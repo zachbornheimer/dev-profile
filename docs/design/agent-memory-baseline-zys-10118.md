@@ -76,7 +76,7 @@ So the claim "beat Hindsight and past.dev" holds only on top-5 recall and latenc
 |---|---|
 | Always on in actual sessions | Partly: Relay/Linux wiring, event map and capture/recall/latency numbers done. Not done: Mac, interactive, second worktree, resume, compaction, backend outage, replay-twice. |
 | Interrupt prevents wrong action | Not started; no guard exists to test (section 2). |
-| Synthesis/merge/supersession | Source + store audit only; no replay run. Missing semantics named in section 4. |
+| Synthesis/merge/supersession | Replayed against the real `consolidate.ts` on an in-memory scratch store (section 8). Findings confirmed; storage-level supersession semantics are missing, not working. |
 | Repeatable benchmark | Prior results recovered; fixtures/scorer not; no memory-off comparison run. |
 
 ## 7. Follow-ups filed
@@ -86,3 +86,18 @@ So the claim "beat Hindsight and past.dev" holds only on top-5 recall and latenc
 - ZYS-10121: dangling absolute-home extension symlinks and dead Hindsight registrations on Relay sandboxes.
 
 Still open under ZYS-10118: Mac observation (blocked by the Tailscale check refusal), fixtures/scorer recovery from the Mac worktree, memory-off comparison, replay tests for acceptance 2 and 3.
+
+## 8. Supersession replay on a scratch store (no shared data touched)
+
+`docs/design/agent-memory-supersession-replay-zys-10118.test.ts` runs the real `archiveConsolidateFacts` (fork @ `3b7375f`) over an in-memory SQL fake with synthetic facts. 5 tests, 16 expects, all pass. They pin the **current** behaviour, which fails the ticket's semantics:
+
+| Case | Observed |
+|---|---|
+| Complementary facts + paraphrase + explicit correction | Synthesized into one row (newest id `k1`); both the old and the corrected host stay in the merged body, so current recall still shows the superseded value. |
+| As-of / history read | Impossible: older rows are deleted, and their ids and sources are recorded nowhere. |
+| Newer similar statement in an unrelated scope (`sah`) | Personal facts fold into the `sah` row; text crosses scopes. |
+| Replay twice | No-op (0 clusters on the second run). |
+| Out-of-order insertion | Same final store as in-order. |
+| Re-ingest of a superseded fact (same id) | The row returns (`on conflict do update` recreates it) until the next sweep: a resurrection window. |
+
+Limits: Haiku is replaced by a join-all-bodies combiner and embeddings are two-dimensional, so merge wording quality and real similarity are not tested; no recall query was run. ZYS-10120 should convert these assertions into the required semantics.
