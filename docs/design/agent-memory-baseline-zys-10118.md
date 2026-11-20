@@ -75,7 +75,7 @@ So the claim "beat Hindsight and past.dev" holds only on top-5 recall and latenc
 | Criterion | Status |
 |---|---|
 | Always on in actual sessions | Partly (section 9): hooks fired on headless Relay/Linux and recall injected without a manual call; helper sessions were captured, but capture of my own probe runs and of this session's later turns is NOT confirmed. Not verified: Mac (SSH refused), interactive TUI, compaction, resume, backend outage. |
-| Interrupt prevents wrong action | Guard designed and merged as opt-in (ZYS-10119, #221): four-case replay 1/0/0/0 blocks, 0 duplicate answers, with a fake judge. Real judge precision is unmeasured. |
+| Interrupt prevents wrong action | Opt-in guard merged (ZYS-10119, #221). Replayed with a fake judge 1/0/0/0, and with a real model as judge (section 12): 1/0/0/0 plus one bounded Stop correction, but only with pre-scored states: uncached, a real call exceeds the 2.5 s deadline and the guard fails open (ZYS-10143). Jev precision unmeasured. |
 | Synthesis/merge/supersession | Section 8 (old head, destructive) is superseded by section 10: after ZYS-10120 the real SQL on real Postgres keeps history, partitions scopes, and is idempotent. Resurrection window remains. |
 | Repeatable benchmark | Prior results recovered and re-run on the live store (section 11); memory-on vs memory-off A/B run on 5 prompts. Original fixtures/scorer (Mac worktree) still not recovered. |
 
@@ -151,3 +151,21 @@ So supersession exists and is non-destructive for consolidation; the open gaps a
 | wall time mean | 17.2 s | 8.0-20.3 s per prompt (n=5, noisy) |
 
 No wrong answers in either arm. On a fresh Relay sandbox the first run with extensions disabled in the off arm also wrote one junk fact (`memory_ingest` "noop") to the shared store; I deleted that one row by id. Fixture ids are the five prompts in the script; n=5 and one model, so this shows direction, not a rate. Not measured: interrupts, false interrupts, stale injections, rework avoided, time from turn to recallable memory, warm vs cold injection latency (only `memory_ms` 115-172 ms from the prompt hook and recall p50 63 ms / p95 213 ms, section 3).
+
+## 12. Interrupt guard with a real model as judge (2026-11-20)
+
+`docs/design/agent-memory-guard-real-judge-zys-10118.test.ts` drives the shipped guard (`hooks/memory_guard.ts`, `decidePreToolUse` in `hooks/tool_use.ts`, `createMemoryStopGate`) with a real model as judge: `omp -p --no-session --no-tools --no-extensions` asked the same yes/no question as `prompts/memory_conflict.yaml`. This sandbox has no System One / OpenRouter key (all three env vars unset), so this is **not** Jev: it shows the guard's behaviour with a real judge, not Jev's precision. Seeded decision: "this project installs dependencies with bun only; never run npm or pnpm install", repository `dev-profile`. Run: `cd ~/.omp/agent/extensions && bun test <file>`.
+
+| Case | Blocks | Ran | Judge calls | Result |
+|---|---|---|---|---|
+| conflict: `npm install`, then `bun install` | 1 | `bun install` | 1 | agent revises course; answer streamed once |
+| no conflict: `bun install` | 0 | `bun install` | 2 | no interruption (judge scored 0.02) |
+| outdated memory (superseded body, 2025) | 0 | `npm install` | 0 | does not steer; judge never reached |
+| cross-repo and no-repo memory | 0 | `npm install` | 0 | does not steer; judge never reached |
+| conflicting final answer at Stop | 1 | n/a | 1 | one correction; the corrected answer is accepted, no loop |
+
+Real judge scores: `npm install` 0.97, `bun install` 0.02 (against the 0.8 threshold). 6 tests, 9 expects, pass.
+
+**Finding (ZYS-10143, filed and delegated to Relay).** The first run, with nothing cached, failed: the conflicting `npm install` ran (blocks 0). A real judge call took 7.5-9.6 s and `MEMORY_DEADLINE_MS` is 2.5 s, so `withDeadline` cut it off and the guard failed open. The passing run pre-scores each state once without a deadline, so it proves the decision logic and not the deadline. In production the judge is System One, whose `judge_ms` on this sandbox was 276-4692 ms (prompt-hook trace), so the 2.5 s budget can fail open there too. That is a real gap in criterion 2's "in time".
+
+Still not measured: Jev's precision and recall, false interrupts over real traffic, stale injections, rework avoided.
