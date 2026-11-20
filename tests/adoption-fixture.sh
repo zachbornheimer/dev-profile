@@ -33,11 +33,17 @@ cd "${HOME}"
 
 # 1. The seed deploys from the clone wherever it lives. Only the first apply needs the root named.
 applied="$(MISE_DOTFILES_ROOT="${clone}" mise dot apply --yes 2>&1 | grep -v 'WARN' || true)"
-for target in .config/hk/config.pkl .config/dprint/dprint.jsonc .local/share/dev-profile/bin .stylelintrc.json .omp/agent/extensions/agent-checkpoint-publish.ts .config/agent-checkpoints/enrollment.toml; do
+for target in .config/hk/config.pkl .omp/agent/extensions/handler-timing.ts .omp/agent/extensions/extension-timeout-repair.ts .config/dprint/dprint.jsonc .local/share/dev-profile/bin .stylelintrc.json .omp/agent/extensions/agent-checkpoint-publish.ts .config/agent-checkpoints/enrollment.toml; do
 	[ -L "${HOME}/${target}" ] || fail "${target} was not linked. apply said: ${applied}"
 	case "$(realpath "${HOME}/${target}")" in
 	"${clone}"/*) ;;
 	*) fail "${target} resolves outside the clone: $(realpath "${HOME}/${target}")" ;;
+	esac
+	# A link that resolves only through a machine-specific home (/Users/<name>) dangles on every other machine.
+	[ -e "${HOME}/${target}" ] || fail "${target} dangles"
+	case "$(readlink "${HOME}/${target}")" in
+	"${scratch}"/*) ;;
+	*) fail "${target} links through a path outside the scratch home: $(readlink "${HOME}/${target}")" ;;
 	esac
 done
 

@@ -169,13 +169,6 @@ NODE_REPL_TRUSTED_CODE_PATHS = "/Users/zbornheimer/.codex:/Applications/ChatGPT.
 NODE_REPL_TRUSTED_SERVICES = '{"browser":"/Users/zbornheimer/.codex/plugins/cache/openai-bundled/browser/26.1013.40934/scripts/browser-service.mjs","sky":"@oai/sky/service"}'
 SKY_CUA_SERVICE_PATH = "/Users/zbornheimer/.codex/computer-use/Codex Computer Use.app"
 
-[mcp_servers.hindsight]
-command = "node"
-args = ["/Users/zbornheimer/.hindsight/coding-agents/dist/mcp-server.js"]
-
-[mcp_servers.hindsight.env]
-HINDSIGHT_MCP_HARNESS = "codex"
-
 [mcp_servers.capability]
 command = "/bin/zsh"
 args = ["-lc", "source ~/.config/zsh/ai-keys.zsh; ai-keys::exec capability mcp"]

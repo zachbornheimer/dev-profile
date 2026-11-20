@@ -407,27 +407,6 @@ events = ["prompt.submit"]
 command = ["$HOME/.agents/hooks/transcript-path-note.py"]
 timeout = "5s"
 
-[[hooks]]
-name = "hindsight-codex-sessionstart"
-events = ["session.start"]
-agents = ["codex"]
-command = ['exec node "$HOME/.hindsight/coding-agents/dist/codex-sessionstart-hook.js"']
-timeout = "30s"
-
-[[hooks]]
-name = "hindsight-codex-prompt"
-events = ["prompt.submit"]
-agents = ["codex"]
-command = ['exec node "$HOME/.hindsight/coding-agents/dist/codex-hook.js"']
-timeout = "30s"
-
-[[hooks]]
-name = "hindsight-codex-stop"
-events = ["turn.stop"]
-agents = ["codex"]
-command = ['exec node "$HOME/.hindsight/coding-agents/dist/codex-stop-hook.js"']
-timeout = "60s"
-
 # One prompt-submit batch answers frustration, dictation (for prompts of at least 500 characters), and skill/tool fit.
 # The final hook forwards those answers to their consumers and keeps its capability XML last.
 [[hooks]]
