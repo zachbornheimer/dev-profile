@@ -182,3 +182,17 @@ Probes on one Relay sandbox (omp 19.0.0 build 20261119211213-4530cba, `memory.ba
 This corrects section 9: helper sessions in `/tmp` were captured, but that does not generalise to plain headless runs. Relay conversations resume a `.jsonl` and are written (123 of 305 conversations present earlier, section 3).
 
 Not verified: interactive TUI, resume or branch capture, compaction, a second worktree, queue/ack and indexing provenance, the Mac.
+
+## 14. Follow-up fixes merged in the fork, and what the installed binary shows (2026-11-20 04:37)
+
+The three Relay follow-ups landed in `zachbornheimer/oh-my-pi` branch `feat/archive-memory-backend` (head `c44cd91`, 2026-11-19): ZYS-10120 non-destructive, atomic supersession (#92, #93); ZYS-10145 no-transcript retention outcome and a one-shot drain (#94, #96, #97); ZYS-10146 fall back to local session files when `SESSIONS_DB_URL` is unreachable (#95). ZYS-10143 landed in `dev-profile` (#225, #226; judge deadline 5000 ms).
+
+| Check | Result |
+|---|---|
+| Real-Postgres supersession replay, section 10, re-run against fork head `c44cd91` | 4 tests, 22 expects, pass. Supersession, as-of history, scope isolation and idempotency still hold after #92-#97. |
+| Fork's own `archive.test.ts` at `c44cd91` | Could not run here: `bun test` fails to load the native module (`packages/natives/native/index.js`), a build prerequisite of this sandbox, not a test result. |
+| Outage probe on the **installed** binary (omp 19.0.0 build 20261119211213-4530cba) | Unchanged: exit 1, `PostgresError ERR_POSTGRES_CONNECTION_REFUSED`, no answer. |
+
+The installed build predates the merged fork fixes: its version string is a build stamp dated 2026-11-19 21:12, and the ZYS-10146 and ZYS-10145 commits are later. So the outage and capture fixes are merged in the fork but **not in the binary that runs sessions here**, and I could not build the fork to test them. Closing criterion 1 needs the fork rebuilt into the OMP binary the profile pins, then the section 13 probes repeated.
+
+Still not verified: a pinned-build probe of ZYS-10145 and ZYS-10146, Mac, interactive, resume, compaction, a second worktree, System One latency (no key), original benchmark fixtures.
