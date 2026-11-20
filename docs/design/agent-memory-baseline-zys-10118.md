@@ -236,3 +236,16 @@ With `SESSIONS_DB_URL` set, OMP stores session transcripts in Neon (`public.omp_
 Resume check: `omp -c --session-dir <dir> -p` recalled a token set in the previous `omp -p` run, so resume restores the stored transcript.
 
 Still not verified: Mac, interactive TUI, compaction, a rebuilt binary, System One latency reproduced here.
+
+## 17. The merged fork run from source fixes both gaps end to end (2026-11-20 06:30)
+
+A native build is not needed to run the CLI. `bun <checkout>/packages/coding-agent/src/cli.ts -p ...` runs the fork's TypeScript with the extracted addon from section 16 in place (2 cores, 3 GB RAM and 2.5 GB free disk here make a Rust build impractical). Same prompts and store as the installed-binary probes:
+
+| Probe | Installed `omp` (`build-20261119211213-4530cba-4785fc9`) | Merged fork from source |
+|---|---|---|
+| `SESSIONS_DB_URL` closed port, `-p "Reply with exactly: ok"` | exit 1, `PostgresError ERR_POSTGRES_CONNECTION_REFUSED`, no answer | exit 0, answer `ok`, stderr `Session store unreachable (Failed to connect); memory and sessions fall back to local files for this run.` (checkout `chore/fork-upstream-compat-4530cba` @ `ff63622`, ZYS-10146) |
+| Plain `-p "Reply with exactly: <unique token>"` against the shared store | token absent from `memory_chunks` a minute or more later (probes at 03:5x and 06:14) | token present in `memory_chunks` 3 seconds after the turn: chunk 0 `[role: user]`, chunk 1 `[role: assistant]`, `source=omp`, `scope=personal`, `repository=dev-profile`, `embedding` null (checkout `feat/archive-memory-backend` @ `c44cd91`, ZYS-10145 and the one-shot drain) |
+
+So the one-shot capture gap and the outage abort are both fixed in the merged fork and reproduced as fixed on this sandbox. The remaining distance to the deployed state is that the pinned binary has not been rebuilt from these commits.
+
+Not verified: a rebuilt pinned binary, Mac, interactive TUI, compaction, System One latency reproduced here. Embedding of the new chunks is deferred (null at read time), as before.
