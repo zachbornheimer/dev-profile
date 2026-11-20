@@ -17,12 +17,12 @@ Files (extensions tree, tracked by `mise dot`, not in this repository): `hooks/m
 
 ## Rules
 
-1. **Recall** reuses `retrieveMemoryShortlist` (the prompt hook's query), per call, 2.5 s deadline. Only distilled `fact` rows are decisions; transcript chunks are never enforced.
+1. **Recall** reuses `retrieveMemoryShortlist` (the prompt hook's query), per call, 2 s deadline (`MEMORY_RECALL_DEADLINE_MS`; measured p50 63 ms / p95 213 ms). Only distilled `fact` rows are decisions; transcript chunks are never enforced.
 2. **Project scope.** A row is enforced only if its `repository` equals the cwd's repo name, or the cwd is a worktree `<repo>-<slug>`. A row from another repository or with no repository is ignored.
 3. **Stale memory.** The store has no `valid_to` / `superseded_by` column (ZYS-10120), so the guard ignores a body that says superseded / outdated / obsolete / no longer valid, and any fact older than 180 days. A decision with neither marker is treated as current. This is a heuristic, not supersession; real supersession needs ZYS-10120.
 4. **No loop.** A per-session, per-ask ledger records each quoted decision id; the same decision is never quoted twice for one ask, and a new user ask resets it. An unchanged retry after the one block therefore runs. The Stop gate shares the ledger, so one decision costs at most one correction across tool call and final answer.
 5. **Bounded Stop correction.** The Stop block reason tells the agent to correct only the conflicting statement and not repeat the answer, so the corrected stream carries no duplicate of the first answer. Subagent stops are not checked (the gate is registered by `onStop.ts` only).
-6. **Fail open.** Guard off, no session id, recall or judge error or timeout, or a judge score below 0.8 lets the call or stop through, and is logged as `memory_skip`.
+6. **Fail open, but a deadline is never silent (ZYS-10143).** Guard off, no session id, recall or judge error, or a judge score below 0.8 lets the call or stop through, and is logged as `memory_skip`. The judge has `MEMORY_JUDGE_DEADLINE_MS` = 6500 ms (System One `judge_ms` measured 276-4692 ms; recall + judge stay under omp's 10 s handler limit). A recall or judge that still misses its deadline logs `memory_skip: recall-deadline` / `judge-deadline` with `deadline_ms`, and on a tool call the agent receives an `additionalContext` notice that the call was NOT checked, so it is never mistaken for "no conflict"; the call still runs. At Stop the deadline is written to the `onStop` fire log only (a refusal there would loop). Not measured: p50/p95 of the real System One judge on the four replay states (no System One key in the sandbox); 6500 ms is set from the 4692 ms observed max, not from a percentile.
 7. **Cost.** No model call unless a current same-repo decision is recalled; one judge call otherwise. Reads and control tools are skipped through the scope guard's `scopeSkip`.
 
 ## Proof
