@@ -266,7 +266,7 @@ true | 1 | yes | on)
 		"$MISE_BIN" dot save >/dev/null 2>&1; then
 		log "restored history.allow_plaintext_history = false and saved it"
 	else
-		escalate plaintext-policy "history.allow_plaintext_history is true and could not be set false"
+		escalate publishing-blocked "history.allow_plaintext_history is true and could not be set false"
 	fi
 	;;
 esac
