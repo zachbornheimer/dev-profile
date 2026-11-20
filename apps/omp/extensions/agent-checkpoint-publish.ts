@@ -494,7 +494,7 @@ export async function reconcileMise(): Promise<MiseReport | undefined> {
     if (autosave.length) {
       blocked.push({
         reason: "unsaved",
-        detail: "autosave paths have unsaved edits; the watcher or `mise dot save` captures them, never this extension",
+        detail: "autosave paths have unsaved edits; the watcher or `mise dot save` captures them.",
         paths: autosave,
       });
     }
