@@ -81,4 +81,8 @@ So the claim "beat Hindsight and past.dev" holds only on top-5 recall and latenc
 
 ## 7. Follow-ups filed
 
-See the pull request body for the Linear issue ids.
+- ZYS-10119: memory-driven guard (no interrupt runtime exists).
+- ZYS-10120: consolidation deletes superseded facts and ignores scope.
+- ZYS-10121: dangling absolute-home extension symlinks and dead Hindsight registrations on Relay sandboxes.
+
+Still open under ZYS-10118: Mac observation (blocked by the Tailscale check refusal), fixtures/scorer recovery from the Mac worktree, memory-off comparison, replay tests for acceptance 2 and 3.
