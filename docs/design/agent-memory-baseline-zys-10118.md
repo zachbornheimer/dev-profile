@@ -169,3 +169,16 @@ Real judge scores: `npm install` 0.97, `bun install` 0.02 (against the 0.8 thres
 **Finding (ZYS-10143, filed and delegated to Relay).** The first run, with nothing cached, failed: the conflicting `npm install` ran (blocks 0). A real judge call took 7.5-9.6 s and `MEMORY_DEADLINE_MS` is 2.5 s, so `withDeadline` cut it off and the guard failed open. The passing run pre-scores each state once without a deadline, so it proves the decision logic and not the deadline. In production the judge is System One, whose `judge_ms` on this sandbox was 276-4692 ms (prompt-hook trace), so the 2.5 s budget can fail open there too. That is a real gap in criterion 2's "in time".
 
 Still not measured: Jev's precision and recall, false interrupts over real traffic, stale injections, rework avoided.
+
+## 13. Capture and outage edges, headless (2026-11-20, supersedes section 9's capture paragraph)
+
+Probes on one Relay sandbox (omp 19.0.0 build 20261119211213-4530cba, `memory.backend: archive`), each a plain `omp -p "Reply with exactly: <unique token>"`:
+
+| Probe | Observed |
+|---|---|
+| Default session dir, then two with `--session-dir` | Each created a session directory (`changes.jsonl`, `blobs/`, `local/`) but **no `<session>.jsonl`**. A search of `public.memory_chunks` for each token (rows since the run) found 0 rows a minute or more later. Capture of a plain `omp -p` run did not happen. Cause not traced: the retainer returns 0 without a transcript file in the fork source (read at `3b7375f`), which is consistent but unconfirmed. Filed ZYS-10145. |
+| Same prompt with `SESSIONS_DB_URL` pointing at a closed port | Exit 1 after about 2 s, `PostgresError: Failed to connect (ERR_POSTGRES_CONNECTION_REFUSED)`, no answer; same with `--no-extensions`. The control answered in 9 s. An unreachable store aborts the headless run instead of degrading. Filed ZYS-10146. |
+
+This corrects section 9: helper sessions in `/tmp` were captured, but that does not generalise to plain headless runs. Relay conversations resume a `.jsonl` and are written (123 of 305 conversations present earlier, section 3).
+
+Not verified: interactive TUI, resume or branch capture, compaction, a second worktree, queue/ack and indexing provenance, the Mac.
