@@ -30,11 +30,21 @@ packages() {
 
 # aube runs npm, pnpm and aube projects (it reads their lockfiles); yarn and
 # bun lockfiles keep their own tool. Run from inside the package.
+#
+# macOS: an npm-locked package audits with bun instead. aube resolves through
+# an in-process hickory resolver that parses /etc/resolv.conf, a file macOS
+# documents as "not consulted for DNS hostname resolution". Where it lists
+# Tailscale's MagicDNS addresses the second is authoritative-only and answers
+# SERVFAIL for every public name, so the audit died on
+# `registry.npmjs.org.lan.zachandaj.com`; bun reads the same lockfile and
+# audits through the resolver macOS actually uses.
 package_manager() {
 	if [[ -f bun.lock || -f bun.lockb ]]; then
 		echo bun
 	elif [[ -f yarn.lock ]]; then
 		echo yarn
+	elif [[ -f package-lock.json ]] && [[ "$(uname -s)" == "Darwin" ]]; then
+		echo bun
 	else
 		echo aube
 	fi
