@@ -215,3 +215,24 @@ ZYS-10145 (no-transcript outcome #94/#96, drain #97) lives in `feat/archive-memo
 Still open: rebuild the fork into the pinned binary and repeat the section 13 probes; Mac, interactive, resume, compaction; System One latency; original fixtures.
 
 Narrowing the outage abort (read from source at `ff636221`, not run): `SESSIONS_DB_URL` has two readers. `session-storage-env.ts` now degrades (verified above). The archive memory backend's `openArchiveClient` is lazy and `backend.ts` wraps its queries in `catch`, so it does not throw on an unreachable store either. Neither reader explains the installed binary's exit 1, which points to a build without the fix; I could not confirm that without running the fork.
+
+## 16. Fork tests run here without Rust; the installed binary lacks the fixes (2026-11-20 06:20)
+
+The Rust toolchain is not needed to run the fork's TypeScript tests. The installed `omp` build extracts its native addon to `~/.omp/natives/19.0.0/`; copying that one file to `packages/natives/native/` in a fork checkout (after `bun install --frozen-lockfile --ignore-scripts`) lets `bun test` load it. The loader warns the addon is 19.0.0 and the checkout 18.18.9, so results are indicative of the TypeScript logic only.
+
+| Check | Result |
+|---|---|
+| `oh-my-pi` `feat/archive-memory-backend` @ `c44cd91`, `test/memory-backend/archive.test.ts` | 60 pass, 0 fail, 234 expects. Includes the ZYS-10145 cases (reports `skipped: no-transcript`, drain waits for an in-flight write, status names a session with no transcript) and the ZYS-10120 supersession case. |
+| `oh-my-pi` `chore/fork-upstream-compat-4530cba` @ `ff63622`, `test/session/session-storage-env.test.ts` | 6 pass, 0 fail, 14 expects. ZYS-10146: an unreachable store prints `Session store unreachable (...); memory and sessions fall back to local files for this run.` and the run continues. |
+| Installed binary `build-20261119211213-4530cba-4785fc9`, string search | `Session store unreachable`, `no transcript file`, `skipped retention`, `drain in-flight`, `memory_fact_history`: 0 hits. `superseded_by`: 94 hits. |
+| Installed binary, outage probe (`SESSIONS_DB_URL` closed port) | exit 1, `PostgresError ERR_POSTGRES_CONNECTION_REFUSED`, no answer (06:16). |
+
+So the fixes are correct in source and pass their own tests, and the installed binary does not contain them: the strings are absent and the probe still fails. The remaining gap is a rebuild of the pinned binary from the merged fork, which needs the Rust toolchain.
+
+### Where captured sessions actually live
+
+With `SESSIONS_DB_URL` set, OMP stores session transcripts in Neon (`public.omp_session_files`, `omp_session_files_entries`), not under `~/.omp/agent/sessions`. That is why `omp -p --session-dir <dir>` leaves the directory empty. My earlier section 13 claim that plain `omp -p` runs "write no transcript" was wrong: a probe session `-Developer-Personal-dev-profile/2026-11-20T06-14-10-334Z_*` has 12 entries in `omp_session_files_entries` (title, session, model_change, message user and assistant, `session_exit`). It has 0 rows in `memory_chunks`, so the real gap is the retention step, not transcript persistence. The Relay conversation transcript has 11 user turns (01:12 to 05:57) and 13 chunks in `memory_chunks`, all from the first prompt and the first four assistant replies up to 01:39:22; nothing after 01:39 was retained.
+
+Resume check: `omp -c --session-dir <dir> -p` recalled a token set in the previous `omp -p` run, so resume restores the stored transcript.
+
+Still not verified: Mac, interactive TUI, compaction, a rebuilt binary, System One latency reproduced here.
