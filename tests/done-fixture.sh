@@ -389,6 +389,15 @@ test ! -d "$repo" || fail "done --drop must trash stashclash clone"
 test "$(git -C "$origin" show wip:parked.txt)" = parked || fail "existing origin/wip must not be overwritten"
 test "$(git -C "$origin" show wip-2:base.txt)" = stashed-version || fail "stash must be parked onto origin/wip-2"
 test "$(git -C "$origin" show wip-2:storage/logos/a.txt)" = logo-bytes || fail "stash tracked additions must be on origin/wip-2"
+# --- A stash entry git will not drop (single parent, e.g. left by filter-branch) must park once, then go; not loop forever.
+setup_clone oddstash
+commit "$repo" odd.txt odd-content
+git -C "$repo" push -q origin main
+git -C "$repo" update-ref --create-reflog -m "filter-branch: rewrite" refs/stash "$(git -C "$repo" rev-parse HEAD)"
+timeout 60 bash -c 'cd "$1" && unset HK && "$2" --drop' _ "$repo" "$done" >"${work}/oddstash.out" 2>&1 ||
+	fail "done --drop with an undroppable stash entry must finish: $(tail -5 "${work}/oddstash.out")"
+test ! -d "$repo" || fail "done --drop must trash oddstash clone"
+test "$(git -C "$origin" for-each-ref 'refs/heads/wip*' | wc -l | tr -d ' ')" -le 1 || fail "an undroppable stash must park at most once, not once per loop pass"
 # --- An existing wip/<topic> branch must not stop uncommitted work from parking (refs/heads/wip is then a directory).
 setup_clone wipprefix
 git -C "$repo" switch -q -c wip/topic main
