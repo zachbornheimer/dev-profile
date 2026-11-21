@@ -423,7 +423,10 @@ function declaredMiseCanonical(): string | undefined {
 const miseBudgetMs = () => positive(process.env.AGENT_CHECKPOINT_MISE_BUDGET_MS, 20_000);
 const budgetPending = (syncRan: boolean): MiseReport => ({
   outcome: "pending",
-  conditions: [{ reason: "pending", detail: "mise reconciliation exceeded its time budget; the next turn retries" }],
+  conditions: [{
+    reason: "pending",
+    detail: "mise reconciliation exceeded its time budget; the next turn that edits a dotfile retries",
+  }],
   syncRan,
 });
 async function headOf(origin: string, branch: string, left: () => number) {
@@ -543,7 +546,10 @@ export async function reconcileMise(): Promise<MiseReport | undefined> {
   if (ran.code === null) {
     return {
       outcome: "pending",
-      conditions: [{ reason: "pending", detail: "mise dot sync exceeded its budget; the next turn retries" }],
+      conditions: [{
+        reason: "pending",
+        detail: "mise dot sync exceeded its budget; the next turn that edits a dotfile retries",
+      }],
       syncRan: true,
     };
   }
@@ -602,22 +608,56 @@ export function reportMise(r: MiseReport) {
 let miseRun: Promise<void> | undefined;
 let miseNotice: { text: string; level: "info" | "warning" } | undefined;
 export const miseSettled = () => miseRun ?? Promise.resolve();
-function startMise() {
-  if (miseRun) return;
+// The reconcile runs only when this turn wrote or edited a tracked dotfile: a turn that changed none has nothing to
+// publish, and a sync it started would hold the history lock against the sessions that did. Returns whether it started.
+const writtenPaths = (event: any, cwd: string): string[] => {
+  if (event.isError) return [];
+  const raw: unknown[] = event.toolName === "write"
+    ? [event.details?.resolvedPath ?? event.input?.path]
+    : event.toolName === "editor"
+    ? (event.details?.files ?? []).filter((f: any) => f?.changed !== false).map((f: any) => f?.path)
+    : [];
+  return raw.filter((p): p is string => typeof p === "string" && p !== "" && !p.includes("://")).map(p =>
+    path.resolve(cwd, expand(p))
+  );
+};
+async function touchesTrackedDotfile(paths: string[]): Promise<boolean> {
+  const rows = await Promise.all(paths.map(p => exec("mise", ["dot", "files", "--json", p], 8_000)));
+  return rows.some(r => {
+    try {
+      return JSON.parse(r.out).some((row: any) => row?.status === "tracked");
+    } catch {
+      return false;
+    }
+  });
+}
+// A reconcile that ends `pending` (budget hit, lock held) did not publish the edit that started it, so the next turn
+// ends with it still owed even when that turn edits nothing. Any other outcome settles the debt.
+let miseOwed = false;
+function startMise(paths: string[]) {
+  if (miseRun) return false;
   miseRun = (async () => {
     try {
+      if (!miseOwed && !(await touchesTrackedDotfile(paths))) return;
       const mise = await reconcileMise();
+      miseOwed = mise?.outcome === "pending";
       if (mise) miseNotice = { text: reportMise(mise), level: mise.outcome === "verified" ? "info" : "warning" };
     } catch (e) {
+      miseOwed = true;
       miseNotice = { text: `mise-dotfiles: blocked failing: ${e instanceof Error ? e.message : e}`, level: "warning" };
     }
   })().finally(() => {
     miseRun = undefined;
   });
+  return true;
 }
 export default function install(pi: { on(name: string, handler: (event: any, ctx: Context) => unknown): void }) {
   let start: string | undefined, turn = randomUUID();
+  const written = new Set<string>();
   const cwd = (ctx: Context) => ctx.cwd ?? ctx.sessionManager?.getCwd?.() ?? process.cwd();
+  pi.on("tool_result", (event, ctx) => {
+    for (const p of writtenPaths(event, cwd(ctx))) written.add(p);
+  });
   const surface = (ctx: Context) => {
     for (const job of jobs().filter(j => j.repo === cwd(ctx) && !j.reported)) {
       if (now() - job.createdAt >= ttl && ["queued", "pushing", "pushed"].includes(job.state)) {
@@ -650,7 +690,7 @@ export default function install(pi: { on(name: string, handler: (event: any, ctx
   pi.on("agent_end", async (event, ctx) => {
     if (event.willContinue === true || process.env.AGENT_CHECKPOINT_PUBLISH === "1") return;
     await checkpoint(ctx);
-    startMise();
+    if ((written.size || miseOwed) && startMise([...written])) written.clear();
   });
   const checkpoint = async (ctx: Context) => {
     const repo = cwd(ctx);
