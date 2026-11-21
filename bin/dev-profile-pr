@@ -131,11 +131,6 @@ if [[ -n "${dirty}" ]]; then
 fi
 
 if [[ -z "${url}" ]]; then
-	if wt list --full --format=json | jq -e --arg b "${branch}" '
-    any(.items[]; .branch == $b and .default_branch.integration != null)
-  ' >/dev/null; then
-		skip "already integrated into ${default_branch}"
-	fi
 	[[ "$(git rev-list --count "origin/${base}..HEAD")" -gt 0 ]] || skip "no commits ahead of ${base}"
 fi
 

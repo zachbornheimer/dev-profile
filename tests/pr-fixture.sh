@@ -92,7 +92,15 @@ STUB
 cat >"${stubs}/wt" <<'STUB'
 #!/usr/bin/env bash
 echo "wt $*" >>"${PR_LOG}"
-[[ "$1 $2" == "list --full" ]] && echo '{"items":[]}'
+# Like the real `wt list`, integration is measured against the LOCAL default branch.
+if [[ "$1 $2" == "list --full" ]]; then
+	branch="$(git rev-parse --abbrev-ref HEAD)"
+	if git merge-base --is-ancestor HEAD main; then
+		echo "{\"items\":[{\"branch\":\"${branch}\",\"default_branch\":{\"integration\":\"ancestor\"}}]}"
+	else
+		echo '{"items":[]}'
+	fi
+fi
 if [[ "$1 $2" == "step commit" ]]; then
 	# --config-set commit.generation.command="CMD": run CMD as wt would, for the message.
 	msg=stub
@@ -185,6 +193,20 @@ DEV_PROFILE_PR_WATCH=tab KITTY_LISTEN_ON=unix:/tmp/fixture KITTY_WINDOW_ID=9 "$p
 logged "kitten @ --to unix:/tmp/fixture launch --type=tab --keep-focus" || fail "pr --auto must open a kitty watcher tab"
 logged "gh pr merge https://github.com/me/repo/pull/7 --auto --squash --repo me/repo" || fail "pr --auto must arm GitHub auto-merge"
 logged "--match id:9 ${watch} https://github.com/me/repo/pull/7" || fail "the kitty tab must run the watcher on the PR"
+
+# A commit merged into local main but never pushed (the push to main is
+# refused) still lacks origin/main: it must be published, not skipped.
+git switch -q -c unpushed-main main
+git commit -q --allow-empty -m "merged locally, never pushed"
+git switch -q main
+git merge -q --ff-only unpushed-main
+git switch -q unpushed-main
+reset
+"$publish" >/dev/null 2>&1 || fail "a branch merged only into local main must publish"
+logged "gh pr create --fill --head unpushed-main --base main --repo me/repo" || fail "a commit missing from origin/main must get a PR even when local main has it"
+git switch -q main
+git reset -q --hard origin/main
+git switch -q feature
 
 # `wt pr --create=… -- CMD` runs CMD on a fresh branch, then publishes it.
 git switch -q -c chore/edit main
