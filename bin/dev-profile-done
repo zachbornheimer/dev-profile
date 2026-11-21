@@ -716,7 +716,21 @@ commit_stash() {
 			mark_once "${state}/skipped" "stash"
 			return 0
 		fi
-		git stash drop -q || true
+		# An entry `git stash drop` refuses (a filter-branch rewrite leaves one) would be
+		# parked again on every pass. Delete only that entry, never the whole ref: the
+		# entries below it are stashes not parked yet. Deleting the last entry leaves
+		# refs/stash behind, so remove the ref once its reflog is empty.
+		if ! git stash drop -q 2>/dev/null; then
+			git reflog delete --updateref --rewrite "refs/stash@{0}" >/dev/null 2>&1 || true
+			if [[ "$(git reflog show refs/stash 2>/dev/null | wc -l | tr -d ' ')" == 0 ]]; then
+				git update-ref -d refs/stash 2>/dev/null || true
+			fi
+			if [[ "$(git rev-parse --verify --quiet refs/stash || true)" == "${stash_oid}" ]]; then
+				report skip "stash: could not drop"
+				mark_once "${state}/skipped" "stash"
+				return 0
+			fi
+		fi
 	done
 }
 
