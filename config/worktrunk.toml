@@ -212,6 +212,9 @@ until wt-sync {{ args }}; do
 done"""
 
 [pre-start]
+# Stamp the new worktree with the omp session that ran `wt`, before anything can edit it. The stamp lives in git's own
+# admin dir for the worktree, so it dies with the worktree and does not depend on how the worktree was created.
+stamp-owner = "bun ~/.omp/agent/extensions/worktree-owner/stamp.ts {{ worktree_path }}"
 copy = "~/.local/share/dev-profile/bin/dev-profile-worktree-copy"
 
 [post-start]
