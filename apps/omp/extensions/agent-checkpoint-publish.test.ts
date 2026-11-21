@@ -532,18 +532,20 @@ function miseBox(opts: { mode?: string; origin?: "dead"; every?: number; declare
     fs.utimesSync(stamp, at, at);
   };
   const lines = () => fs.existsSync(argv) ? fs.readFileSync(argv, "utf8").split("\n").filter(Boolean) : [];
-  const report = async () => {
+  const wrote = (file: string) => ({ toolName: "write", input: { path: file }, details: { resolvedPath: file } });
+  const report = async (edited: string[] = [path.join(home, ".dot-a")]) => {
     fs.writeFileSync(argv, "");
     const notices: string[] = [];
     const handlers = new Map<string, Function>();
     install({ on: (n, fn) => void handlers.set(n, fn) });
     const ctx = { cwd: home, ui: { notify: (t: string) => void notices.push(t) } };
+    for (const file of edited) await handlers.get("tool_result")!(wrote(file), ctx);
     await handlers.get("agent_end")!({}, ctx);
     await miseSettled();
     await handlers.get("agent_start")!({}, ctx);
     return { notices, mise: notices.filter(n => n.startsWith("mise-dotfiles:")), argv: lines() };
   };
-  return { root, home, origin, config, mise, write, declare, touchStamp, stamp, report };
+  return { root, home, origin, config, mise, write, declare, touchStamp, stamp, report, wrote };
 }
 const neverMutates = (argv: string[]) => {
   expect(
@@ -679,11 +681,52 @@ test("mise: absent from PATH omits the outcome entirely", async () => {
   const handlers = new Map<string, Function>();
   install({ on: (n, fn) => void handlers.set(n, fn) });
   const ctx = { cwd: b.home, ui: { notify: (t: string) => void notices.push(t) } };
+  await handlers.get("tool_result")!(b.wrote(path.join(b.home, ".dot-a")), ctx);
   await handlers.get("agent_end")!({}, ctx);
   await miseSettled();
   await handlers.get("agent_start")!({}, ctx);
   expect(notices.filter(n => n.startsWith("mise-dotfiles:"))).toEqual([]);
 });
+
+test("mise: a turn that edited no dotfile never reads mise state or syncs", async () => {
+  const b = miseBox();
+  b.mise("dot", "save");
+  b.mise("dot", "sync");
+  const untracked = path.join(b.root, "scratch.txt");
+  fs.writeFileSync(untracked, "x\n");
+  const idle = await b.report([]);
+  expect(idle.mise).toEqual([]);
+  expect(idle.argv).toEqual([]);
+  const elsewhere = await b.report([untracked]);
+  expect(elsewhere.mise).toEqual([]);
+  expect(elsewhere.argv.filter(l => l === "dot sync" || l === "dot status --json")).toEqual([]);
+}, 90_000);
+
+test("mise: a turn that edited a tracked dotfile syncs once, then the next idle turn does not", async () => {
+  const b = miseBox();
+  b.mise("dot", "save");
+  b.mise("dot", "sync");
+  const edited = await b.report();
+  expect(edited.mise[0]).toStartWith("mise-dotfiles: verified");
+  expect(edited.argv.filter(l => l === "dot sync")).toHaveLength(1);
+  const idle = await b.report([]);
+  expect(idle.argv).toEqual([]);
+}, 90_000);
+
+test("mise: a reconcile that ended pending is retried by the next idle turn, and that retry settles it", async () => {
+  const b = miseBox();
+  b.mise("dot", "save");
+  b.mise("dot", "sync");
+  process.env.AGENT_CHECKPOINT_MISE_BUDGET_MS = "1";
+  const starved = await b.report();
+  expect(starved.mise[0]).toStartWith("mise-dotfiles: pending");
+  delete process.env.AGENT_CHECKPOINT_MISE_BUDGET_MS;
+  const retried = await b.report([]);
+  expect(retried.mise[0]).toStartWith("mise-dotfiles: verified");
+  expect(retried.argv.filter(l => l === "dot sync")).toHaveLength(1);
+  const settled = await b.report([]);
+  expect(settled.argv).toEqual([]);
+}, 90_000);
 
 test("mise: agent_end returns before slow mise work finishes; the report arrives on the next agent_start", async () => {
   const b = miseBox();
@@ -698,6 +741,7 @@ test("mise: agent_end returns before slow mise work finishes; the report arrives
   install({ on: (n, fn) => void handlers.set(n, fn) });
   const ctx = { cwd: b.home, ui: { notify: (t: string) => void notices.push(t) } };
   const t0 = Date.now();
+  await handlers.get("tool_result")!(b.wrote(path.join(b.home, ".dot-a")), ctx);
   await handlers.get("agent_end")!({}, ctx);
   expect(Date.now() - t0).toBeLessThan(1_000);
   expect(notices.filter(n => n.startsWith("mise-dotfiles:"))).toEqual([]);
