@@ -621,15 +621,21 @@ const writtenPaths = (event: any, cwd: string): string[] => {
     path.resolve(cwd, expand(p))
   );
 };
+// `mise dot files --json` prints a JSON array of {path, status} rows for one path.
+function isTrackedRows(stdout: string): boolean {
+  let rows: unknown;
+  try {
+    rows = JSON.parse(stdout);
+  } catch {
+    return false;
+  }
+  return Array.isArray(rows) && rows.some(row => (row as { status?: unknown } | null)?.status === "tracked");
+}
+// The argument list is fixed; only the one absolute path an edit reported is appended.
+const miseDotFilesArgs = (absolutePath: string): string[] => ["dot", "files", "--json", absolutePath];
 async function touchesTrackedDotfile(paths: string[]): Promise<boolean> {
-  const rows = await Promise.all(paths.map(p => exec("mise", ["dot", "files", "--json", p], 8_000)));
-  return rows.some(r => {
-    try {
-      return JSON.parse(r.out).some((row: any) => row?.status === "tracked");
-    } catch {
-      return false;
-    }
-  });
+  const runs = await Promise.all(paths.map(p => exec("mise", miseDotFilesArgs(p), 8_000)));
+  return runs.some(r => isTrackedRows(r.out));
 }
 // A reconcile that ends `pending` (budget hit, lock held) did not publish the edit that started it, so the next turn
 // ends with it still owed even when that turn edits nothing. Any other outcome settles the debt.
