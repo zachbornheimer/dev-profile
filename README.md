@@ -65,6 +65,10 @@ grace period. A worker that exits during that period is reaped and logged as a
 startup failure, so the watchdog notifies the user instead of entering cooldown.
 Surviving workers keep their own session and outlive the watchdog tick.
 
+## Timing a slow `wt land`
+
+Set `WT_BENCH=1` to time every `wt` call and the `gh`, commit and push calls inside `wt land` and `wt pr-auto`; `WT_BENCH=2` also writes worktrunk's own span trace. Run `dev-profile-bench report` for the timeline and slowest calls, or `dev-profile-bench runs` for recent runs. Records go to `~/.local/state/dev-profile/wt-bench.tsv` (override with `WT_BENCH_LOG`). Unset, the `wt` shim runs the real binary untouched.
+
 ## Checks
 
 Run mise run doctor. Run mise dot apply --dry-run before changing live links.
