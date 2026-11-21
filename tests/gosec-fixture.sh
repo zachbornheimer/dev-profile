@@ -103,8 +103,45 @@ GO
 	grep -q 'G204' "${work}/stderr" || fail "fs package: expected G204, got: $(cat "${work}/stderr")"
 }
 
+# A finding already on the upstream default branch is not the push's doing: the
+# gate reports it only when the branch adds or moves it into a new place.
+fixture_inherited_finding_in_a_changed_file_does_not_block() {
+	local repo
+	repo="$(new_module inherited)"
+	mkdir -p "${repo}/runner"
+	write_exec "${repo}/runner/runner.go" runner
+	git -C "$repo" add -A
+	git -C "$repo" commit -q -m "chore: base"
+	git -C "$repo" update-ref refs/remotes/origin/main HEAD
+	git -C "$repo" switch -qc topic
+	printf '\n// Name is unrelated to the subprocess call above.\nconst Name = "runner"\n' >>"${repo}/runner/runner.go"
+	run_gosec "$repo" runner/runner.go 2>"${work}/stderr" || fail "inherited G204 blocked a push that did not add it: $(cat "${work}/stderr")"
+}
+
+fixture_added_finding_in_a_changed_file_still_blocks() {
+	local repo
+	repo="$(new_module added)"
+	mkdir -p "${repo}/runner"
+	write_exec "${repo}/runner/runner.go" runner
+	git -C "$repo" add -A
+	git -C "$repo" commit -q -m "chore: base"
+	git -C "$repo" update-ref refs/remotes/origin/main HEAD
+	git -C "$repo" switch -qc topic
+	cat >>"${repo}/runner/runner.go" <<'GO'
+
+func RunAgain(ctx context.Context, argv []string) error {
+	return exec.CommandContext(ctx, argv[0], argv[1:]...).Run()
+}
+GO
+	if run_gosec "$repo" runner/runner.go 2>"${work}/stderr"; then fail "a G204 the branch added was swallowed"; fi
+	grep -q 'G204' "${work}/stderr" || fail "expected the added G204, got: $(cat "${work}/stderr")"
+	[[ "$(grep -c G204 "${work}/stderr")" == 1 ]] || fail "only the added G204 may be reported, got: $(cat "${work}/stderr")"
+}
+
 fixture_facade_may_exec_a_caller_command
 fixture_other_files_still_flag_exec
 fixture_facade_keeps_every_other_rule
 fixture_boundary_packages_are_exempt_from_their_own_rule
+fixture_inherited_finding_in_a_changed_file_does_not_block
+fixture_added_finding_in_a_changed_file_still_blocks
 echo "gosec fixture ok"
