@@ -1,0 +1,116 @@
+#!/usr/bin/env bash
+# Opt-in timing for slow command chains such as `wt land`.
+#   WT_BENCH=1   every `wt` call (through the bin/wt shim) and the gh, git push
+#                and commit calls in dev-profile-pr append one record to the log
+#   WT_BENCH=2   also sets WORKTRUNK_VERBOSE=2, so wt writes its own span trace
+#                to <repo>/.git/wt/logs/trace.jsonl and diagnostic.md
+#   WT_BENCH_LOG where records go (default ~/.local/state/dev-profile/wt-bench.tsv)
+# Unset or 0: `run` execs the command untouched.
+#
+#   dev-profile-bench run LABEL -- CMD [ARG...]   time CMD, keep its exit status
+#   dev-profile-bench report [RUN]                timeline of RUN (default: latest)
+#   dev-profile-bench runs [N]                    the last N runs (default 10)
+#
+# A record is one TSV line: run, depth, start_ms, duration_ms, status, label.
+# Nested calls share WT_BENCH_RUN and carry a larger WT_BENCH_DEPTH, so the
+# report shows `wt land` > `wt pr-auto` > `gh pr merge` as one tree.
+set -euo pipefail
+
+log="${WT_BENCH_LOG:-${XDG_STATE_HOME:-${HOME}/.local/state}/dev-profile/wt-bench.tsv}"
+usage="usage: dev-profile-bench run LABEL -- CMD [ARG...] | report [RUN] | runs [N]"
+
+now_ms() {
+	local t
+	if [[ -n "${EPOCHREALTIME:-}" ]]; then
+		t="${EPOCHREALTIME//[.,]/}"
+		echo "$((t / 1000))"
+	else
+		perl -MTime::HiRes=time -e 'printf "%d\n", time * 1000'
+	fi
+}
+
+run() {
+	local label="${1:-}"
+	[[ -n "${label}" && "${2:-}" == -- && $# -ge 3 ]] || {
+		echo "${usage}" >&2
+		exit 2
+	}
+	shift 2
+	if [[ -z "${WT_BENCH:-}" || "${WT_BENCH}" == 0 ]]; then
+		exec "$@"
+	fi
+	local depth="${WT_BENCH_DEPTH:--1}"
+	depth=$((depth + 1))
+	local run_id="${WT_BENCH_RUN:-$(date +%Y%m%dT%H%M%S)-$$}"
+	export WT_BENCH_RUN="${run_id}" WT_BENCH_DEPTH="${depth}"
+	if [[ "${WT_BENCH}" == 2 ]]; then
+		export WORKTRUNK_VERBOSE="${WORKTRUNK_VERBOSE:-2}"
+	fi
+	label="${label//[$'\t\n']/ }"
+	# Survive Ctrl-C long enough to record the interrupted command.
+	trap : INT
+	local start end status=0
+	start="$(now_ms)"
+	"$@" || status=$?
+	end="$(now_ms)"
+	mkdir -p "$(dirname "${log}")"
+	# One short O_APPEND write: concurrent runs do not interleave records.
+	printf '%s\t%s\t%s\t%s\t%s\t%s\n' "${run_id}" "${depth}" "${start}" "$((end - start))" "${status}" "${label}" >>"${log}"
+	exit "${status}"
+}
+
+report() {
+	[[ -s "${log}" ]] || {
+		echo "No records in ${log}; run a command with WT_BENCH=1 first" >&2
+		exit 1
+	}
+	local target="${1:-$(tail -n 1 "${log}" | cut -f1)}"
+	local rows
+	rows="$(awk -F'\t' -v run="${target}" '$1 == run' "${log}" | sort -t$'\t' -k3,3n -k2,2n)"
+	[[ -n "${rows}" ]] || {
+		echo "No run ${target} in ${log}" >&2
+		exit 1
+	}
+	local t0
+	t0="$(head -n 1 <<<"${rows}" | cut -f3)"
+	echo "run ${target}"
+	printf '%8s %8s  %s\n' start took command
+	awk -F'\t' -v t0="${t0}" '
+		{
+			pad = ""
+			for (i = 0; i < $2; i++) pad = pad "  "
+			mark = ($5 == 0) ? "" : sprintf("  [exit %s]", $5)
+			printf "%7.1fs %7.1fs  %s%s%s\n", ($3 - t0) / 1000, $4 / 1000, pad, $6, mark
+		}' <<<"${rows}"
+	echo
+	echo "Slowest calls:"
+	awk -F'\t' '{ print $4 "\t" $6 }' <<<"${rows}" | sort -rn | head -5 |
+		awk -F'\t' '{ printf "%7.1fs  %s\n", $1 / 1000, $2 }'
+}
+
+runs() {
+	[[ -s "${log}" ]] || {
+		echo "No records in ${log}" >&2
+		exit 1
+	}
+	awk -F'\t' '$2 == 0 { printf "%s  %7.1fs  %s\n", $1, $4 / 1000, $6 }' "${log}" | tail -n "${1:-10}"
+}
+
+case "${1:-}" in
+run)
+	shift
+	run "$@"
+	;;
+report)
+	shift
+	report "$@"
+	;;
+runs)
+	shift
+	runs "$@"
+	;;
+*)
+	echo "${usage}" >&2
+	exit 2
+	;;
+esac

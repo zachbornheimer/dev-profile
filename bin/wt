@@ -94,4 +94,8 @@ if commit_fix_args "$@"; then
 	exec "${0%/*}/dev-profile-commit-fix" "${WT_ARGS[@]}"
 fi
 real=$(real_wt) || exit $?
+# WT_BENCH=1|2 times this call; see dev-profile-bench. Off, this is a plain exec.
+if [ -n "${WT_BENCH:-}" ] && [ "$WT_BENCH" != 0 ]; then
+	exec "${0%/*}/dev-profile-bench" run "wt $*" -- "$real" "$@"
+fi
 exec "$real" "$@"

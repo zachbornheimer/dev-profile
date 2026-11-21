@@ -26,7 +26,8 @@ fix_red_ci=(${DEV_PROFILE_PR_FIX_RED_CI:-bun "${HOME}/.omp/agent/tools/fix_red_c
 origin_url="$(git config --get remote.origin.url || :)"
 origin_url="${origin_url%/}"
 slug="$(sed -En 's#^(https?://([^/@]+@)?|ssh://([^/@]+@)?|[^/@]+@)[^/:]+[:/]([^/]+/[^/]+)$#\4#p' <<<"${origin_url%.git}")"
-ghr() { gh "$@" ${slug:+--repo "${slug}"}; }
+bench_bin="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/dev-profile-bench"
+ghr() { "${bench_bin}" run "gh $1 $2" -- gh "$@" ${slug:+--repo "${slug}"}; }
 
 info="$(ghr pr view "${pr}" --json number,title,url,headRefName,isCrossRepository)"
 number="$(jq -r .number <<<"${info}")"
