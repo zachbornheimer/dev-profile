@@ -1,4 +1,6 @@
 import { appendFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 
 // Throwaway probe: wall time of the real triage question on a state shaped like session B (one existing memory to supersede).
 // Each question takes ~20 s, so three runs outlive omp's 30 s `session_stop` limit. The runs start detached and report
@@ -26,8 +28,8 @@ const STATE = {
 
 // Dynamic on purpose: `@oh-my-pi/pi-ai` resolves only for modules loaded through omp's own runtime, so a static import fails outside it.
 async function loadFromHost(): Promise<Loaded> {
-  const { EXTRACT_QUESTIONS } = await import("/home/zbornheimer/.omp/agent/extensions/hooks/memory_extract.ts");
-  const { withInquiry } = await import("/home/zbornheimer/.omp/agent/extensions/prompts/inquiry.ts");
+  const { EXTRACT_QUESTIONS } = await import(join(homedir(), ".omp/agent/extensions/hooks/memory_extract.ts"));
+  const { withInquiry } = await import(join(homedir(), ".omp/agent/extensions/prompts/inquiry.ts"));
   return { questions: EXTRACT_QUESTIONS, withInquiry };
 }
 

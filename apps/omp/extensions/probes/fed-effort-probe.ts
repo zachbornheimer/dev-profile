@@ -1,4 +1,6 @@
 import { appendFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 
 // Throwaway probe: wall time of the real triage prompt on the @smol model at different reasoning efforts.
 // The sweep is four sequential model calls (up to 80 s each), far past omp's 30 s `session_stop` limit, so the
@@ -45,8 +47,8 @@ const STATE = {
 // Runtime-selected on purpose: `@oh-my-pi/pi-ai` resolves only for modules loaded through omp's own runtime, and the
 // two prompt modules live in the user's omp config, outside this repository.
 export async function loadProbeModules(): Promise<ProbeModules> {
-  const models = await import("/home/zbornheimer/.omp/agent/extensions/prompts/models.ts");
-  const questions = await import("/home/zbornheimer/.omp/agent/extensions/prompts/questions.ts");
+  const models = await import(join(homedir(), ".omp/agent/extensions/prompts/models.ts"));
+  const questions = await import(join(homedir(), ".omp/agent/extensions/prompts/questions.ts"));
   const ai = await import("@oh-my-pi/pi-ai");
   return {
     languagePrompt: models.languagePrompt,
