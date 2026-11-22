@@ -69,6 +69,7 @@ bash "$root/tests/adoption-fixture.sh" >/dev/null || fail "adoption fixture"
 bash "$root/tests/owners-fixture.sh" >/dev/null || fail "owners fixture"
 # Validate that every installed omp custom tool and extension loads. Its own
 # script so it is also runnable directly: `mise run test:omp` (ZYS-9134).
+bash "$root/tests/rules-gate-fixture.sh" >/dev/null || fail "rules gate fixture"
 bash "$root/tests/omp-tools-fixture.sh" >/dev/null || fail "omp tools validation fixture"
 bash "$root/tests/omp-tools-validate.sh" || fail "omp tools validate"
 for f in "$root"/bin/*; do
