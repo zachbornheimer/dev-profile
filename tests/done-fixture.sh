@@ -389,6 +389,17 @@ test ! -d "$repo" || fail "done --drop must trash stashclash clone"
 test "$(git -C "$origin" show wip:parked.txt)" = parked || fail "existing origin/wip must not be overwritten"
 test "$(git -C "$origin" show wip-2:base.txt)" = stashed-version || fail "stash must be parked onto origin/wip-2"
 test "$(git -C "$origin" show wip-2:storage/logos/a.txt)" = logo-bytes || fail "stash tracked additions must be on origin/wip-2"
+# --- Work parked from a stash must be signed when signing is on, or a signed-commits rule rejects the push.
+setup_clone signedpark
+ssh-keygen -q -t ed25519 -N '' -f "${work}/signkey" >/dev/null
+git -C "$repo" config gpg.format ssh
+git -C "$repo" config user.signingkey "${work}/signkey.pub"
+printf 'parked-version\n' >"${repo}/base.txt"
+git -C "$repo" stash push -q -m "park me"
+GIT_CONFIG_VALUE_0=true run_done "$repo" --drop >"${work}/signedpark.out" 2>&1 ||
+	fail "done --drop with a stash must succeed: $(tail -5 "${work}/signedpark.out")"
+git -C "$origin" cat-file -p wip 2>/dev/null | grep -q '^gpgsig' ||
+	fail "stash parked onto origin/wip must carry a signature when commit.gpgsign is on"
 # --- A stash entry git will not drop (single parent, e.g. left by filter-branch) must park once, then go; not loop forever.
 setup_clone oddstash
 commit "$repo" odd.txt odd-content
