@@ -130,6 +130,17 @@ elapsed=$((SECONDS - start))
 [[ "${elapsed}" -lt 20 ]] || fail "the repair must give up at its deadline, took ${elapsed}s"
 expect 'composer dump-autoload failed: the copied vendor/ points at another checkout; run: composer dump-autoload'
 
+# --- a caller reading the output through a pipe must see EOF when the wrapper exits
+# Worktrunk captures hook output over a pipe. A watchdog `sleep` that outlives the
+# wrapper and still holds its stdout keeps that pipe open for the whole timeout.
+
+reset_logs
+start="${SECONDS}"
+DEV_PROFILE_WORKTREE_COPY_TIMEOUT=30 "${copy}" 2>&1 | cat >"${work}/output.txt"
+elapsed=$((SECONDS - start))
+[[ "${elapsed}" -lt 15 ]] || fail "a piped reader waited ${elapsed}s: a watchdog still holds the wrapper's stdout"
+repaired
+
 # --- composer absent: the same advice, never a stack trace
 
 # The PATH holds only what the wrapper needs, linked in by name: a runner may
