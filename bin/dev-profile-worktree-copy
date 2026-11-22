@@ -117,6 +117,10 @@ fi
 
 repair_timeout="${DEV_PROFILE_WORKTREE_COPY_TIMEOUT:-60}" # seconds
 
+# The watchdog's stdio is detached on purpose. Killing the watchdog subshell
+# leaves its `sleep` running; if that sleep still held this script's stdout, a
+# caller reading our output through a pipe (worktrunk captures hook output that
+# way) would block until EOF, i.e. for the whole timeout, on every switch.
 # Bounded without timeout(1), which a clean machine need not have: a hook that
 # hangs blocks every switch.
 bounded() { # <seconds> <cmd...>
@@ -127,7 +131,7 @@ bounded() { # <seconds> <cmd...>
 	(
 		sleep "${limit}"
 		kill -TERM "${pid}" 2>/dev/null
-	) &
+	) >/dev/null 2>&1 </dev/null &
 	watchdog=$!
 	wait "${pid}" || status=$?
 	kill "${watchdog}" 2>/dev/null || :
@@ -176,7 +180,6 @@ install_declared_deps() {
 		fi
 	fi
 }
-
 
 # A fetch refspec that names one branch never stores a tracking ref for any
 # other, so widen it to every branch and fetch. Prune drops a branch deleted
