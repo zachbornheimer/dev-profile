@@ -99,117 +99,163 @@ Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert.
 Subject under 72 chars."""
 
 [aliases]
-up = """
+up = '''
 git fetch --all --prune; wt step for-each -- sh -c '
   git rev-parse --verify -q @{u} >/dev/null || exit 0
   g=$(git rev-parse --git-dir)
-  rebasing() { test -d \"$g/rebase-merge\" || test -d \"$g/rebase-apply\"; }
+  rebasing() { test -d "$g/rebase-merge" || test -d "$g/rebase-apply"; }
   rebasing && exit 0
   git diff --quiet HEAD || { git merge --ff-only --no-autostash @{u}; exit 0; }
   git rebase @{u} --no-autostash || { rebasing || exit 0; git rebase --abort; }
-'"""
+''''
 pr = "{% if create is defined %}wt switch --create {{ create }} --no-cd -x ~/.local/share/dev-profile/bin/dev-profile-pr -- -- {{ args }}{% else %}wt switch {{ args or '@' }} -x ~/.local/share/dev-profile/bin/dev-profile-pr --{% endif %}"
 pr-draft = "{% if create is defined %}wt switch --create {{ create }} --no-cd -x ~/.local/share/dev-profile/bin/dev-profile-pr -- --draft -- {{ args }}{% else %}wt switch {{ args or '@' }} -x ~/.local/share/dev-profile/bin/dev-profile-pr -- --draft{% endif %}"
 pr-auto = "{% if create is defined %}wt switch --create {{ create }} --no-cd -x ~/.local/share/dev-profile/bin/dev-profile-pr -- --auto -- {{ args }}{% else %}wt switch {{ args or '@' }} -x ~/.local/share/dev-profile/bin/dev-profile-pr -- --auto{% endif %}"
 done = "~/.local/share/dev-profile/bin/dev-profile-done {{ args }}"
 prune = "wt step prune --min-age=0s"
-tree-for-changes = """
+tree-for-changes = '''
 {% if args %}
 if ! git rev-parse --verify -q HEAD >/dev/null 2>&1; then
-  if git diff --quiet && git diff --cached --quiet && [ -z \"$(git ls-files --others --exclude-standard)\" ]; then
-    echo \"wt commit-unstaged: nothing to commit (repository has no commits and no files to stage).\" >&2
+  if git diff --quiet && git diff --cached --quiet && [ -z "$(git ls-files --others --exclude-standard)" ]; then
+    echo "wt commit-unstaged: nothing to commit (repository has no commits and no files to stage)." >&2
     exit 1
   fi
   exec wt step commit
 fi
 {% else %}
 if ! git rev-parse --verify -q HEAD >/dev/null 2>&1; then
-  echo \"wt tree-for-changes: repository has no commits yet; run 'wt commit-unstaged' or 'wt step commit' to create the initial commit first.\" >&2
+  echo "wt tree-for-changes: repository has no commits yet; run 'wt commit-unstaged' or 'wt step commit' to create the initial commit first." >&2
   exit 1
 fi
 {% endif %}
 stash_before=$(git rev-parse -q --verify refs/stash) || stash_before=
 git stash push -u || exit 1
 stash_after=$(git rev-parse -q --verify refs/stash) || stash_after=
-if [ \"$stash_after\" = \"$stash_before\" ]; then
-  echo \"wt tree-for-changes: git stash saved nothing, so there is nothing to move; no worktree created.\" >&2
+if [ "$stash_after" = "$stash_before" ]; then
+  echo "wt tree-for-changes: git stash saved nothing, so there is nothing to move; no worktree created." >&2
   exit 0
 fi
-stash_ref=$(git stash list --format='%gd %H' | awk -v want=\"$stash_after\" '$2 == want { print $1; exit }')
-if [ -z \"$stash_ref\" ]; then
-  echo \"wt tree-for-changes: the stash just created ($stash_after) is not in refs/stash; run 'git stash apply $stash_after' to recover it.\" >&2
+stash_ref=$(git stash list --format='%gd %H' | awk -v want="$stash_after" '$2 == want { print $1; exit }')
+if [ -z "$stash_ref" ]; then
+  echo "wt tree-for-changes: the stash just created ($stash_after) is not in refs/stash; run 'git stash apply $stash_after' to recover it." >&2
   exit 1
 fi
-id=$(uuidgen 2>/dev/null || cat /proc/sys/kernel/random/uuid 2>/dev/null) || { git stash pop \"$stash_ref\"; exit 1; }
-id=$(printf '%s' \"$id\" | tr '[:upper:]' '[:lower:]')
-[ -n \"$id\" ] || { git stash pop \"$stash_ref\"; exit 1; }
+id=$(uuidgen 2>/dev/null || cat /proc/sys/kernel/random/uuid 2>/dev/null) || { git stash pop "$stash_ref"; exit 1; }
+id=$(printf '%s' "$id" | tr '[:upper:]' '[:lower:]')
+[ -n "$id" ] || { git stash pop "$stash_ref"; exit 1; }
 {% if args %}
-if wt switch --create \"$id\" --no-cd -x sh -- -c 'git stash pop \"$1\" && shift && exec \"$@\"' tree-for-changes \"$stash_ref\" {{ args }}; then
+if wt switch --create "$id" --no-cd -x sh -- -c 'git stash pop "$1" && shift && exec "$@"' tree-for-changes "$stash_ref" {{ args }}; then
   wt switch ^
 else
   status=$?
-  if git show-ref --verify --quiet \"refs/heads/$id\"; then
-    wt switch \"$id\"
+  if git show-ref --verify --quiet "refs/heads/$id"; then
+    wt switch "$id"
   else
-    git stash pop \"$stash_ref\" || true
+    git stash pop "$stash_ref" || true
   fi
-  exit \"$status\"
+  exit "$status"
 fi
 {% else %}
-if ! wt switch --create \"$id\" -x git -- stash pop \"$stash_ref\"; then
+if ! wt switch --create "$id" -x git -- stash pop "$stash_ref"; then
   status=$?
-  git show-ref --verify --quiet \"refs/heads/$id\" || git stash pop \"$stash_ref\" || true
-  exit \"$status\"
+  git show-ref --verify --quiet "refs/heads/$id" || git stash pop "$stash_ref" || true
+  exit "$status"
 fi
-{% endif %}"""
+{% endif %}'''
 # wt land pushes the branch and opens an auto-merging PR (wt pr-auto) in every repo. Only an explicit
 # --landing=merge runs a local wt merge. commit-unstaged below is explicit about merging and keeps that.
-land = """
+land = '''
 {% if not branch %}
-echo \"wt land: detached HEAD (a pull --rebase, rebase, or checkout of a commit is in progress); finish or abort it, or switch to a branch, then rerun. Nothing was committed.\" >&2
+echo "wt land: detached HEAD (a pull --rebase, rebase, or checkout of a commit is in progress); finish or abort it, or switch to a branch, then rerun. Nothing was committed." >&2
 exit 1
 {% elif branch == default_branch %}
 if ! git rev-parse --verify -q HEAD >/dev/null 2>&1; then
   exec wt step commit
 fi
-wt tree-for-changes -- wt land{% if landing | default(\"\") != \"\" %} --landing={{ landing }}{% endif %}
-{% elif landing | default(\"\") != \"\" and landing != \"merge\" and landing != \"pr\" and landing != \"pr-auto\" %}
-echo \"wt land: --landing must be pr, pr-auto, or merge\" >&2
+wt tree-for-changes -- wt land{% if landing | default("") != "" %} --landing={{ landing }}{% endif %}
+{% elif landing | default("") != "" and landing != "merge" and landing != "pr" and landing != "pr-auto" %}
+echo "wt land: --landing must be pr, pr-auto, or merge" >&2
 exit 1
 {% else %}
 if ! git diff --quiet || ! git diff --cached --quiet; then
   wt step commit --stage=tracked || exit 1
 fi
 untracked=$(git ls-files --others --exclude-standard)
-if [ -n \"$untracked\" ]; then
+if [ -n "$untracked" ]; then
   echo 'wt land: left these untracked files uncommitted (git add the ones you mean to keep):' >&2
-  echo \"$untracked\" >&2
+  echo "$untracked" >&2
 fi
-{% if landing | default(\"\") == \"merge\" %}
+{% if landing | default("") == "merge" %}
 wt merge --stage=tracked
-{% elif landing | default(\"\") == \"pr\" %}
+{% elif landing | default("") == "pr" %}
 wt pr
 {% else %}
 wt pr-auto
 {% endif %}
-{% endif %}"""
+{% endif %}'''
 commit-unstaged = "wt land --landing=merge"
 commit-fix = "~/.local/share/dev-profile/bin/dev-profile-commit-fix step commit {{ args }}"
-sync = """
-if [ -n \"{{ branch | default(\"\") }}\" ] && [ \"$(git branch --show-current)\" != \"{{ branch | default(\"\") }}\" ]; then
-  cd \"$(wt -y switch \"{{ branch | default(\"\") }}\" --no-cd -x pwd)\" || exit 1
+sync = '''
+if [ -n "{{ branch | default("") }}" ] && [ "$(git branch --show-current)" != "{{ branch | default("") }}" ]; then
+  cd "$(wt -y switch "{{ branch | default("") }}" --no-cd -x pwd)" || exit 1
 fi
 for arg in {{ args }}; do
-  case \"$arg\" in
+  case "$arg" in
   -n|--dry-run|-h|--help|-V|--version) exec wt-sync {{ args }} ;;
   esac
 done
 count=0
 until wt-sync {{ args }}; do
   count=$((count + 1))
-  [ \"$count\" -le 5 ] || exit 1
-  omp -p --model @task \"Please get branch {{ branch | default(\"\") }} clean and rebased so 'wt-sync {{ args }}' succeeds (attempt $count/5).\"
-done"""
+  [ "$count" -le 5 ] || exit 1
+  omp -p --model @task "Please get branch {{ branch | default("") }} clean and rebased so 'wt-sync {{ args }}' succeeds (attempt $count/5)."
+done'''
+
+# wt drop: park every worktree, push every branch, verify nothing is unpushed, then remove the linked
+# worktrees and trash the clone. A failing step aborts the rest, so a failed push never reaches trash.
+[[aliases.drop]]
+park = '''
+wt step for-each -- sh -c 'if [ -n "$(git status --porcelain)" ]; then git add -A && HK=0 git commit -q --no-verify -m "chore: save uncommitted work" || : >"$(git rev-parse --path-format=absolute --git-common-dir)/wt-drop-failed"; fi'
+'''
+
+[[aliases.drop]]
+guard = '''
+common=$(git rev-parse --path-format=absolute --git-common-dir)
+if [ -e "$common/wt-drop-failed" ]; then rm -f "$common/wt-drop-failed"; echo "wt drop: a worktree could not be committed; nothing was removed" >&2; exit 1; fi
+if git rev-parse -q --verify refs/stash >/dev/null; then echo "wt drop: a stash exists; nothing was removed" >&2; exit 1; fi
+if git ls-files -s | awk '$1 == "160000" { f = 1 } END { exit !f }'; then echo "wt drop: submodule or nested repo present; nothing was removed" >&2; exit 1; fi
+'''
+
+[[aliases.drop]]
+push = '''
+git fetch -q --prune origin || exit 1
+for b in $(git for-each-ref --format='%(refname:short)' refs/heads); do
+  git merge-base --is-ancestor "$b" "refs/remotes/origin/$b" 2>/dev/null && continue
+  HK=0 git push -q --no-verify origin "$b" || { echo "wt drop: push of $b failed; nothing was removed" >&2; exit 1; }
+done
+'''
+
+[[aliases.drop]]
+verify = '''
+git fetch -q --prune origin || exit 1
+left=$(git log --oneline --branches --not --remotes | head -5)
+[ -z "$left" ] || { printf 'wt drop: not on origin:\n%s\n' "$left" >&2; exit 1; }
+'''
+
+[[aliases.drop]]
+remove = '''
+primary=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")
+wt step for-each -- sh -c 'p=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)"); [ "$PWD" = "$p" ] && exit 0; b=$(git branch --show-current); [ -n "$b" ] || { echo "wt drop: detached worktree $PWD; remove it by hand" >&2; exit 1; }; cd "$p" && wt remove --foreground --no-delete-branch "$b"'
+'''
+
+[[aliases.drop]]
+trash = '''
+primary=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")
+common=$(git rev-parse --path-format=absolute --git-common-dir)
+# for-each continues past failures, so refuse here if any linked worktree is still registered.
+if [ -n "$(ls -A "$common/worktrees" 2>/dev/null)" ]; then echo "wt drop: linked worktrees remain; nothing was trashed" >&2; exit 1; fi
+cd "$(dirname "$primary")" && trash "$primary" && echo "wt drop: trashed $primary"
+'''
 
 [pre-start]
 # Stamp the new worktree with the omp session that ran `wt`, before anything can edit it. The stamp lives in git's own
