@@ -194,6 +194,39 @@ test("an enrollment entry with an invalid policy still warns and never publishes
   expect(f.refs()).toBe(before);
 });
 
+test("a warning notice is also emitted as a harness event of the session that saw it", async () => {
+  const f = fixture();
+  const text = fs.readFileSync(process.env.AGENT_CHECKPOINT_ENROLLMENT_FILE!, "utf8");
+  fs.writeFileSync(
+    process.env.AGENT_CHECKPOINT_ENROLLMENT_FILE!,
+    text.replace(/visibility = "[a-z]+"/, "visibility = \"secret\""),
+  );
+  const handlers = new Map<string, Function>(), notices: string[] = [], emitted: { channel: string; data: any }[] = [];
+  install({
+    on: (n, fn) => void handlers.set(n, fn),
+    events: { emit: (channel, data) => void emitted.push({ channel, data }) },
+  });
+  const ctx = {
+    cwd: path.join(f.root, "work"),
+    sessionManager: { getSessionId: () => "01a1-session" },
+    ui: { notify: (t: string) => void notices.push(t) },
+  };
+  await handlers.get("agent_end")!({}, ctx);
+  expect(notices).toHaveLength(1);
+  expect(emitted).toEqual([
+    {
+      channel: "harness-event",
+      data: {
+        session_id: "01a1-session",
+        layer: "checkpoint-publish",
+        event: "checkpoint_blocked",
+        text: notices[0],
+        fields: { level: "warning" },
+      },
+    },
+  ]);
+});
+
 test("ambiguous ownership never queues work", async () => {
   const f = fixture(), before = f.refs();
   const text = fs.readFileSync(process.env.AGENT_CHECKPOINT_ENROLLMENT_FILE!, "utf8");

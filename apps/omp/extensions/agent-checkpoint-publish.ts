@@ -657,8 +657,28 @@ function startMise(paths: string[]) {
   });
   return true;
 }
-export default function install(pi: { on(name: string, handler: (event: any, ctx: Context) => unknown): void }) {
+// The channel the harness-events extension records into harness-events.jsonl (`HARNESS_EVENT_CHANNEL` in extensions/hooks/log.ts).
+// Named here, not imported: this file is deployed alone and must not reach into another extension.
+const HARNESS_EVENT_CHANNEL = "harness-event";
+export default function install(pi: {
+  on(name: string, handler: (event: any, ctx: Context) => unknown): void;
+  events?: { emit(channel: string, data: unknown): void };
+}) {
   let start: string | undefined, turn = randomUUID();
+  // Every notice the user sees is also a harness event of this session, so the session's export can say what the notice was.
+  const notify = (ctx: Context, text: string, level: "info" | "warning", event: string) => {
+    ctx.ui?.notify?.(text, level);
+    const session_id = ctx.sessionManager?.getSessionId?.();
+    if (session_id) {
+      pi.events?.emit(HARNESS_EVENT_CHANNEL, {
+        session_id,
+        layer: "checkpoint-publish",
+        event,
+        text,
+        fields: { level },
+      });
+    }
+  };
   const written = new Set<string>();
   const cwd = (ctx: Context) => ctx.cwd ?? ctx.sessionManager?.getCwd?.() ?? process.cwd();
   pi.on("tool_result", (event, ctx) => {
@@ -672,7 +692,7 @@ export default function install(pi: { on(name: string, handler: (event: any, ctx
         writeJob(job);
       }
       if (["verified", "failed", "expired"].includes(job.state)) {
-        ctx.ui?.notify?.(report(job), job.state === "verified" ? "info" : "warning");
+        notify(ctx, report(job), job.state === "verified" ? "info" : "warning", `checkpoint_${job.state}`);
         job.reported = true;
         writeJob(job);
       } else if (now() - job.heartbeatAt > stale) launch(job);
@@ -682,7 +702,7 @@ export default function install(pi: { on(name: string, handler: (event: any, ctx
     if (process.env.AGENT_CHECKPOINT_PUBLISH === "1") return;
     surface(ctx);
     if (miseNotice) {
-      ctx.ui?.notify?.(miseNotice.text, miseNotice.level);
+      notify(ctx, miseNotice.text, miseNotice.level, "mise_sync");
       miseNotice = undefined;
     }
     turn = randomUUID();
@@ -710,7 +730,7 @@ export default function install(pi: { on(name: string, handler: (event: any, ctx
       const file = jobPath(key);
       if (fs.existsSync(file)) {
         const existing = readJob(file);
-        ctx.ui?.notify?.(report(existing), "info");
+        notify(ctx, report(existing), "info", "checkpoint_existing");
         return;
       }
       const provenance = start && start !== sha
@@ -735,17 +755,19 @@ export default function install(pi: { on(name: string, handler: (event: any, ctx
       };
       writeJob(job);
       launch(job);
-      ctx.ui?.notify?.(report(job), "info");
+      notify(ctx, report(job), "info", "checkpoint_queued");
     } catch (e) {
       // A repo with no enrollment entry is the normal case, not a fault: checkpoints are opt-in, and "in sync with
       // origin" is enforced by the Stop landed gate. Skip it quietly. A present but invalid or ambiguous enrollment
       // still warns, since that is a policy the owner wrote and got wrong.
       if (e instanceof Block && e.outcome === "blocked-not-enrolled" && !e.message) return;
-      ctx.ui?.notify?.(
+      notify(
+        ctx,
         `agent-checkpoint: ${e instanceof Block ? e.outcome : "blocked-unsafe-state"} ${
           e instanceof Error ? e.message : e
         }`,
         "warning",
+        "checkpoint_blocked",
       );
     }
   };
