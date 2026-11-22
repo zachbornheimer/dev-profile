@@ -215,9 +215,18 @@ done"""
 # Stamp the new worktree with the omp session that ran `wt`, before anything can edit it. The stamp lives in git's own
 # admin dir for the worktree, so it dies with the worktree and does not depend on how the worktree was created.
 stamp-owner = "bun ~/.omp/agent/extensions/worktree-owner/stamp.ts {{ worktree_path }}"
-copy = "~/.local/share/dev-profile/bin/dev-profile-worktree-copy"
 
 [post-start]
+# Worktrunk owns worktree bootstrap: a new worktree is made by `wt switch -c`, so this hook is the one place the
+# ignored files are copied and the dependencies repaired. It runs in the background, so the switch returns at once.
+# atask provisions and copies its own task worktrees (atask/<id>), so it is skipped there rather than cloning the
+# ignored tree twice.
+copy = """
+{% if (branch | default(''))[:6] != 'atask/' %}
+~/.local/share/dev-profile/bin/dev-profile-worktree-copy
+{% else %}
+true
+{% endif %}"""
 
 [post-remove]
 reap = "~/.local/share/dev-profile/bin/dev-profile-dev reap {{ worktree_path }}"
