@@ -52,8 +52,8 @@ description = "Nothing to render"
 run = "mise run doctor"
 
 [tasks.test]
-description = "Check the installed files"
-run = "mise run doctor"
+description = "Check the installed files, then the installed rule fixture gate"
+run = ["mise run doctor", "mise run test:rules"]
 
 [tasks."test:merge-conflicts"]
 description = "Allow rerere preimages while rejecting source conflict markers"
@@ -111,15 +111,21 @@ run = "bun test tests/backlog_transport.test.ts"
 
 # The rule fixture gate is mise-dot tracked and installed at ~/.omp/agent/rules, so
 # the test evaluates the live rule set rather than a copy: a rule that matches its own
-# text fails this task, and ci runs it.
+# text fails this task. tests/rules-gate.sh decides the three states: no omp install
+# prints SKIP, an install without its gate fails, an install with it runs it. The task
+# is wired into test, which ci and the workflow's test job both run.
 [tasks."test:rules"]
 description = "Fail when a rule in the installed rule set matches its own text"
-run = "bun test ~/.omp/agent/rules/rule_conditions.test.ts"
+run = "bash tests/rules-gate.sh"
+
+[tasks."test:rules-fixture"]
+description = "Pin the rule gate's SKIP, FAIL and exit-code branches against scratch installs"
+run = "bash tests/rules-gate-fixture.sh"
 
 [tasks."list:skills:unmanaged"]
 alias = ["list:skills:unamanaged", "skills:unmanaged"]
 description = "List skills in ~/.agents/available-skills not tracked in .skill-lock.json"
 run = "~/.agents/bin/aubx-skills unmanaged"
 [tasks.ci]
-description = "lint, the file check, then the rule fixture gate"
-run = ["mise run lint", "mise run test", "mise run test:rules"]
+description = "lint, then test (the file check and the rule fixture gate)"
+run = ["mise run lint", "mise run test"]
