@@ -710,7 +710,11 @@ commit_stash() {
 			parent_oid="$(git rev-parse "refs/heads/${default_branch}")"
 			commit_tree_oid="${merged_tree}"
 		fi
-		if ! commit_oid="$(git commit-tree "${commit_tree_oid}" -p "${parent_oid}" -m "chore: save uncommitted work on ${target}")" ||
+		# commit-tree never signs on its own, and a signed-commits rule rejects the push of an unsigned one.
+		sign_flag=""
+		[[ "$(git config --type=bool --get commit.gpgsign || true)" == true ]] && sign_flag="-S"
+		# shellcheck disable=SC2086 # sign_flag is empty or the single flag -S
+		if ! commit_oid="$(git commit-tree ${sign_flag} "${commit_tree_oid}" -p "${parent_oid}" -m "chore: save uncommitted work on ${target}")" ||
 			! git update-ref "refs/heads/${target}" "${commit_oid}"; then
 			report skip "stash: commit failed"
 			mark_once "${state}/skipped" "stash"
