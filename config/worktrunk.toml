@@ -111,7 +111,17 @@ git fetch --all --prune; wt step for-each -- sh -c '
 pr = "{% if create is defined %}wt switch --create {{ create }} --no-cd -x ~/.local/share/dev-profile/bin/dev-profile-pr -- -- {{ args }}{% else %}wt switch {{ args or '@' }} -x ~/.local/share/dev-profile/bin/dev-profile-pr --{% endif %}"
 pr-draft = "{% if create is defined %}wt switch --create {{ create }} --no-cd -x ~/.local/share/dev-profile/bin/dev-profile-pr -- --draft -- {{ args }}{% else %}wt switch {{ args or '@' }} -x ~/.local/share/dev-profile/bin/dev-profile-pr -- --draft{% endif %}"
 pr-auto = "{% if create is defined %}wt switch --create {{ create }} --no-cd -x ~/.local/share/dev-profile/bin/dev-profile-pr -- --auto -- {{ args }}{% else %}wt switch {{ args or '@' }} -x ~/.local/share/dev-profile/bin/dev-profile-pr -- --auto{% endif %}"
-done = "~/.local/share/dev-profile/bin/dev-profile-done {{ args }}"
+done = '''
+for arg in {{ args }}; do
+  case "$arg" in
+  --drop) echo "wt done keeps the clone; to trash it too, run: wt retire" >&2; exit 2 ;;
+  esac
+done
+~/.local/share/dev-profile/bin/dev-profile-done {{ args }}
+'''
+# wt done keeps the clone and gets everything that lives only on this machine onto origin. wt retire is done plus
+# trashing the clone, and refuses unless every tip is on origin. dev-profile-done owns both; there is no second pipeline.
+retire = "~/.local/share/dev-profile/bin/dev-profile-done --drop {{ args }}"
 prune = "wt step prune --min-age=0s"
 tree-for-changes = '''
 {% if args %}
@@ -210,52 +220,6 @@ until wt-sync {{ args }}; do
   [ "$count" -le 5 ] || exit 1
   omp -p --model @task "Please get branch {{ branch | default("") }} clean and rebased so 'wt-sync {{ args }}' succeeds (attempt $count/5)."
 done'''
-
-# wt drop: park every worktree, push every branch, verify nothing is unpushed, then remove the linked
-# worktrees and trash the clone. A failing step aborts the rest, so a failed push never reaches trash.
-[[aliases.drop]]
-park = '''
-wt step for-each -- sh -c 'if [ -n "$(git status --porcelain)" ]; then git add -A && HK=0 git commit -q --no-verify -m "chore: save uncommitted work" || : >"$(git rev-parse --path-format=absolute --git-common-dir)/wt-drop-failed"; fi'
-'''
-
-[[aliases.drop]]
-guard = '''
-common=$(git rev-parse --path-format=absolute --git-common-dir)
-if [ -e "$common/wt-drop-failed" ]; then rm -f "$common/wt-drop-failed"; echo "wt drop: a worktree could not be committed; nothing was removed" >&2; exit 1; fi
-if git rev-parse -q --verify refs/stash >/dev/null; then echo "wt drop: a stash exists; nothing was removed" >&2; exit 1; fi
-if git ls-files -s | awk '$1 == "160000" { f = 1 } END { exit !f }'; then echo "wt drop: submodule or nested repo present; nothing was removed" >&2; exit 1; fi
-'''
-
-[[aliases.drop]]
-push = '''
-git fetch -q --prune origin || exit 1
-for b in $(git for-each-ref --format='%(refname:short)' refs/heads); do
-  git merge-base --is-ancestor "$b" "refs/remotes/origin/$b" 2>/dev/null && continue
-  HK=0 git push -q --no-verify origin "$b" || { echo "wt drop: push of $b failed; nothing was removed" >&2; exit 1; }
-done
-'''
-
-[[aliases.drop]]
-verify = '''
-git fetch -q --prune origin || exit 1
-left=$(git log --oneline --branches --not --remotes | head -5)
-[ -z "$left" ] || { printf 'wt drop: not on origin:\n%s\n' "$left" >&2; exit 1; }
-'''
-
-[[aliases.drop]]
-remove = '''
-primary=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")
-wt step for-each -- sh -c 'p=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)"); [ "$PWD" -ef "$p" ] && exit 0; b=$(git branch --show-current); [ -n "$b" ] || { echo "wt drop: detached worktree $PWD; remove it by hand" >&2; exit 1; }; cd "$p" && wt remove --foreground --no-delete-branch "$b"'
-'''
-
-[[aliases.drop]]
-trash = '''
-primary=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")
-common=$(git rev-parse --path-format=absolute --git-common-dir)
-# for-each continues past failures, so refuse here if any linked worktree is still registered.
-if [ -n "$(ls -A "$common/worktrees" 2>/dev/null)" ]; then echo "wt drop: linked worktrees remain; nothing was trashed" >&2; exit 1; fi
-cd "$(dirname "$primary")" && trash "$primary" && echo "wt drop: trashed $primary"
-'''
 
 [pre-start]
 # Stamp the new worktree with the omp session that ran `wt`, before anything can edit it. The stamp lives in git's own
