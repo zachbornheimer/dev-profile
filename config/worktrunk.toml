@@ -245,7 +245,7 @@ left=$(git log --oneline --branches --not --remotes | head -5)
 [[aliases.drop]]
 remove = '''
 primary=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")
-wt step for-each -- sh -c 'p=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)"); [ "$PWD" = "$p" ] && exit 0; b=$(git branch --show-current); [ -n "$b" ] || { echo "wt drop: detached worktree $PWD; remove it by hand" >&2; exit 1; }; cd "$p" && wt remove --foreground --no-delete-branch "$b"'
+wt step for-each -- sh -c 'p=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)"); [ "$PWD" -ef "$p" ] && exit 0; b=$(git branch --show-current); [ -n "$b" ] || { echo "wt drop: detached worktree $PWD; remove it by hand" >&2; exit 1; }; cd "$p" && wt remove --foreground --no-delete-branch "$b"'
 '''
 
 [[aliases.drop]]
