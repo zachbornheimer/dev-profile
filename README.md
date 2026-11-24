@@ -172,6 +172,11 @@ contributes no findings, while findings from the target's other files stay
 suppressed. A branch file foxguard cannot parse, unreadable or malformed push refs,
 a scanner failure, or an invalid comparison fails closed with exit 2.
 
+The previous remote commit is also scanned as inherited evidence, so unchanged
+previously published findings do not become new after a rebase or import-only
+edit. Identity remains rule/path/snippet, with occurrence counts: an identical
+snippet on another path or an additional occurrence in the same path is new.
+
 Failed hooks restore tracked content and staged entries, including edits that
 preserve file size and timestamps. Snapshot indexes discard Git's stat cache
 before hashing files; pre-existing tracked deletions remain deleted.

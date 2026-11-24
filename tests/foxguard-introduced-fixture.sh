@@ -126,6 +126,34 @@ DEV_PROFILE_PUSH_REFS="${work}/missing-refs" gate legacy.ts
 [[ ${status} -eq 2 ]] || fail "unreadable push refs must fail closed, got ${status}"
 git restore legacy.ts
 
+# A previously published finding remains inherited beside an import-only edit.
+git switch -q -c published-replacement topic
+printf 'import type { Existing } from "./types";\n' >legacy.ts
+git show topic:legacy.ts >>legacy.ts
+git add legacy.ts
+git commit -q -m import-only
+printf 'refs/heads/published %s refs/heads/published %s\n' "$(git rev-parse HEAD)" "$(git rev-parse topic)" >"${push_refs}"
+DEV_PROFILE_PUSH_REFS="${push_refs}" gate legacy.ts added.ts
+[[ ${status} -eq 0 ]] || fail "an unchanged published finding beside an import must pass, got ${status}: $(cat "${work}/out" "${work}/err")"
+printf 'export const newFinding = () => dangerouslyRun("fresh-published");\n' >>legacy.ts
+# The same snippet on a new path is also new, never inherited across files.
+git show topic:added.ts >copied.ts
+git add legacy.ts copied.ts
+git commit -q -m new-findings
+printf 'refs/heads/published %s refs/heads/published %s\n' "$(git rev-parse HEAD)" "$(git rev-parse topic)" >"${push_refs}"
+DEV_PROFILE_PUSH_REFS="${push_refs}" gate legacy.ts copied.ts
+[[ ${status} -eq 1 ]] || fail "genuine additions after a published finding must block, got ${status}"
+grep -q fresh-published "${work}/out" || fail "a new finding in a published path was suppressed"
+grep -q './copied.ts:' "${work}/out" || fail "an identical snippet on a new path was suppressed"
+git show topic:added.ts >>added.ts
+git add added.ts
+git commit -q -m duplicated-finding
+printf 'refs/heads/published %s refs/heads/published %s\n' "$(git rev-parse HEAD)" "$(git rev-parse topic)" >"${push_refs}"
+DEV_PROFILE_PUSH_REFS="${push_refs}" gate added.ts
+[[ ${status} -eq 1 ]] || fail "a second identical finding in the same path must block, got ${status}"
+grep -q 'introduced 1 finding' "${work}/out" || fail "exactly the added duplicate must be introduced"
+git switch -q clean
+
 # Upstream rewrote the old code after this branch forked. Its deleted/moved
 # findings are still inherited by the branch, not introduced by it.
 chmod 644 untouched.ts

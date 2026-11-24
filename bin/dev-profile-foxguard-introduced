@@ -28,6 +28,7 @@ usage() {
 
 rules=""
 target=""
+inherited_ref=""
 while (($#)); do
 	case "$1" in
 	--rules)
@@ -38,6 +39,11 @@ while (($#)); do
 	--target)
 		(($# >= 2)) || usage
 		target="$2"
+		shift 2
+		;;
+	--inherited-ref)
+		(($# >= 2)) || usage
+		inherited_ref="$2"
 		shift 2
 		;;
 	--)
@@ -94,17 +100,23 @@ if [[ -n "${DEV_PROFILE_PUSH_REFS:-}" ]]; then
 			echo "dev-profile-foxguard-introduced: outgoing commit ${local_sha} is unavailable" >&2
 			exit 2
 		}
-		printf '%s\n' "${local_sha}" >>"${push_work}/tips"
+		if [[ ! "${remote_sha}" =~ ^0+$ ]] && ! git -C "${root}" cat-file -e "${remote_sha}^{commit}" 2>/dev/null; then
+			echo "dev-profile-foxguard-introduced: previous remote commit ${remote_sha} is unavailable" >&2
+			exit 2
+		fi
+		printf '%s %s\n' "${local_sha}" "${remote_sha}" >>"${push_work}/tips"
 	done <"${DEV_PROFILE_PUSH_REFS}"
 	sort -u "${push_work}/tips" >"${push_work}/unique-tips"
 	helper="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
 	push_status=0
-	while IFS= read -r tip; do
-		tree="${push_work}/${tip}"
+	while read -r tip previous; do
+		tree="${push_work}/${tip}-${previous}"
 		push_trees+=("${tree}")
 		git -C "${root}" worktree add --detach --quiet "${tree}" "${tip}" || exit 2
 		status=0
-		(cd "${tree}" && env -u DEV_PROFILE_PUSH_REFS "${helper}" --rules "${rules}" --target "${target}" -- "${files[@]}") || status=$?
+		inherited=()
+		[[ "${previous}" =~ ^0+$ ]] || inherited=(--inherited-ref "${previous}")
+		(cd "${tree}" && env -u DEV_PROFILE_PUSH_REFS "${helper}" --rules "${rules}" --target "${target}" ${inherited[@]+"${inherited[@]}"} -- "${files[@]}") || status=$?
 		case "${status}" in
 		0 | 1) ((status <= push_status)) || push_status="${status}" ;;
 		*) push_status=2 ;;
@@ -188,6 +200,30 @@ case "${base_status}" in
 	;;
 esac
 
+# A prior published tip is an additional inherited basis for a replacement
+# push, even when that code was never on the target's upstream ancestry.
+inherited_json="${work}/inherited.json"
+printf '{"findings":[]}\n' >"${inherited_json}"
+if [[ -n "${inherited_ref}" && "${inherited_ref}" != "${baseline}" ]]; then
+	git -C "${base}" switch --detach --quiet "${inherited_ref}" || exit 2
+	: >"${base_list}"
+	while IFS= read -r file; do
+		[ ! -f "${base}/${file}" ] || printf '%s\n' "${file}" >>"${base_list}"
+	done <"${list}"
+	if [[ -s "${base_list}" ]]; then
+		inherited_status=0
+		(cd "${base}" && foxguard --rules "${rules}" --changed-files-from "${base_list}" --format json .) >"${inherited_json}" 2>"${work}/inherited.err" || inherited_status=$?
+		case "${inherited_status}" in
+		0 | 1) ;;
+		*)
+			cat "${work}/inherited.err" >&2
+			echo "dev-profile-foxguard-introduced: the scan of previous remote commit failed" >&2
+			exit 2
+			;;
+		esac
+	fi
+fi
+
 current_status=0
 (cd "${root}" && foxguard --rules "${rules}" --changed-files-from "${list}" --format json .) >"${current_json}" 2>"${work}/current.err" || current_status=$?
 require_fully_scanned "${work}/current.err" "${work}/base.err"
@@ -203,11 +239,13 @@ esac
 # inherited, whatever the scan's line and column numbers say, because edits
 # that only shift lines do not introduce anything.
 set +e
-python3 - "${base_json}" "${current_json}" >"${work}/introduced.txt" <<'PY'
+python3 - "${base_json}" "${current_json}" "${inherited_json}" >"${work}/introduced.txt" <<'PY'
+from collections import Counter
 import json
 import sys
 
 base_findings = json.load(open(sys.argv[1]))["findings"]
+inherited_findings = json.load(open(sys.argv[3]))["findings"]
 current_findings = json.load(open(sys.argv[2]))["findings"]
 
 
@@ -219,8 +257,14 @@ def identity(finding):
     )
 
 
-existing = {identity(f) for f in base_findings}
-introduced = [f for f in current_findings if identity(f) not in existing]
+existing = Counter(map(identity, base_findings)) | Counter(map(identity, inherited_findings))
+introduced = []
+for finding in current_findings:
+    key = identity(finding)
+    if existing[key]:
+        existing[key] -= 1
+    else:
+        introduced.append(finding)
 for f in introduced:
     path = identity(f)[1]
     print(f"./{path}:{f['line']}:{f['column']}  [{f['severity'].lower()}]  {f['rule_id']}")
