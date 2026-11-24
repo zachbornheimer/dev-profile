@@ -104,6 +104,8 @@ printf 'export const checkoutOnly = () => dangerouslyRun("checkout-only");\n' >>
 printf 'refs/heads/clean %s refs/heads/clean %s\n' "$(git rev-parse clean)" "${zero}" >"${push_refs}"
 DEV_PROFILE_PUSH_REFS="${push_refs}" gate legacy.ts
 [[ ${status} -eq 0 ]] || fail "a clean outgoing branch must ignore checkout findings, got ${status}: $(cat "${work}/out" "${work}/err")"
+pack="../pack.json" DEV_PROFILE_PUSH_REFS="${push_refs}" gate legacy.ts
+[[ ${status} -eq 0 ]] || fail "relative rule packs must retain caller resolution, got ${status}: $(cat "${work}/out" "${work}/err")"
 printf 'refs/heads/topic %s refs/heads/topic %s\n' "$(git rev-parse topic)" "${zero}" >"${push_refs}"
 DEV_PROFILE_PUSH_REFS="${push_refs}" gate legacy.ts added.ts
 [[ ${status} -eq 1 ]] || fail "findings in a nonchecked-out outgoing branch must block, got ${status}: $(cat "${work}/out" "${work}/err")"

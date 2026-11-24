@@ -66,6 +66,8 @@ git rev-parse --verify --quiet "${target}^{commit}" >/dev/null || {
 # A push can publish refs other than HEAD. Both the branch scan and its merge
 # base must describe each outgoing commit, never unrelated checkout contents.
 if [[ -n "${DEV_PROFILE_PUSH_REFS:-}" ]]; then
+	# The CLI resolves rule packs relative to the caller, not the snapshot.
+	[[ "${rules}" = /* ]] || rules="${PWD}/${rules}"
 	[[ -r "${DEV_PROFILE_PUSH_REFS}" ]] || {
 		echo "dev-profile-foxguard-introduced: push refs are unreadable" >&2
 		exit 2
