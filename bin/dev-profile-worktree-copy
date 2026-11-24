@@ -41,6 +41,45 @@ root="$(git rev-parse --show-toplevel 2>/dev/null)" || {
 }
 cd "${root}"
 
+# A hung copy pass must not hang the switch. On a loaded machine a pass can
+# wedge inside a single spawn (observed 2026-11-24: `wt step copy-ignored` stuck
+# in posix_spawnp for minutes, holding the whole post-start pipeline), and the
+# loop below would wait forever. Each pass gets its own deadline, and the bound
+# is applied to the loop body so it holds wherever the hang is: inside the copy
+# or in the delay between passes. A pass cut short is retried like a failed
+# one: copy-ignored skips what already landed, so a later pass finishes the
+# rest.
+# Bound a command to a wall-clock deadline and kill it when the deadline passes,
+# including when the hang is inside the spawn itself: the killed process is the
+# timeout's own child (the copy's process group leader), so its descendants die
+# with it and the hook reports the pass's failure instead of waiting forever.
+# Bounded without timeout(1), which a clean machine need not have: a hook that
+# hangs blocks every switch.
+bounded() { # <seconds> <cmd...>
+	local limit="$1" pid watchdog status=0 sleep_bin
+	shift
+	sleep_bin="$(command -v sleep 2>/dev/null || :)"
+	if [[ -z "${sleep_bin}" ]]; then
+		# A machine with no sleep on PATH cannot arm the watchdog; run the command
+		# unbounded rather than fail it, matching the un-bounded path's behaviour.
+		"$@"
+		return $?
+	fi
+	"$@" &
+	pid=$!
+	(
+		"${sleep_bin}" "${limit}"
+		kill -TERM "${pid}" 2>/dev/null
+	) >/dev/null 2>&1 </dev/null &
+	watchdog=$!
+	wait "${pid}" || status=$?
+	kill "${watchdog}" 2>/dev/null || :
+	wait "${watchdog}" 2>/dev/null || :
+	return "${status}"
+}
+
+copy_pass_deadline="${DEV_PROFILE_WORKTREE_COPY_PASS_TIMEOUT:-300}" # seconds
+
 # The source worktree may be serving, and a dev server rewrites its build
 # output (a bundler's .mastra/ or .next/) while the copy walks it, so a file the
 # copy listed can be gone by the time it is cloned. That is a race, not a broken
@@ -49,7 +88,7 @@ cd "${root}"
 copy_attempts="${DEV_PROFILE_WORKTREE_COPY_ATTEMPTS:-3}"
 copy_retry_delay="${DEV_PROFILE_WORKTREE_COPY_RETRY_DELAY:-2}" # seconds
 attempt=1
-until wt step copy-ignored; do
+until bounded "${copy_pass_deadline}" wt step copy-ignored; do
 	if ((attempt >= copy_attempts)); then
 		echo "dev-profile-worktree-copy: the copy failed ${attempt} times; run: wt step copy-ignored" >&2
 		exit 1
@@ -64,16 +103,39 @@ done
 # per-worktree info/exclude has no effect on this git; a per-worktree
 # core.excludesFile does. Write rules for exactly what the copy landed here,
 # folded with the global ignore rules the key replaces.
-exclude_copied_output() { # <primary-worktree> <this-worktree>
-	local primary="$1" current="$2" entry path pattern git_dir excludes inherited patterns
-	patterns=()
+# Print the ignored paths the copy actually landed in the worktree, one per
+# line. Collected once so the batched check-ignore below can ask about all of
+# them in a single process instead of spawning a check-ignore per path.
+copied_paths() { # <primary-worktree> <this-worktree>
+	local primary="$1" current="$2" entry path
 	while IFS= read -r -d '' entry; do
 		[[ "${entry:0:2}" == '!!' ]] || continue # not ignored in the primary
 		path="${entry:3}"
 		[[ -n "${path}" && "${path}" != *$'\n'* && -e "${current}/${path}" ]] || continue # the copy did not land it here
-		if git check-ignore -q -- "${path}"; then continue; fi                            # this branch's rules cover it
-		patterns+=("/${path}")
+		printf '%s\n' "${path}"
 	done < <(git -C "${primary}" status --porcelain --ignored -z)
+}
+
+exclude_copied_output() { # <primary-worktree> <this-worktree>
+	local primary="$1" current="$2" entry path git_dir excludes inherited ignored patterns
+	patterns=()
+	# Every candidate path is collected first, then asked about in one
+	# check-ignore call. A call per path spawned a process per copied directory
+	# (about 130 on a heavy checkout), and a spawn can stall on a loaded machine;
+	# `--stdin` answers all of them from a single process, printing only the
+	# paths this branch already ignores.
+	candidates="$(copied_paths "${primary}" "${current}")"
+	[[ -n "${candidates}" ]] || return 0
+	ignored="$(printf '%s\n' "${candidates}" | git check-ignore --stdin 2>/dev/null || :)"
+	while IFS= read -r path; do
+		[[ -n "${path}" ]] || continue
+		if [[ -n "${ignored}" ]]; then
+			case $'\n'"${ignored}"$'\n' in
+			*$'\n'"${path}"$'\n'*) continue ;; # this branch's rules cover it
+			esac
+		fi
+		patterns+=("/${path}")
+	done <<<"${candidates}"
 	((${#patterns[@]})) || return 0
 	git config extensions.worktreeConfig true || return 1
 	git_dir="$(git rev-parse --path-format=absolute --git-dir)"
@@ -115,30 +177,13 @@ if [[ -d "${primary}" && "${primary}" != "${current}" ]]; then
 	fi
 fi
 
-repair_timeout="${DEV_PROFILE_WORKTREE_COPY_TIMEOUT:-60}" # seconds
-
-# The watchdog's stdio is detached on purpose. Killing the watchdog subshell
-# leaves its `sleep` running; if that sleep still held this script's stdout, a
-# caller reading our output through a pipe (worktrunk captures hook output that
-# way) would block until EOF, i.e. for the whole timeout, on every switch.
+# Bound a command to a wall-clock deadline and kill it when the deadline passes,
+# including when the hang is inside the spawn itself: the killed process is the
+# timeout's own child (the copy's process group leader), so its descendants die
+# with it and the hook reports the pass's failure instead of waiting forever.
 # Bounded without timeout(1), which a clean machine need not have: a hook that
 # hangs blocks every switch.
-bounded() { # <seconds> <cmd...>
-	local limit="$1" pid watchdog status=0
-	shift
-	"$@" &
-	pid=$!
-	(
-		sleep "${limit}"
-		kill -TERM "${pid}" 2>/dev/null
-	) >/dev/null 2>&1 </dev/null &
-	watchdog=$!
-	wait "${pid}" || status=$?
-	kill "${watchdog}" 2>/dev/null || :
-	wait "${watchdog}" 2>/dev/null || :
-	return "${status}"
-}
-
+repair_timeout="${DEV_PROFILE_WORKTREE_COPY_TIMEOUT:-60}" # seconds
 # Install only a dependency the checkout declares and does not already hold,
 # from the lockfile the repo committed, so a worktree can run its own tests
 # without a repo-wide install. A declared setup task is not that install: in
