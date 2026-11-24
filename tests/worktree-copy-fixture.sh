@@ -33,7 +33,11 @@ cat >"${work}/bin/wt" <<'STUB'
 set -euo pipefail
 printf '%s\n' "$*" >>"${WT_LOG}"
 # STUB_WT_FAIL_FIRST=N: the first N copies fail, as when a serving source rewrites
-# its build output mid-copy; later ones succeed.
+# its build output mid-copy; later ones succeed. STUB_WT_SLEEP=N hangs every
+# copy, as when a loaded machine wedges inside the copy's own spawn.
+if [[ -n "${STUB_WT_SLEEP:-}" ]]; then
+	sleep "${STUB_WT_SLEEP}"
+fi
 if [[ -n "${STUB_WT_FAIL_FIRST:-}" && "$(wc -l <"${WT_LOG}")" -le "${STUB_WT_FAIL_FIRST}" ]]; then
 	exit 1
 fi
@@ -171,5 +175,20 @@ if STUB_WT_STATUS=1 run_copy; then fail "a failed copy must fail the post-start 
 [[ "$(grep -cxF 'step copy-ignored' "${wt_log}")" -eq 3 ]] || fail "a failing copy must stop after three passes"
 expect 'the copy failed 3 times; run: wt step copy-ignored'
 not_repaired
+
+# --- a copy that wedges is cut short by the pass deadline, not waited on forever
+# A loaded machine can stall inside the copy's own spawn (observed 2026-11-24:
+# `wt step copy-ignored` stuck in posix_spawnp while the hook waited). Without
+# a per-pass deadline the retry loop would block until the wedge resolves; the
+# wrapper must give up at its deadline and report the failure instead.
+
+reset_logs
+start="${SECONDS}"
+if STUB_WT_SLEEP=60 DEV_PROFILE_WORKTREE_COPY_PASS_TIMEOUT=1 run_copy; then
+	fail "a wedged copy must fail the post-start step after its deadline"
+fi
+elapsed=$((SECONDS - start))
+[[ "${elapsed}" -lt 20 ]] || fail "a wedged copy must be cut short at its pass deadline, took ${elapsed}s"
+expect 'the copy failed 3 times; run: wt step copy-ignored'
 
 echo "worktree-copy fixture ok"
