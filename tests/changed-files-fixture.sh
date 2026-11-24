@@ -406,4 +406,56 @@ fi
 grep -q 'usage:' "${work}/log" ||
 	fail "the --added refusal must explain the usage: $(cat "${work}/log}")"
 
+# A replacement branch can rebase backwards onto a published upstream while
+# origin/HEAD is a separate config line. Its old remote tip is not its base.
+git switch -q -c eligible-base main
+printf 'older published upstream content\n' >inherited.md
+printf 'console.log("published");\n' >inherited.js
+git add inherited.js
+git add inherited.md
+git commit -q -m eligible-upstream
+eligible_base="$(git rev-parse HEAD)"
+git update-ref refs/remotes/upstream/eligible "${eligible_base}"
+git switch -q -c newer-main
+printf 'newer upstream content\n' >inherited.md
+printf 'new upstream version\n' >main.md
+printf 'new upstream file\n' >newer-upstream.md
+git add main.md inherited.md newer-upstream.md
+git commit -q -m newer-upstream
+newer_base="$(git rev-parse HEAD)"
+git update-ref refs/remotes/upstream/newer "${newer_base}"
+printf 'old topic\n' >old-topic.md
+git add old-topic.md
+git commit -q -m old-topic
+old_remote="$(git rev-parse HEAD)"
+git update-ref refs/remotes/origin/rewritten "${old_remote}"
+git symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/topic
+git switch -q -c rewritten "${eligible_base}"
+printf 'authored edit to published path\n' >main.md
+printf 'authored new file\n' >rewritten-new.md
+git add main.md rewritten-new.md
+git commit -q -m rewritten-one
+printf 'authored second file\n' >rewritten-second.md
+git add rewritten-second.md
+git commit -q -m rewritten-two
+push "$(git rev-parse HEAD)" "${old_remote}" main.md inherited.md newer-upstream.md old-topic.md rewritten-new.md rewritten-second.md
+printf 'main.md\nrewritten-new.md\nrewritten-second.md\n' >"${work}/want"
+sort "${work}/passed" >"${work}/got"
+if ! diff -q "${work}/want" "${work}/got" >/dev/null; then
+	fail "a rewritten published branch must judge only authored content, including edits to existing paths: $(cat "${work}/passed")"
+fi
+
+# When oxlint is installed, a real rejecting tool still sees malicious edits
+# to an existing published path after the history rewrite.
+if command -v oxlint >/dev/null 2>&1; then
+	printf 'console.log("fixture"); debugger;\n' >inherited.js
+	git add inherited.js
+	git commit -q -m authored-debugger
+	printf 'refs/heads/rewritten %s refs/heads/rewritten %s\n' "$(git rev-parse HEAD)" "${old_remote}" >"${work}/refs"
+	if DEV_PROFILE_PUSH_REFS="${work}/refs" "${src}/bin/dev-profile-changed-files" oxlint --deny-warnings --deny no-debugger -- inherited.js >"${work}/passed" 2>"${work}/log"; then
+		fail "an authored debugger after rebasing must still fail the lint tool"
+	fi
+	grep -q 'debugger' "${work}/passed" || fail "the authored violation must reach oxlint"
+fi
+
 echo "ok changed-files fixture"

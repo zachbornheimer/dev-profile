@@ -26,11 +26,11 @@
 #   the advanced remote tip   what dev-profile-push-base handed over: the
 #                             ref's remote tip, or the merge base with
 #                             origin's default branch when the branch moved
-#                             onto a newer one; an unborn remote falls back
-#                             to the branch's published tip on any
-#                             remote-tracking ref (a push of an
-#                             already-published branch introduces nothing it
-#                             has not published);
+#                             onto a newer one;
+#   published boundary        nearest published ancestors of an unborn or
+#                             rewritten branch, whatever remote carries them;
+#                             backwards upstream changes are inherited, not
+#                             newly authored by a history rewrite;
 #   the merge base            of the pushed tip with origin's default branch;
 #   published parents         of the pushed tip — the upstream line a fork
 #                             branch merged in, which the push did not write.
@@ -86,13 +86,14 @@ while read -r _local_ref local_sha _remote_ref remote_sha; do
 		# Already advanced by dev-profile-push-base; advancing again would
 		# cost the same git calls per ref to reach the same tip.
 		echo "${remote_sha}" >>"${bases}"
-	else
-		# Unborn on its remote: the push is measured from the nearest commits
-		# already published on any remote-tracking ref (the boundary of the
-		# unpublished history), whatever branch carries them. A branch stacked on
-		# another published branch introduces only what it adds above that
-		# branch; matching a remote branch by name alone judged every file the
-		# stacked-on branch had added, 2002 files for a 2-commit push.
+	fi
+	if is_all_zeros "${remote_sha:-}" || ! is_commit "${remote_sha}" ||
+		! git merge-base --is-ancestor "${remote_sha}" "${local_sha}"; then
+		# An unborn or rewritten ref is measured from its published ancestry,
+		# not only the previous remote tip. Replacing a branch based on newer
+		# upstream with one based on older upstream must not attribute the
+		# reverse upstream diff to the pusher. Keep the old-tip comparison too:
+		# authored changes still differ from every inherited base.
 		git rev-list --boundary "${local_sha}" --not --remotes 2>/dev/null |
 			sed -n 's/^-//p' >>"${bases}"
 	fi

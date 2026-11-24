@@ -155,6 +155,12 @@ authored lint findings still fail, and the history secret scan stays range-wide.
 Direct attribution measures the current checkout at `HEAD`; use `--to-ref HEAD`
 for this mode. The hook's tools lint checkout files, not another ref's tree.
 
+`tests/changed-files-fixture.sh` also checks rewritten remote branches. Their
+published ancestry bounds the authored file set even when the replacement branch
+uses an older upstream base and the remote's default branch is configuration-only.
+New files and edits to already-published paths still reach the tools; reversing
+unrelated upstream changes does not make those paths newly authored.
+
 `mise run test:foxguard-introduced` runs real foxguard through
 `bin/dev-profile-foxguard-introduced`. Hook invocations scan each outgoing commit
 from `DEV_PROFILE_PUSH_REFS` in an isolated worktree, against that commit's common
