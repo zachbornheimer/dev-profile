@@ -12,6 +12,7 @@ run_done done --no-pr --no-prune >"$work/keep.out" 2>&1 || fail "plain done: $(c
 [[ "$(git -C "$origin" show 'wip:new file.txt')" == untracked ]] || fail 'untracked file not published'
 [[ "$(git -C "$repo" branch --show-current)" == main ]] || fail 'primary must stay on main'
 git -C "$origin" cat-file -p wip | grep -q '^gpgsig' || fail 'snapshot must keep authoritative signing'
+git -C "$repo" verify-commit wip >/dev/null 2>&1 || fail 'snapshot signature must verify'
 
 setup_clone hooks
 printf 'retained\n' >"$repo/local.txt"
@@ -67,6 +68,7 @@ run_done retire --no-pr >"$work/stash.out" 2>&1 || fail "conflicting stash: $(ca
 [[ "$(git -C "$origin" show wip-2:base.txt)" == stashed ]] || fail 'conflicting stash snapshot lost'
 [[ "$(git -C "$origin" show wip-2:stash-only.txt)" == stash-untracked ]] || fail 'stash untracked file lost'
 git -C "$origin" cat-file -p wip-2 | grep -q '^gpgsig' || fail 'stash snapshot unsigned'
+git -C "$TRASH_DIR/stashclash" verify-commit wip-2 >/dev/null 2>&1 || fail 'stash snapshot signature must verify'
 
 setup_clone conflict
 git -C "$repo" switch -q -c feature
