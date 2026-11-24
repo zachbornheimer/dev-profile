@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Scan the given TypeScript files with foxguard's rule pack and report only the
-# findings the branch introduces relative to a target ref.
+# findings the branch introduces since its common ancestor with a target ref.
 #
 # Usage: dev-profile-foxguard-introduced --rules <pack> --target <ref> [--] <file>...
 #
@@ -9,12 +9,11 @@
 # push, and every fix round pays it again. The engine's scoped mode
 # (`--changed-files-from`, which keeps the scan path as the analysis root so
 # cross-file taint context survives) scans only the named files, in seconds.
-# The one thing it loses is `diff`'s suppression of findings the target already
-# carried for those files, so this helper scans the target's own copy of the
-# same files and applies `diff`'s own identity: a finding is its rule, its
-# path, and its snippet, never its line numbers, because edits that only shift
-# lines do not introduce anything. What `diff` would call existing stays
-# suppressed; what the branch introduces does not.
+# The one thing it loses is suppression of inherited findings, so this helper
+# scans the common ancestor's copy of the same files. Comparing with the target
+# tip would mistake old branch code for new findings when upstream rewrites it.
+# A finding's identity is its rule, path, and snippet, never its line numbers:
+# edits that only shift lines do not introduce anything.
 #
 # Run from the repo root, as hk does, with the files a push introduces.
 # Exits 1 when the branch introduces a finding, 0 when it introduces none, and
@@ -64,6 +63,10 @@ git rev-parse --verify --quiet "${target}^{commit}" >/dev/null || {
 	exit 2
 }
 
+baseline="$(git -C "${root}" merge-base HEAD "${target}")" || {
+	echo "dev-profile-foxguard-introduced: could not find a common ancestor of HEAD and ${target}" >&2
+	exit 2
+}
 work="$(mktemp -d)"
 base="${work}/base"
 # shellcheck disable=SC2064 # the paths are resolved now, on purpose
@@ -76,11 +79,10 @@ for file in "${files[@]}"; do
 	printf '%s\n' "${file#./}" >>"${list}"
 done
 
-# The target's own copy of these files, so its findings are measured with the
-# same surrounding context the branch's scan sees.
-if ! git -C "${root}" worktree add --detach --quiet "${base}" "${target}" 2>"${work}/worktree.err"; then
+# Measure inherited findings in their original surrounding context.
+if ! git -C "${root}" worktree add --detach --quiet "${base}" "${baseline}" 2>"${work}/worktree.err"; then
 	cat "${work}/worktree.err" >&2
-	echo "dev-profile-foxguard-introduced: could not check out ${target}" >&2
+	echo "dev-profile-foxguard-introduced: could not check out common ancestor ${baseline}" >&2
 	exit 2
 fi
 
@@ -88,7 +90,7 @@ fi
 # content — was never scanned, and a pass would be silence about it: the
 # pack's readiness warnings on stderr start with "Warning", the per-file skip
 # notices with "warning", so the lowercase anchor never matches the report.
-# A file the target already could not scan cannot be a regression: the branch
+# A file the common ancestor could not scan cannot be a regression: the branch
 # introduced nothing that scanning could have attributed to it, so it is
 # reported on stderr and does not fail the push. A file only the branch could
 # not scan (the branch broke its parse) still fails closed.
@@ -105,7 +107,7 @@ require_fully_scanned() { # require_fully_scanned <branch-err> <base-err>
 	fi
 	both="$(comm -12 <(skipped_files "$1") <(skipped_files "$2"))"
 	if [ -n "${both}" ]; then
-		echo "dev-profile-foxguard-introduced: not scanned on the target either, so nothing it carries is introduced: ${both//$'\n'/ }" >&2
+		echo "dev-profile-foxguard-introduced: not scanned on the common ancestor either, so nothing it carries is introduced: ${both//$'\n'/ }" >&2
 	fi
 }
 
@@ -123,7 +125,7 @@ done <"${list}"
 if [ -s "${base_list}" ]; then
 	(cd "${base}" && foxguard --rules "${rules}" --changed-files-from "${base_list}" --format json .) >"${base_json}" 2>"${work}/base.err" || base_status=$?
 else
-	# There is no target-side input when every listed file is new on the branch.
+	# There is no ancestor-side input when every listed file is new on the branch.
 	printf '{"findings":[]}\n' >"${base_json}"
 	: >"${work}/base.err"
 fi
@@ -131,7 +133,7 @@ case "${base_status}" in
 0 | 1) ;;
 *)
 	cat "${work}/base.err" >&2
-	echo "dev-profile-foxguard-introduced: the scan of ${target} failed" >&2
+	echo "dev-profile-foxguard-introduced: the scan of common ancestor ${baseline} failed" >&2
 	exit 2
 	;;
 esac
@@ -147,10 +149,9 @@ case "${current_status}" in
 	;;
 esac
 
-# What the branch introduces is what `diff` would introduce: a finding of the
-# same rule on the same path with the same snippet is existing, whatever the
-# scan's line and column numbers say, because edits that only shift lines do
-# not introduce anything.
+# A finding of the same rule on the same path with the same snippet is
+# inherited, whatever the scan's line and column numbers say, because edits
+# that only shift lines do not introduce anything.
 set +e
 python3 - "${base_json}" "${current_json}" >"${work}/introduced.txt" <<'PY'
 import json

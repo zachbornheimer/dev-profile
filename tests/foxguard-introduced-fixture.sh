@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # dev-profile-foxguard-introduced is the push gate's foxguard step: it scans
 # only the files a push introduces and reports only the findings those files
-# introduce, so what the target already carried stays suppressed and no
+# introduce, so what the common ancestor carried stays suppressed and no
 # untouched file is opened at all. Real foxguard; skips when it is not
 # installed. Usage: foxguard-introduced-fixture.sh <generated-dir>
 set -euo pipefail
@@ -89,6 +89,26 @@ gate
 [[ ${status} -eq 0 ]] || fail "no file must pass, got ${status}"
 [[ ! -s "${work}/out" && ! -s "${work}/err" ]] || fail "no file must run nothing"
 
+# Upstream rewrote the old code after this branch forked. Its deleted/moved
+# findings are still inherited by the branch, not introduced by it.
+chmod 644 untouched.ts
+ancestor="$(git rev-parse HEAD)"
+git switch -q -c rewritten-target
+git mv legacy.ts moved-legacy.ts
+git rm -q untouched.ts
+git commit -q -m "upstream rewrites old paths"
+git update-ref refs/remotes/origin/main HEAD
+git switch -q clean
+git commit -q --allow-empty -m "branch diverges from rewritten upstream"
+gate legacy.ts untouched.ts
+[[ ${status} -eq 0 ]] || fail "findings inherited from the common ancestor must pass after upstream moves/deletes them, got ${status}: $(cat "${work}/out" "${work}/err")"
+printf 'export const added = () => dangerouslyRun("diverged-new");\n' >diverged-new.ts
+gate legacy.ts untouched.ts diverged-new.ts
+[[ ${status} -eq 1 ]] || fail "a genuinely new finding on a diverged branch must block, got ${status}: $(cat "${work}/out" "${work}/err")"
+grep -q 'diverged-new' "${work}/out" || fail "the diverged branch's new finding was not reported"
+grep -qE 'legacy-fixed|untouched-fixed' "${work}/out" && fail "upstream rewriting old code made inherited findings look introduced"
+rm diverged-new.ts
+git update-ref refs/remotes/origin/main "${ancestor}"
 # A target with none of the new files has zero findings, not empty invalid JSON.
 printf 'export const addedOnly = () => dangerouslyRun("new-only");\n' >new-only.ts
 gate new-only.ts
@@ -99,6 +119,11 @@ rm new-only.ts
 # A target the repository does not have, and a call without one, fail closed.
 gate --target origin/nope legacy.ts
 [[ ${status} -eq 2 ]] || fail "an unknown target must fail closed, got ${status}"
+unrelated="$(git commit-tree "HEAD^{tree}" -m "unrelated target")"
+git update-ref refs/remotes/origin/unrelated "${unrelated}"
+gate --target origin/unrelated legacy.ts
+[[ ${status} -eq 2 ]] || fail "a target without a common ancestor must fail closed, got ${status}"
+grep -q 'could not find a common ancestor' "${work}/err" || fail "missing ancestry must explain why the baseline is unavailable"
 set +e
 "${helper}" --rules "${pack}" legacy.ts >"${work}/out" 2>"${work}/err"
 status=$?
@@ -138,4 +163,9 @@ printf 'export const = (;\n' >legacy.ts
 gate_unparseable_target legacy.ts
 [[ ${status} -eq 2 ]] || fail "an unparseable branch file must fail closed, got ${status}: $(cat "${work}/out" "${work}/err")"
 
+# Inherited parse failures remain informational rather than blocking.
+printf 'export const = (;\n' >skipped.ts
+gate_unparseable_target skipped.ts
+[[ ${status} -eq 0 ]] || fail "an inherited skipped file must pass, got ${status}: $(cat "${work}/out" "${work}/err")"
+grep -q 'not scanned on the common ancestor either' "${work}/err" || fail "an inherited skipped file must be reported"
 echo "ok foxguard-introduced fixture"
