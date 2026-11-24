@@ -176,6 +176,8 @@ The previous remote commit is also scanned as inherited evidence, so unchanged
 previously published findings do not become new after a rebase or import-only
 edit. Identity remains rule/path/snippet, with occurrence counts: an identical
 snippet on another path or an additional occurrence in the same path is new.
+Each inherited basis uses a separate snapshot, so scanner writes cannot obstruct
+checking out another basis or modify the caller's pre-existing edits.
 
 Failed hooks restore tracked content and staged entries, including edits that
 preserve file size and timestamps. Snapshot indexes discard Git's stat cache

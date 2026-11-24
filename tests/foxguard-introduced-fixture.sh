@@ -145,6 +145,25 @@ DEV_PROFILE_PUSH_REFS="${push_refs}" gate legacy.ts copied.ts
 [[ ${status} -eq 1 ]] || fail "genuine additions after a published finding must block, got ${status}"
 grep -q fresh-published "${work}/out" || fail "a new finding in a published path was suppressed"
 grep -q './copied.ts:' "${work}/out" || fail "an identical snippet on a new path was suppressed"
+# A scanner may leave snapshot files dirty. Each baseline must be checked out
+# independently, and the caller's pre-existing edits must survive untouched.
+real_foxguard="$(command -v foxguard)"
+mkdir -p "${work}/scanner-bin"
+cat >"${work}/scanner-bin/foxguard" <<'SH'
+#!/usr/bin/env bash
+status=0
+"${REAL_FOXGUARD}" "$@" || status=$?
+printf '// scanner left this snapshot dirty\n' >>legacy.ts
+exit "${status}"
+SH
+chmod +x "${work}/scanner-bin/foxguard"
+printf '// caller owns this edit\n' >>legacy.ts
+caller_content="$(cat legacy.ts)"
+PATH="${work}/scanner-bin:${PATH}" REAL_FOXGUARD="${real_foxguard}" DEV_PROFILE_PUSH_REFS="${push_refs}" gate legacy.ts copied.ts
+[[ ${status} -eq 1 ]] || fail "dirty scanner snapshots must not prevent baseline comparisons, got ${status}: $(cat "${work}/out" "${work}/err")"
+[[ "$(cat legacy.ts)" == "${caller_content}" ]] || fail "baseline scans changed the caller's edits"
+git restore legacy.ts
+
 git show topic:added.ts >>added.ts
 git add added.ts
 git commit -q -m duplicated-finding

@@ -205,14 +205,19 @@ esac
 inherited_json="${work}/inherited.json"
 printf '{"findings":[]}\n' >"${inherited_json}"
 if [[ -n "${inherited_ref}" && "${inherited_ref}" != "${baseline}" ]]; then
-	git -C "${base}" switch --detach --quiet "${inherited_ref}" || exit 2
+	inherited_tree="${work}/published"
+	git -C "${root}" worktree add --detach --quiet "${inherited_tree}" "${inherited_ref}" || exit 2
+	# Each inherited basis gets its own snapshot: neither scanner writes nor
+	# checkout hooks may make a later baseline depend on an earlier tree.
+	# shellcheck disable=SC2064 # resolve owned snapshot paths when registering cleanup
+	trap "git -C '${root}' worktree remove --force '${base}' >/dev/null 2>&1 || true; git -C '${root}' worktree remove --force '${inherited_tree}' >/dev/null 2>&1 || true; rm -rf '${work}'" EXIT
 	: >"${base_list}"
 	while IFS= read -r file; do
-		[ ! -f "${base}/${file}" ] || printf '%s\n' "${file}" >>"${base_list}"
+		[ ! -f "${inherited_tree}/${file}" ] || printf '%s\n' "${file}" >>"${base_list}"
 	done <"${list}"
 	if [[ -s "${base_list}" ]]; then
 		inherited_status=0
-		(cd "${base}" && foxguard --rules "${rules}" --changed-files-from "${base_list}" --format json .) >"${inherited_json}" 2>"${work}/inherited.err" || inherited_status=$?
+		(cd "${inherited_tree}" && foxguard --rules "${rules}" --changed-files-from "${base_list}" --format json .) >"${inherited_json}" 2>"${work}/inherited.err" || inherited_status=$?
 		case "${inherited_status}" in
 		0 | 1) ;;
 		*)
