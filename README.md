@@ -65,6 +65,39 @@ grace period. A worker that exits during that period is reaped and logged as a
 startup failure, so the watchdog notifies the user instead of entering cooldown.
 Surviving workers keep their own session and outlive the watchdog tick.
 
+## Park or retire a clone
+
+`wt done` uses native Worktrunk aliases to commit worktrees, snapshot stashes,
+restack checked-out branches, push local tips to origin, and prune integrated
+worktrees. It keeps the clone. `wt retire`, `wt drop`, and `wt done --drop` run
+the same lifecycle and then move the clone to Trash. `wt done -- --drop` also
+works when forwarding the flag explicitly.
+
+Commit and push hooks, scanners, and configured signing remain active. A failed
+hook or push stops cleanup. Diverged branches go to `backup/conflicts/<clone>/`
+without force-pushing; prior backup tips are never overwritten. Stashes become
+signed worktree commits on their original base, including untracked files.
+Ignored files are not pushed and remain in the retained clone or Trash.
+Linked worktrees with ignored files are retained, including files written by removal
+hooks. Removal preserves the original user/project hooks and appends a final
+preservation check; a hook that changes work or moves HEAD prevents removal.
+Native Worktrunk's prune plan selects integrated worktrees and branches; every
+worktree removal is rechecked against that plan after its hooks.
+The lifecycle uses the profile's existing Bun and jq tools for native configuration
+and prune-plan composition.
+The existing `wt` shim carries explicit global `--config` and `-y`/`--yes`
+through nested native invocations; it does not grant approval unless requested.
+
+`wt done -- --dry-run` shows status without fetching, committing, pushing or deleting.
+`--no-pr`,
+`--no-prune`, `--no-commit`, and `--no-push` retain their explicit controls;
+retirement refuses unpublished work or remaining linked worktrees. Nested
+repositories and files above `DEV_PROFILE_SYNC_MAX_FILE_MB` (default 50 MiB)
+stop preservation. Finish ongoing merges or rebases before running `wt done`.
+
+`mise run test:done-native` and `mise run test:done` exercise the installed native
+Worktrunk CLI against local bare remotes. Only forge and Trash are substitutes.
+
 ## Timing a slow `wt land`
 
 Set `WT_BENCH=1` to time every `wt` call and the `gh`, commit and push calls inside `wt land` and `wt pr-auto`; `WT_BENCH=2` also writes worktrunk's own span trace. Run `dev-profile-bench report` for the timeline and slowest calls, or `dev-profile-bench runs` for recent runs. Records go to `~/.local/state/dev-profile/wt-bench.tsv` (override with `WT_BENCH_LOG`). Unset, the `wt` shim runs the real binary untouched.
