@@ -25,6 +25,10 @@ export WORKTRUNK_SYSTEM_CONFIG_PATH="$work/no-system.toml"
 export WORKTRUNK_PROJECT_CONFIG_PATH="$work/no-project.toml"
 export TRASH_DIR="$work/trash" FORGE_LOG="$work/forge.log"
 mkdir -p "$work/tools" "$TRASH_DIR"
+# Real test-local SSH signatures avoid dependence on the private user keyring.
+ssh-keygen -q -t ed25519 -N '' -C done-fixture -f "$work/signing-key"
+principal=$(git config user.email)
+printf '%s %s\n' "$principal" "$(cat "$work/signing-key.pub")" >"$work/allowed-signers"
 # Use only the lifecycle aliases; unrelated workstation hooks aren't this fixture's surface.
 python3 - "$root/config/worktrunk.toml" "$WORKTRUNK_CONFIG_PATH" <<'PY'
 import sys, tomllib, json
@@ -62,6 +66,10 @@ setup_clone() {
 	repo="$work/$1"
 	git init -q --bare --initial-branch=main "$origin"
 	git clone -q "$origin" "$repo"
+	git -C "$repo" config gpg.format ssh
+	git -C "$repo" config user.signingkey "$work/signing-key"
+	git -C "$repo" config commit.gpgsign true
+	git -C "$repo" config gpg.ssh.allowedSignersFile "$work/allowed-signers"
 	git -C "$repo" config dev-profile.sync-clone "$1"
 	printf 'base\n' >"$repo/base.txt"
 	git -C "$repo" add base.txt
