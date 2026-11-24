@@ -31,6 +31,13 @@ run = [
   "~/.local/share/dev-profile/bin/dev-profile-omp-machine-setup",
 ]
 
+[tasks."test:done-native"]
+description = "Prove explicit retirement through native Worktrunk aliases"
+run = "bash tests/done-native-fixture.sh"
+
+[tasks."test:done"]
+description = "Exercise lossless native Worktrunk lifecycle and failure gates"
+run = "bash tests/done-fixture.sh"
 [tasks.doctor]
 description = "Syntax-check the files this branch installs"
 run = "bash tests/doctor.sh"
