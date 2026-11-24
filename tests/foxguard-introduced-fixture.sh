@@ -89,6 +89,41 @@ gate
 [[ ${status} -eq 0 ]] || fail "no file must pass, got ${status}"
 [[ ! -s "${work}/out" && ! -s "${work}/err" ]] || fail "no file must run nothing"
 
+# Shifting an inherited finding's line does not introduce it.
+printf '\n\n' >legacy.ts
+git show HEAD:legacy.ts >>legacy.ts
+gate legacy.ts
+[[ ${status} -eq 0 ]] || fail "line-shifted inherited findings must pass, got ${status}: $(cat "${work}/out" "${work}/err")"
+git restore legacy.ts
+
+# Git can publish a branch other than the checkout. Findings in the checkout
+# are not part of that push, and findings in the outgoing branch must not hide.
+push_refs="${work}/push-refs"
+zero="0000000000000000000000000000000000000000"
+printf 'export const checkoutOnly = () => dangerouslyRun("checkout-only");\n' >>legacy.ts
+printf 'refs/heads/clean %s refs/heads/clean %s\n' "$(git rev-parse clean)" "${zero}" >"${push_refs}"
+DEV_PROFILE_PUSH_REFS="${push_refs}" gate legacy.ts
+[[ ${status} -eq 0 ]] || fail "a clean outgoing branch must ignore checkout findings, got ${status}: $(cat "${work}/out" "${work}/err")"
+printf 'refs/heads/topic %s refs/heads/topic %s\n' "$(git rev-parse topic)" "${zero}" >"${push_refs}"
+DEV_PROFILE_PUSH_REFS="${push_refs}" gate legacy.ts added.ts
+[[ ${status} -eq 1 ]] || fail "findings in a nonchecked-out outgoing branch must block, got ${status}: $(cat "${work}/out" "${work}/err")"
+grep -q 'introduced' "${work}/out" || fail "the outgoing branch finding was not reported"
+grep -q 'checkout-only' "${work}/out" && fail "an unrelated checkout finding was reported"
+# Multiple outgoing refs are independent; a clean last ref cannot erase a
+# finding in an earlier ref. Deletes send no source, malformed refs fail closed.
+printf 'refs/heads/clean %s refs/heads/clean %s\n' "$(git rev-parse clean)" "${zero}" >>"${push_refs}"
+DEV_PROFILE_PUSH_REFS="${push_refs}" gate legacy.ts added.ts
+[[ ${status} -eq 1 ]] || fail "a new finding in any outgoing ref must block, got ${status}"
+printf 'refs/heads/deleted %s refs/heads/deleted %s\n' "${zero}" "$(git rev-parse clean)" >"${push_refs}"
+DEV_PROFILE_PUSH_REFS="${push_refs}" gate legacy.ts
+[[ ${status} -eq 0 ]] || fail "a ref deletion must not scan the checkout, got ${status}"
+printf 'malformed refs\n' >"${push_refs}"
+DEV_PROFILE_PUSH_REFS="${push_refs}" gate legacy.ts
+[[ ${status} -eq 2 ]] || fail "malformed push refs must fail closed, got ${status}"
+DEV_PROFILE_PUSH_REFS="${work}/missing-refs" gate legacy.ts
+[[ ${status} -eq 2 ]] || fail "unreadable push refs must fail closed, got ${status}"
+git restore legacy.ts
+
 # Upstream rewrote the old code after this branch forked. Its deleted/moved
 # findings are still inherited by the branch, not introduced by it.
 chmod 644 untouched.ts

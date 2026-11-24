@@ -63,6 +63,54 @@ git rev-parse --verify --quiet "${target}^{commit}" >/dev/null || {
 	exit 2
 }
 
+# A push can publish refs other than HEAD. Both the branch scan and its merge
+# base must describe each outgoing commit, never unrelated checkout contents.
+if [[ -n "${DEV_PROFILE_PUSH_REFS:-}" ]]; then
+	[[ -r "${DEV_PROFILE_PUSH_REFS}" ]] || {
+		echo "dev-profile-foxguard-introduced: push refs are unreadable" >&2
+		exit 2
+	}
+	push_work="$(mktemp -d)"
+	push_trees=()
+	cleanup_push_trees() {
+		for tree in ${push_trees[@]+"${push_trees[@]}"}; do
+			git -C "${root}" worktree remove --force "${tree}" >/dev/null 2>&1 || true
+		done
+		rm -rf "${push_work}"
+	}
+	trap cleanup_push_trees EXIT
+	: >"${push_work}/tips"
+	sha_pattern='^[0-9a-f]{40,64}$'
+	while read -r local_ref local_sha remote_ref remote_sha extra || [[ -n "${local_ref:-}" ]]; do
+		if [[ -z "${local_ref:-}" || -z "${remote_ref:-}" || -n "${extra:-}" ||
+			! "${local_sha:-}" =~ ${sha_pattern} || ! "${remote_sha:-}" =~ ${sha_pattern} ]]; then
+			echo "dev-profile-foxguard-introduced: malformed push refs" >&2
+			exit 2
+		fi
+		[[ ! "${local_sha}" =~ ^0+$ ]] || continue
+		git -C "${root}" cat-file -e "${local_sha}^{commit}" 2>/dev/null || {
+			echo "dev-profile-foxguard-introduced: outgoing commit ${local_sha} is unavailable" >&2
+			exit 2
+		}
+		printf '%s\n' "${local_sha}" >>"${push_work}/tips"
+	done <"${DEV_PROFILE_PUSH_REFS}"
+	sort -u "${push_work}/tips" >"${push_work}/unique-tips"
+	helper="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
+	push_status=0
+	while IFS= read -r tip; do
+		tree="${push_work}/${tip}"
+		push_trees+=("${tree}")
+		git -C "${root}" worktree add --detach --quiet "${tree}" "${tip}" || exit 2
+		status=0
+		(cd "${tree}" && env -u DEV_PROFILE_PUSH_REFS "${helper}" --rules "${rules}" --target "${target}" -- "${files[@]}") || status=$?
+		case "${status}" in
+		0 | 1) ((status <= push_status)) || push_status="${status}" ;;
+		*) push_status=2 ;;
+		esac
+	done <"${push_work}/unique-tips"
+	exit "${push_status}"
+fi
+
 baseline="$(git -C "${root}" merge-base HEAD "${target}")" || {
 	echo "dev-profile-foxguard-introduced: could not find a common ancestor of HEAD and ${target}" >&2
 	exit 2

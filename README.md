@@ -123,10 +123,15 @@ Direct attribution measures the current checkout at `HEAD`; use `--to-ref HEAD`
 for this mode. The hook's tools lint checkout files, not another ref's tree.
 
 `mise run test:foxguard-introduced` runs real foxguard through
-`bin/dev-profile-foxguard-introduced`. A target file foxguard cannot parse
+`bin/dev-profile-foxguard-introduced`. Hook invocations scan each outgoing commit
+from `DEV_PROFILE_PUSH_REFS` in an isolated worktree, against that commit's common
+ancestor with the target. Publishing another branch never scans the checkout's
+unrelated source; genuinely new findings in any outgoing ref still block. Without
+push refs, direct invocations scan the current checkout. Inherited findings stay
+suppressed when only their line numbers shift. A target file foxguard cannot parse
 contributes no findings, while findings from the target's other files stay
-suppressed. A branch file foxguard cannot parse, a scanner failure, or an invalid
-comparison fails closed with exit 2.
+suppressed. A branch file foxguard cannot parse, unreadable or malformed push refs,
+a scanner failure, or an invalid comparison fails closed with exit 2.
 
 Failed hooks restore tracked content and staged entries, including edits that
 preserve file size and timestamps. Snapshot indexes discard Git's stat cache
