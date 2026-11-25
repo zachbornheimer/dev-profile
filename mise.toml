@@ -35,6 +35,9 @@ run = [
 description = "Syntax-check the files this branch installs"
 run = "bash tests/doctor.sh"
 
+[tasks."test:dot-save-turn"]
+description = "Prove bounded checkpoint provenance and real snapshot reporting"
+run = ["python3 tests/dot-save-turn-history.py", "bash tests/dot-save-turn-fixture.sh"]
 [tasks."test:owners"]
 description = "Prove the owner list is one file an adopter replaces, and that repo-owned follows it"
 run = "bash tests/owners-fixture.sh"
