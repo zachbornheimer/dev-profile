@@ -1,8 +1,9 @@
 [Unit]
-Description=Daily oh-my-pi synchronization timer
+Description=Twice-daily oh-my-pi synchronization timer
 
 [Timer]
 OnCalendar=*-*-* 05:00:00
+OnCalendar=*-*-* 17:00:00
 Persistent=true
 
 [Install]
