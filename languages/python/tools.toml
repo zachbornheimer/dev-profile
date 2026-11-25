@@ -5,3 +5,11 @@
 uv = "0.13.8"
 ruff = "0.16.10"
 "pypi:yamllint" = "1.38.0"
+# omp's review_pr runs Semgrep beside OpenCodeReview (languages/agents/tools.toml), and a
+# Relay ticket with a pull request is held until both report complete. The pin left with
+# the commit-time scan on 2026-11-04, and `semgrep` stayed behind as a shim with no version.
+# No `python` option: it makes mise install a CPython of its own and put python, python3
+# and pip shims ahead of the interpreter uv owns (shell/zsh/python.zsh); uv picks the runtime.
+# Bump only to a release at least 3 days old: the machine-wide uv cooldown
+# (exclude-newer = "3 days") refuses a younger one, and a refused pin fails `mise install`.
+"pypi:semgrep" = "1.186.0"

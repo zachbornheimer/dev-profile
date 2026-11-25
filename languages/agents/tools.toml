@@ -2,3 +2,11 @@
 # layer owns them once the split lands, and nothing in the task contract calls them.
 [tools]
 "github:rohansx/workz" = "0.11.0"
+# omp's review_pr runs OpenCodeReview (`ocr`) beside Semgrep (languages/python/tools.toml),
+# and a Relay ticket with a pull request is held until both report complete. Linux had no
+# declaration at all: on 2026-11-25 every Relay guest answered "ocr: Executable not found
+# in $PATH". Linux-only because macOS takes ocr from Homebrew (brew:open-code-review in
+# the machine's bootstrap packages), so no second copy shadows it there. The release is
+# one bare binary per platform (opencodereview-linux-amd64); `bin` gives it the name
+# review_pr runs. Pinned for the reason languages/python/tools.toml records.
+"github:alibaba/open-code-review" = { version = "1.14.3", bin = "ocr", os = ["linux"] }

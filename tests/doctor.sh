@@ -65,6 +65,7 @@ bash "$root/tests/mise-history-watchdog-plaintext-policy-fixture.sh" >/dev/null 
 bash "$root/tests/mise-history-watchdog-repair-fixture.sh" >/dev/null || fail "mise history watchdog repair fixture"
 bash "$root/tests/uv-lock-cooldown-fixture.sh" "$root" >/dev/null || fail "uv-lock-cooldown fixture"
 bash "$root/tests/tools-install-fixture.sh" "$root" >/dev/null || fail "tools install fixture"
+bash "$root/tests/review-tools-fixture.sh" "$root" >/dev/null || fail "review tools fixture"
 bash "$root/tests/fork-sync-fixture.sh" "$root" >/dev/null || fail "fork sync fixture"
 bash "$root/tests/herdr-plugins-fixture.sh" >/dev/null || fail "herdr plugins fixture"
 bash "$root/tests/adoption-fixture.sh" >/dev/null || fail "adoption fixture"
