@@ -5,3 +5,5 @@
 uv = "0.13.8"
 ruff = "0.16.10"
 "pypi:yamllint" = "1.38.0"
+# review_pr's supported local reviewer; keep its runtime independent of host Python.
+"pypi:semgrep" = { version = "1.187.0", python = "3.13" }

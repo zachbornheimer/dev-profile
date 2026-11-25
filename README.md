@@ -8,6 +8,19 @@ Pins are in languages/<lang>/tools.toml, one file per language, merged by profil
 
 Only omp and the Codex desktop app are supported. Claude Code, the Codex CLI, Grok Build, OpenCode, Hermes, Gemini CLI, Copilot CLI, Cursor, pi and every other agent tool have been removed: no hook, skill, config, package pin or script here is maintained for them. A mention of one of them in this repo is a removal note or legacy data (old session transcripts the tools still read), and is never extended. Add support for another harness only on request.
 
+## PR review dependency
+
+The adopted profile installs Semgrep 1.187.0 from `languages/python/tools.toml`
+for omp's `review_pr` tool. Its private Python 3.13 runtime avoids relying on the
+host interpreter and does not change the shell's default Python. No OCR harness
+or additional credential is installed; the existing Foxguard push gate is unchanged.
+
+After adopting the profile, run `mise install pypi:semgrep`, then
+`mise exec pypi:semgrep -- semgrep --version` to verify the reviewer.
+`mise run test:review-pr` runs the installed
+`~/.omp/agent/tools/review_pr/review_pr.test.ts` regression suite; it requires
+an existing omp tool installation and uses the profile's Bun.
+
 ## Adopt it
 
 Clone this repo anywhere. The path does not matter: after the first apply the profile finds itself from where `~/.config/mise/conf.d/dev-profile` links.
