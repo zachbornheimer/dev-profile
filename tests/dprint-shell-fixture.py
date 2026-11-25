@@ -2,9 +2,9 @@
 """Exercise the configured shell formatter, including the exact ZYS-11195 input."""
 
 import json
-from pathlib import Path
 import subprocess
 import tempfile
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 CONFIG = ROOT / "config/dprint.jsonc"
@@ -20,9 +20,7 @@ def run(command, source):
 
 
 def format_shell(source, filename):
-    return run(
-        ["dprint", "fmt", "--config", str(CONFIG), "--stdin", filename], source
-    )
+    return run(["dprint", "fmt", "--config", str(CONFIG), "--stdin", filename], source)
 
 
 def without_positions(value):
@@ -89,7 +87,9 @@ def main():
         check=False,
     )
     assert invalid.returncode != 0, "invalid shell was silently accepted"
-    print("dprint shell fixture ok: exact input, idempotence, syntax, AST, dispatch, errors")
+    print(
+        "dprint shell fixture ok: exact input, idempotence, syntax, AST, dispatch, errors"
+    )
 
 
 if __name__ == "__main__":
