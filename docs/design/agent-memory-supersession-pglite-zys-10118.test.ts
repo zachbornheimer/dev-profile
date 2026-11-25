@@ -1,6 +1,6 @@
-import { describe, expect, it, mock } from "bun:test";
 import { PGlite } from "@electric-sql/pglite";
 import { vector } from "@electric-sql/pglite/vector";
+import { describe, expect, it, mock } from "bun:test";
 
 mock.module("@oh-my-pi/pi-utils", () => ({ logger: { debug() {}, warn() {}, info() {}, error() {} } }));
 
@@ -10,7 +10,10 @@ const { archiveFactsAsOf } = await import(`${SRC}/history.ts`);
 const { MEMORY_SCHEMA_STATEMENTS } = { MEMORY_SCHEMA_STATEMENTS: [] as string[] };
 
 const DIM = 4;
-const unit = (v: number[]) => { const n = Math.hypot(...v); return v.map((x) => x / n); };
+const unit = (v: number[]) => {
+  const n = Math.hypot(...v);
+  return v.map((x) => x / n);
+};
 const lit = (v: number[]) => `[${unit(v).join(",")}]`;
 // topic A (deploy host) and topic B (editor preference) are orthogonal; A, A2, A3 are near-identical
 const A = [1, 0.02, 0, 0], A2 = [1, 0.05, 0, 0], A3 = [1, 0.08, 0, 0], B = [0, 0, 1, 0.02];
@@ -30,7 +33,9 @@ async function freshStore() {
     },
     async end() {},
   };
-  const insert = (r: { id: string; scope: string; repo: string; at: string; body: string; emb: number[]; source: string }) =>
+  const insert = (
+    r: { id: string; scope: string; repo: string; at: string; body: string; emb: number[]; source: string },
+  ) =>
     // the fork's INSERT_FACT_SQL semantics (retain.ts): same id upserts the row back
     db.query(
       `insert into public.memory_chunks (id, source, session_path, repository, scope, kind, occurred_at, chunk_index, body, embedding)
@@ -40,16 +45,34 @@ async function freshStore() {
          embedding=coalesce(excluded.embedding, public.memory_chunks.embedding)`,
       [r.id, r.source, `/s/${r.id}.jsonl`, r.repo, r.scope, r.at, r.body, lit(r.emb)],
     );
-  const current = async () => (await db.query("select id, scope, body from public.memory_chunks where kind='fact' order by id")).rows as { id: string; scope: string; body: string }[];
+  const current = async () =>
+    (await db.query("select id, scope, body from public.memory_chunks where kind='fact' order by id")).rows as {
+      id: string;
+      scope: string;
+      body: string;
+    }[];
   return { db, client, insert, current };
 }
 
 type Fact = { id: string; scope: string; repo: string; at: string; body: string; emb: number[]; source: string };
-const f = (id: string, scope: string, at: string, body: string, emb: number[]): Fact =>
-  ({ id, scope, repo: scope === "sah" ? "isa" : "dev-profile", at, body, emb, source: `src-${id}` });
+const f = (id: string, scope: string, at: string, body: string, emb: number[]): Fact => ({
+  id,
+  scope,
+  repo: scope === "sah" ? "isa" : "dev-profile",
+  at,
+  body,
+  emb,
+  source: `src-${id}`,
+});
 
 const c1 = f("c1", "personal", "2026-11-01T10:00:00Z", "Deploy host for dev-profile is 100.92.190.20", A);
-const c2 = f("c2", "personal", "2026-11-02T10:00:00Z", "Deploy config for dev-profile lives at `/etc/dev-profile/deploy.toml`", A2);
+const c2 = f(
+  "c2",
+  "personal",
+  "2026-11-02T10:00:00Z",
+  "Deploy config for dev-profile lives at `/etc/dev-profile/deploy.toml`",
+  A2,
+);
 const p1 = f("p1", "personal", "2026-11-03T10:00:00Z", "dev-profile deploys to host 100.92.190.20", A3);
 const k1 = f("k1", "personal", "2026-11-05T10:00:00Z", "CORRECTION: dev-profile deploy host is now 100.92.190.99", A2);
 const t1 = f("t1", "personal", "2026-11-04T10:00:00Z", "Prefers tabs over spaces", B);
@@ -69,13 +92,13 @@ describe("fork @ f7f3e88: real SQL on real Postgres (pglite + pgvector)", () => 
     expect(report.failed).toBe(0);
     expect(report.clustersConsolidated).toBe(1);
     const cur = await s.current();
-    expect(cur.map((r) => r.id)).toEqual(["k1", "t1", "u1"]);                 // c1,c2,p1 left the current set
-    expect(cur.find((r) => r.id === "u1")!.body).toBe(u1.body);                 // sah fact untouched by personal facts
+    expect(cur.map((r) => r.id)).toEqual(["k1", "t1", "u1"]); // c1,c2,p1 left the current set
+    expect(cur.find((r) => r.id === "u1")!.body).toBe(u1.body); // sah fact untouched by personal facts
     expect(cur.find((r) => r.id === "k1")!.body).toContain("/etc/dev-profile/deploy.toml"); // complementary fact kept
     // as-of before the merge: the old versions come back with their own ids and sources
     const before = await archiveFactsAsOf(s.client, "2026-11-09T00:00:00Z", { scope: "personal" });
     expect(before.map((r) => r.id).sort()).toEqual(["c1", "c2", "k1", "p1", "t1"].sort());
-    expect(before.find((r) => r.id === "k1")!.body).toBe(k1.body);              // canonical's pre-merge text
+    expect(before.find((r) => r.id === "k1")!.body).toBe(k1.body); // canonical's pre-merge text
     expect(before.find((r) => r.id === "c1")!.source).toBe("src-c1");
     // as-of after the merge: only the replacement
     const after = await archiveFactsAsOf(s.client, "2026-11-11T00:00:00Z", { scope: "personal" });
@@ -103,7 +126,9 @@ describe("fork @ f7f3e88: real SQL on real Postgres (pglite + pgvector)", () => 
     const second = await run(forward.client);
     expect(second.clustersFound).toBe(0);
     expect(JSON.stringify(await forward.current())).toBe(snapshot);
-    expect(((await forward.db.query("select count(*)::int n from public.memory_fact_history")).rows[0] as any).n).toBe(hist1.n);
+    expect(((await forward.db.query("select count(*)::int n from public.memory_fact_history")).rows[0] as any).n).toBe(
+      hist1.n,
+    );
 
     const reversed = await freshStore();
     for (const x of [u1, t1, k1, p1, c2, c1]) await reversed.insert(x);
@@ -119,8 +144,10 @@ describe("fork @ f7f3e88: real SQL on real Postgres (pglite + pgvector)", () => 
     await s.insert(c1); // a replayed retain/learn of the old fact
     expect((await s.current()).map((r) => r.id)).toEqual(["c1", "k1"]); // resurrected: old host is current again
     await run(s.client);
-    expect((await s.current()).map((r) => r.id)).toEqual(["k1"]);        // folded back in by the next sweep
-    const hist = (await s.db.query("select id, count(*)::int n from public.memory_fact_history group by id order by id")).rows as any[];
+    expect((await s.current()).map((r) => r.id)).toEqual(["k1"]); // folded back in by the next sweep
+    const hist =
+      (await s.db.query("select id, count(*)::int n from public.memory_fact_history group by id order by id"))
+        .rows as any[];
     expect(hist.find((h) => h.id === "c1").n).toBeGreaterThanOrEqual(1);
     expect(MEMORY_SCHEMA_STATEMENTS.length).toBe(0);
   });

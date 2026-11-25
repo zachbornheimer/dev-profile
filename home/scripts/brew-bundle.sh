@@ -10,7 +10,7 @@ set -euo pipefail
 
 brewfile="{{ joinPath .chezmoi.sourceDir ".." "Brewfile" }}"
 if command -v brew >/dev/null 2>&1 && [ -f "$brewfile" ]; then
-  brew bundle --file="$brewfile" --no-upgrade
+	brew bundle --file="$brewfile" --no-upgrade
 else
-  echo "run_onchange: brew or Brewfile missing — skipping package reconcile"
+	echo "run_onchange: brew or Brewfile missing — skipping package reconcile"
 fi

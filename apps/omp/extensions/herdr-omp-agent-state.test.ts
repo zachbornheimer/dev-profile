@@ -4,13 +4,14 @@
 //
 // These tests drive the real extension export against a fake Herdr socket.
 import { afterAll, expect, test } from "bun:test";
-import net from "node:net";
 import { mkdtemp, rm } from "node:fs/promises";
+import net from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
 const SESSION_ID = "01a1a3d7-875b-71b2-9785-71c116141a8f";
-const SESSION_PATH = `/home/zbornheimer/.omp/agent/sessions/-home-zbornheimer-D-P-dev-env/2026-11-03T23-56-13-531Z_${SESSION_ID}.jsonl`;
+const SESSION_PATH =
+  `/home/zbornheimer/.omp/agent/sessions/-home-zbornheimer-D-P-dev-env/2026-11-03T23-56-13-531Z_${SESSION_ID}.jsonl`;
 const PANE_ID = "w9:p9";
 // dev-env's vps:* tasks report through the Mac's socket under the local fg
 // hook's source; that is the only producer of this value.
@@ -27,7 +28,7 @@ const server = net.createServer((socket) => {
       const request = JSON.parse(line);
       reports.push({ method: request.method, params: request.params ?? {} });
     }
-    socket.end('{"ok":true}\n');
+    socket.end("{\"ok\":true}\n");
   });
 });
 await new Promise<void>((resolve) => server.listen(socketPath, resolve));

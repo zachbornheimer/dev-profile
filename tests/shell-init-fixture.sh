@@ -19,10 +19,10 @@ fail() {
 }
 
 output="$(
-cd "${project}" &&
-	DEV_PROFILE_INIT="${init}" TEST_PROJECT="${project}" \
-		MISE_TRUSTED_CONFIG_PATHS="${project}" \
-		zsh -f -i -c '
+	cd "${project}" &&
+		DEV_PROFILE_INIT="${init}" TEST_PROJECT="${project}" \
+			MISE_TRUSTED_CONFIG_PATHS="${project}" \
+			zsh -f -i -c '
 				source "${DEV_PROFILE_INIT}"
 				print -r -- "start=${SHELL_INIT_TEST:-missing}"
 				builtin cd /tmp

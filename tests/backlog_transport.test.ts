@@ -83,8 +83,7 @@ function quickTransport(writes: string[]): BacklogTransport {
       return {
         ok: true,
         status: 200,
-        text: async () =>
-          graphql({ issue: { comments: { nodes: [{ createdAt: "2026-11-17T16:30:00.000Z" }] } } }),
+        text: async () => graphql({ issue: { comments: { nodes: [{ createdAt: "2026-11-17T16:30:00.000Z" }] } } }),
       };
     }
     if (request.stage === "supersession_lookup") {
@@ -272,7 +271,6 @@ describe("backlog transport bounds", () => {
     expect(JSON.stringify(events)).not.toContain("lin_api_");
   });
 
-  
   it("keeps the quick successful read and survives one failed comment lookup", async () => {
     const writes: string[] = [];
     let comments = 0;

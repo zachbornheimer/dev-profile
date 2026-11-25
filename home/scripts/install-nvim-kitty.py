@@ -5,6 +5,7 @@
 # main.swift:  {{ include (joinPath .chezmoi.sourceDir "dot_local/share/nvim-kitty/main.swift") | sha256sum }}
 # info.plist:  {{ include (joinPath .chezmoi.sourceDir "dot_local/share/nvim-kitty/Info.plist") | sha256sum }}
 """Compile + install ~/Applications/NvimKitty.app from the chezmoi-managed sources."""
+
 from __future__ import annotations
 
 import shutil
@@ -12,10 +13,10 @@ import subprocess
 import sys
 from pathlib import Path
 
-HOME     = Path.home()
-SOURCES  = HOME / ".local/share/nvim-kitty"
-BUNDLE   = HOME / "Applications/NvimKitty.app"
-SWIFTC   = "/usr/bin/swiftc"
+HOME = Path.home()
+SOURCES = HOME / ".local/share/nvim-kitty"
+BUNDLE = HOME / "Applications/NvimKitty.app"
+SWIFTC = "/usr/bin/swiftc"
 LSREGISTER = (
     "/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/"
     "LaunchServices.framework/Versions/A/Support/lsregister"
@@ -32,7 +33,7 @@ def build_bundle() -> None:
         shutil.rmtree(BUNDLE)
     BUNDLE.parent.mkdir(parents=True, exist_ok=True)
 
-    macos_dir     = BUNDLE / "Contents/MacOS"
+    macos_dir = BUNDLE / "Contents/MacOS"
     resources_dir = BUNDLE / "Contents/Resources"
     macos_dir.mkdir(parents=True)
     resources_dir.mkdir(parents=True)
@@ -41,11 +42,15 @@ def build_bundle() -> None:
         [
             SWIFTC,
             "-O",
-            "-swift-version", "5",
-            "-target", "arm64-apple-macosx12.0",
+            "-swift-version",
+            "5",
+            "-target",
+            "arm64-apple-macosx12.0",
             str(swift_src),
-            "-framework", "AppKit",
-            "-o", str(macos_dir / "NvimKitty"),
+            "-framework",
+            "AppKit",
+            "-o",
+            str(macos_dir / "NvimKitty"),
         ],
         capture_output=True,
         text=True,
@@ -66,17 +71,48 @@ def register() -> None:
 
 # Extensions where NvimKitty should be the DEFAULT handler.
 DEFAULT_EXTENSIONS = (
-    "py", "pyi", "md", "markdown", "txt", "json", "yaml", "yml",
-    "toml", "ini", "conf", "cfg", "env",
-    "sh", "bash", "zsh", "fish",
-    "go", "rs",
-    "ts", "tsx", "js", "jsx", "mjs", "cjs",
-    "rb", "pl", "pm", "lua", "vim",
+    "py",
+    "pyi",
+    "md",
+    "markdown",
+    "txt",
+    "json",
+    "yaml",
+    "yml",
+    "toml",
+    "ini",
+    "conf",
+    "cfg",
+    "env",
+    "sh",
+    "bash",
+    "zsh",
+    "fish",
+    "go",
+    "rs",
+    "ts",
+    "tsx",
+    "js",
+    "jsx",
+    "mjs",
+    "cjs",
+    "rb",
+    "pl",
+    "pm",
+    "lua",
+    "vim",
     "sql",
-    "xml", "csv", "tsv", "log",
-    "applescript", "scpt",
-    "tf", "tfvars",
-    "Dockerfile", "gitignore", "gitconfig",
+    "xml",
+    "csv",
+    "tsv",
+    "log",
+    "applescript",
+    "scpt",
+    "tf",
+    "tfvars",
+    "Dockerfile",
+    "gitignore",
+    "gitconfig",
 )
 BUNDLE_ID = "com.zbornheimer.nvim-kitty"
 
@@ -90,7 +126,9 @@ def claim_defaults() -> None:
     for ext in DEFAULT_EXTENSIONS:
         result = subprocess.run(
             [duti, "-s", BUNDLE_ID, ext, "all"],
-            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            check=False,
         )
         if result.returncode != 0:
             failed.append(ext)

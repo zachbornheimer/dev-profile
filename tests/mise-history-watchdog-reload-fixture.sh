@@ -3,7 +3,10 @@
 set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
 watchdog="$root/bin/dev-profile-mise-history-watchdog"
-fail() { echo "FAIL: $*" >&2; exit 1; }
+fail() {
+	echo "FAIL: $*" >&2
+	exit 1
+}
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 export HOME="$work/home"

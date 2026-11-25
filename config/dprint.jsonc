@@ -47,7 +47,19 @@
     "**/*.map",
     "**/*.snap",
     // Bats @test blocks remain outside the profile's shell formatting contract.
-    "**/*.bats"
+    "**/*.bats",
+    // Vendored third-party sources: upstream owns their formatting, so reformatting
+    // them here would be an unrelated mass edit.
+    "**/vim/bundle/**",
+    "**/kitty/gattino/**",
+    // State an app writes at runtime; never authored here. Same exclusion as the
+    // ~/.config/zab_ai entry in config/mise.toml.
+    "**/apps/zab_ai/sign_state.json",
+    // Template sources that render to shell: the shebang describes the rendered
+    // script, not the file as stored, so no shell formatter can parse them. Excluded
+    // as a classification, not to suppress a formatter error.
+    "**/home/scripts/refresh-launch-agents.sh",
+    "**/home/scripts/enable-tmpdir-reaper.sh"
   ],
   "sh": {
     "associations": [

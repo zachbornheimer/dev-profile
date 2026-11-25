@@ -6,37 +6,39 @@ Marks: **[M]** measured here, **[S]** read from source, **[I]** inference, **[H]
 
 ## 1. What the memory system is
 
-| Part | Finding |
-|---|---|
-| Selector | `memory.backend: archive`, `archive.retainEveryNTurns: 1` in the OMP agent `config.yml` [M]. |
-| Store | Neon Postgres `public.memory_chunks`: 638,773 rows, ids unique; 636,787 `chunk` + 1,986 `fact` [M]. No Hindsight or past.dev service in the path since the 2026-11-04 cutover [H]. |
-| Schema | `id, session_path, source, repository, occurred_at, chunk_index, body, tsv, embedding, scope, kind`. No `valid_from/valid_to/superseded_by/status` column [M]. |
-| Worker code | Fork `zachbornheimer/oh-my-pi`, branch `feat/archive-memory-backend`, head `3b7375f` (2026-11-13), dir `packages/coding-agent/src/memory-backend/archive/` [S]. The installed binary contains the `archive.firstTurnLimit` setting, so the backend is compiled in [M]. Whether that build was cut from `3b7375f` is NOT verified. |
-| Supervision | None separate. Capture is an in-process `ArchiveRetainer` subscribed to `agent_end`; recall is `beforeAgentStartPrompt`; consolidation is a lazy in-process sweep gated by a per-machine stamp file [S]. There is no daemon to restart or to be "down". |
-| Kill switches | `memory.backend` (anything but `archive` = off), `archive.autoRetain`, `archive.firstTurnLimit: 0`, `retainEveryNTurns` [S]. Subagents (taskDepth>0) never retain [S]. |
+| Part          | Finding                                                                                                                                                                                                                                                                                                                           |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Selector      | `memory.backend: archive`, `archive.retainEveryNTurns: 1` in the OMP agent `config.yml` [M].                                                                                                                                                                                                                                      |
+| Store         | Neon Postgres `public.memory_chunks`: 638,773 rows, ids unique; 636,787 `chunk` + 1,986 `fact` [M]. No Hindsight or past.dev service in the path since the 2026-11-04 cutover [H].                                                                                                                                                |
+| Schema        | `id, session_path, source, repository, occurred_at, chunk_index, body, tsv, embedding, scope, kind`. No `valid_from/valid_to/superseded_by/status` column [M].                                                                                                                                                                    |
+| Worker code   | Fork `zachbornheimer/oh-my-pi`, branch `feat/archive-memory-backend`, head `3b7375f` (2026-11-13), dir `packages/coding-agent/src/memory-backend/archive/` [S]. The installed binary contains the `archive.firstTurnLimit` setting, so the backend is compiled in [M]. Whether that build was cut from `3b7375f` is NOT verified. |
+| Supervision   | None separate. Capture is an in-process `ArchiveRetainer` subscribed to `agent_end`; recall is `beforeAgentStartPrompt`; consolidation is a lazy in-process sweep gated by a per-machine stamp file [S]. There is no daemon to restart or to be "down".                                                                           |
+| Kill switches | `memory.backend` (anything but `archive` = off), `archive.autoRetain`, `archive.firstTurnLimit: 0`, `retainEveryNTurns` [S]. Subagents (taskDepth>0) never retain [S].                                                                                                                                                            |
 
 ## 2. Hook matrix: configured vs observed
 
 OMP event -> Claude Code name, from `~/.omp/agent/extensions/on*.ts` [S]:
 
-| Claude name | OMP event | Extension | Fired this session [M] |
-|---|---|---|---|
-| SessionStart | `session_start` | onSessionStart | yes, 2 lines (01:12:42, 01:12:54) |
-| UserPromptSubmit | `input`, `before_agent_start` | onUserPromptSubmit | yes, 2 lines (3341 ms, 439 ms) |
-| PreToolUse | `tool_call` | onPreToolUse, onToolCall | file present; scope guard is OFF unless `OMP_SCOPE_GUARD=on`; no memory logic |
-| PostToolUse(+Failure) | `tool_result` | onPostToolUse(Failure) | yes |
-| Stop | `session_stop` | onStop | gates: landed/claim/review + judged rules; no memory logic |
-| PreCompact / PostCompact | `session_before_compact` / `session_compact` | onPreCompact / onPostCompact | not exercised (no compaction this run) |
-| SessionEnd | `session_shutdown` | onSessionEnd | not exercised |
-| SubagentStart/Stop | `session_start` / `session_stop` | onSubagentStart/Stop | not exercised |
+| Claude name              | OMP event                                    | Extension                    | Fired this session [M]                                                        |
+| ------------------------ | -------------------------------------------- | ---------------------------- | ----------------------------------------------------------------------------- |
+| SessionStart             | `session_start`                              | onSessionStart               | yes, 2 lines (01:12:42, 01:12:54)                                             |
+| UserPromptSubmit         | `input`, `before_agent_start`                | onUserPromptSubmit           | yes, 2 lines (3341 ms, 439 ms)                                                |
+| PreToolUse               | `tool_call`                                  | onPreToolUse, onToolCall     | file present; scope guard is OFF unless `OMP_SCOPE_GUARD=on`; no memory logic |
+| PostToolUse(+Failure)    | `tool_result`                                | onPostToolUse(Failure)       | yes                                                                           |
+| Stop                     | `session_stop`                               | onStop                       | gates: landed/claim/review + judged rules; no memory logic                    |
+| PreCompact / PostCompact | `session_before_compact` / `session_compact` | onPreCompact / onPostCompact | not exercised (no compaction this run)                                        |
+| SessionEnd               | `session_shutdown`                           | onSessionEnd                 | not exercised                                                                 |
+| SubagentStart/Stop       | `session_start` / `session_stop`             | onSubagentStart/Stop         | not exercised                                                                 |
 
 Memory is wired in two places, neither a guard:
+
 1. **Archive backend** `beforeAgentStartPrompt`: recall once per session, on the first prompt of at least 24 chars, up to 6 hits, Jev relevance threshold 0.65, 6 s timeout. Later prompts get no automatic recall [S]. A `recall` tool exists for manual calls.
 2. **onUserPromptSubmit** `retrieveMemoryShortlist` (extensions/prompts/retrieval.ts) queries the same table each prompt for `suggested_memories` pointers. Observed `memory_ms` 154 and 115; `suggested_memories` was `[]` on both prompts [M].
 
 Intentionally unsupported / absent [S]: no memory check before a tool side effect, none at the next model step, no memory-driven Stop correction. Acceptance 2 (interrupt) therefore has no runtime to test yet; it is a gap, not a failing test.
 
 Defects seen on this Relay sandbox [M]:
+
 - The three symlinks in `~/.omp/agent/extensions/` (`handler-timing.ts`, `agent-checkpoint-publish.ts`, `extension-timeout-repair.ts`) point at `/home/zbornheimer/...` and `/Users/zbornheimer/...`, which do not exist here. Result: `telemetry.jsonl` logs a `hook-error` ("ENOENT ... handler-timing.ts") from `tool-load-check` on every `before_agent_start`. Source: `config/mise.toml:254` `mode = "symlink"` with an absolute home.
 - `hooks.toml` still registers `hindsight-codex-{sessionstart,prompt,stop}` (agents=["codex"]) running `~/.hindsight/coding-agents/dist/*.js`; `~/.hindsight` does not exist here and Hindsight Cloud was deleted 2026-11-04 [H]. Also `Brewfile` `uv "hindsight-api"` and `more/codex/config.toml` `[mcp_servers.hindsight]`.
 
@@ -61,23 +63,23 @@ Defects seen on this Relay sandbox [M]:
 
 Corpus: 4 transcripts, 1,737 chunks; 8 known-answer questions (answer tokens verified present by ripgrep); score = expected token appears in top-5 returned text.
 
-| Engine | top-5 | rank 1 | per query | as-of read |
-|---|---|---|---|---|
-| Neon tsvector + ts_rank | 4/8 | 1/8 | 110-218 ms | correct |
-| past.dev | 3/8 | 2/8 | 377-720 ms | failed |
-| Hindsight | 0/8 | 0/8 | 8.6-10.0 s | n/a |
-| ripgrep (control) | 6/7 | - | 4.26 s | - |
+| Engine                  | top-5 | rank 1 | per query  | as-of read |
+| ----------------------- | ----- | ------ | ---------- | ---------- |
+| Neon tsvector + ts_rank | 4/8   | 1/8    | 110-218 ms | correct    |
+| past.dev                | 3/8   | 2/8    | 377-720 ms | failed     |
+| Hindsight               | 0/8   | 0/8    | 8.6-10.0 s | n/a        |
+| ripgrep (control)       | 6/7   | -      | 4.26 s     | -          |
 
 So the claim "beat Hindsight and past.dev" holds only on top-5 recall and latency at n=8 (past.dev won rank-1). It did not test interrupts, supersession through the active runtime, or memory-off vs memory-on. The scorer and fixture files live in a Mac worktree (`capability-replicas`, branch `feat/neon-memory`) that this sandbox cannot reach; they are not recovered. The query tokens are listed above; the 4 transcript ids are not.
 
 ## 6. Acceptance status after slice 1
 
-| Criterion | Status |
-|---|---|
-| Always on in actual sessions | Partly (section 9): hooks fired on headless Relay/Linux and recall injected without a manual call; helper sessions were captured, but capture of my own probe runs and of this session's later turns is NOT confirmed. Not verified: Mac (SSH refused), interactive TUI, compaction, resume, backend outage. |
+| Criterion                       | Status                                                                                                                                                                                                                                                                                                              |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Always on in actual sessions    | Partly (section 9): hooks fired on headless Relay/Linux and recall injected without a manual call; helper sessions were captured, but capture of my own probe runs and of this session's later turns is NOT confirmed. Not verified: Mac (SSH refused), interactive TUI, compaction, resume, backend outage.        |
 | Interrupt prevents wrong action | Opt-in guard merged (ZYS-10119, #221). Replayed with a fake judge 1/0/0/0, and with a real model as judge (section 12): 1/0/0/0 plus one bounded Stop correction, but only with pre-scored states: uncached, a real call exceeds the 2.5 s deadline and the guard fails open (ZYS-10143). Jev precision unmeasured. |
-| Synthesis/merge/supersession | Section 8 (old head, destructive) is superseded by section 10: after ZYS-10120 the real SQL on real Postgres keeps history, partitions scopes, and is idempotent. Resurrection window remains. |
-| Repeatable benchmark | Prior results recovered and re-run on the live store (section 11); memory-on vs memory-off A/B run on 5 prompts. Original fixtures/scorer (Mac worktree) still not recovered. |
+| Synthesis/merge/supersession    | Section 8 (old head, destructive) is superseded by section 10: after ZYS-10120 the real SQL on real Postgres keeps history, partitions scopes, and is idempotent. Resurrection window remains.                                                                                                                      |
+| Repeatable benchmark            | Prior results recovered and re-run on the live store (section 11); memory-on vs memory-off A/B run on 5 prompts. Original fixtures/scorer (Mac worktree) still not recovered.                                                                                                                                       |
 
 ## 7. Follow-ups filed
 
@@ -89,18 +91,18 @@ Still open under ZYS-10118: Mac observation (blocked by the Tailscale check refu
 
 ## 8. Supersession replay on a scratch store (no shared data touched)
 
-  > Superseded by section 10. Section 8 describes the fork at `3b7375f`, before ZYS-10120 (#91-#93) landed; the test it names pinned the destructive behaviour and stays only as the red baseline.
+> Superseded by section 10. Section 8 describes the fork at `3b7375f`, before ZYS-10120 (#91-#93) landed; the test it names pinned the destructive behaviour and stays only as the red baseline.
 
 `docs/design/agent-memory-supersession-replay-zys-10118.test.ts` runs the real `archiveConsolidateFacts` (fork @ `3b7375f`) over an in-memory SQL fake with synthetic facts. 5 tests, 16 expects, all pass. They pin the **current** behaviour, which fails the ticket's semantics:
 
-| Case | Observed |
-|---|---|
+| Case                                                   | Observed                                                                                                                                                    |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Complementary facts + paraphrase + explicit correction | Synthesized into one row (newest id `k1`); both the old and the corrected host stay in the merged body, so current recall still shows the superseded value. |
-| As-of / history read | Impossible: older rows are deleted, and their ids and sources are recorded nowhere. |
-| Newer similar statement in an unrelated scope (`sah`) | Personal facts fold into the `sah` row; text crosses scopes. |
-| Replay twice | No-op (0 clusters on the second run). |
-| Out-of-order insertion | Same final store as in-order. |
-| Re-ingest of a superseded fact (same id) | The row returns (`on conflict do update` recreates it) until the next sweep: a resurrection window. |
+| As-of / history read                                   | Impossible: older rows are deleted, and their ids and sources are recorded nowhere.                                                                         |
+| Newer similar statement in an unrelated scope (`sah`)  | Personal facts fold into the `sah` row; text crosses scopes.                                                                                                |
+| Replay twice                                           | No-op (0 clusters on the second run).                                                                                                                       |
+| Out-of-order insertion                                 | Same final store as in-order.                                                                                                                               |
+| Re-ingest of a superseded fact (same id)               | The row returns (`on conflict do update` recreates it) until the next sweep: a resurrection window.                                                         |
 
 Limits: Haiku is replaced by a join-all-bodies combiner and embeddings are two-dimensional, so merge wording quality and real similarity are not tested; no recall query was run. ZYS-10120 should convert these assertions into the required semantics.
 
@@ -108,14 +110,14 @@ Limits: Haiku is replaced by a join-all-bodies combiner and embeddings are two-d
 
 Two `omp -p` runs in a throwaway `--session-dir`, no manual retain or recall:
 
-| Event | OMP name | Fired | Evidence |
-|---|---|---|---|
-| SessionStart | `session_start` | yes | `onSessionStart.jsonl` +1 per run |
-| UserPromptSubmit | `before_agent_start` (not `input`) | yes | `onUserPromptSubmit.jsonl`, `memory_ms` 118-172 |
-| PreToolUse / PostToolUse | `tool_call` / `tool_result` | yes | 36 -> 40 lines after one bash call |
-| Stop | `session_stop` | yes | `onStop.jsonl`: gates 4/1/9/220 ms, decision allow |
-| SessionEnd | `session_shutdown` | yes | `onSessionEnd.jsonl` +1 |
-| PreCompact / PostCompact | `session_before_compact` / `session_compact` | not exercised | no compaction reached |
+| Event                    | OMP name                                     | Fired         | Evidence                                           |
+| ------------------------ | -------------------------------------------- | ------------- | -------------------------------------------------- |
+| SessionStart             | `session_start`                              | yes           | `onSessionStart.jsonl` +1 per run                  |
+| UserPromptSubmit         | `before_agent_start` (not `input`)           | yes           | `onUserPromptSubmit.jsonl`, `memory_ms` 118-172    |
+| PreToolUse / PostToolUse | `tool_call` / `tool_result`                  | yes           | 36 -> 40 lines after one bash call                 |
+| Stop                     | `session_stop`                               | yes           | `onStop.jsonl`: gates 4/1/9/220 ms, decision allow |
+| SessionEnd               | `session_shutdown`                           | yes           | `onSessionEnd.jsonl` +1                            |
+| PreCompact / PostCompact | `session_before_compact` / `session_compact` | not exercised | no compaction reached                              |
 
 Ordering seen in the trace: SessionStart, UserPromptSubmit, PreToolUse, PostToolUse, Stop (02:07:28.804), SessionEnd (02:07:28.980).
 
@@ -127,14 +129,14 @@ Not verified: Mac, interactive TUI, compaction, resume/branch, backend outage, a
 
 `docs/design/agent-memory-supersession-pglite-zys-10118.test.ts` runs the real `archiveConsolidateFacts`, `archiveSupersedeFacts` and `archiveFactsAsOf` SQL against PGlite 0.3.14 with pgvector (a real Postgres, throwaway, in memory; no shared data touched). 4 tests, 22 expects, pass. Run: `OMP_FORK=<oh-my-pi checkout at f7f3e88> bun test <file>` with `@electric-sql/pglite` installed.
 
-| Requirement | Result |
-|---|---|
-| Complementary facts + paraphrase + correction synthesize | one current row (`k1`) holding the config path and the new host |
-| Old version retrievable as-of, source ids kept | pass: `archiveFactsAsOf` before the merge returns `c1,c2,k1,p1,t1` with the pre-merge `k1` text and `src-c1`; after the merge only `k1,t1` |
-| Unrelated-scope newer fact never merges across scopes | pass: `u1` (sah) unchanged, personal ids merged only among themselves |
-| Replay twice, out of order | pass: second run finds 0 clusters, history row count unchanged, reversed insertion gives the identical store |
-| Resurrection | **fails the requirement**: re-ingesting superseded `c1` (same id) makes it current again until the next sweep, because the retain upsert has no tombstone check |
-| Only the authoritative replacement for current queries | **not met by the storage layer**: the stub combiner (join-all) keeps the old host in the replacement body. Whether the real Haiku combiner resolves it to the newest value was not run |
+| Requirement                                              | Result                                                                                                                                                                                 |
+| -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Complementary facts + paraphrase + correction synthesize | one current row (`k1`) holding the config path and the new host                                                                                                                        |
+| Old version retrievable as-of, source ids kept           | pass: `archiveFactsAsOf` before the merge returns `c1,c2,k1,p1,t1` with the pre-merge `k1` text and `src-c1`; after the merge only `k1,t1`                                             |
+| Unrelated-scope newer fact never merges across scopes    | pass: `u1` (sah) unchanged, personal ids merged only among themselves                                                                                                                  |
+| Replay twice, out of order                               | pass: second run finds 0 clusters, history row count unchanged, reversed insertion gives the identical store                                                                           |
+| Resurrection                                             | **fails the requirement**: re-ingesting superseded `c1` (same id) makes it current again until the next sweep, because the retain upsert has no tombstone check                        |
+| Only the authoritative replacement for current queries   | **not met by the storage layer**: the stub combiner (join-all) keeps the old host in the replacement body. Whether the real Haiku combiner resolves it to the newest value was not run |
 
 So supersession exists and is non-destructive for consolidation; the open gaps are a tombstone on re-ingest and a contradiction check on the combiner output. No recall query was run against the superseded set.
 
@@ -144,11 +146,11 @@ So supersession exists and is non-destructive for consolidation; the open gaps a
 
 **Memory on vs off**, `docs/design/agent-memory-ab-zys-10118.sh`: 5 prompts ("From our earlier work: ...") whose answers exist only as archived facts, same answer model, `omp -p --no-session --no-tools`. Off = `memory.backend: off` plus `--no-extensions` (without `--no-extensions` the prompt hook still recalled: the first off attempt answered from memory, so that arm was discarded).
 
-| | memory on | memory off |
-|---|---|---|
-| gold token present | 5/5 | 0/5 |
-| declined / "no record" | 0/5 | 5/5 |
-| wall time mean | 17.2 s | 8.0-20.3 s per prompt (n=5, noisy) |
+|                        | memory on | memory off                         |
+| ---------------------- | --------- | ---------------------------------- |
+| gold token present     | 5/5       | 0/5                                |
+| declined / "no record" | 0/5       | 5/5                                |
+| wall time mean         | 17.2 s    | 8.0-20.3 s per prompt (n=5, noisy) |
 
 No wrong answers in either arm. On a fresh Relay sandbox the first run with extensions disabled in the off arm also wrote one junk fact (`memory_ingest` "noop") to the shared store; I deleted that one row by id. Fixture ids are the five prompts in the script; n=5 and one model, so this shows direction, not a rate. Not measured: interrupts, false interrupts, stale injections, rework avoided, time from turn to recallable memory, warm vs cold injection latency (only `memory_ms` 115-172 ms from the prompt hook and recall p50 63 ms / p95 213 ms, section 3).
 
@@ -156,13 +158,13 @@ No wrong answers in either arm. On a fresh Relay sandbox the first run with exte
 
 `docs/design/agent-memory-guard-real-judge-zys-10118.test.ts` drives the shipped guard (`hooks/memory_guard.ts`, `decidePreToolUse` in `hooks/tool_use.ts`, `createMemoryStopGate`) with a real model as judge: `omp -p --no-session --no-tools --no-extensions` asked the same yes/no question as `prompts/memory_conflict.yaml`. This sandbox has no System One / OpenRouter key (all three env vars unset), so this is **not** Jev: it shows the guard's behaviour with a real judge, not Jev's precision. Seeded decision: "this project installs dependencies with bun only; never run npm or pnpm install", repository `dev-profile`. Run: `cd ~/.omp/agent/extensions && bun test <file>`.
 
-| Case | Blocks | Ran | Judge calls | Result |
-|---|---|---|---|---|
-| conflict: `npm install`, then `bun install` | 1 | `bun install` | 1 | agent revises course; answer streamed once |
-| no conflict: `bun install` | 0 | `bun install` | 2 | no interruption (judge scored 0.02) |
-| outdated memory (superseded body, 2025) | 0 | `npm install` | 0 | does not steer; judge never reached |
-| cross-repo and no-repo memory | 0 | `npm install` | 0 | does not steer; judge never reached |
-| conflicting final answer at Stop | 1 | n/a | 1 | one correction; the corrected answer is accepted, no loop |
+| Case                                        | Blocks | Ran           | Judge calls | Result                                                    |
+| ------------------------------------------- | ------ | ------------- | ----------- | --------------------------------------------------------- |
+| conflict: `npm install`, then `bun install` | 1      | `bun install` | 1           | agent revises course; answer streamed once                |
+| no conflict: `bun install`                  | 0      | `bun install` | 2           | no interruption (judge scored 0.02)                       |
+| outdated memory (superseded body, 2025)     | 0      | `npm install` | 0           | does not steer; judge never reached                       |
+| cross-repo and no-repo memory               | 0      | `npm install` | 0           | does not steer; judge never reached                       |
+| conflicting final answer at Stop            | 1      | n/a           | 1           | one correction; the corrected answer is accepted, no loop |
 
 Real judge scores: `npm install` 0.97, `bun install` 0.02 (against the 0.8 threshold). 6 tests, 9 expects, pass.
 
@@ -174,10 +176,10 @@ Still not measured: Jev's precision and recall, false interrupts over real traff
 
 Probes on one Relay sandbox (omp 19.0.0 build 20261119211213-4530cba, `memory.backend: archive`), each a plain `omp -p "Reply with exactly: <unique token>"`:
 
-| Probe | Observed |
-|---|---|
-| Default session dir, then two with `--session-dir` | Each created a session directory (`changes.jsonl`, `blobs/`, `local/`) but **no `<session>.jsonl`**. A search of `public.memory_chunks` for each token (rows since the run) found 0 rows a minute or more later. Capture of a plain `omp -p` run did not happen. Cause not traced: the retainer returns 0 without a transcript file in the fork source (read at `3b7375f`), which is consistent but unconfirmed. Filed ZYS-10145. |
-| Same prompt with `SESSIONS_DB_URL` pointing at a closed port | Exit 1 after about 2 s, `PostgresError: Failed to connect (ERR_POSTGRES_CONNECTION_REFUSED)`, no answer; same with `--no-extensions`. The control answered in 9 s. An unreachable store aborts the headless run instead of degrading. Filed ZYS-10146. |
+| Probe                                                        | Observed                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Default session dir, then two with `--session-dir`           | Each created a session directory (`changes.jsonl`, `blobs/`, `local/`) but **no `<session>.jsonl`**. A search of `public.memory_chunks` for each token (rows since the run) found 0 rows a minute or more later. Capture of a plain `omp -p` run did not happen. Cause not traced: the retainer returns 0 without a transcript file in the fork source (read at `3b7375f`), which is consistent but unconfirmed. Filed ZYS-10145. |
+| Same prompt with `SESSIONS_DB_URL` pointing at a closed port | Exit 1 after about 2 s, `PostgresError: Failed to connect (ERR_POSTGRES_CONNECTION_REFUSED)`, no answer; same with `--no-extensions`. The control answered in 9 s. An unreachable store aborts the headless run instead of degrading. Filed ZYS-10146.                                                                                                                                                                            |
 
 This corrects section 9: helper sessions in `/tmp` were captured, but that does not generalise to plain headless runs. Relay conversations resume a `.jsonl` and are written (123 of 305 conversations present earlier, section 3).
 
@@ -187,11 +189,11 @@ Not verified: interactive TUI, resume or branch capture, compaction, a second wo
 
 The three Relay follow-ups landed in `zachbornheimer/oh-my-pi` branch `feat/archive-memory-backend` (head `c44cd91`, 2026-11-19): ZYS-10120 non-destructive, atomic supersession (#92, #93); ZYS-10145 no-transcript retention outcome and a one-shot drain (#94, #96, #97); ZYS-10146 fall back to local session files when `SESSIONS_DB_URL` is unreachable (#95). ZYS-10143 landed in `dev-profile` (#225, #226; judge deadline 5000 ms).
 
-| Check | Result |
-|---|---|
-| Real-Postgres supersession replay, section 10, re-run against fork head `c44cd91` | 4 tests, 22 expects, pass. Supersession, as-of history, scope isolation and idempotency still hold after #92-#97. |
-| Fork's own `archive.test.ts` at `c44cd91` | Could not run here: `bun test` fails to load the native module (`packages/natives/native/index.js`), a build prerequisite of this sandbox, not a test result. |
-| Outage probe on the **installed** binary (omp 19.0.0 build 20261119211213-4530cba) | Unchanged: exit 1, `PostgresError ERR_POSTGRES_CONNECTION_REFUSED`, no answer. |
+| Check                                                                              | Result                                                                                                                                                        |
+| ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Real-Postgres supersession replay, section 10, re-run against fork head `c44cd91`  | 4 tests, 22 expects, pass. Supersession, as-of history, scope isolation and idempotency still hold after #92-#97.                                             |
+| Fork's own `archive.test.ts` at `c44cd91`                                          | Could not run here: `bun test` fails to load the native module (`packages/natives/native/index.js`), a build prerequisite of this sandbox, not a test result. |
+| Outage probe on the **installed** binary (omp 19.0.0 build 20261119211213-4530cba) | Unchanged: exit 1, `PostgresError ERR_POSTGRES_CONNECTION_REFUSED`, no answer.                                                                                |
 
 **Inference, not verified:** the installed build probably predates the merged fork fixes. Its version string is a build stamp dated 2026-11-19 21:12 (hash `4530cba`, which is not an object in the fork checkout I have), while the fork head `c44cd91` is dated 2026-11-19 23:19, and the outage probe still fails as before. I did not confirm which commits the binary contains, and I could not build the fork to test the fixes.
 
@@ -203,10 +205,10 @@ The ZYS-10146 fix is not on the memory branch. It merged into `oh-my-pi` `chore/
 
 `docs/design/agent-memory-session-store-fallback-zys-10118.test.ts` imports the real `session-storage-env.ts` at `ff636221` with its native-dependent imports mocked, and passes (2 tests, 5 expects):
 
-| Case | Result |
-|---|---|
+| Case                                        | Result                                                                                                                 |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
 | `SESSIONS_DB_URL` pointing at a closed port | `resolveSessionStorage` returns `FileSessionStorage` twice, with exactly one `Session store unreachable` stderr notice |
-| `SESSIONS_DB_URL` unset | `FileSessionStorage`, no notice |
+| `SESSIONS_DB_URL` unset                     | `FileSessionStorage`, no notice                                                                                        |
 
 This shows the fixed logic degrades instead of throwing. It does **not** show the installed binary does: the same `omp -p` outage probe at 04:37 still exited 1 with `PostgresError`. Either the binary predates the fix or a second code path reads the URL outside `resolveSessionStorage`; I could not tell which.
 
@@ -220,12 +222,12 @@ Narrowing the outage abort (read from source at `ff636221`, not run): `SESSIONS_
 
 The Rust toolchain is not needed to run the fork's TypeScript tests. The installed `omp` build extracts its native addon to `~/.omp/natives/19.0.0/`; copying that one file to `packages/natives/native/` in a fork checkout (after `bun install --frozen-lockfile --ignore-scripts`) lets `bun test` load it. The loader warns the addon is 19.0.0 and the checkout 18.18.9, so results are indicative of the TypeScript logic only.
 
-| Check | Result |
-|---|---|
-| `oh-my-pi` `feat/archive-memory-backend` @ `c44cd91`, `test/memory-backend/archive.test.ts` | 60 pass, 0 fail, 234 expects. Includes the ZYS-10145 cases (reports `skipped: no-transcript`, drain waits for an in-flight write, status names a session with no transcript) and the ZYS-10120 supersession case. |
-| `oh-my-pi` `chore/fork-upstream-compat-4530cba` @ `ff63622`, `test/session/session-storage-env.test.ts` | 6 pass, 0 fail, 14 expects. ZYS-10146: an unreachable store prints `Session store unreachable (...); memory and sessions fall back to local files for this run.` and the run continues. |
-| Installed binary `build-20261119211213-4530cba-4785fc9`, string search | `Session store unreachable`, `no transcript file`, `skipped retention`, `drain in-flight`, `memory_fact_history`: 0 hits. `superseded_by`: 94 hits. |
-| Installed binary, outage probe (`SESSIONS_DB_URL` closed port) | exit 1, `PostgresError ERR_POSTGRES_CONNECTION_REFUSED`, no answer (06:16). |
+| Check                                                                                                   | Result                                                                                                                                                                                                            |
+| ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `oh-my-pi` `feat/archive-memory-backend` @ `c44cd91`, `test/memory-backend/archive.test.ts`             | 60 pass, 0 fail, 234 expects. Includes the ZYS-10145 cases (reports `skipped: no-transcript`, drain waits for an in-flight write, status names a session with no transcript) and the ZYS-10120 supersession case. |
+| `oh-my-pi` `chore/fork-upstream-compat-4530cba` @ `ff63622`, `test/session/session-storage-env.test.ts` | 6 pass, 0 fail, 14 expects. ZYS-10146: an unreachable store prints `Session store unreachable (...); memory and sessions fall back to local files for this run.` and the run continues.                           |
+| Installed binary `build-20261119211213-4530cba-4785fc9`, string search                                  | `Session store unreachable`, `no transcript file`, `skipped retention`, `drain in-flight`, `memory_fact_history`: 0 hits. `superseded_by`: 94 hits.                                                               |
+| Installed binary, outage probe (`SESSIONS_DB_URL` closed port)                                          | exit 1, `PostgresError ERR_POSTGRES_CONNECTION_REFUSED`, no answer (06:16).                                                                                                                                       |
 
 So the fixes are correct in source and pass their own tests, and the installed binary does not contain them: the strings are absent and the probe still fails. The remaining gap is a rebuild of the pinned binary from the merged fork, which needs the Rust toolchain.
 
@@ -241,9 +243,9 @@ Still not verified: Mac, interactive TUI, compaction, a rebuilt binary, System O
 
 A native build is not needed to run the CLI. `bun <checkout>/packages/coding-agent/src/cli.ts -p ...` runs the fork's TypeScript with the extracted addon from section 16 in place (2 cores, 3 GB RAM and 2.5 GB free disk here make a Rust build impractical). Same prompts and store as the installed-binary probes:
 
-| Probe | Installed `omp` (`build-20261119211213-4530cba-4785fc9`) | Merged fork from source |
-|---|---|---|
-| `SESSIONS_DB_URL` closed port, `-p "Reply with exactly: ok"` | exit 1, `PostgresError ERR_POSTGRES_CONNECTION_REFUSED`, no answer | exit 0, answer `ok`, stderr `Session store unreachable (Failed to connect); memory and sessions fall back to local files for this run.` (checkout `chore/fork-upstream-compat-4530cba` @ `ff63622`, ZYS-10146) |
+| Probe                                                                    | Installed `omp` (`build-20261119211213-4530cba-4785fc9`)                             | Merged fork from source                                                                                                                                                                                                                                                           |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SESSIONS_DB_URL` closed port, `-p "Reply with exactly: ok"`             | exit 1, `PostgresError ERR_POSTGRES_CONNECTION_REFUSED`, no answer                   | exit 0, answer `ok`, stderr `Session store unreachable (Failed to connect); memory and sessions fall back to local files for this run.` (checkout `chore/fork-upstream-compat-4530cba` @ `ff63622`, ZYS-10146)                                                                    |
 | Plain `-p "Reply with exactly: <unique token>"` against the shared store | token absent from `memory_chunks` a minute or more later (probes at 03:5x and 06:14) | token present in `memory_chunks` 3 seconds after the turn: chunk 0 `[role: user]`, chunk 1 `[role: assistant]`, `source=omp`, `scope=personal`, `repository=dev-profile`, `embedding` null (checkout `feat/archive-memory-backend` @ `c44cd91`, ZYS-10145 and the one-shot drain) |
 
 So the one-shot capture gap and the outage abort are both fixed in the merged fork and reproduced as fixed on this sandbox. The remaining distance to the deployed state is that the pinned binary has not been rebuilt from these commits.

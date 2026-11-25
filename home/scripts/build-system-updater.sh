@@ -5,28 +5,28 @@
 set -euo pipefail
 
 [[ $(uname -s) == "Darwin" ]] || {
-  echo "build-system-updater: macOS only — skipping"
-  exit 0
+	echo "build-system-updater: macOS only — skipping"
+	exit 0
 }
 
 home="{{ .chezmoi.homeDir }}"
 preferred="${home}/Developer/Personal/system-updater"
 legacy="${home}/Developer/Personal/brew-maintenance"
 if [[ -d "${preferred}" ]]; then
-  src="${preferred}"
+	src="${preferred}"
 else
-  src="${legacy}"
+	src="${legacy}"
 fi
 dest="${home}/.local/lib/dotfiles-apps/system-updater"
 
 if [[ ! -f "${src}/go.mod" ]]; then
-  echo "build-system-updater: ${src} missing — skip" >&2
-  exit 0
+	echo "build-system-updater: ${src} missing — skip" >&2
+	exit 0
 fi
 
 if ! command -v go >/dev/null 2>&1; then
-  echo "build-system-updater: go not on PATH — skip" >&2
-  exit 0
+	echo "build-system-updater: go not on PATH — skip" >&2
+	exit 0
 fi
 
 mkdir -p "$(dirname "$dest")"

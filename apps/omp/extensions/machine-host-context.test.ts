@@ -1,8 +1,8 @@
-import { stripVTControlCharacters } from "node:util";
 import { describe, expect, it } from "bun:test";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { stripVTControlCharacters } from "node:util";
 
 // Dynamic imports below resolve the sibling oh-my-pi checkout from `os.homedir()`
 // so this test runs from both `~/Developer/Personal/dev-profile` and git worktrees
@@ -128,8 +128,17 @@ describe("remote omp session terminal title badge", () => {
       isComputeArm: (platform?: string, env?: Record<string, string | undefined>) => boolean;
       formatTitlePrefix: (platform?: string, env?: Record<string, string | undefined>) => string;
       cleanTitleTask: (task?: string) => string | undefined;
-      formatTerminalTitle: (task?: string, platform?: string, env?: Record<string, string | undefined>, separator?: string) => string;
-      applyTerminalTitle: (ctx: unknown, platform?: string, env?: Record<string, string | undefined>) => string | undefined;
+      formatTerminalTitle: (
+        task?: string,
+        platform?: string,
+        env?: Record<string, string | undefined>,
+        separator?: string,
+      ) => string;
+      applyTerminalTitle: (
+        ctx: unknown,
+        platform?: string,
+        env?: Record<string, string | undefined>,
+      ) => string | undefined;
     };
 
     // isComputeArm

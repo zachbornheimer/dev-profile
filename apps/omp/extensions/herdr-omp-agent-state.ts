@@ -10,8 +10,7 @@ import path from "node:path";
 
 const HERDR_ENV = process.env.HERDR_ENV;
 const socketPath = process.env.HERDR_SOCKET_PATH;
-const socketEndpoint =
-  process.platform === "win32" && socketPath ? `\\\\.\\pipe\\${socketPath}` : socketPath;
+const socketEndpoint = process.platform === "win32" && socketPath ? `\\\\.\\pipe\\${socketPath}` : socketPath;
 const paneId = process.env.HERDR_PANE_ID;
 const source = process.env.HERDR_AGENT_SOURCE || "herdr:omp";
 // OMP marks every shell it spawns with OMPCODE=1. A nested `omp` launched from
@@ -91,8 +90,8 @@ function nextReportSeq(): number {
 
 export function isAbsoluteSessionPath(file: unknown): file is string {
   return (
-    typeof file === "string" &&
-    (path.posix.isAbsolute(file) || path.win32.isAbsolute(file))
+    typeof file === "string"
+    && (path.posix.isAbsolute(file) || path.win32.isAbsolute(file))
   );
 }
 
@@ -122,7 +121,9 @@ export function reportedSessionPath(
   return reportSource === FORWARDED_PANE_SOURCE ? rewriteAliasedSessionPath(file, alias) : file;
 }
 
-function updateSessionRef(ctx?: { sessionManager?: { getSessionFile?: () => unknown; getSessionId?: () => unknown } }): void {
+function updateSessionRef(
+  ctx?: { sessionManager?: { getSessionFile?: () => unknown; getSessionId?: () => unknown } },
+): void {
   try {
     const file = ctx?.sessionManager?.getSessionFile?.();
     currentAgentSessionPath = isAbsoluteSessionPath(file)
@@ -318,7 +319,7 @@ function askBlockedMessage(args: any): string {
   return "waiting for user input";
 }
 
-export default function (pi) {
+export default function(pi) {
   if (!enabled()) {
     return;
   }
