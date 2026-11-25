@@ -100,8 +100,8 @@ checkpoint=$(jq -ce --arg uuid "$uuid" --arg ticket "$ticket" --arg description 
 		and .task == $ticket and .description_source == "agent"
 		and .description == $description and .tree.available == true
 		and .changes.truncated == false)
-	| select([(.changes.modified // []), (.changes.added // []), (.changes.removed // [])]
-		| all(.[]; type == "array" and all(.[]; type == "string")))
+	| select([.changes.modified, .changes.added, .changes.removed]
+		| all(.[]; . == null or (type == "array" and all(.[]; type == "string"))))
 ' "$index/meta/$uuid.json" 2>/dev/null) || unverified "its complete checkpoint provenance is unreadable or mismatched"
 
 printf 'checkpoint %s  trigger=agent  task=%s  description_source=agent\n' "$id" "$ticket"

@@ -116,6 +116,17 @@ sys.exit(int(os.environ.get("SAVE_EXIT", "0")))
         self.assertNotEqual(result.returncode, 0)
         self.assertNotIn("authored:", result.stdout)
 
+    def test_malformed_change_categories_are_not_reported(self):
+        for category in ("modified", "added", "removed"):
+            for invalid in (False, "path", 1, [False]):
+                with self.subTest(category=category, invalid=invalid):
+                    original = self.record["changes"].get(category)
+                    self.record["changes"][category] = invalid
+                    result = self.run_wrapper()
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertNotIn("authored:", result.stdout)
+                    self.record["changes"][category] = original
+
     def test_no_receipt_cannot_reuse_old_checkpoint(self):
         self.env["RECEIPT"] = "history: nothing changed since the latest checkpoint"
         result = self.run_wrapper()
