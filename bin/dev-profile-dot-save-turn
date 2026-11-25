@@ -14,9 +14,9 @@
 # later, and a refusal would only deadlock a busy machine.
 #
 # Usage: dev-profile-dot-save-turn <ticket> <path>... [--description TEXT]
-# Exit: 0 when the checkpoint was written (a sweep included); non-zero when mise
-# refused the save, in which case no checkpoint is created and nothing is printed
-# as captured.
+# Exit: 0 only when the saved checkpoint and its complete change set were
+# verified. A failed read after save is non-zero: the checkpoint may exist, but
+# nothing is printed as captured.
 set -uo pipefail
 
 usage() { sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'; }
@@ -70,35 +70,41 @@ mise_path() {
 declare -a named_mise=()
 for p in "${named[@]}"; do named_mise+=("$(mise_path "$p")"); done
 
-# The numeric id is the newest checkpoint before the save; a save that fails
-# must not be reported against it.
-before=$(mise dot history -J -n 1 2>/dev/null | jq -r '.[0].id // empty')
-
+# Save emits the created checkpoint's id. Quiet settings must not hide that
+# receipt. Reading `latest` instead races the watcher and other agent turns.
 description=${description:-"agent: $ticket"}
-if ! save_out=$(mise dot save "${named[@]}" --trigger agent --task "$ticket" -d "$description" 2>&1); then
+if ! save_out=$(MISE_QUIET=0 MISE_SILENT=0 MISE_LOG_LEVEL=info mise dot save "${named[@]}" --trigger agent --task "$ticket" -d "$description" 2>&1); then
 	printf '%s\n' "$save_out" >&2
-	printf 'dev-profile-dot-save-turn: mise refused the save; no checkpoint was written\n' >&2
+	printf 'dev-profile-dot-save-turn: mise refused the save; no capture is verified\n' >&2
 	exit 1
 fi
 
-checkpoint=$(mise dot history show latest --json 2>/dev/null) || {
+unverified() {
 	printf '%s\n' "$save_out" >&2
-	printf 'dev-profile-dot-save-turn: checkpoint saved but unreadable; report it as unverified\n' >&2
+	printf 'dev-profile-dot-save-turn: checkpoint save returned but %s; report it as unverified\n' "$1" >&2
 	exit 1
 }
 
-id=$(printf '%s' "$checkpoint" | jq -r '.id // empty')
-if [ -n "$before" ] && [ "$id" = "$before" ]; then
-	printf '%s\n' "$save_out" >&2
-	printf 'dev-profile-dot-save-turn: no checkpoint was written (latest is still %s)\n' "$id" >&2
-	exit 1
-fi
+# The index is one JSON file, not a traversal of every checkpoint's metadata.
+# This cache layout belongs to mise history schema 2. Refuse an incompatible
+# record rather than falling back to an unbounded history list/show command.
+id=$(printf '%s\n' "$save_out" | sed -nE 's/^.*history: saved checkpoint ([0-9]+): .*$/\1/p')
+[[ "$id" =~ ^[1-9][0-9]*$ ]] || unverified "no unambiguous shared checkpoint receipt was emitted"
+state=${MISE_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/mise}
+index="$state/history/index"
+entry=$(jq -ce --argjson id "$id" '[.entries[] | select(.id == $id)] | if length == 1 then .[0] else error("ambiguous checkpoint id") end' "$index/checkpoints.json" 2>/dev/null) || unverified "its index entry is unreadable"
+uuid=$(printf '%s' "$entry" | jq -r '.uuid')
+[[ "$uuid" =~ ^[a-f0-9]{40}$ ]] || unverified "its checkpoint identity is unsupported"
+checkpoint=$(jq -ce --arg uuid "$uuid" --arg ticket "$ticket" --arg description "$description" '
+	select(.schema_version == 2 and .uuid == $uuid and .trigger == "agent"
+		and .task == $ticket and .description_source == "agent"
+		and .description == $description and .tree.available == true
+		and .changes.truncated == false)
+	| select([.changes.modified, .changes.added, .changes.removed]
+		| all(.[]; . == null or (type == "array" and all(.[]; type == "string"))))
+' "$index/meta/$uuid.json" 2>/dev/null) || unverified "its complete checkpoint provenance is unreadable or mismatched"
 
-trigger=$(printf '%s' "$checkpoint" | jq -r '.trigger // "?"')
-task=$(printf '%s' "$checkpoint" | jq -r '.task // "?"')
-source=$(printf '%s' "$checkpoint" | jq -r '.description_source // "?"')
-
-printf 'checkpoint %s  trigger=%s  task=%s  description_source=%s\n' "$id" "$trigger" "$task" "$source"
+printf 'checkpoint %s  trigger=agent  task=%s  description_source=agent\n' "$id" "$ticket"
 
 declare -a authored=() swept=()
 while IFS= read -r path; do
@@ -106,7 +112,7 @@ while IFS= read -r path; do
 	seen=0
 	for n in "${named_mise[@]}"; do [ "$path" = "$n" ] && seen=1 && break; done
 	if [ "$seen" -eq 1 ]; then authored+=("$path"); else swept+=("$path"); fi
-done < <(printf '%s' "$checkpoint" | jq -r '(.changes.modified // [])[]?' 2>/dev/null)
+done < <(printf '%s' "$checkpoint" | jq -r '[(.changes.modified // [])[], (.changes.added // [])[], (.changes.removed // [])[]] | unique[]')
 
 printf 'authored:\n'
 if [ ${#authored[@]} -eq 0 ]; then printf '  (none: no named path changed since the last checkpoint)\n'; fi

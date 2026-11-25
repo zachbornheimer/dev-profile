@@ -65,6 +65,24 @@ grace period. A worker that exits during that period is reaped and logged as a
 startup failure, so the watchdog notifies the user instead of entering cooldown.
 Surviving workers keep their own session and outlive the watchdog tick.
 
+## Turn checkpoint provenance
+
+Run `dev-profile-dot-save-turn <ticket> <path>...` to save a turn's snapshot.
+The wrapper uses the checkpoint ID from the save receipt, reads the single
+checkpoint index and only that record's metadata, and checks schema 2, agent
+provenance, task, description, and a complete change set. It never lists history
+or reads `latest`, which can belong to another writer. Index parsing is linear
+in checkpoint count; metadata reads stay constant. The save itself remains owned
+by mise and can still wait for its operation lock.
+
+The report includes modified, added, and removed paths. Named paths appear under
+`authored:`; all others appear under `captured-not-authored:`. Quote the latter
+verbatim. A missing receipt, unsupported cache format, truncated change set, or
+mismatched record fails without printing a capture claim, even if save succeeded.
+There is no slow history fallback. `mise run test:dot-save-turn` covers 10,000
+unrelated metadata records, concurrent latest checkpoints, rejected provenance,
+and real mise saves in an isolated HOME. Doctor runs this same task.
+
 ## Shell formatting
 
 dprint owns shell formatting. Bash/POSIX scripts use the existing exec plugin
