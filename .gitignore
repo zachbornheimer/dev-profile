@@ -31,6 +31,8 @@
 !/tests/*.py
 !/tests/*.ts
 !/tests/contract/
+!/tests/fixtures/
+!/tests/fixtures/*.sh
 !/tests/contract/*.sh
 !/tests/guards/
 !/tests/guards/*.sh
