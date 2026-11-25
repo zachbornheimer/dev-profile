@@ -38,6 +38,7 @@ bash "$root/tests/foreign-home-paths-fixture.sh" "$root" >/dev/null || fail "for
 bash "$root/tests/ban-trunk-prettier-fixture.sh" >/dev/null || fail "ban-trunk-prettier fixture"
 bash "$root/tests/dot-save-turn-fixture.sh" >/dev/null || fail "dot-save-turn fixture"
 bash "$root/tests/dprint-ts-js-fixture.sh" >/dev/null || fail "dprint-ts-js fixture"
+python3 "$root/tests/dprint-shell-fixture.py" || fail "dprint shell fixture"
 bash "$root/tests/retire-legacy-hooks-fixture.sh" "$root" >/dev/null || fail "retire-legacy-hooks fixture"
 bash "$root/tests/pre-push-empty-file-list-fixture.sh" >/dev/null || fail "pre-push empty file list fixture"
 bash "$root/tests/pre-push-refs-fixture.sh" >/dev/null || fail "pre-push refs fixture"

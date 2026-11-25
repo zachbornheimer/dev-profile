@@ -18,6 +18,8 @@ betterleaks = "1.9.0"
 pinact = "5.0.0"
 zizmor = "1.30.1"
 shellcheck = "0.11.0"
+# Shell implementation behind dprint's exec plugin; pin on every platform.
+"aqua:mvdan/sh" = "3.14.1"
 # zachbornheimer/foxguard fork of 0sec-labs/foxguard: upstream main plus the TypeScript 5.0
 # `export type * from "x"` parser fix (upstream skips those files as parse errors, which
 # makes dev-profile-foxguard-introduced fail closed). The fork ships through zysys

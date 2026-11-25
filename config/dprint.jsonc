@@ -46,13 +46,30 @@
     "**/*.min.*",
     "**/*.map",
     "**/*.snap",
-    // The sh plugin's parser rejects bats `@test` blocks
+    // Bats @test blocks remain outside the profile's shell formatting contract.
     "**/*.bats"
   ],
+  "sh": {
+    "associations": [
+      "!**/*.{sh,bash,ksh,mksh,dash,bats}",
+      "!**/.{envrc,bashrc,bash_profile,bash_login,bash_aliases,bash_logout,profile}"
+    ]
+  },
   "exec": {
     "cwd": "${configDir}",
     "timeout": 30,
     "commands": [
+      // shuck 0.2.11 still grows brace-substitution indentation each pass.
+      // Explicit flags ignore EditorConfig, matching the old plugin's defaults.
+      {
+        "command": "shfmt --indent 0 --language-dialect auto --filename {{file_path_with_ext}}",
+        "cacheKeyFiles": ["../languages/common/tools.toml"],
+        "exts": ["sh", "bash", "ksh", "mksh", "dash"],
+        "fileNames": [
+          ".envrc", ".bashrc", ".bash_profile", ".bash_login", ".bash_aliases",
+          ".bash_logout", ".profile"
+        ]
+      },
       {
         "command": "dev-profile-php-fmt --stdin-path {{file_path}}",
         "exts": [
@@ -119,7 +136,8 @@
     "npm:dprint-plugin-yaml@0.6.0",
     "npm:@dprint/ruff@0.9.1",
     "npm:@jakebailey/dprint-plugin-gofumpt@0.0.19",
-    "npm:@dprint/exec@0.7.3/plugin.json@704701df449dd7e942a71144773778ac529d68c2e4657bfc236d393b898b9a67",
+    "https://plugins.dprint.dev/exec-0.8.0.json@1f2dfbf5dec6d2e590b2c8b0ba6dbfaf80d0320fa9bd4c3f4f29efb99cd2bd6f",
+    // Keep Zsh on its existing parser; exec takes precedence for Bash/POSIX.
     "npm:@kachick/dprint-plugin-sh@0.1.2",
     "https://plugins.dprint.dev/g-plane/markup_fmt-v0.27.5.wasm",
     "https://plugins.dprint.dev/g-plane/malva-v0.16.0.wasm"

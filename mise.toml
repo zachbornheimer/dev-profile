@@ -47,6 +47,10 @@ run = 'dprint fmt --config config/dprint.jsonc "**/*"'
 description = "Check formatting"
 run = 'dprint check --config config/dprint.jsonc "**/*"'
 
+[tasks."test:dprint-shell"]
+description = "Check exact shell convergence, syntax, semantics and file dispatch"
+run = "python3 tests/dprint-shell-fixture.py"
+
 [tasks.build]
 description = "Nothing to render"
 run = "mise run doctor"
