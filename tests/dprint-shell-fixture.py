@@ -12,7 +12,9 @@ FIXTURE = ROOT / "tests/fixtures/shell-brace-substitution.sh"
 
 
 def run(command, source):
-    result = subprocess.run(command, input=source, capture_output=True, check=False)
+    result = subprocess.run(
+        command, input=source, capture_output=True, check=False, timeout=45
+    )
     assert result.returncode == 0, (
         f"{command}: exit {result.returncode}\n{result.stderr.decode()}"
     )
@@ -78,6 +80,11 @@ def main():
         run(command, b"")
         assert first == {name: (work / name).read_bytes() for name in samples}
         run(["dprint", "check", "--config", str(CONFIG), *paths], b"")
+
+    # Keep real Zsh constructs on the existing parser, not shfmt's partial one.
+    zsh_source = (ROOT / "shell/zsh/30-prompt.zsh").read_bytes()
+    zsh_formatted = format_shell(zsh_source, "prompt.zsh")
+    assert format_shell(zsh_formatted, "prompt.zsh") == zsh_formatted
 
     # Parse failures must propagate through exec/dprint instead of returning input.
     invalid = subprocess.run(

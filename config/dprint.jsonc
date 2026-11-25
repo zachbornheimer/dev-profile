@@ -49,6 +49,12 @@
     // Bats @test blocks remain outside the profile's shell formatting contract.
     "**/*.bats"
   ],
+  "sh": {
+    "associations": [
+      "!**/*.{sh,bash,ksh,mksh,dash,bats}",
+      "!**/.{envrc,bashrc,bash_profile,bash_login,bash_aliases,bash_logout,profile}"
+    ]
+  },
   "exec": {
     "cwd": "${configDir}",
     "timeout": 30,
@@ -58,10 +64,10 @@
       {
         "command": "shfmt --indent 0 --language-dialect auto --filename {{file_path_with_ext}}",
         "cacheKeyFiles": ["../languages/common/tools.toml"],
-        "exts": ["sh", "bash", "zsh", "ksh", "mksh", "dash"],
+        "exts": ["sh", "bash", "ksh", "mksh", "dash"],
         "fileNames": [
           ".envrc", ".bashrc", ".bash_profile", ".bash_login", ".bash_aliases",
-          ".bash_logout", ".profile", ".zshrc", ".zshenv", ".zprofile", ".zlogin", ".zlogout"
+          ".bash_logout", ".profile"
         ]
       },
       {
@@ -131,6 +137,8 @@
     "npm:@dprint/ruff@0.9.1",
     "npm:@jakebailey/dprint-plugin-gofumpt@0.0.19",
     "https://plugins.dprint.dev/exec-0.8.0.json@1f2dfbf5dec6d2e590b2c8b0ba6dbfaf80d0320fa9bd4c3f4f29efb99cd2bd6f",
+    // Keep Zsh on its existing parser; exec takes precedence for Bash/POSIX.
+    "npm:@kachick/dprint-plugin-sh@0.1.2",
     "https://plugins.dprint.dev/g-plane/markup_fmt-v0.27.5.wasm",
     "https://plugins.dprint.dev/g-plane/malva-v0.16.0.wasm"
   ]

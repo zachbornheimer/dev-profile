@@ -67,12 +67,14 @@ Surviving workers keep their own session and outlive the watchdog tick.
 
 ## Shell formatting
 
-dprint owns shell formatting through its existing exec plugin and pinned
-`shfmt` 3.14.1 (`languages/common/tools.toml`). Both the old sh plugin 0.1.2
+dprint owns shell formatting. Bash/POSIX scripts use the existing exec plugin
+(0.8.0, needed for shebang filename dispatch) and pinned `shfmt` 3.14.1
+(`languages/common/tools.toml`). Zsh keeps the existing sh plugin because shfmt
+does not yet parse all of the profile's Zsh syntax. Both the old sh plugin 0.1.2
 and its maintained successor `@dprint/shuck` 0.2.7 grow indentation on the
 brace-group command substitution in `tests/fixtures/shell-brace-substitution.sh`.
-The plugin delegates formatting to shuck-formatter; calling its Wasm directly
-also grows the indentation, independently of dprint's stability check.
+Calling the old plugin's Wasm directly also grows indentation each pass,
+independently of dprint's stability check.
 
 The fixture preserves the exact `exclude_copied_output` replacement from
 `omp:01a20e37-0793-754f-8a23-188098ea94a6`, with only a Bash shebang and the
