@@ -26,6 +26,7 @@
 !/tools/*/*.pkl
 !/tests/
 !/tests/*.sh
+!/tests/*.zsh
 !/tests/*.pkl
 !/tests/*.pcf
 !/tests/*.py
