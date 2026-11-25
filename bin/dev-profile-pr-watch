@@ -131,7 +131,7 @@ await_ci() {
 # reviews or required checks, so poll until GitHub reports the outcome.
 merge() {
 	local method="${DEV_PROFILE_PR_MERGE_METHOD:-$(gh repo view ${slug:+"${slug}"} --json viewerDefaultMergeMethod \
-    --jq '.viewerDefaultMergeMethod | ascii_downcase')}"
+		--jq '.viewerDefaultMergeMethod | ascii_downcase')}"
 	status "merging (${method})"
 	local refusal
 	if ! refusal="$(ghr pr merge "${pr}" --auto "--${method}" 2>&1)"; then

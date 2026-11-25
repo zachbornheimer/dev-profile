@@ -9,8 +9,8 @@
 set -euo pipefail
 
 if command -v op-ssh-sync >/dev/null 2>&1 && op account get >/dev/null 2>&1; then
-  op-ssh-sync
+	op-ssh-sync
 else
-  echo "run_onchange: 1Password locked or op-ssh-sync absent — skipping key mirror" \
-       "(run 'op-ssh-sync' once unlocked)"
+	echo "run_onchange: 1Password locked or op-ssh-sync absent — skipping key mirror" \
+		"(run 'op-ssh-sync' once unlocked)"
 fi

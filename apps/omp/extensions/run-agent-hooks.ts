@@ -29,7 +29,16 @@ type OmpApi = { on(name: string, handler: Handler): void };
 const BINARY = join(homedir(), ".cargo", "bin", "agent-hooks");
 const CONFIG = join(homedir(), ".config", "agent-hooks", "hooks.toml");
 /** Wired agent-hooks events and their deadline in ms: the catalog's slowest hook plus 2 s. */
-const TIMEOUT_MS: Record<string, number> = {"PostToolUse":28000,"PostToolUseFailure":28000,"PreCompact":28000,"PreToolUse":28000,"SessionEnd":28000,"SessionStart":28000,"Stop":28000,"UserPromptSubmit":28000};
+const TIMEOUT_MS: Record<string, number> = {
+  "PostToolUse": 28000,
+  "PostToolUseFailure": 28000,
+  "PreCompact": 28000,
+  "PreToolUse": 28000,
+  "SessionEnd": 28000,
+  "SessionStart": 28000,
+  "Stop": 28000,
+  "UserPromptSubmit": 28000,
+};
 
 let startupContext = "";
 let stopHandledForTurn = false;

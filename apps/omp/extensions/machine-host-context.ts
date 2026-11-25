@@ -1,5 +1,3 @@
-import os from "node:os";
-import path from "node:path";
 import { findScopedSettings, settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import {
   cfgStatusLineLeftSegments,
@@ -8,6 +6,8 @@ import {
   cfgStatusLineShowHookStatus,
 } from "@oh-my-pi/pi-coding-agent/modes/settings";
 import { STATUS_LINE_PRESETS } from "@oh-my-pi/pi-tui/status-line/presets";
+import os from "node:os";
+import path from "node:path";
 
 type OmpUIContext = {
   notify?: (message: string, type?: "info" | "warning" | "error") => void;
@@ -134,7 +134,7 @@ export function formatTerminalTitle(
   task?: string,
   platform = os.platform(),
   env = process.env,
-  separator = ">"
+  separator = ">",
 ): string {
   const prefix = formatTitlePrefix(platform, env);
   const clean = cleanTitleTask(task);
@@ -144,7 +144,7 @@ export function formatTerminalTitle(
 export function applyTerminalTitle(
   ctx?: OmpContext,
   platform = os.platform(),
-  env = process.env
+  env = process.env,
 ): string | undefined {
   if (!ctx?.ui?.setTitle) return undefined;
   if (!isComputeArm(platform, env)) return undefined;
@@ -188,7 +188,6 @@ export default function machineHostContext(pi: ExtensionAPI): void {
   function updateTitle(ctx?: OmpContext): void {
     applyTerminalTitle(ctx);
   }
-
 
   pi.on("session_start", (_event: unknown, ctx: OmpContext) => {
     updateFooterStatus(ctx);
@@ -235,16 +234,16 @@ export default function machineHostContext(pi: ExtensionAPI): void {
     ctx.ui?.notify?.(notice, "info");
 
     const hostContextXml =
-      `<machine_host hostname="${hostname}" platform="${platform}" arch="${arch}" homedir="${homedir}" role="${role}">\n` +
-      `${notice}\n` +
-      `</machine_host>`;
+      `<machine_host hostname="${hostname}" platform="${platform}" arch="${arch}" homedir="${homedir}" role="${role}">\n`
+      + `${notice}\n`
+      + `</machine_host>`;
 
     const evt = event as BeforeAgentStartEvent | undefined;
     const existingSystemPrompt = Array.isArray(evt?.systemPrompt)
       ? evt?.systemPrompt
       : typeof evt?.systemPrompt === "string"
-        ? [evt.systemPrompt]
-        : [];
+      ? [evt.systemPrompt]
+      : [];
 
     return {
       message: notice,

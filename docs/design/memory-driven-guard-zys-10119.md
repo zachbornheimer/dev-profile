@@ -8,10 +8,10 @@ Marks: **[M]** measured here, **[S]** read from source, **[I]** inference.
 
 An opt-in guard, `OMP_MEMORY_GUARD=on` (default off, like `OMP_SCOPE_GUARD`). Off means no recall, no model call, no behavior change [M: the existing `onTool`/`decidePreToolUse` tests still pass].
 
-| Moment | Where | What |
-|---|---|---|
-| Before a mutating tool call | `hooks/tool_use.ts` -> `memoryToolBlock` | Recall decisions for the proposed call, keep this repository's current ones, ask one judge question, block once with the decision quoted. |
-| Before a final answer is accepted | `onStop.ts` -> `createMemoryStopGate` (a `StopGate` in the main-agent gate list) | Same check on `last_assistant_message`; block once with "correct only the conflicting statement, do not repeat the rest". |
+| Moment                            | Where                                                                            | What                                                                                                                                      |
+| --------------------------------- | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Before a mutating tool call       | `hooks/tool_use.ts` -> `memoryToolBlock`                                         | Recall decisions for the proposed call, keep this repository's current ones, ask one judge question, block once with the decision quoted. |
+| Before a final answer is accepted | `onStop.ts` -> `createMemoryStopGate` (a `StopGate` in the main-agent gate list) | Same check on `last_assistant_message`; block once with "correct only the conflicting statement, do not repeat the rest".                 |
 
 Files (extensions tree, tracked by `mise dot`, not in this repository): `hooks/memory_guard.ts` (policy), `prompts/memory_guard_ports.ts` (live recall + judge), `prompts/memory_conflict.yaml` (one `MemoryConflict` yes/no question), `hooks/memory_guard.test.ts` (replay).
 
@@ -29,12 +29,12 @@ Files (extensions tree, tracked by `mise dot`, not in this repository): `hooks/m
 
 `hooks/memory_guard.test.ts` replays one scripted turn (proposals, then streamed final answers) through the real `decidePreToolUse` and Stop gate with an in-memory recall store and a deterministic judge:
 
-| Case | Blocks | Duplicate streamed answers |
-|---|---|---|
-| conflict (`npm install`, decision: bun only) | 1 | 0 |
-| no conflict (`bun install`) | 0 | 0 |
-| outdated (superseded body, 2025 fact) | 0 (judge not called) | 0 |
-| cross-repo (other repository, no repository) | 0 (judge not called) | 0 |
+| Case                                         | Blocks               | Duplicate streamed answers |
+| -------------------------------------------- | -------------------- | -------------------------- |
+| conflict (`npm install`, decision: bun only) | 1                    | 0                          |
+| no conflict (`bun install`)                  | 0                    | 0                          |
+| outdated (superseded body, 2025 fact)        | 0 (judge not called) | 0                          |
+| cross-repo (other repository, no repository) | 0 (judge not called) | 0                          |
 
 Plus: retry after the block is not blocked again; a worktree cwd counts as the project; guard off / judge down passes; a conflicting final answer is refused once and the correction stands.
 

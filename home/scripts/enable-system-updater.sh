@@ -3,7 +3,10 @@
 # plist hash: {{ include (joinPath .chezmoi.sourceDir "Library/LaunchAgents/com.zach.system-updater.plist.tmpl") | sha256sum }}
 set -euo pipefail
 
-[[ $(uname -s) == "Darwin" ]] || { echo "enable-system-updater: macOS only — skipping"; exit 0; }
+[[ $(uname -s) == "Darwin" ]] || {
+	echo "enable-system-updater: macOS only — skipping"
+	exit 0
+}
 
 readonly LABEL="com.zach.system-updater"
 readonly PLIST="$HOME/Library/LaunchAgents/${LABEL}.plist"

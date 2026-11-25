@@ -4,11 +4,14 @@
 # script hash: {{ include (joinPath .chezmoi.sourceDir "dot_local/bin/executable_macos-security-updates-on") | sha256sum }}
 set -euo pipefail
 
-[[ $(uname -s) == "Darwin" ]] || { echo "enable-macos-security-updates: macOS only — skipping"; exit 0; }
+[[ $(uname -s) == "Darwin" ]] || {
+	echo "enable-macos-security-updates: macOS only — skipping"
+	exit 0
+}
 
 askpass="{{ joinPath .chezmoi.sourceDir ".." "bin" "sudo-askpass" }}"
 if [[ -x "$askpass" ]]; then
-  export SUDO_ASKPASS="$askpass"
+	export SUDO_ASKPASS="$askpass"
 fi
 
 "$HOME/.local/bin/macos-security-updates-on"
