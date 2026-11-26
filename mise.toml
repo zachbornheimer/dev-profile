@@ -110,6 +110,12 @@ run = "bash tests/omp-tools-validate.sh"
 description = "Exercise OMP health-check success and failure cases"
 run = "bash tests/omp-tools-fixture.sh"
 
+# review_pr's reviewer programs come from the profile's pins, so a fresh Linux box
+# (a Relay guest) has both. Runs in doctor; this task is the direct runner.
+[tasks."test:review-tools"]
+description = "Check the profile pins review_pr's reviewer programs and, on Linux, that both start"
+run = 'bash tests/review-tools-fixture.sh "$PWD"'
+
 # The backlog review's transport bounds. The tool is mise-dot tracked, so the
 # test imports the installed copy and this task is the registered runner.
 [tasks."test:backlog-transport"]
