@@ -141,14 +141,28 @@ elif [[ "${added_only}" -eq 1 ]]; then
 	if [[ -z "${mainline}" ]]; then
 		run_all "no push refs and no mainline to measure added files from"
 	fi
+	# A branch with an upstream inherits that upstream's tree too, so a file the
+	# upstream already tracks is not this push's to add even when the mainline has
+	# never carried it (an artifact published on a long-lived feature branch).
+	# Judging the mainline alone read every such file as new and blocked the push.
+	bases=("${mainline}")
+	if upstream="$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null)" &&
+		[[ -n "${upstream}" ]] &&
+		git rev-parse -q --verify "${upstream}" >/dev/null 2>&1; then
+		bases+=("${upstream}")
+	fi
 	prefix="$(git rev-parse --show-prefix 2>/dev/null || true)"
 	added=()
 	for candidate in "${candidates[@]}"; do
-		if git cat-file -e "${mainline}:${candidate}" 2>/dev/null ||
-			git cat-file -e "${mainline}:${prefix}${candidate}" 2>/dev/null; then
-			continue
-		fi
-		added+=("${candidate}")
+		present=0
+		for base in "${bases[@]}"; do
+			if git cat-file -e "${base}:${candidate}" 2>/dev/null ||
+				git cat-file -e "${base}:${prefix}${candidate}" 2>/dev/null; then
+				present=1
+				break
+			fi
+		done
+		[[ "${present}" -eq 1 ]] || added+=("${candidate}")
 	done
 	if [[ "${#added[@]}" -eq 0 ]]; then
 		printf 'dev-profile-changed-files: 0 of %d candidate file(s) added: %s skipped\n' \
