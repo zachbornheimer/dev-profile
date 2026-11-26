@@ -8,5 +8,5 @@
 # in $PATH". Linux-only because macOS takes ocr from Homebrew (brew:open-code-review in
 # the machine's bootstrap packages), so no second copy shadows it there. The release is
 # one bare binary per platform (opencodereview-linux-amd64); `bin` gives it the name
-# review_pr runs. Pinned for the reason languages/python/tools.toml records.
+# review_pr runs. Pinned, never `latest`, for the reason languages/python/tools.toml records.
 "github:alibaba/open-code-review" = { version = "1.14.3", bin = "ocr", os = ["linux"] }
