@@ -43,7 +43,11 @@ Login zsh loads the `org.zysys.op-service-account` Keychain entry for the curren
 username in `shell/zsh/05-env.zsh`, before the eager AI environment can call
 `op inject`. An inherited service token takes precedence. Unattended shells
 disable biometric unlock; desktop token recovery in `06-env.defer.zsh` requires
-an interactive terminal and never runs for a no-TTY `zsh -lic` command.
+an interactive terminal and never runs for a no-TTY `zsh -lic` command. That file
+asks the 1Password server about a token once per twelve hours (`op vault list`),
+not once per shell: the request allowance is shared with every Relay guest. It
+keeps the token's SHA-256 under `~/.local/state/dev-profile/`, never the token;
+`mise run test:op-token-validation` counts the calls a shell start makes.
 
 ## What stays out of this public repo
 

@@ -26,6 +26,7 @@
 !/tools/*/*.pkl
 !/tests/
 !/tests/*.sh
+!/tests/*.zsh
 !/tests/*.pkl
 !/tests/*.pcf
 !/tests/*.py
@@ -63,8 +64,6 @@
 !/home/**
 !/apps/
 !/apps/**
-!/more/
-!/more/**
 !/vim/
 !/vim/**
 !/xdg/
