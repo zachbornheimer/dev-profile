@@ -9,6 +9,10 @@ DEV_PROFILE_BACKUPS = "{{env.HOME}}/.local/state/dev-profile/backups"
 [bootstrap.packages]
 "brew:git" = "latest"
 
+[tasks."test:fallback-shake"]
+description = "Check fallback shake never blocks retry handlers and reports detached results"
+run = "bun test apps/omp/fallback-shake"
+
 [tasks.setup]
 description = "Seed the global mise config and apply the dotfiles"
 # ~/.config/mise/config.toml is tracked in place (mode = "track"); seed it from config/mise.toml only when missing.

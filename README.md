@@ -138,6 +138,11 @@ markers only inside its detached worker (`&!`), never in `chpwd`.
 `mise run test:cd-latency` exercises held renderers, environment refreshes, and
 blocked worker discovery in an interactive terminal.
 
+Model fallback notices remain immediate. The fallback-shake extension schedules
+artifact-backed history elision outside retry event delivery, coalesces concurrent
+hops, and reports completion or failure at the next `agent_start`. Shutdown cancels
+pending work. Run `mise run test:fallback-shake` for the event-budget regression.
+
 `mise run test:omp` checks the installed `~/.omp/agent/tools` import graphs and
 callable default exports, then loads installed extensions through OMP's real RPC
 startup and registration path. It sends no model prompt and executes no tool.
