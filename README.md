@@ -49,6 +49,14 @@ not once per shell: the request allowance is shared with every Relay guest. It
 keeps the token's SHA-256 under `~/.local/state/dev-profile/`, never the token;
 `mise run test:op-token-validation` counts the calls a shell start makes.
 
+`ai-keys::env` runs `op inject` once to fill `~/.cache/ai/keys.env`. When
+1Password refuses, a shell that cannot change the answer (no terminal on stdin,
+or not macOS: an agent's shell, a Relay guest's) does not ask again for the same
+token and template for 15 minutes; a Mac terminal shell and `ai-keys-refresh`
+always ask. The record, `~/.cache/ai/keys.env.refused`, holds a SHA-256 of the
+token and template, never either one. `mise run test:ai-keys-refusal` counts the
+runs.
+
 ## What stays out of this public repo
 
 SSH private keys, home/ssh/config and known_hosts are gitignored. A clone does not restore them. Automatic pull of tracked files needs a private origin. This repo is not that origin.

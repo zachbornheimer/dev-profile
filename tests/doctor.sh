@@ -34,6 +34,7 @@ done
 zsh_check "output fixture" bash "$root/tests/output-fixture.sh"
 zsh_check "cd latency fixture" zsh -f "$root/tests/cd-latency-fixture.zsh"
 zsh_check "op token validation fixture" zsh -f "$root/tests/op-token-validation-fixture.zsh"
+zsh_check "ai-keys refusal fixture" zsh -f "$root/tests/ai-keys-refusal-fixture.zsh"
 bash "$root/tests/hook-path-free.sh" >/dev/null || fail "hook path fixture"
 bash "$root/tests/foreign-home-paths-fixture.sh" "$root" >/dev/null || fail "foreign-home-paths fixture"
 bash "$root/tests/ban-trunk-prettier-fixture.sh" >/dev/null || fail "ban-trunk-prettier fixture"
