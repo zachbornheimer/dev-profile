@@ -13,6 +13,8 @@ exclude = [
   "**/backups/",
   "public/assets/",
   "**/public/assets/",
+  "node_modules/",
+  "**/node_modules/",
 ]
 
 [commit.generation]
