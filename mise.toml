@@ -80,6 +80,9 @@ run = "zsh -f tests/cd-latency-fixture.zsh"
 [tasks."test:op-token-validation"]
 description = "Count the 1Password calls an interactive shell start makes: none for a service token already validated, one for a changed, expired or refused one"
 run = "zsh -f tests/op-token-validation-fixture.zsh"
+[tasks."test:ai-keys-refusal"]
+description = "Count the `op inject` runs shell starts make after 1Password refused the token and template: one per 15 minutes for a shell that cannot change the answer, every time for a Mac terminal shell"
+run = "zsh -f tests/ai-keys-refusal-fixture.zsh"
 [tasks."test:adoption"]
 description = "Deploy a clone at an arbitrary path into a scratch HOME with the real mise; the personal overlay stays opt-in"
 run = "bash tests/adoption-fixture.sh"
