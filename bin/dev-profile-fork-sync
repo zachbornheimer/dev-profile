@@ -42,13 +42,15 @@ for attempt in 1 2 3; do
 done
 echo "${out}"
 
-# Managed forks also build on their own daily schedule; a dispatch right after the
-# fast-forward ships upstream's changes the same morning.
-bun "${cli}" status | jq -r '.[] | select(.managed) | .repo' | while IFS= read -r repo; do
-	if gh workflow run fork.yml -R "zachbornheimer/${repo}" --ref fork >/dev/null 2>&1; then
-		echo "fork sync: started ${repo} build"
+# Managed forks build; contribution-only forks only sync. GitHub's own schedule is
+# best-effort and can drop a slot under load, so this clock dispatches both: the build
+# right after the fast-forward, and the GitHub-side sync for forks that have no build.
+bun "${cli}" status | jq -r '.[] | "\(.repo)\t\(.managed)"' | while IFS="$(printf '\t')" read -r repo managed; do
+	if [ "${managed}" = "true" ]; then wf=fork.yml; else wf=fork-sync.yml; fi
+	if gh workflow run "${wf}" -R "zachbornheimer/${repo}" --ref fork >/dev/null 2>&1; then
+		echo "fork sync: dispatched ${wf} for ${repo}"
 	else
-		echo "fork sync: could not start ${repo} build" >&2
+		echo "fork sync: could not dispatch ${wf} for ${repo}" >&2
 	fi
 done
 
