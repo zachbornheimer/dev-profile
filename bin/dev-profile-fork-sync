@@ -26,10 +26,20 @@ command -v bun >/dev/null 2>&1 || {
 	exit 2
 }
 
-out="$(bun "${cli}" sync)" || {
-	echo "${out}" >&2
-	exit 2
-}
+# A cold network or a TLS stall on the first run of the day is not a fork failure: the
+# sync is fast-forward only and idempotent, so retry a few times before a tool error.
+out=""
+for attempt in 1 2 3; do
+	out="$(bun "${cli}" sync)" && break
+	rc=$?
+	if [[ ${attempt} -eq 3 ]]; then
+		echo "${out}" >&2
+		echo "fork sync: sync failed ${attempt} times (last exit ${rc})" >&2
+		exit 2
+	fi
+	echo "fork sync: sync failed (exit ${rc}); retrying in $((attempt * 10))s" >&2
+	sleep $((attempt * 10))
+done
 echo "${out}"
 
 # Managed forks also build on their own daily schedule; a dispatch right after the
