@@ -381,7 +381,7 @@ function readCalls(): { argv: string[]; HK?: string }[] {
 }
 
 const hasOmp = !!Bun.which("omp"); // runners without omp skip it
-// omp runs on its own default model: a fresh agent dir gets the host's roles and providers, never a --model.
+// Use the host's default model and fallback policy, never a --model pin.
 const hostAgentDir = process.env.PI_CODING_AGENT_DIR ?? path.join(os.homedir(), ".omp/agent");
 // The fixture swaps HOME, so omp would not find the host's auth-broker token under ~/.omp.
 const hostBrokerToken = path.join(os.homedir(), ".omp/auth-broker.token");
@@ -390,12 +390,15 @@ const hostAuth = process.env.OMP_AUTH_BROKER_TOKEN || !fs.existsSync(hostBrokerT
   : { OMP_AUTH_BROKER_TOKEN: fs.readFileSync(hostBrokerToken, "utf8").trim() };
 function adoptHostModels(agentDir: string) {
   fs.mkdirSync(agentDir, { recursive: true });
-  // Only the roles block: the rest of the host config (extensions, hooks) would leak into the clean HOME.
+  // Only model selection and retry policy: extensions, hooks and MCP must not leak into the clean HOME.
   const config = path.join(hostAgentDir, "config.yml");
-  const roles = fs.existsSync(config)
-    ? fs.readFileSync(config, "utf8").match(/^modelRoles:\n(?:[ \t]+.*\n)*/m)?.[0]
-    : undefined;
-  if (roles) fs.writeFileSync(path.join(agentDir, "config.yml"), roles);
+  if (fs.existsSync(config)) {
+    const host = Bun.YAML.parse(fs.readFileSync(config, "utf8")) as Record<string, unknown>;
+    const modelConfig = Object.fromEntries(
+      ["modelRoles", "modelProviderOrder", "retry"].filter(key => key in host).map(key => [key, host[key]]),
+    );
+    fs.writeFileSync(path.join(agentDir, "config.yml"), Bun.YAML.stringify(modelConfig));
+  }
   for (const file of ["models.yml"]) {
     const from = path.join(hostAgentDir, file);
     if (fs.existsSync(from)) fs.symlinkSync(from, path.join(agentDir, file));
@@ -418,7 +421,8 @@ test.skipIf(!hasOmp)("real omp session publishes one verified ref and reports it
     ], { cwd: f.repo, env, encoding: "utf8", timeout: 90_000 });
   const before = f.refs();
   const first = turn("Reply exactly OK1.");
-  expect(first.status).toBe(0);
+  const errorCategory = first.stderr.match(/\b(?:429|401|403|rate_limit_error|Failed to load extension)\b/)?.[0];
+  expect(first.status, `omp exit: ${first.error?.code ?? first.signal ?? errorCategory ?? "unclassified"}`).toBe(0);
   expect(first.stdout + first.stderr).not.toContain("Failed to load extension");
   const job = await settled();
   expect(job.outcome).toBe("verified");
@@ -542,6 +546,8 @@ function miseBox(opts: { mode?: string; origin?: "dead"; every?: number; declare
   delete env.MISE_HISTORY_MANUAL_SAVE_EVERY_S;
   // Under `mise bootstrap` (doctor runs this suite) the outer run exports its own history operation id. The nested
   // `mise bootstrap --adopt` inherits it, believes it belongs to that run, and refuses incoming application.
+  // Relay exports sync=sync; the scratch config owns its mode, including fetch-only.
+  delete env.MISE_HISTORY_SYNC;
   delete env.__MISE_HISTORY_OPERATION;
   if (opts.every) env.MISE_HISTORY_MANUAL_SAVE_EVERY_S = String(opts.every);
   process.env = env;
@@ -587,20 +593,25 @@ const neverMutates = (argv: string[]) => {
     .toBe(false);
 };
 
-test("mise: saved and synced tracked file is verified, with one sync and matching heads", async () => {
-  const b = miseBox();
-  expect(b.mise("dot", "save").status).toBe(0);
-  expect(b.mise("dot", "sync").status).toBe(0);
-  const configBefore = fs.readFileSync(b.config, "utf8");
-  const r = await b.report();
-  expect(r.mise).toHaveLength(1);
-  expect(r.mise[0]).toStartWith("mise-dotfiles: verified");
-  const head = git(b.origin, "rev-parse", "refs/heads/history");
-  expect(r.mise[0]).toContain(`head=${head}`);
-  expect(r.argv.filter(l => l === "dot sync")).toHaveLength(1);
-  neverMutates(r.argv);
-  expect(fs.readFileSync(b.config, "utf8")).toBe(configBefore);
-}, 90_000);
+test.each(["sync", "fetch-only"])(
+  "mise: saved and synced tracked file is verified despite inherited %s mode",
+  async inherited => {
+    process.env.MISE_HISTORY_SYNC = inherited;
+    const b = miseBox();
+    expect(b.mise("dot", "save").status).toBe(0);
+    expect(b.mise("dot", "sync").status).toBe(0);
+    const configBefore = fs.readFileSync(b.config, "utf8");
+    const r = await b.report();
+    expect(r.mise).toHaveLength(1);
+    expect(r.mise[0]).toStartWith("mise-dotfiles: verified");
+    const head = git(b.origin, "rev-parse", "refs/heads/history");
+    expect(r.mise[0]).toContain(`head=${head}`);
+    expect(r.argv.filter(l => l === "dot sync")).toHaveLength(1);
+    neverMutates(r.argv);
+    expect(fs.readFileSync(b.config, "utf8")).toBe(configBefore);
+  },
+  90_000,
+);
 
 test("mise: repeated agent_end is idempotent", async () => {
   const b = miseBox();
@@ -645,14 +656,19 @@ test("mise: an unsaved autosave path is blocked unsaved, never scheduled", async
   expect(r.mise[0]).not.toContain("scheduled");
 }, 90_000);
 
-test("mise: fetch-only is blocked fetch-only and never syncs", async () => {
-  const b = miseBox({ mode: "fetch-only" });
-  b.mise("dot", "save");
-  const r = await b.report();
-  expect(r.mise[0]).toMatch(/^mise-dotfiles: blocked.*fetch-only/);
-  expect(r.argv).not.toContain("dot sync");
-  neverMutates(r.argv);
-}, 90_000);
+test.each(["sync", "fetch-only"])(
+  "mise: fetch-only is blocked and never syncs despite inherited %s mode",
+  async inherited => {
+    process.env.MISE_HISTORY_SYNC = inherited;
+    const b = miseBox({ mode: "fetch-only" });
+    b.mise("dot", "save");
+    const r = await b.report();
+    expect(r.mise[0]).toMatch(/^mise-dotfiles: blocked.*fetch-only/);
+    expect(r.argv).not.toContain("dot sync");
+    neverMutates(r.argv);
+  },
+  90_000,
+);
 
 test("mise: offline origin is blocked offline", async () => {
   const b = miseBox({ origin: "dead" });
