@@ -249,6 +249,7 @@ root = "."
 exclude = ["**"]
 
 [dotfile_groups.dev-profile.entries]
+"~/.opencodereview/config.json" = { source = "config/opencodereview.json", mode = "symlink" }
 "~/.config/agent-checkpoints/enrollment.toml" = { source = "config/agent-checkpoints/enrollment.toml", mode = "symlink" }
 "~/.omp/agent/extensions/agent-checkpoint-publish.ts" = { source = "apps/omp/extensions/agent-checkpoint-publish.ts", mode = "symlink" }
 "~/.omp/agent/extensions/atask-lease" = { source = "apps/omp/extensions/atask-lease", mode = "symlink" }

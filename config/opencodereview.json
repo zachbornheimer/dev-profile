@@ -1,0 +1,8 @@
+{
+  "llm": {
+    "url": "http://mcp-gateway.tail158749.ts.net:4000/v1",
+    "protocol": "openai",
+    "model": "deepseek/deepseek-v4.1-flash",
+    "auth_token_cmd": "printf %s \"${AUTH_GATEWAY_TOKEN:?AUTH_GATEWAY_TOKEN is not set or empty}\""
+  }
+}
