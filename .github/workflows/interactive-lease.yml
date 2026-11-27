@@ -4,25 +4,44 @@ on:
     paths:
       - apps/omp/extensions/atask-lease/**
       - .github/workflows/interactive-lease.yml
+      - mise.toml
   push:
     branches: [main]
     paths:
       - apps/omp/extensions/atask-lease/**
       - .github/workflows/interactive-lease.yml
+      - mise.toml
+concurrency:
+  group: interactive-lease-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
   lease:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      # Raw fetch, not actions/checkout: its post step hangs on these jobs
+      # (actions/runner#2409), the reason ci.yml uses this form too.
+      - name: Checkout
+        run: |
+          git init -q
+          git remote add origin "https://github.com/${{ github.repository }}.git"
+          git fetch --depth 1 origin "${{ github.sha }}"
+          git checkout --detach FETCH_HEAD
       - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca
-      - name: Select pinned runtimes
-        run: mise use --global bun@1.4.5 go@1.26.10
       - name: Fetch compatible engine
         run: |
-          git clone https://github.com/zachbornheimer/ai-task.git "$RUNNER_TEMP/ai-task"
-          git -C "$RUNNER_TEMP/ai-task" checkout f73fd66a690acc94d83fdd306269d024b03abba6
+          git clone --depth 1 https://github.com/zachbornheimer/ai-task.git "$RUNNER_TEMP/ai-task"
+          git -C "$RUNNER_TEMP/ai-task" fetch --depth 1 origin f73fd66a690acc94d83fdd306269d024b03abba6
+          git -C "$RUNNER_TEMP/ai-task" checkout --detach FETCH_HEAD
+      - name: Install the profile's pins
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          export MISE_GLOBAL_CONFIG_FILE="${GITHUB_WORKSPACE}/profile/mise.toml"
+          echo "MISE_GLOBAL_CONFIG_FILE=${MISE_GLOBAL_CONFIG_FILE}" >>"$GITHUB_ENV"
+          mise install --yes bun go
       - name: Deterministic lifecycle
         run: mise run test:lease-unit
       - name: Real CLI across three leases
