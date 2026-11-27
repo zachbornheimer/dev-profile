@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Keep the public command used by shells and repository hooks aligned with the
+# native Worktrunk lifecycle alias.
+set -euo pipefail
+exec wt done -- "$@"
