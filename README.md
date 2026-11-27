@@ -38,9 +38,15 @@ OpenAI-compatible gateway at `mcp-gateway.tail158749.ts.net:4000/v1`.
 The calling environment must supply `AUTH_GATEWAY_TOKEN` at runtime; the
 configuration reads it through `auth_token_cmd`, rejects missing or empty values
 with a clear error, and stores no credential. `mise run test:adoption` checks the
-installed JSON, runtime lookup, missing/empty token failures and rejection of
-unexpected commands before execution, including repeated apply without
-`MISE_DOTFILES_ROOT`.
+installed JSON, runtime lookup and missing/empty token failures. It also checks
+that the fixture rejects unexpected commands before executing them, including
+repeated apply without `MISE_DOTFILES_ROOT`.
+
+The pinned OCR v1.14.3 consumer reads `llm.model` in
+[`tryLegacyLlmConfig`](https://github.com/alibaba/open-code-review/blob/v1.14.3/internal/llm/resolver.go#L638-L642).
+Its Unix [`newKeyCmd`](https://github.com/alibaba/open-code-review/blob/v1.14.3/internal/llm/keycmd_unix.go#L33-L35)
+runs `auth_token_cmd` through `sh -c`; the missing/empty-token guard depends on
+that POSIX-shell contract. This profile targets macOS and Linux.
 
 ## Make it yours
 
