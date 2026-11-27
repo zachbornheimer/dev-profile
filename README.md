@@ -95,6 +95,19 @@ There is no slow history fallback. `mise run test:dot-save-turn` covers 10,000
 unrelated metadata records, concurrent latest checkpoints, rejected provenance,
 and real mise saves in an isolated HOME. Doctor runs this same task.
 
+## Checkpoint publisher fixtures
+
+`MISE_HISTORY_SYNC=sync mise run test:agent-checkpoints` exercises signed scratch
+repositories and isolated mise history stores. Each store's config owns its sync
+mode, regardless of Relay's inherited `MISE_HISTORY_SYNC`; fetch-only fixtures
+must stay blocked and never run `dot sync`.
+
+The real omp session uses a clean agent directory with the host's model roles,
+provider order and retry/fallback policy, plus a symlink to its model catalog.
+It does not import host hooks, extensions or MCP configuration, pin a model, or
+write credentials into the fixture. This integration needs a reachable model
+provider; exit diagnostics report only an error category, not provider output.
+
 ## Shell formatting
 
 dprint owns shell formatting. Bash/POSIX scripts use the existing exec plugin
