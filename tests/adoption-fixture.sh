@@ -46,15 +46,15 @@ assert llm["url"] == "http://mcp-gateway.tail158749.ts.net:4000/v1"
 assert set(llm) == {"url", "protocol", "model", "auth_token_cmd"}
 # Resolve a synthetic credential at use, never from a stored JSON token.
 env = dict(os.environ, AUTH_GATEWAY_TOKEN="adoption-fixture-credential")
+assert llm["auth_token_cmd"] == 'printf %s "$AUTH_GATEWAY_TOKEN"'
 result = subprocess.run(["sh", "-c", llm["auth_token_cmd"]], env=env, capture_output=True, text=True, check=True)
 assert result.stdout == env["AUTH_GATEWAY_TOKEN"]
-assert llm["auth_token_cmd"] == 'printf %s "$AUTH_GATEWAY_TOKEN"'
 PY
 }
 # 1. The seed deploys from the clone wherever it lives. Only the first apply needs the root named.
-applied="$(MISE_DOTFILES_ROOT="${clone}" mise dot apply --yes 2>&1 | grep -v 'WARN' || true)"
+MISE_DOTFILES_ROOT="${clone}" mise dot apply --yes || fail "initial apply failed"
 for target in .opencodereview/config.json .config/hk/config.pkl .omp/agent/extensions/handler-timing.ts .omp/agent/extensions/extension-timeout-repair.ts .config/dprint/dprint.jsonc .local/share/dev-profile/bin .stylelintrc.json .omp/agent/extensions/agent-checkpoint-publish.ts .config/agent-checkpoints/enrollment.toml; do
-	[ -L "${HOME}/${target}" ] || fail "${target} was not linked. apply said: ${applied}"
+	[ -L "${HOME}/${target}" ] || fail "${target} was not linked"
 	case "$(realpath "${HOME}/${target}")" in
 	"${clone}"/*) ;;
 	*) fail "${target} resolves outside the clone: $(realpath "${HOME}/${target}")" ;;
