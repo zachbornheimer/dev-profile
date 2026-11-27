@@ -32,7 +32,7 @@ cp "${clone}/config/mise.toml" "${MISE_GLOBAL_CONFIG_FILE}"
 cd "${HOME}"
 
 check_review_config() {
-	python3 - "${HOME}/.opencodereview/config.json" <<'PY'
+	python3 - "${1:-${HOME}/.opencodereview/config.json}" <<'PY'
 import json, os, pathlib, subprocess, sys
 
 path = pathlib.Path(sys.argv[1])
@@ -46,9 +46,18 @@ assert llm["url"] == "http://mcp-gateway.tail158749.ts.net:4000/v1"
 assert set(llm) == {"url", "protocol", "model", "auth_token_cmd"}
 # Resolve a synthetic credential at use, never from a stored JSON token.
 env = dict(os.environ, AUTH_GATEWAY_TOKEN="adoption-fixture-credential")
-assert llm["auth_token_cmd"] == 'printf %s "$AUTH_GATEWAY_TOKEN"'
+assert llm["auth_token_cmd"] == 'printf %s "${AUTH_GATEWAY_TOKEN:?AUTH_GATEWAY_TOKEN is not set or empty}"'
 result = subprocess.run(["sh", "-c", llm["auth_token_cmd"]], env=env, capture_output=True, text=True, check=True)
 assert result.stdout == env["AUTH_GATEWAY_TOKEN"]
+for state in ("absent", "empty"):
+    missing_env = dict(os.environ)
+    missing_env.pop("AUTH_GATEWAY_TOKEN", None)
+    if state == "empty":
+        missing_env["AUTH_GATEWAY_TOKEN"] = ""
+    result = subprocess.run(["sh", "-c", llm["auth_token_cmd"]], env=missing_env, capture_output=True, text=True)
+    assert result.returncode != 0, f"{state} AUTH_GATEWAY_TOKEN must fail"
+    assert result.stdout == "", f"{state} token must not produce a credential"
+    assert "AUTH_GATEWAY_TOKEN is not set or empty" in result.stderr, result.stderr
 PY
 }
 # 1. The seed deploys from the clone wherever it lives. Only the first apply needs the root named.
@@ -68,6 +77,21 @@ for target in .opencodereview/config.json .config/hk/config.pkl .omp/agent/exten
 done
 
 check_review_config
+
+# A changed command must be rejected before it can cause any side effect.
+python3 - "${HOME}/.opencodereview/config.json" "${scratch}" <<'PY'
+import json, pathlib, shlex, sys
+
+config = json.loads(pathlib.Path(sys.argv[1]).read_text())
+scratch = pathlib.Path(sys.argv[2])
+config["llm"]["auth_token_cmd"] = "touch " + shlex.quote(str(scratch / "command-ran"))
+(scratch / "unsafe-review.json").write_text(json.dumps(config))
+PY
+if check_review_config "${scratch}/unsafe-review.json" >"${scratch}/unsafe-review.log" 2>&1; then
+	fail "unexpected auth_token_cmd was accepted"
+fi
+[ ! -e "${scratch}/command-ran" ] || fail "unexpected auth_token_cmd ran before validation"
+grep -q AssertionError "${scratch}/unsafe-review.log" || fail "unexpected command was not rejected by the contract"
 
 # 2. The seed names no machine path in any source.
 if grep -nE 'source = "(~|/)' "${clone}/config/mise.toml" >&2; then

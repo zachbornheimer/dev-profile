@@ -36,9 +36,11 @@ OpenCodeReview uses `config/opencodereview.json`, deployed as
 `~/.opencodereview/config.json`. It selects DeepSeek V4.1 Flash through the
 OpenAI-compatible gateway at `mcp-gateway.tail158749.ts.net:4000/v1`.
 The calling environment must supply `AUTH_GATEWAY_TOKEN` at runtime; the
-configuration reads it through `auth_token_cmd` and stores no credential.
-`mise run test:adoption` checks the installed JSON and credential lookup with
-a synthetic value, including a repeated apply without `MISE_DOTFILES_ROOT`.
+configuration reads it through `auth_token_cmd`, rejects missing or empty values
+with a clear error, and stores no credential. `mise run test:adoption` checks the
+installed JSON, runtime lookup, missing/empty token failures and rejection of
+unexpected commands before execution, including repeated apply without
+`MISE_DOTFILES_ROOT`.
 
 ## Make it yours
 
