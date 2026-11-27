@@ -17,13 +17,15 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca
+      - name: Select pinned runtimes
+        run: mise use --global bun@1.4.5 go@1.26.10
       - name: Fetch compatible engine
         run: |
           git clone https://github.com/zachbornheimer/ai-task.git "$RUNNER_TEMP/ai-task"
           git -C "$RUNNER_TEMP/ai-task" checkout f73fd66a690acc94d83fdd306269d024b03abba6
       - name: Deterministic lifecycle
-        run: mise exec bun@1.4.5 go@1.26.10 -- mise run test:lease-unit
+        run: mise run test:lease-unit
       - name: Real CLI across three leases
         env:
           ATASK_ENGINE_SOURCE: ${{ runner.temp }}/ai-task
-        run: mise exec bun@1.4.5 go@1.26.10 -- mise run test:lease
+        run: mise run test:lease
