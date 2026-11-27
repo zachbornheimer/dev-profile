@@ -108,9 +108,16 @@ git fetch --all --prune; wt step for-each -- sh -c '
   git diff --quiet HEAD || { git merge --ff-only --no-autostash @{u}; exit 0; }
   git rebase @{u} --no-autostash || { rebasing || exit 0; git rebase --abort; }
 ''''
-pr = "{% if create is defined %}wt switch --create {{ create }} --no-cd -x ~/.local/share/dev-profile/bin/dev-profile-pr -- -- {{ args }}{% else %}wt switch {{ args or '@' }} -x ~/.local/share/dev-profile/bin/dev-profile-pr --{% endif %}"
-pr-draft = "{% if create is defined %}wt switch --create {{ create }} --no-cd -x ~/.local/share/dev-profile/bin/dev-profile-pr -- --draft -- {{ args }}{% else %}wt switch {{ args or '@' }} -x ~/.local/share/dev-profile/bin/dev-profile-pr -- --draft{% endif %}"
-pr-auto = "{% if create is defined %}wt switch --create {{ create }} --no-cd -x ~/.local/share/dev-profile/bin/dev-profile-pr -- --auto -- {{ args }}{% else %}wt switch {{ args or '@' }} -x ~/.local/share/dev-profile/bin/dev-profile-pr -- --auto{% endif %}"
+# Worktree selection belongs here; the retained PR adapter owns forge publication.
+pr = '''
+{% if pr_mode | default('') not in ['', 'draft', 'auto'] %}
+echo 'wt pr: --pr-mode must be draft or auto' >&2
+exit 2
+{% else %}
+wt switch {% if create is defined %}--create {{ create }} --no-cd{% else %}{{ args or '@' }}{% endif %} -x ~/.local/share/dev-profile/bin/dev-profile-pr -- {% if pr_mode | default('') %}--{{ pr_mode }}{% endif %}{% if create is defined %} -- {{ args }}{% endif %}
+{% endif %}'''
+pr-draft = "wt pr --pr-mode=draft {% if create is defined %}--create={{ create }}{% endif %} -- {{ args }}"
+pr-auto = "wt pr --pr-mode=auto {% if create is defined %}--create={{ create }}{% endif %} -- {{ args }}"
 # One lifecycle: plain done keeps the clone; retirement is always explicit.
 done = '''
 set -eu
@@ -144,7 +151,7 @@ wt done-lifecycle
 '''
 retire = "wt done -- --drop {{ args }}"
 drop = "wt done -- --drop {{ args }}"
-prune = "wt step prune --min-age=0s"
+prune = "wt step prune --min-age=0s {{ args }}"
 tree-for-changes = '''
 {% if args %}
 if ! git rev-parse --verify -q HEAD >/dev/null 2>&1; then
@@ -227,21 +234,72 @@ wt pr-auto
 {% endif %}'''
 commit-unstaged = "wt land --landing=merge"
 commit-fix = "~/.local/share/dev-profile/bin/dev-profile-commit-fix step commit {{ args }}"
+# Explicit native scope: current branch or all checked-out worktrees, not inferred stacks.
 sync = '''
-if [ -n "{{ branch | default("") }}" ] && [ "$(git branch --show-current)" != "{{ branch | default("") }}" ]; then
-  cd "$(wt -y switch "{{ branch | default("") }}" --no-cd -x pwd)" || exit 1
-fi
+set -eu
+export SYNC_FETCH=0 SYNC_PUSH=0 SYNC_REBASE=1 SYNC_ALL=0 SYNC_PRUNE=0 SYNC_DRY=0
 for arg in {{ args }}; do
   case "$arg" in
-  -n|--dry-run|-h|--help|-V|--version) exec wt-sync {{ args }} ;;
+    -u|-f|--fetch) SYNC_FETCH=1 ;;
+    -p|--push) SYNC_PUSH=1 ;;
+    --push-only) SYNC_PUSH=1; SYNC_REBASE=0 ;;
+    -a|--all) SYNC_ALL=1 ;;
+    -P|--prune) SYNC_PRUNE=1 ;;
+    -n|--dry-run) SYNC_DRY=1 ;;
+    -v|--verbose) export WORKTRUNK_VERBOSE=1 ;;
+    -h|--help) echo 'usage: wt sync [--branch=BRANCH] [-u|--fetch] [-p|--push|--push-only] [--all] [--prune] [--dry-run]'; exit 0 ;;
+    -s|--stack) echo 'wt sync: inferred stacks are not supported; select --branch or --all and set branch.<name>.gh-merge-base for an explicit parent' >&2; exit 2 ;;
+    -F|--force) echo 'wt sync: forced dirty removal is not supported; preserve work with wt done before pruning' >&2; exit 2 ;;
+    *) echo "wt sync: unknown option $arg; run wt sync -- --help" >&2; exit 2 ;;
   esac
 done
-count=0
-until wt-sync {{ args }}; do
-  count=$((count + 1))
-  [ "$count" -le 5 ] || exit 1
-  omp -p --model @task "Please get branch {{ branch | default("") }} clean and rebased so 'wt-sync {{ args }}' succeeds (attempt $count/5)."
-done'''
+if [ "$SYNC_DRY" = 1 ]; then
+  echo "dry-run: fetch=$SYNC_FETCH rebase=$SYNC_REBASE push=$SYNC_PUSH all=$SYNC_ALL prune=$SYNC_PRUNE"
+  if [ "$SYNC_ALL" = 1 ]; then exec wt step for-each -- git --no-optional-locks status --short; fi
+  exit 0
+fi
+# Push-only never fetches: the existing remote-tracking tip is the lease basis.
+if [ "$SYNC_FETCH" = 1 ] && [ "$SYNC_REBASE" = 1 ]; then git fetch --prune origin; fi
+if [ "$SYNC_ALL" = 1 ]; then
+  wt step for-each -- wt sync-worktree
+elif [ -n "{{ branch | default('') }}" ] && [ "$(git branch --show-current)" != "{{ branch | default('') }}" ]; then
+  wt switch "{{ branch }}" --no-cd -x wt -- sync-worktree
+else
+  wt sync-worktree
+fi
+[ "$SYNC_PRUNE" = 0 ] || wt step prune --min-age=0s --foreground
+'''
+
+[aliases.sync-worktree]
+sync = '''
+set -eu
+: "${SYNC_REBASE:?run wt sync}"
+b=$(git branch --show-current)
+[ -n "$b" ] || { echo 'wt sync: detached HEAD; select a branch first' >&2; exit 1; }
+remote=$(git config "branch.$b.remote" || :)
+merge=$(git config "branch.$b.merge" || :)
+lease=
+if [ "$SYNC_PUSH" = 1 ] && [ -n "$remote" ] && [ -n "$merge" ]; then
+  [ "$merge" = "refs/heads/$b" ] || { echo "wt sync: upstream $remote/$merge does not match $b; publish this branch explicitly" >&2; exit 1; }
+  [ "$remote" != . ] || { echo 'wt sync: local upstream cannot be published' >&2; exit 1; }
+  lease=$(git rev-parse --verify '@{upstream}')
+fi
+if [ "$SYNC_REBASE" = 1 ]; then
+  base=$(git config "branch.$b.gh-merge-base" || :)
+  wt step rebase "origin/${base:-{{ default_branch }}}"
+fi
+if [ "$SYNC_PUSH" = 1 ]; then
+  if [ -z "$remote" ] || [ -z "$merge" ]; then
+    echo "wt sync: $b has no upstream; not pushed (publish explicitly with git push -u)"
+  else
+    if [ "$SYNC_REBASE" = 1 ]; then
+      git push --force-with-lease="$merge:$lease" "$remote" "HEAD:$merge"
+    else
+      git push "$remote" "HEAD:$merge"
+    fi
+  fi
+fi
+'''
 
 # Ordered native stages. A failed hook, push or verification stops cleanup.
 [[aliases.done-lifecycle]]

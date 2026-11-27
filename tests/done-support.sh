@@ -29,26 +29,43 @@ mkdir -p "$work/tools" "$TRASH_DIR"
 ssh-keygen -q -t ed25519 -N '' -C done-fixture -f "$work/signing-key"
 principal=$(git config user.email)
 printf '%s %s\n' "$principal" "$(cat "$work/signing-key.pub")" >"$work/allowed-signers"
-# Use only the lifecycle aliases; unrelated workstation hooks aren't this fixture's surface.
-python3 - "$root/config/worktrunk.toml" "$WORKTRUNK_CONFIG_PATH" <<'PY'
-import sys, tomllib, json
-c = tomllib.load(open(sys.argv[1], 'rb'))
-with open(sys.argv[2], 'w') as f:
-    f.write('worktree-path = "{{ repo_path }}/../{{ repo }}-{{ branch | sanitize }}"\n')
-    f.write('[commit.generation]\ncommand = "printf \'chore: save unfinished work\'"\n')
-    f.write('[aliases]\n')
-    for key, value in c['aliases'].items():
-        if key in ('done', 'retire', 'drop') and isinstance(value, str):
-            f.write(f'{json.dumps(key)} = {json.dumps(value)}\n')
-    for key, value in c['aliases'].items():
-        if not key.startswith('done-'):
-            continue
-        blocks = value if isinstance(value, list) else [value]
-        for block in blocks:
-            f.write((f'[[aliases.{key}]]' if isinstance(value, list) else f'[aliases.{key}]') + '\n')
-            for name, cmd in block.items():
-                f.write(f'{json.dumps(name)} = {json.dumps(cmd)}\n')
+# Deploy the complete profile-owned config over the stale live shape that caused
+# the regression. Keep this inside a scratch HOME, never the user's installation.
+python3 - "$root" "$work" <<'PY'
+import json, os, pathlib, subprocess, sys, tomllib
+root, work = map(pathlib.Path, sys.argv[1:])
+source = tomllib.loads((root / 'config/mise.toml').read_text())
+entry = source['dotfile_groups']['dev-profile']['entries']['~/.config/worktrunk/config.toml/dev-profile']
+home = work / 'home'
+target = home / '.config/worktrunk/config.toml'
+target.parent.mkdir(parents=True)
+target.write_text('[aliases]\ndone = "dev-profile-done"\nretire = "dev-profile-done --drop"\n')
+config = work / 'mise-config.toml'
+config.write_text('[settings]\ndotfiles.root = ' + json.dumps(str(root)) + '\n'
+    '[dotfile_groups.dev-profile]\nroot = "."\nexclude = ["**"]\n[dotfile_groups.dev-profile.entries]\n'
+    '"~/.config/worktrunk/config.toml/dev-profile" = { source = ' + json.dumps(entry['source']) + ', merge = true }\n')
+env = os.environ | {'HOME': str(home), 'XDG_CONFIG_HOME': str(home / '.config'),
+    'MISE_GLOBAL_CONFIG_FILE': str(config), 'MISE_CONFIG_FILE': str(config),
+    'MISE_STATE_DIR': str(work / 'mise-state'), 'MISE_DATA_DIR': str(work / 'mise-data'),
+    'MISE_CACHE_DIR': str(work / 'mise-cache'), 'MISE_TRUSTED_CONFIG_PATHS': str(work),
+    'MISE_OFFLINE': 'true', 'MISE_AUTO_INSTALL': 'false'}
+subprocess.run(['mise', '-C', str(home), 'dot', 'apply', '--yes'], env=env, check=True)
+deployed = tomllib.loads(target.read_text())
+expected = tomllib.loads((root / entry['source']).read_text())
+assert deployed['aliases'] == expected['aliases'], 'mise deployment changed the public alias set'
+(work / 'worktrunk.toml').write_text(target.read_text())
 PY
+# Sandbox host composition only: every alias stays byte-for-byte equivalent.
+# Git hooks/signing remain authoritative; workstation adapters are out of scope.
+bun -e '
+const fs = require("node:fs");
+const path = process.argv[1];
+const config = Bun.TOML.parse(fs.readFileSync(path, "utf8"));
+for (const key of ["pre-start", "post-start", "post-remove", "post-switch", "pre-merge", "post-commit"]) delete config[key];
+config["worktree-path"] = "{{ repo_path }}/../{{ repo }}-{{ branch | sanitize }}";
+config.commit.generation.command = "printf '\''chore: save unfinished work'\''";
+fs.writeFileSync(path, Bun.TOML.stringify(config));
+' "$WORKTRUNK_CONFIG_PATH"
 cat >"$work/tools/gh" <<'STUB'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$FORGE_LOG"
@@ -60,7 +77,8 @@ mv "$1" "$TRASH_DIR/"
 STUB
 chmod +x "$work/tools/gh" "$work/tools/trash"
 native_wt=$(mise which wt)
-export PATH="$work/tools:$root/bin:$(dirname "$native_wt"):$PATH"
+PATH="$work/tools:$root/bin:$(dirname "$native_wt"):$PATH"
+export PATH
 setup_clone() {
 	origin="$work/$1.git"
 	repo="$work/$1"

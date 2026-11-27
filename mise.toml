@@ -35,6 +35,9 @@ run = [
 description = "Prove explicit retirement through native Worktrunk aliases"
 run = "bash tests/done-native-fixture.sh"
 
+[tasks."test:native-aliases"]
+description = "Exercise native sync and consolidated PR alias contracts"
+run = "bash tests/native-alias-fixture.sh"
 [tasks."test:done"]
 description = "Exercise lossless native Worktrunk lifecycle and failure gates"
 run = "bash tests/done-fixture.sh"
