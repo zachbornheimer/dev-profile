@@ -1,484 +1,269 @@
 #!/usr/bin/env bash
-# `wt done` parks unfinished work and restacks each eligible branch onto
-# origin/<default>. Real git; wt-sync and gh are stubs that log arguments.
-# Usage: done-fixture.sh <generated-dir>
+# Behavior at the real native wt CLI boundary, with signed Git commits/hooks.
 set -euo pipefail
+source "$(dirname "$0")/done-support.sh"
+repo=${repo:-}
+origin=${origin:-}
+work=${work:?fixture workspace missing}
+root=${root:?fixture source root missing}
 
-# Absolute: the fixture cds into its own repo before running the scripts.
-out="$(cd "${1:?usage: done-fixture.sh <generated-dir>}" && pwd -P)"
-done="${out}/bin/dev-profile-done"
-[[ -x "$done" ]] || {
-	echo "FAIL done fixture: missing ${done}" >&2
-	exit 1
-}
+setup_clone keep
+printf 'dirty\n' >"$repo/base.txt"
+printf 'untracked\n' >"$repo/new file.txt"
+run_done 'done' --no-pr --no-prune >"$work/keep.out" 2>&1 || fail "plain done: $(cat "$work/keep.out")"
+[[ -d "$repo" ]] || fail 'plain done must retain clone'
+[[ "$(git -C "$origin" show wip:base.txt)" == dirty ]] || fail 'tracked edit not published'
+[[ "$(git -C "$origin" show 'wip:new file.txt')" == untracked ]] || fail 'untracked file not published'
+[[ "$(git -C "$repo" branch --show-current)" == main ]] || fail 'primary must stay on main'
+git -C "$origin" cat-file -p wip | grep -q '^gpgsig' || fail 'snapshot must keep authoritative signing'
+git -C "$repo" verify-commit wip >/dev/null 2>&1 || fail 'snapshot signature must verify'
 
-work="$(cd "$(mktemp -d)" && pwd -P)"
-trap 'rm -rf "${work}"' EXIT
-
-fail() {
-	echo "FAIL done fixture: $*" >&2
-	exit 1
-}
-
-export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@example.com GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@example.com
-export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=commit.gpgsign GIT_CONFIG_VALUE_0=false
-# Setup commits still run prepare-commit-msg (--no-verify does not skip it).
-# HK=0 is unset again before invoking done, so a missing script-level export
-# still fails the hook-skip case.
-export HK=0
-
-stubs="${work}/stubs"
-mkdir -p "$stubs"
-export WT_LOG="${work}/wt-sync.log"
-: >"$WT_LOG"
-cat >"${stubs}/wt-sync" <<'STUB'
-#!/usr/bin/env bash
-echo "wt-sync $*" >>"${WT_LOG}"
-if [[ " $* " == *" --all "* ]]; then
-	exit 1
-fi
-exit 0
-STUB
-cat >"${stubs}/gh" <<'STUB'
-#!/usr/bin/env bash
-echo "gh $*" >>"${WT_LOG}"
-if [[ "$1" == pr && "$2" == list ]]; then
-	# Real gh --jq '.[0].number' on [] prints nothing.
-	[[ "$*" == *--jq* ]] || echo '[]'
-	exit 0
-fi
-exit 1
-STUB
-chmod +x "${stubs}"/*
-export PATH="${stubs}:${PATH}"
-
-commit() { # <repo> <file> <content>
-	printf '%s\n' "$3" >"$1/$2"
-	git -C "$1" add "$2"
-	git -C "$1" commit --no-verify -q -m "$2: $3"
-}
-
-origin=""
-repo=""
-setup_clone() { # <name>
-	origin="${work}/${1}.git"
-	repo="${work}/${1}"
-	git init -q --bare --initial-branch=main "$origin"
-	git clone -q "$origin" "$repo" 2>/dev/null
-	git -C "$repo" config user.email t@example.com
-	git -C "$repo" config user.name t
-	git -C "$repo" config commit.gpgsign false
-	git -C "$repo" config dev-profile.sync-clone "$1"
-	git -C "$repo" switch -q -c main
-	commit "$repo" base.txt base
-	git -C "$repo" push --no-verify -q origin main
-	git -C "$origin" symbolic-ref HEAD refs/heads/main
-	git -C "$repo" remote set-head origin main
-}
-
-run_done() {
-	local dir="$1"
-	shift
-	: >"$WT_LOG"
-	# The script under test must set HK=0; the fixture must not.
-	(cd "$dir" && unset HK && "$done" "$@")
-}
-
-called_wt_sync_all() {
-	grep -q -- '--all' "$WT_LOG"
-}
-
-# --- Hook skip: parking must ignore core.hooksPath quality hooks.
-setup_clone park
-git -C "$repo" switch -q -c feat/park
-commit "$repo" tracked.txt original
-printf 'dirty\n' >"${repo}/tracked.txt"
-hooks="${work}/hooks"
-mkdir -p "$hooks"
-for hook in pre-commit pre-push; do
-	cat >"${hooks}/${hook}" <<'HOOK'
-#!/usr/bin/env bash
-echo blocked >&2
+setup_clone hooks
+printf 'retained\n' >"$repo/local.txt"
+mkdir -p "$repo/.git/hooks"
+cat >"$repo/.git/hooks/pre-commit" <<'HOOK'
+#!/usr/bin/env sh
 exit 1
 HOOK
-	chmod +x "${hooks}/${hook}"
-done
-git -C "$repo" config core.hooksPath "$hooks"
-run_done "$repo" --no-pr --no-prune >"${work}/park.out" 2>&1 || fail "done must park dirty work: $(cat "${work}/park.out")"
-[[ "$(git -C "$repo" show feat/park:tracked.txt)" == dirty ]] || fail "the save commit must hold the dirty file"
-[[ "$(git -C "$repo" log -1 --format=%s feat/park)" == "chore: save uncommitted work on feat/park" ]] ||
-	fail "the save commit must use the parking message"
-git -C "$origin" rev-parse --verify --quiet refs/heads/feat/park >/dev/null || fail "origin must have feat/park"
-[[ "$(git -C "$origin" show feat/park:tracked.txt)" == dirty ]] || fail "origin must have the parked file"
-called_wt_sync_all && fail "wt-sync --all must not be called: $(cat "$WT_LOG")"
+chmod +x "$repo/.git/hooks/pre-commit"
+# A repository hook supplements global scanner hooks; it does not disable them.
+if run_done retire --no-pr >"$work/hooks.out" 2>&1; then fail 'failed commit hook must stop retirement'; fi
+[[ -d "$repo" && "$(cat "$repo/local.txt")" == retained ]] || fail 'failed hook must retain dirty file'
 
-# --- Backup is not a restack parent.
-setup_clone stack
-git -C "$repo" switch -q -c backup/snap main
-commit "$repo" snap.txt snap-only
-snap_sha="$(git -C "$repo" rev-parse backup/snap)"
-git -C "$repo" switch -q -c feat/stacked
-commit "$repo" stacked.txt stacked
-git -C "$repo" switch -q main
-git -C "$repo" worktree add -q "${work}/stack-feat" feat/stacked
-commit "$repo" extra.txt extra
-git -C "$repo" push --no-verify -q origin main
-run_done "$repo" --no-pr --no-prune >"${work}/stack.out" 2>&1 || fail "done must restack onto origin/main: $(cat "${work}/stack.out")"
-git -C "$repo" merge-base --is-ancestor origin/main feat/stacked || fail "feat/stacked must be restacked onto origin/main"
-[[ "$(git -C "$repo" rev-parse feat/stacked^)" != "$(git -C "$repo" rev-parse backup/snap)" ]] ||
-	fail "feat/stacked must not have backup/snap as first parent"
-git -C "$repo" show-ref --verify --quiet refs/heads/backup/snap || fail "backup/snap must still exist locally"
-[[ "$(git -C "$repo" rev-parse backup/snap)" == "${snap_sha}" ]] || fail "backup/snap must stay at its original tip"
-called_wt_sync_all && fail "wt-sync --all must not be called: $(cat "$WT_LOG")"
+setup_clone pushhook
+git -C "$repo" switch -q -c feature
+commit_file "$repo" tip.txt original
+tip=$(git -C "$repo" rev-parse HEAD)
+mkdir -p "$repo/.git/hooks"
+printf '#!/bin/sh\nexit 1\n' >"$repo/.git/hooks/pre-push"
+chmod +x "$repo/.git/hooks/pre-push"
+if run_done drop --no-pr >"$work/pushhook.out" 2>&1; then fail 'failed push hook must stop drop'; fi
+[[ -d "$repo" ]] || fail 'failed push hook lost clone'
+[[ "$(git -C "$repo" rev-parse feature)" == "$tip" ]] || fail 'failed push hook lost branch'
+[[ -z "$(git -C "$origin" for-each-ref refs/heads/feature)" ]] || fail 'push hook was bypassed'
 
-# --- One conflict does not stop others.
-setup_clone split
-git -C "$repo" switch -q -c feat/clash main
-commit "$repo" clash.txt v1
-git -C "$repo" push --no-verify -q origin feat/clash
-git -C "$repo" reset --hard -q main
-commit "$repo" clash.txt v2
-clash_before="$(git -C "$repo" rev-parse feat/clash)"
-git -C "$repo" switch -q -c feat/clean main
-git -C "$repo" push --no-verify -q origin feat/clean
-commit "$repo" clean.txt yes
-clean_tip="$(git -C "$repo" rev-parse feat/clean)"
-git -C "$repo" switch -q main
-run_done "$repo" --no-pr --no-prune >"${work}/split.out" 2>&1 || fail "a single conflict must not fail done: $(cat "${work}/split.out")"
-[[ "$(git -C "$origin" rev-parse feat/clean)" == "${clean_tip}" ]] || fail "the clean branch must reach origin"
-[[ "$(git -C "$repo" rev-parse feat/clash)" == "${clash_before}" ]] || fail "the diverged local tip must stay unchanged"
-[[ "$(git -C "$origin" rev-parse "backup/conflicts/split/feat/clash")" == "${clash_before}" ]] ||
-	fail "the diverged tip must be copied to backup/conflicts/<clone>/<branch>"
-called_wt_sync_all && fail "wt-sync --all must not be called: $(cat "$WT_LOG")"
+setup_clone remote-reject
+git -C "$repo" switch -q -c feature
+commit_file "$repo" retained.txt retained
+printf '#!/bin/sh\nexit 1\n' >"$origin/hooks/pre-receive"
+chmod +x "$origin/hooks/pre-receive"
+if run_done retire --no-pr >"$work/remote-reject.out" 2>&1; then fail 'rejected push must stop retirement'; fi
+[[ -f "$repo/retained.txt" ]] || fail 'remote rejection lost work'
 
-# --- No worktree: restack must not switch the primary clone off main.
-setup_clone stay
-git -C "$repo" switch -q -c feat/loose
-commit "$repo" loose.txt loose
-loose_tip="$(git -C "$repo" rev-parse feat/loose)"
-git -C "$repo" switch -q main
-commit "$repo" extra.txt extra
-git -C "$repo" push --no-verify -q origin main
-run_done "$repo" --no-pr --no-prune >"${work}/stay.out" 2>&1 || fail "done must push a branch with no worktree: $(cat "${work}/stay.out")"
-[[ "$(git -C "$repo" symbolic-ref --short HEAD)" == main ]] ||
-	fail "done must leave the primary clone on main, not $(git -C "$repo" symbolic-ref --short HEAD 2>/dev/null || git -C "$repo" rev-parse --short HEAD)"
-[[ "$(git -C "$origin" rev-parse feat/loose)" == "${loose_tip}" ]] || fail "a branch with no worktree must still be pushed as-is"
+setup_clone detached
+git -C "$repo" switch -q --detach
+commit_file "$repo" detached.txt detached
+detached=$(git -C "$repo" rev-parse HEAD)
+run_done 'done' --no-pr --no-prune >"$work/detached.out" 2>&1 || fail "detached HEAD: $(cat "$work/detached.out")"
+[[ -n "$(git -C "$origin" for-each-ref --contains "$detached" refs/heads)" ]] || fail 'detached tip not published'
 
-# --- Conflict backup matching the branch tip must not fail done.
-setup_clone same
-git -C "$repo" switch -q -c feat/same
-commit "$repo" extra.txt from-feat
-git -C "$repo" push --no-verify -q origin feat/same
-git -C "$repo" switch -q main
-git -C "$repo" worktree add -q "${work}/same-feat" feat/same
-commit "$repo" extra.txt from-main
-git -C "$repo" push --no-verify -q origin main
-run_done "$repo" --no-prune >"${work}/same.out" 2>&1 || fail "a same-commit conflict PR must not fail done: $(cat "${work}/same.out")"
-grep -q 'pr create' "$WT_LOG" && fail "open_pr must not create a PR with no commits: $(cat "$WT_LOG")"
-
-# --- --dry-run still only fetches.
-setup_clone dry
-git -C "$repo" switch -q -c feat/dry
-commit "$repo" dry.txt a
-printf 'b\n' >"${repo}/dry.txt"
-dirty_before="$(git -C "$repo" status --porcelain)"
-run_done "$repo" --dry-run --no-pr --no-prune >"${work}/dry.out" 2>&1 || fail "done --dry-run must succeed: $(cat "${work}/dry.out")"
-[[ "$(git -C "$repo" status --porcelain)" == "${dirty_before}" ]] || fail "dry-run must leave the dirty file uncommitted"
-grep -Eq 'would-restack +origin/main' "${work}/dry.out" || fail "dry-run must restack onto origin/main: $(cat "${work}/dry.out")"
-grep -F 'wt-sync --all' "${work}/dry.out" && fail "dry-run must not restack with wt-sync --all: $(cat "${work}/dry.out")"
-grep -Fq 'dry-run: fetched origin; no other changes' "${work}/dry.out" || fail "dry-run must only fetch"
-
-# --- Parallel execution across worktrees and branches (with and without --drop).
-real_git="$(command -v git)"
-export REAL_GIT="$real_git"
-export PAR_DIR="${work}/par-track"
-mkdir -p "$PAR_DIR"
-
-cat >"${stubs}/git" <<'STUB'
-#!/usr/bin/env bash
-if [[ "${WT_DONE_TRACK_PARALLEL:-0}" == 1 ]]; then
-	phase=""
-	for arg in "$@"; do
-		case "$arg" in
-		commit) phase="commit"; break ;;
-		rebase) phase="rebase"; break ;;
-		push)
-			if [[ " $* " == *" --delete "* ]]; then
-				phase="prune-remote"
-			else
-				phase="push"
-			fi
-			break
-			;;
-		remove)
-			if [[ " $* " == *" worktree remove "* ]]; then
-				phase="worktree-remove"
-				break
-			fi
-			;;
-		--contains)
-			phase="drop-contains"
-			break
-			;;
-		--others)
-			phase="drop-scan"
-			break
-			;;
-		esac
-	done
-	if [[ -n "$phase" && " $* " != *" --abort"* ]]; then
-		dir="${PAR_DIR}/${phase}"
-		mkdir -p "${dir}/active"
-		: >"${dir}/active/$$"
-		for _ in 1 2 3 4 5 6 7 8; do
-			active=( "${dir}/active"/* )
-			count="${#active[@]}"
-			prev="$(cat "${dir}/peak" 2>/dev/null || echo 0)"
-			if ((count > prev)); then
-				printf '%s\n' "$count" >"${dir}/peak"
-			fi
-			((count >= 2)) && break
-			sleep 0.03
-		done
-		rm -f "${dir}/active/$$"
-	fi
-fi
-exec "$REAL_GIT" "$@"
-STUB
-
-cat >"${stubs}/gh" <<'STUB'
-#!/usr/bin/env bash
-echo "gh $*" >>"${WT_LOG}"
-if [[ "${WT_DONE_TRACK_PARALLEL:-0}" == 1 && "$1" == pr && "$2" == create ]]; then
-	dir="${PAR_DIR}/pr"
-	mkdir -p "${dir}/active"
-	: >"${dir}/active/$$"
-	for _ in 1 2 3 4 5 6 7 8; do
-		active=( "${dir}/active"/* )
-		count="${#active[@]}"
-		prev="$(cat "${dir}/peak" 2>/dev/null || echo 0)"
-		if ((count > prev)); then
-			printf '%s\n' "$count" >"${dir}/peak"
-		fi
-		((count >= 2)) && break
-		sleep 0.03
-	done
-	rm -f "${dir}/active/$$"
-	echo "https://example.invalid/pr/1"
-	exit 0
-fi
-if [[ "$1" == pr && "$2" == list ]]; then
-	[[ "$*" == *--jq* ]] || echo '[]'
-	exit 0
-fi
-exit 1
-STUB
-
-cat >"${stubs}/trash" <<'STUB'
-#!/usr/bin/env bash
-echo "trash $*" >>"${WT_LOG}"
-rm -rf "$@"
-STUB
-chmod +x "${stubs}/git" "${stubs}/gh" "${stubs}/trash"
-
-peak_of() {
-	cat "${PAR_DIR}/${1}/peak" 2>/dev/null || echo 0
-}
-
-setup_clone par
-for b in merged-1 merged-2; do
-	git -C "$repo" switch -q -c "$b" main
-	git -C "$repo" push --no-verify -q origin "$b"
-done
-git -C "$repo" switch -q main
-git -C "$repo" branch -D -q merged-1 merged-2
-for b in p1 p2 p3; do
-	git -C "$repo" switch -q -c "feat/${b}" main
-	commit "$repo" "${b}.txt" "base-${b}"
-	git -C "$repo" switch -q main
-	git -C "$repo" worktree add -q "${work}/par-${b}" "feat/${b}"
-	printf 'dirty-%s\n' "$b" >"${work}/par-${b}/${b}.txt"
-done
-commit "$repo" main-advance.txt advanced
-git -C "$repo" push --no-verify -q origin main
-
-WT_DONE_TRACK_PARALLEL=1 DEV_PROFILE_DONE_JOBS=4 run_done "$repo" >"${work}/par.out" 2>&1 ||
-	fail "parallel done without --drop must succeed: $(cat "${work}/par.out")"
-for b in p1 p2 p3; do
-	[[ "$(git -C "$origin" show "feat/${b}:${b}.txt")" == "dirty-${b}" ]] ||
-		fail "origin/feat/${b} must hold dirty-${b}"
-	git -C "$origin" cat-file -e "feat/${b}:main-advance.txt" ||
-		fail "origin/feat/${b} must be restacked onto origin/main"
-	[[ ! -d "${work}/par-${b}" ]] || fail "worktree par-${b} must be pruned"
-done
-for b in merged-1 merged-2; do
-	git -C "$origin" rev-parse --verify --quiet "refs/heads/${b}" >/dev/null &&
-		fail "origin/${b} must be pruned"
-done
-for phase in commit rebase push pr worktree-remove prune-remote; do
-	(("$(peak_of "$phase")" >= 2)) ||
-		fail "phase '${phase}' must run in parallel (saw peak=$(peak_of "$phase")): $(cat "${work}/par.out")"
-done
-
-# Deterministic --drop in parallel: danger scan and branch containment run in parallel, then trash drops the clone.
-rm -rf "${PAR_DIR:?}"/*
-setup_clone pardrop
-for b in backup/b1 backup/b2; do
-	git -C "$repo" switch -q -c "$b" main
-	commit "$repo" "${b//\//-}.txt" "$b"
-	git -C "$repo" push --no-verify -q origin "$b"
-done
-git -C "$repo" switch -q main
-for b in d1 d2 d3; do
-	git -C "$repo" switch -q -c "feat/${b}" main
-	commit "$repo" "${b}.txt" "val-${b}"
-	git -C "$repo" switch -q main
-	git -C "$repo" worktree add -q "${work}/pardrop-${b}" "feat/${b}"
-	printf 'untracked-%s\n' "$b" >"${work}/pardrop-${b}/untracked-${b}.txt"
-done
-WT_DONE_TRACK_PARALLEL=1 DEV_PROFILE_DONE_JOBS=4 run_done "$repo" --drop >"${work}/pardrop.out" 2>&1 ||
-	fail "parallel done --drop must succeed: $(cat "${work}/pardrop.out")"
-[[ ! -d "$repo" ]] || fail "done --drop must trash the primary clone"
-grep -q "trash ${repo}" "$WT_LOG" || fail "done --drop must invoke trash on ${repo}"
-for phase in commit push drop-contains drop-scan; do
-	(("$(peak_of "$phase")" >= 2)) ||
-		fail "drop phase '${phase}' must run in parallel (saw peak=$(peak_of "$phase")): $(cat "${work}/pardrop.out")"
-done
-
-# --- Gutted worktree (tracked files missing on disk, ignored oversized cache left behind) and positional repo arg.
-setup_clone gutted
-git -C "$repo" switch -q -c feat/merged main
-commit "$repo" merged.txt merged
-git -C "$repo" switch -q main
-git -C "$repo" merge --ff-only -q feat/merged
-commit "$repo" .gitignore ".next/"
-git -C "$repo" push -q origin main
-# The worktree's checkout is gutted, so no tracked ignore file survives there.
-# Pin .next/ in the repository's own exclude so the leftover cache is ignored
-# without leaning on the runner's global excludes file.
-printf '.next/\n' >>"${repo}/.git/info/exclude"
-git -C "$repo" worktree add -q "${work}/gutted-wt" feat/merged
-rm -f "${work}/gutted-wt/base.txt" "${work}/gutted-wt/merged.txt"
-mkdir -p "${work}/gutted-wt/apps/web/.next/cache"
-head -c 2097152 /dev/zero >"${work}/gutted-wt/apps/web/.next/cache/0.pack"
-cd_directive="${work}/cd-directive"
-WORKTRUNK_DIRECTIVE_CD_FILE="${cd_directive}" DEV_PROFILE_SYNC_MAX_FILE_MB=1 run_done "$repo" --drop gutted >"${work}/gutted.out" 2>&1 ||
-	fail "done --drop on gutted worktree must succeed: $(cat "${work}/gutted.out")"
-test ! -d "$repo" && test ! -d "${work}/gutted-wt" || fail "done --drop must remove gutted worktree and trash primary clone"
-git -C "$origin" rev-parse --verify --quiet refs/heads/feat/merged >/dev/null &&
-	fail "already-merged gutted worktree branch must not be pushed as a deletion commit to origin"
-test "$(cat "${cd_directive}")" = "${work}" || fail "done --drop must write parent dir to WORKTRUNK_DIRECTIVE_CD_FILE"
-
-# --- Stash conflicting with advanced main and existing origin/wip must still park onto wip-2 and drop.
 setup_clone stashclash
-git -C "$repo" switch -q -c wip main
-commit "$repo" parked.txt parked
-git -C "$repo" push -q origin wip
+printf 'stashed\n' >"$repo/base.txt"
+printf 'stash-untracked\n' >"$repo/stash-only.txt"
+git -C "$repo" stash push -u -q
+git -C "$repo" switch -q -c advance
+commit_file "$repo" base.txt advanced
 git -C "$repo" switch -q main
-git -C "$repo" branch -D -q wip
-printf 'stashed-version\n' >"${repo}/base.txt"
-mkdir -p "${repo}/storage/logos"
-printf 'logo-bytes\n' >"${repo}/storage/logos/a.txt"
-git -C "$repo" add storage/logos/a.txt
-git -C "$repo" stash push -q -m "old stash on main"
-commit "$repo" base.txt main-advanced-version
-git -C "$repo" push -q origin main
-run_done "$repo" --drop >"${work}/stashclash.out" 2>&1 ||
-	fail "done --drop with conflicting stash and origin/wip must succeed: $(cat "${work}/stashclash.out")"
-test ! -d "$repo" || fail "done --drop must trash stashclash clone"
-test "$(git -C "$origin" show wip:parked.txt)" = parked || fail "existing origin/wip must not be overwritten"
-test "$(git -C "$origin" show wip-2:base.txt)" = stashed-version || fail "stash must be parked onto origin/wip-2"
-test "$(git -C "$origin" show wip-2:storage/logos/a.txt)" = logo-bytes || fail "stash tracked additions must be on origin/wip-2"
-# --- Work parked from a stash must be signed when signing is on, or a signed-commits rule rejects the push.
-setup_clone signedpark
-ssh-keygen -q -t ed25519 -N '' -f "${work}/signkey" >/dev/null
-git -C "$repo" config gpg.format ssh
-git -C "$repo" config user.signingkey "${work}/signkey.pub"
-printf 'parked-version\n' >"${repo}/base.txt"
-git -C "$repo" stash push -q -m "park me"
-GIT_CONFIG_VALUE_0=true run_done "$repo" --drop >"${work}/signedpark.out" 2>&1 ||
-	fail "done --drop with a stash must succeed: $(tail -5 "${work}/signedpark.out")"
-git -C "$origin" cat-file -p wip 2>/dev/null | grep -q '^gpgsig' ||
-	fail "stash parked onto origin/wip must carry a signature when commit.gpgsign is on"
-# --- A stash entry git will not drop (single parent, e.g. left by filter-branch) must park once, then go; not loop forever.
-setup_clone oddstash
-commit "$repo" odd.txt odd-content
-git -C "$repo" push -q origin main
-git -C "$repo" update-ref --create-reflog -m "filter-branch: rewrite" refs/stash "$(git -C "$repo" rev-parse HEAD)"
-timeout 60 bash -c 'cd "$1" && unset HK && "$2" --drop' _ "$repo" "$done" >"${work}/oddstash.out" 2>&1 ||
-	fail "done --drop with an undroppable stash entry must finish: $(tail -5 "${work}/oddstash.out")"
-test ! -d "$repo" || fail "done --drop must trash oddstash clone"
-test "$(git -C "$origin" for-each-ref 'refs/heads/wip*' | wc -l | tr -d ' ')" -le 1 || fail "an undroppable stash must park at most once, not once per loop pass"
-# --- An existing wip/<topic> branch must not stop uncommitted work from parking (refs/heads/wip is then a directory).
-setup_clone wipprefix
-git -C "$repo" switch -q -c wip/topic main
-commit "$repo" topic.txt topic
-git -C "$repo" push -q origin wip/topic
-git -C "$repo" switch -q main
-printf 'dirty\n' >"${repo}/base.txt"
-run_done "$repo" --drop >"${work}/wipprefix.out" 2>&1 ||
-	fail "done --drop with an existing wip/topic branch must succeed: $(cat "${work}/wipprefix.out")"
-test ! -d "$repo" || fail "done --drop must trash wipprefix clone"
-test "$(git -C "$origin" show wip-2:base.txt)" = dirty || fail "uncommitted work must be parked onto origin/wip-2 when wip/topic exists"
-# The script itself must disable quality hooks; the fixture did not export HK=0.
-grep -Fq 'export HK=0' "$done" || fail "dev-profile-done must export HK=0 so hk cannot block parking"
-grep -Eq 'commit -q --no-verify' "$done" || fail "dev-profile-done commits must pass --no-verify"
-grep -Eq 'push --quiet --no-verify' "$done" || fail "dev-profile-done pushes must pass --no-verify"
+git -C "$repo" merge --ff-only -q advance
+git -C "$origin" fetch -q "$repo" main:main
+git -C "$repo" branch wip/topic
+run_done retire --no-pr >"$work/stash.out" 2>&1 || fail "conflicting stash: $(cat "$work/stash.out")"
+[[ ! -d "$repo" ]] || fail 'retire did not trash stash clone'
+[[ "$(git -C "$origin" show wip-2:base.txt)" == stashed ]] || fail 'conflicting stash snapshot lost'
+[[ "$(git -C "$origin" show wip-2:stash-only.txt)" == stash-untracked ]] || fail 'stash untracked file lost'
+git -C "$origin" cat-file -p wip-2 | grep -q '^gpgsig' || fail 'stash snapshot unsigned'
+git -C "$TRASH_DIR/stashclash" verify-commit wip-2 >/dev/null 2>&1 || fail 'stash snapshot signature must verify'
 
-# --- A declared submodule with no checkout holds no local work; drop must proceed.
+setup_clone conflict
+git -C "$repo" switch -q -c feature
+commit_file "$repo" base.txt remote-version
+git -C "$origin" fetch -q "$repo" feature:feature
+git -C "$repo" reset --hard -q main
+commit_file "$repo" base.txt local-version
+local_tip=$(git -C "$repo" rev-parse feature)
+run_done 'done' --no-pr --no-prune >"$work/conflict.out" 2>&1 || fail "diverged branch: $(cat "$work/conflict.out")"
+[[ "$(git -C "$origin" show feature:base.txt)" == remote-version ]] || fail 'remote overwritten'
+[[ "$(git -C "$origin" rev-parse backup/conflicts/conflict/feature)" == "$local_tip" ]] || fail 'conflict backup missing'
+commit_file "$repo" extra.txt later
+run_done 'done' --no-pr --no-prune >"$work/conflict2.out" 2>&1 || fail "second diverged snapshot: $(cat "$work/conflict2.out")"
+[[ "$(git -C "$origin" rev-parse backup/conflicts/conflict/feature)" == "$local_tip" ]] || fail 'prior conflict backup overwritten'
+
+setup_clone linked
+git -C "$repo" worktree add -q -b topic "$work/linked-topic"
+printf 'linked\n' >"$work/linked-topic/linked.txt"
+git -C "$repo" worktree lock "$work/linked-topic"
+run_done 'done' --no-pr >"$work/linked-keep.out" 2>&1 || fail "locked worktree: $(cat "$work/linked-keep.out")"
+[[ -d "$work/linked-topic" ]] || fail 'plain done removed locked worktree'
+run_done drop --no-pr >"$work/linked-drop.out" 2>&1 || fail "explicit locked drop: $(cat "$work/linked-drop.out")"
+[[ ! -d "$repo" && ! -d "$work/linked-topic" ]] || fail 'explicit drop must remove linked worktree and trash primary'
+[[ "$(git -C "$origin" show topic:linked.txt)" == linked ]] || fail 'linked work not preserved'
+
+setup_clone size
+head -c 1048577 /dev/zero >"$repo/large.bin"
+if DEV_PROFILE_SYNC_MAX_FILE_MB=1 run_done retire --no-pr >"$work/size.out" 2>&1; then fail 'size gate must stop retirement'; fi
+[[ -f "$repo/large.bin" ]] || fail 'size refusal lost file'
+
+setup_clone nested
+git init -q "$repo/child"
+if run_done drop --no-pr >"$work/nested.out" 2>&1; then fail 'nested repo must stop retirement'; fi
+[[ -d "$repo/child/.git" ]] || fail 'nested refusal lost repository'
+
+setup_clone dry
+printf 'unchanged\n' >"$repo/dry.txt"
+before=$(git -C "$repo" status --porcelain)
+run_done 'done' -- --drop --dry-run >"$work/dry.out" 2>&1 || fail "dry run: $(cat "$work/dry.out")"
+[[ -d "$repo" && "$(git -C "$repo" status --porcelain)" == "$before" ]] || fail 'dry run changed work'
+
+setup_clone no-push
+printf 'retained\n' >"$repo/local.txt"
+if run_done retire --no-push --no-pr >"$work/no-push.out" 2>&1; then fail 'unpublished tips must stop retirement'; fi
+[[ -d "$repo" ]] || fail '--no-push lost clone'
+
+setup_clone staged
+printf 'staged\n' >"$repo/staged.txt"
+git -C "$repo" add staged.txt
+rm "$repo/base.txt"
+run_done 'done' --no-pr --no-prune >"$work/staged.out" 2>&1 || fail "staged/deletion: $(cat "$work/staged.out")"
+[[ "$(git -C "$origin" show wip:staged.txt)" == staged ]] || fail 'staged bytes missing'
+if git -C "$origin" cat-file -e wip:base.txt 2>/dev/null; then fail 'intentional deletion resurrected'; fi
+
+setup_clone branch-only
+git -C "$repo" switch -q -c orphan-work
+commit_file "$repo" branch.txt branch-only
+branch_tip=$(git -C "$repo" rev-parse HEAD)
+git -C "$repo" switch -q main
+run_done 'done' --no-pr --no-prune >"$work/branch-only.out" 2>&1 || fail "branch-only: $(cat "$work/branch-only.out")"
+[[ "$(git -C "$origin" rev-parse orphan-work)" == "$branch_tip" ]] || fail 'branch without worktree missing'
+
+setup_clone secondary
+secondary="$work/secondary-backup.git"
+git init -q --bare "$secondary"
+git -C "$repo" switch -q -c local-only
+commit_file "$repo" secondary.txt secondary
+secondary_tip=$(git -C "$repo" rev-parse HEAD)
+git -C "$repo" remote add backup "$secondary"
+git -C "$secondary" fetch -q "$repo" local-only:local-only
+git -C "$repo" fetch -q backup
+if run_done retire --no-push --no-pr >"$work/secondary.out" 2>&1; then fail 'secondary remote cannot authorize retirement'; fi
+[[ -d "$repo" && "$(git -C "$repo" rev-parse local-only)" == "$secondary_tip" ]] || fail 'origin containment refusal lost branch'
+
+setup_clone multi-stash
+printf 'first\n' >"$repo/base.txt"
+printf 'first-only\n' >"$repo/first.txt"
+git -C "$repo" stash push -u -q
+printf 'second\n' >"$repo/base.txt"
+printf 'second-only\n' >"$repo/second.txt"
+git -C "$repo" stash push -u -q
+git -C "$origin" fetch -q "$repo" main:refs/heads/wip/remote
+run_done 'done' --no-pr --no-prune >"$work/multi-stash.out" 2>&1 || fail "multiple stashes: $(cat "$work/multi-stash.out")"
+[[ "$(git -C "$origin" show wip-2:base.txt)" == second ]] || fail 'latest stash conflict bytes missing'
+[[ "$(git -C "$origin" show wip-2:second.txt)" == second-only ]] || fail 'latest stash untracked missing'
+[[ "$(git -C "$origin" show wip-3:base.txt)" == first ]] || fail 'older stash conflict bytes missing'
+[[ "$(git -C "$origin" show wip-3:first.txt)" == first-only ]] || fail 'older stash untracked missing'
+[[ -z "$(git -C "$repo" stash list)" ]] || fail 'published stashes were not cleared'
+
+setup_clone ignored
+git -C "$repo" worktree add -q -b ignored-topic "$work/ignored-topic"
+printf 'private.bin\n' >"$repo/.git/info/exclude"
+printf 'private bytes\n' >"$work/ignored-topic/private.bin"
+run_done 'done' --no-pr >"$work/ignored-keep.out" 2>&1 || fail "ignored keep: $(cat "$work/ignored-keep.out")"
+[[ "$(cat "$work/ignored-topic/private.bin")" == 'private bytes' ]] || fail 'plain prune discarded ignored data'
+if run_done retire --no-pr >"$work/ignored-drop.out" 2>&1; then fail 'retirement must reject unpreserved linked ignored data'; fi
+[[ -d "$repo" && "$(cat "$work/ignored-topic/private.bin")" == 'private bytes' ]] || fail 'retirement lost linked ignored data'
+
 setup_clone submodule
-git -C "$repo" config -f .gitmodules submodule.corpus.path corpus
-git -C "$repo" config -f .gitmodules submodule.corpus.url "${work}/missing-corpus.git"
-git -C "$repo" add .gitmodules
-git -C "$repo" update-index --add --cacheinfo "160000,839da3d154de36feda5fb736d7ad14f80a505302,corpus"
-git -C "$repo" commit --no-verify -q -m "submodule: add corpus gitlink"
-git -C "$repo" push --no-verify -q origin main
-run_done "$repo" --drop >"${work}/submodule.out" 2>&1 ||
-	fail "done --drop must ignore a declared submodule with no checkout: $(cat "${work}/submodule.out")"
-test ! -d "$repo" || fail "done --drop must trash a clone whose declared submodule has no checkout"
+mkdir -p "$repo/.git/modules/absent"
+if run_done retire --no-pr >"$work/submodule.out" 2>&1; then fail 'submodule object store must block retirement'; fi
+[[ -d "$repo/.git/modules/absent" ]] || fail 'submodule metadata removed'
 
-# --- A populated submodule with unpushed work still stops the drop.
-setup_clone submodule-work
-git init -q --bare --initial-branch=main "${work}/corpus.git"
-git clone -q "${work}/corpus.git" "${work}/corpus-src"
-git -C "${work}/corpus-src" config user.email t@example.com
-git -C "${work}/corpus-src" config user.name t
-printf 'corpus\n' >"${work}/corpus-src/data.txt"
-git -C "${work}/corpus-src" add data.txt
-git -C "${work}/corpus-src" commit --no-verify -q -m "corpus: data"
-git -C "${work}/corpus-src" push --no-verify -q origin main
-git -C "$repo" config -f .gitmodules submodule.corpus.path corpus
-git -C "$repo" config -f .gitmodules submodule.corpus.url "${work}/corpus.git"
-git -C "$repo" add .gitmodules
-git -C "$repo" update-index --add --cacheinfo "160000,$(git -C "${work}/corpus-src" rev-parse HEAD),corpus"
-git -C "$repo" commit --no-verify -q -m "submodule: add corpus gitlink"
-git -C "$repo" push --no-verify -q origin main
-git -c protocol.file.allow=always -C "$repo" submodule update --init -q -- corpus
-printf 'local\n' >"${repo}/corpus/local.txt"
-git -C "${repo}/corpus" add local.txt
-git -C "${repo}/corpus" commit --no-verify -q -m "corpus: local only"
-run_done "$repo" --drop >"${work}/submodule-work.out" 2>&1 &&
-	fail "done --drop must refuse a populated submodule with unpushed work"
-grep -q "nested repository" "${work}/submodule-work.out" || fail "the refusal must name the nested repository"
-test -d "$repo" || fail "done --drop must keep a clone holding submodule work"
-# --- A locked linked worktree: plain prune honors the lock; --drop is explicit consent to remove it.
-setup_clone locked
-for b in l1 l2; do
-	git -C "$repo" switch -q -c "feat/${b}" main
-	commit "$repo" "${b}.txt" "val-${b}"
-	git -C "$repo" switch -q main
-	git -C "$repo" worktree add -q "${work}/locked-${b}" "feat/${b}"
-	git -C "$repo" worktree lock --reason "claimed by a worker" "${work}/locked-${b}"
+setup_clone aggregate
+git -C "$repo" worktree add -q -b reject "$work/aggregate-reject"
+printf 'reject\n' >"$work/aggregate-reject/secret.txt"
+mkdir -p "$repo/.git/hooks"
+printf '#!/bin/sh\ncase "$PWD" in *aggregate-reject) exit 1 ;; esac\n' >"$repo/.git/hooks/pre-commit"
+chmod +x "$repo/.git/hooks/pre-commit"
+if run_done drop --no-pr >"$work/aggregate.out" 2>&1; then fail 'for-each failure must stop before removal'; fi
+[[ -d "$repo" && "$(cat "$work/aggregate-reject/secret.txt")" == reject ]] || fail 'aggregate failure removed worktree'
+
+setup_clone late-write
+git -C "$repo" worktree add -q -b late-topic "$work/late-topic"
+commit_file "$work/late-topic" late.txt original
+cat >>"$WORKTRUNK_CONFIG_PATH" <<'TOML'
+[pre-remove]
+late-write = 'printf "late bytes\n" > late-arrival.txt'
+TOML
+if run_done drop --no-pr >"$work/late-write.out" 2>&1; then fail 'pre-remove new work must stop removal'; fi
+[[ -d "$repo" && "$(cat "$work/late-topic/late-arrival.txt")" == 'late bytes' ]] || fail 'late hook write lost'
+# Restore the fixture config by removing only our appended test hook (Python fixture utility, not production hook bypass).
+python3 - "$WORKTRUNK_CONFIG_PATH" <<'PY'
+import sys
+p=sys.argv[1]
+s=open(p).read()
+s=s[:s.rindex('[pre-remove]')]
+open(p,'w').write(s)
+PY
+
+# Project hooks run after user hooks; the final native hook must guard both.
+for operation in 'done' drop; do
+	setup_clone "ignored-hook-$operation"
+	git -C "$repo" worktree add -q -b hook-topic "$work/ignored-hook-$operation-topic"
+	printf 'hook-private.bin\n' >>"$repo/.git/info/exclude"
+	mkdir -p "$work/ignored-hook-$operation-topic/.config"
+	cat >"$work/ignored-hook-$operation-topic/.config/wt.toml" <<'TOML'
+[pre-remove]
+write-private = 'printf "hook private bytes\n" > hook-private.bin'
+TOML
+	git -C "$work/ignored-hook-$operation-topic" add .config/wt.toml
+	git -C "$work/ignored-hook-$operation-topic" commit -q -m 'test: configure ignored hook writer'
+	git -C "$repo" merge --ff-only -q hook-topic
+	git -C "$origin" fetch -q "$repo" main:main
+	# Clear only the fixture isolation override so the actual per-tree project config loads.
+	if (
+		unset WORKTRUNK_PROJECT_CONFIG_PATH
+		run_done "$operation" --no-pr
+	) >"$work/ignored-hook-$operation.out" 2>&1; then
+		fail 'late ignored write must stop removal'
+	fi
+	[[ -d "$repo" && "$(cat "$work/ignored-hook-$operation-topic/hook-private.bin")" == 'hook private bytes' ]] || fail 'late ignored project hook lost bytes'
 done
-printf 'dirty\n' >"${work}/locked-l2/l1.txt"
-run_done "$repo" --no-pr >"${work}/locked-prune.out" 2>&1 ||
-	fail "done --prune must not fail on a locked worktree: $(cat "${work}/locked-prune.out")"
-test -d "${work}/locked-l1" || fail "done without --drop must keep a locked worktree"
-run_done "$repo" --no-pr --drop >"${work}/locked-drop.out" 2>&1 ||
-	fail "done --drop must remove locked worktrees: $(cat "${work}/locked-drop.out")"
-test ! -d "$repo" && test ! -d "${work}/locked-l1" && test ! -d "${work}/locked-l2" ||
-	fail "done --drop must remove locked worktrees and trash the primary clone"
-git -C "$origin" rev-parse --verify --quiet refs/heads/feat/l1 >/dev/null || fail "locked worktree branch must reach origin before the drop"
-git -C "$origin" rev-parse --verify --quiet refs/heads/feat/l2 >/dev/null || fail "locked dirty worktree must be parked on origin before the drop"
 
-echo "done fixture ok"
+setup_clone missing
+git -C "$repo" worktree add -q -b missing-topic "$work/missing-topic"
+printf 'staged recovery\n' >"$work/missing-topic/staged.txt"
+git -C "$work/missing-topic" add staged.txt
+mv "$work/missing-topic" "$work/missing-recovery"
+if run_done retire --no-pr >"$work/missing.out" 2>&1; then fail 'missing worktree must stop retirement before pruning metadata'; fi
+[[ -d "$repo/.git/worktrees/missing-topic" && "$(cat "$work/missing-recovery/staged.txt")" == 'staged recovery' ]] || fail 'missing worktree recovery state lost'
+
+setup_clone restack
+git -C "$repo" switch -q -c feature
+commit_file "$repo" feature.txt feature
+original=$(git -C "$repo" rev-parse HEAD)
+git -C "$repo" switch -q -c upstream-advance main
+commit_file "$repo" advanced.txt advanced
+git -C "$origin" fetch -q "$repo" upstream-advance:main
+git -C "$repo" switch -q feature
+run_done 'done' --no-pr --no-prune >"$work/restack.out" 2>&1 || fail "restack: $(cat "$work/restack.out")"
+[[ "$(git -C "$origin" rev-parse "backup/restack/$original")" == "$original" ]] || fail 'original restack tip not preserved'
+git -C "$repo" merge-base --is-ancestor origin/main feature || fail 'feature not restacked'
+
+# Informational forms must leave repository bytes and refs untouched.
+setup_clone information
+printf 'informational\n' >"$repo/info.txt"
+git -C "$repo" add info.txt
+refs_before=$(git -C "$repo" show-ref)
+index_before=$(git -C "$repo" hash-object .git/index)
+fetch_before=$(git -C "$repo" hash-object .git/FETCH_HEAD)
+fetch_mtime=$(python3 -c 'import os,sys; print(os.stat(sys.argv[1]).st_mtime_ns)' "$repo/.git/FETCH_HEAD")
+status_before=$(git -C "$repo" --no-optional-locks status --porcelain)
+stash_before=$(git -C "$repo" stash list --format=%H)
+for command in 'done' retire drop; do
+	run_done "$command" --help >"$work/$command-help.out" 2>&1 || fail "$command help"
+	run_done "$command" -- --dry-run >"$work/$command-dry.out" 2>&1 || fail "$command dry-run"
+done
+[[ "$(git -C "$repo" show-ref)" == "$refs_before" ]] || fail 'informational command changed refs'
+[[ "$(git -C "$repo" hash-object .git/index)" == "$index_before" ]] || fail 'informational command changed index'
+[[ "$(git -C "$repo" hash-object .git/FETCH_HEAD)" == "$fetch_before" && "$(python3 -c 'import os,sys; print(os.stat(sys.argv[1]).st_mtime_ns)' "$repo/.git/FETCH_HEAD")" == "$fetch_mtime" ]] || fail 'informational command fetched'
+[[ "$(git -C "$repo" --no-optional-locks status --porcelain)" == "$status_before" && "$(git -C "$repo" stash list --format=%H)" == "$stash_before" ]] || fail 'informational command changed status or stashes'
+[[ "$(cat "$repo/info.txt")" == informational ]] || fail 'informational command changed bytes'
+echo 'done fixture ok (keep, hooks, remote rejection, detached, stashes, conflicts, locked worktrees, size, nested, dry-run, unpublished)'

@@ -90,6 +90,54 @@ commit_fix_args() {
 	return 1
 }
 
+# Native aliases spawn wt again: preserve an explicit user config across that boundary.
+inherit_config_path() {
+	local base config
+	base=$PWD
+	config=
+	WT_EXPLICIT_YES=0
+	while [ $# -gt 0 ]; do
+		case $1 in
+		-C)
+			[ $# -gt 1 ] || return 0
+			base=$2
+			shift 2
+			;;
+		--config)
+			[ $# -gt 1 ] || return 0
+			config=$2
+			shift 2
+			;;
+		--config=*)
+			config=${1#--config=}
+			shift
+			;;
+		--config-set)
+			[ $# -gt 1 ] || return 0
+			shift 2
+			;;
+		-y | --yes)
+			export DEV_PROFILE_WT_YES=1
+			WT_EXPLICIT_YES=1
+			shift
+			;;
+		--config-set=* | -*) shift ;;
+		*) break ;;
+		esac
+	done
+	[ -n "$config" ] || return 0
+	case $config in
+	/*) export WORKTRUNK_CONFIG_PATH=$config ;;
+	*)
+		base=$(cd "$base" && pwd -P) || return 0
+		export WORKTRUNK_CONFIG_PATH=$base/$config
+		;;
+	esac
+}
+inherit_config_path "$@"
+if [ "${DEV_PROFILE_WT_YES:-}" = 1 ] && [ "$WT_EXPLICIT_YES" = 0 ]; then
+	set -- --yes "$@"
+fi
 if commit_fix_args "$@"; then
 	exec "${0%/*}/dev-profile-commit-fix" "${WT_ARGS[@]}"
 fi

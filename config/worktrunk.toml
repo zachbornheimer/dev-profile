@@ -108,21 +108,50 @@ git fetch --all --prune; wt step for-each -- sh -c '
   git diff --quiet HEAD || { git merge --ff-only --no-autostash @{u}; exit 0; }
   git rebase @{u} --no-autostash || { rebasing || exit 0; git rebase --abort; }
 ''''
-pr = "{% if create is defined %}wt switch --create {{ create }} --no-cd -x ~/.local/share/dev-profile/bin/dev-profile-pr -- -- {{ args }}{% else %}wt switch {{ args or '@' }} -x ~/.local/share/dev-profile/bin/dev-profile-pr --{% endif %}"
-pr-draft = "{% if create is defined %}wt switch --create {{ create }} --no-cd -x ~/.local/share/dev-profile/bin/dev-profile-pr -- --draft -- {{ args }}{% else %}wt switch {{ args or '@' }} -x ~/.local/share/dev-profile/bin/dev-profile-pr -- --draft{% endif %}"
-pr-auto = "{% if create is defined %}wt switch --create {{ create }} --no-cd -x ~/.local/share/dev-profile/bin/dev-profile-pr -- --auto -- {{ args }}{% else %}wt switch {{ args or '@' }} -x ~/.local/share/dev-profile/bin/dev-profile-pr -- --auto{% endif %}"
+# Worktree selection belongs here; the retained PR adapter owns forge publication.
+pr = '''
+{% if pr_mode | default('') not in ['', 'draft', 'auto'] %}
+echo 'wt pr: --pr-mode must be draft or auto' >&2
+exit 2
+{% else %}
+wt switch {% if create is defined %}--create {{ create }} --no-cd{% else %}{{ args or '@' }}{% endif %} -x ~/.local/share/dev-profile/bin/dev-profile-pr -- {% if pr_mode | default('') %}--{{ pr_mode }}{% endif %}{% if create is defined %} -- {{ args }}{% endif %}
+{% endif %}'''
+pr-draft = "wt pr --pr-mode=draft {% if create is defined %}--create={{ create }}{% endif %} -- {{ args }}"
+pr-auto = "wt pr --pr-mode=auto {% if create is defined %}--create={{ create }}{% endif %} -- {{ args }}"
+# One lifecycle: plain done keeps the clone; retirement is always explicit.
 done = '''
+set -eu
+export DONE_COMMIT=1 DONE_PUSH=1 DONE_PR=1 DONE_PRUNE=1 DONE_DROP=0 DONE_DRY=0
+repo=
 for arg in {{ args }}; do
   case "$arg" in
-  --drop) echo "wt done keeps the clone; to trash it too, run: wt retire" >&2; exit 2 ;;
+    --commit) DONE_COMMIT=1 ;; --no-commit) DONE_COMMIT=0 ;;
+    --push) DONE_PUSH=1 ;; --no-push) DONE_PUSH=0 ;;
+    --pr) DONE_PR=1 ;; --no-pr) DONE_PR=0 ;;
+    --prune) DONE_PRUNE=1 ;; --no-prune) DONE_PRUNE=0 ;;
+    --drop) DONE_DROP=1 ;; --dry-run) DONE_DRY=1 ;;
+    -h|--help) echo 'usage: wt done [--drop] [--dry-run] [--no-commit] [--no-push] [--no-pr] [--no-prune] [repo]'; exit 0 ;;
+    -*) echo "wt done: unknown option $arg" >&2; exit 2 ;;
+    *) [ -z "$repo" ] || exit 2; repo=$arg ;;
   esac
 done
-~/.local/share/dev-profile/bin/dev-profile-done {{ args }}
+if [ -n "$repo" ]; then
+  if [ -d "$repo" ]; then cd "$repo";
+  elif [ "$(basename "$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")")" = "$repo" ]; then :;
+  else cd "../$repo"; fi
+fi
+if [ "$DONE_DRY" = 1 ]; then
+  echo 'dry-run: status only; no fetch, commits, pushes or removal'
+  exec wt step for-each -- git --no-optional-locks status --short
+fi
+DONE_STATE=$(mktemp -d)
+export DONE_STATE
+trap 'rm -rf "$DONE_STATE"' EXIT HUP INT TERM
+wt done-lifecycle
 '''
-# wt done keeps the clone and gets everything that lives only on this machine onto origin. wt retire is done plus
-# trashing the clone, and refuses unless every tip is on origin. dev-profile-done owns both; there is no second pipeline.
-retire = "~/.local/share/dev-profile/bin/dev-profile-done --drop {{ args }}"
-prune = "wt step prune --min-age=0s"
+retire = "wt done -- --drop {{ args }}"
+drop = "wt done -- --drop {{ args }}"
+prune = "wt step prune --min-age=0s {{ args }}"
 tree-for-changes = '''
 {% if args %}
 if ! git rev-parse --verify -q HEAD >/dev/null 2>&1; then
@@ -205,21 +234,362 @@ wt pr-auto
 {% endif %}'''
 commit-unstaged = "wt land --landing=merge"
 commit-fix = "~/.local/share/dev-profile/bin/dev-profile-commit-fix step commit {{ args }}"
+# Explicit native scope: current branch or all checked-out worktrees, not inferred stacks.
 sync = '''
-if [ -n "{{ branch | default("") }}" ] && [ "$(git branch --show-current)" != "{{ branch | default("") }}" ]; then
-  cd "$(wt -y switch "{{ branch | default("") }}" --no-cd -x pwd)" || exit 1
-fi
+set -eu
+export SYNC_FETCH=0 SYNC_PUSH=0 SYNC_REBASE=1 SYNC_ALL=0 SYNC_PRUNE=0 SYNC_DRY=0
 for arg in {{ args }}; do
   case "$arg" in
-  -n|--dry-run|-h|--help|-V|--version) exec wt-sync {{ args }} ;;
+    -u|-f|--fetch) SYNC_FETCH=1 ;;
+    -p|--push) SYNC_PUSH=1 ;;
+    --push-only) SYNC_PUSH=1; SYNC_REBASE=0 ;;
+    -a|--all) SYNC_ALL=1 ;;
+    -P|--prune) SYNC_PRUNE=1 ;;
+    -n|--dry-run) SYNC_DRY=1 ;;
+    -v|--verbose) export WORKTRUNK_VERBOSE=1 ;;
+    -h|--help) echo 'usage: wt sync [--branch=BRANCH] [-u|--fetch] [-p|--push|--push-only] [--all] [--prune] [--dry-run]'; exit 0 ;;
+    -s|--stack) echo 'wt sync: inferred stacks are not supported; select --branch or --all and set branch.<name>.gh-merge-base for an explicit parent' >&2; exit 2 ;;
+    -F|--force) echo 'wt sync: forced dirty removal is not supported; preserve work with wt done before pruning' >&2; exit 2 ;;
+    *) echo "wt sync: unknown option $arg; run wt sync -- --help" >&2; exit 2 ;;
   esac
 done
-count=0
-until wt-sync {{ args }}; do
-  count=$((count + 1))
-  [ "$count" -le 5 ] || exit 1
-  omp -p --model @task "Please get branch {{ branch | default("") }} clean and rebased so 'wt-sync {{ args }}' succeeds (attempt $count/5)."
-done'''
+if [ "$SYNC_DRY" = 1 ]; then
+  echo "dry-run: fetch=$SYNC_FETCH rebase=$SYNC_REBASE push=$SYNC_PUSH all=$SYNC_ALL prune=$SYNC_PRUNE"
+  if [ "$SYNC_ALL" = 1 ]; then exec wt step for-each -- git --no-optional-locks status --short; fi
+  exit 0
+fi
+# Push-only never fetches: the existing remote-tracking tip is the lease basis.
+if [ "$SYNC_FETCH" = 1 ] && [ "$SYNC_REBASE" = 1 ]; then git fetch --prune origin; fi
+if [ "$SYNC_ALL" = 1 ]; then
+  wt step for-each -- wt sync-worktree
+elif [ -n "{{ branch | default('') }}" ] && [ "$(git branch --show-current)" != "{{ branch | default('') }}" ]; then
+  wt switch "{{ branch }}" --no-cd -x wt -- sync-worktree
+else
+  wt sync-worktree
+fi
+[ "$SYNC_PRUNE" = 0 ] || wt step prune --min-age=0s --foreground
+'''
+
+[aliases.sync-worktree]
+sync = '''
+set -eu
+: "${SYNC_REBASE:?run wt sync}"
+b=$(git branch --show-current)
+[ -n "$b" ] || { echo 'wt sync: detached HEAD; select a branch first' >&2; exit 1; }
+remote=$(git config "branch.$b.remote" || :)
+merge=$(git config "branch.$b.merge" || :)
+lease=
+if [ "$SYNC_PUSH" = 1 ] && [ -n "$remote" ] && [ -n "$merge" ]; then
+  [ "$merge" = "refs/heads/$b" ] || { echo "wt sync: upstream $remote/$merge does not match $b; publish this branch explicitly" >&2; exit 1; }
+  [ "$remote" != . ] || { echo 'wt sync: local upstream cannot be published' >&2; exit 1; }
+  lease=$(git rev-parse --verify '@{upstream}')
+fi
+if [ "$SYNC_REBASE" = 1 ]; then
+  base=$(git config "branch.$b.gh-merge-base" || :)
+  wt step rebase "origin/${base:-{{ default_branch }}}"
+fi
+if [ "$SYNC_PUSH" = 1 ]; then
+  if [ -z "$remote" ] || [ -z "$merge" ]; then
+    echo "wt sync: $b has no upstream; not pushed (publish explicitly with git push -u)"
+  else
+    if [ "$SYNC_REBASE" = 1 ]; then
+      git push --force-with-lease="$merge:$lease" "$remote" "HEAD:$merge"
+    else
+      git push "$remote" "HEAD:$merge"
+    fi
+  fi
+fi
+'''
+
+# Ordered native stages. A failed hook, push or verification stops cleanup.
+[[aliases.done-lifecycle]]
+fetch = '''
+set -eu
+: "${DONE_STATE:?run wt done, retire or drop}"
+git remote get-url origin >/dev/null
+git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'
+bash -eu -c '
+while IFS= read -r -d "" field; do
+  case "$field" in worktree\ *) [ -d "${field#worktree }" ] || { echo "wt done: missing worktree ${field#worktree }; repair it first" >&2; exit 1; } ;; esac
+done < <(git worktree list --porcelain -z)
+'
+'''
+
+[[aliases.done-lifecycle]]
+park = '''
+set -eu
+wt step for-each -- wt done-park
+'''
+
+[[aliases.done-lifecycle]]
+stashes = '''
+set -eu
+[ "$DONE_DRY" = 1 ] && exit 0
+: >"$DONE_STATE/stashes"
+git reflog show --format=%H refs/stash >"$DONE_STATE/stash-list" 2>/dev/null || :
+while read -r oid; do
+  [ "$DONE_COMMIT" = 1 ] || { echo 'wt done: stash requires --commit' >&2; exit 1; }
+  name=$(wt done-free-name -- wip)
+  # Restore on the original base, never merge a stash onto advanced HEAD.
+  wt switch --create "$name" --base "$oid^1" --no-cd -x sh -- -eu -c '
+    git read-tree --reset -u "$1^{tree}"
+    if git rev-parse --verify -q "$1^3" >/dev/null; then
+      git ls-tree -rz "$1^3^{tree}" | git update-index -z --index-info
+      git checkout-index -a -f
+    fi
+    wt done-check-tree
+    wt step commit
+  ' done-stash "$oid"
+  printf '%s %s\n' "$oid" "$name" >>"$DONE_STATE/stashes"
+done <"$DONE_STATE/stash-list"
+'''
+
+[[aliases.done-lifecycle]]
+restack = '''
+set -eu
+[ "$DONE_DRY" = 1 ] && exit 0
+wt step for-each -- sh -c '
+set -eu
+b=$(git branch --show-current)
+case "$b" in ""|"{{ default_branch }}"|backup/*|wip|wip-*|detached-*) exit 0 ;; esac
+r="refs/remotes/origin/$b"
+if git show-ref --verify --quiet "$r"; then
+  git merge-base --is-ancestor "$r" HEAD || exit 0
+fi
+git merge-base --is-ancestor HEAD origin/{{ default_branch }} && exit 0
+before=$(git rev-parse HEAD)
+# Keep the original tip reachable even if a later hook or push fails.
+git update-ref "refs/heads/backup/restack/$before" "$before"
+if ! wt step rebase origin/{{ default_branch }}; then
+  git rebase --abort || exit 1
+  printf "%s\n" "$b" >>"$DONE_STATE/conflicts"
+fi
+'
+'''
+
+[[aliases.done-lifecycle]]
+publish = '''
+set -eu
+[ "$DONE_DRY" = 1 ] && exit 0
+[ "$DONE_PUSH" = 1 ] || exit 0
+clone=$(git config dev-profile.sync-clone || basename "$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")")
+git check-ref-format "refs/heads/backup/conflicts/$clone/check"
+: >"$DONE_STATE/published"
+git for-each-ref --format='%(refname)' refs/heads >"$DONE_STATE/branches"
+while read -r ref; do
+  b=${ref#refs/heads/}; tip=$(git rev-parse "$ref"); target=$b
+  remote="refs/remotes/origin/$b"
+  if git merge-base --is-ancestor "$tip" origin/{{ default_branch }}; then continue; fi
+  if [ "$b" = '{{ default_branch }}' ]; then target="backup/main/$clone"
+  elif { [ -f "$DONE_STATE/conflicts" ] && grep -Fxq "$b" "$DONE_STATE/conflicts"; } ||
+    { git show-ref --verify --quiet "$remote" && ! git merge-base --is-ancestor "$remote" "$tip"; }; then
+    target="backup/conflicts/$clone/$b"
+  fi
+  # An existing conflicting backup is immutable; choose a fresh ref instead.
+  dest="refs/remotes/origin/$target"
+  if git show-ref --verify --quiet "$dest"; then
+    git merge-base --is-ancestor "$tip" "$dest" && continue
+    if [ "$target" != "$b" ] || ! git merge-base --is-ancestor "$dest" "$tip"; then
+      target=$(wt done-free-name -- "$target-$tip")
+    fi
+  fi
+  git push origin "$tip:refs/heads/$target"
+  printf '%s\n' "$target" >>"$DONE_STATE/published"
+done <"$DONE_STATE/branches"
+'''
+
+[[aliases.done-lifecycle]]
+verify = '''
+set -eu
+[ "$DONE_DRY" = 1 ] && exit 0
+git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'
+left=$(git rev-list --branches --not --glob=refs/remotes/origin/*)
+[ -z "$left" ] || { echo "wt done: local commits are not on origin; nothing removed: $left" >&2; exit 1; }
+wt step for-each -- wt done-check-preserved
+while read -r oid name; do
+  tip=$(git rev-parse "refs/heads/$name")
+  [ -n "$(git for-each-ref --contains "$tip" --count=1 refs/remotes/origin)" ] || exit 1
+  stash=$(git stash list --format='%gd %H' | awk -v oid="$oid" '$2 == oid {print $1; exit}')
+  if [ -n "$stash" ]; then
+    git stash drop "$stash"
+  fi
+done <"$DONE_STATE/stashes"
+'''
+
+[[aliases.done-lifecycle]]
+pull-requests = '''
+set -eu
+[ "$DONE_DRY" = 1 ] && exit 0
+[ "$DONE_PR" = 1 ] && [ "$DONE_PUSH" = 1 ] || exit 0
+while read -r b; do
+  case "$b" in wip|wip-*|detached-*|backup/restack/*) continue ;; esac
+  base='{{ default_branch }}'
+  case "$b" in backup/conflicts/*) base=${b#backup/conflicts/}; base=${base#*/} ;; esac
+  git rev-parse --verify -q "refs/remotes/origin/$base" >/dev/null || continue
+  git merge-base --is-ancestor "refs/remotes/origin/$b" "refs/remotes/origin/$base" && continue
+  existing=$(gh pr list --head "$b" --state open --json number --jq '.[0].number')
+  [ -n "$existing" ] || gh pr create --draft --head "$b" --base "$base" --title "$b" --body 'Preserved local work.'
+done <"$DONE_STATE/published"
+'''
+
+[[aliases.done-lifecycle]]
+cleanup = '''
+set -eu
+[ "$DONE_DRY" = 1 ] && exit 0
+primary=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")
+cd "$primary"
+git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'
+wt step for-each -- wt done-check-preserved
+if ! wt step for-each -- sh -eu -c '
+  p=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")
+  [ "$PWD" -ef "$p" ] && exit 0
+  [ -z "$(git ls-files --others --ignored --exclude-standard)" ] || { echo "wt done: ignored files retained in $PWD" >&2; exit 1; }
+'; then
+  [ "$DONE_DROP" = 0 ] && exit 0
+  exit 1
+fi
+if [ "$DONE_DROP" = 0 ]; then
+  [ "$DONE_PRUNE" = 0 ] || wt done-prune
+  exit 0
+fi
+command -v trash >/dev/null
+if [ "$DONE_PRUNE" = 0 ] && [ -n "$(ls -A "$(git rev-parse --git-common-dir)/worktrees" 2>/dev/null)" ]; then
+  echo 'wt done: linked worktrees require --prune' >&2; exit 1
+fi
+wt step for-each -- sh -c '
+set -eu
+p=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")
+[ "$PWD" -ef "$p" ] && exit 0
+wt done-check-preserved
+[ -z "$(git ls-files --others --ignored --exclude-standard)" ] || exit 1
+b=$(git branch --show-current)
+[ -n "$b" ] || exit 1
+git worktree unlock "$PWD" 2>/dev/null || :
+cd "$p"
+wt -C "$OLDPWD" done-remove
+'
+common=$(git rev-parse --path-format=absolute --git-common-dir)
+[ -z "$(ls -A "$common/worktrees" 2>/dev/null)" ] || { echo 'wt done: linked worktrees remain; nothing trashed' >&2; exit 1; }
+wt done-check-tree
+[ -z "$(git status --porcelain)" ] || exit 1
+[ -z "$(git rev-list --branches --not --glob=refs/remotes/origin/*)" ] || exit 1
+if [ -n "${WORKTRUNK_DIRECTIVE_CD_FILE:-}" ]; then dirname "$primary" >"$WORKTRUNK_DIRECTIVE_CD_FILE"; fi
+cd "$(dirname "$primary")"
+trash "$primary"
+echo "wt done: trashed $primary"
+'''
+
+[aliases.done-check-tree]
+check = '''
+bash -eu -c '
+max=${DEV_PROFILE_SYNC_MAX_FILE_MB:-50}
+case "$max" in ""|*[!0-9]*) echo "wt done: invalid size limit" >&2; exit 1 ;; esac
+while IFS= read -r -d "" path; do
+  [ ! -e "$path/.git" ] || { echo "wt done: nested repository $PWD/$path" >&2; exit 1; }
+  if [ -f "$path" ] && [ "$(wc -c <"$path")" -gt "$((max * 1024 * 1024))" ]; then
+    echo "wt done: $path over $max MB" >&2; exit 1
+  fi
+done < <(git ls-files -z --cached --others --exclude-standard)
+common=$(git rev-parse --path-format=absolute --git-common-dir)
+[ ! -d "$common/modules" ] || { echo "wt done: nested repository in $common/modules" >&2; exit 1; }
+'
+'''
+
+[aliases.done-prune]
+prune = '''
+set -eu
+wt step prune --dry-run --min-age=0s --format=json >"$DONE_STATE/prune-plan"
+jq -c '.[]' "$DONE_STATE/prune-plan" | while IFS= read -r item; do
+  path=$(printf '%s' "$item" | jq -r '.path // empty')
+  branch=$(printf '%s' "$item" | jq -r '.branch // empty')
+  if [ -n "$path" ] && [ -d "$path" ]; then
+    DONE_PRUNING=1 wt -C "$path" done-remove
+  elif [ -n "$branch" ]; then
+    wt remove --foreground "$branch"
+  fi
+done
+'''
+
+[aliases.done-remove]
+remove = '''
+set -eu
+wt config show --format=json >"$DONE_STATE/remove-config"
+overlay=$(mktemp "$DONE_STATE/remove.XXXXXX")
+export DONE_REMOVAL_TIP=$(git rev-parse HEAD)
+bun -e '
+const fs = require("node:fs");
+const source = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+const project = source.project.config || {};
+const previous = project["pre-remove"];
+project["pre-remove"] = [...(previous === undefined ? [] : Array.isArray(previous) ? previous : [previous]), {"preservation-final": "wt done-check-removal"}];
+fs.writeFileSync(process.argv[2], Bun.TOML.stringify(project));
+' "$DONE_STATE/remove-config" "$overlay"
+WORKTRUNK_PROJECT_CONFIG_PATH="$overlay" wt remove --foreground --no-delete-branch "$PWD"
+'''
+
+[aliases.done-check-removal]
+check = '''
+set -eu
+wt done-check-preserved
+[ "$(git rev-parse HEAD)" = "$DONE_REMOVAL_TIP" ] || { echo 'wt done: hook moved HEAD; worktree retained' >&2; exit 1; }
+[ -z "$(git ls-files --others --ignored --exclude-standard)" ] || { echo 'wt done: hook created ignored files; worktree retained' >&2; exit 1; }
+if [ "${DONE_PRUNING:-0}" = 1 ]; then
+  wt step prune --dry-run --min-age=0s --format=json | jq -e --arg path "$PWD" 'any(.[]; .path == $path)' >/dev/null
+fi
+'''
+
+[aliases.done-check-preserved]
+check = '''
+set -eu
+wt done-check-tree
+[ -z "$(git status --porcelain)" ] || { echo 'wt done: worktree changed; work retained' >&2; exit 1; }
+[ -n "$(git for-each-ref --contains HEAD --count=1 refs/remotes/origin)" ] || { echo 'wt done: worktree tip is not on origin' >&2; exit 1; }
+'''
+[aliases.done-free-name]
+name = '''
+set -eu
+set -- {{ args }}
+base=$1; name=$base; n=2
+while [ -n "$(git for-each-ref --format='%(refname)' "refs/heads/$name" "refs/remotes/origin/$name")" ]; do
+  name="$base-$n"; n=$((n + 1))
+done
+printf '%s\n' "$name"
+'''
+
+[aliases.done-park]
+park = '''
+set -eu
+wt done-check-tree
+for op in rebase-merge rebase-apply MERGE_HEAD CHERRY_PICK_HEAD; do
+  [ ! -e "$(git rev-parse --git-path "$op")" ] || { echo "wt done: finish $op first; work retained" >&2; exit 1; }
+done
+# Recover an externally lost checkout, never staged or partial deletions.
+bash -eu -c '
+if git rev-parse --verify -q HEAD >/dev/null && git diff --cached --quiet; then
+  tracked=0
+  surviving=0
+  while IFS= read -r -d "" path; do
+    tracked=1
+    if [ -e "$path" ] || [ -L "$path" ]; then surviving=1; break; fi
+  done < <(git ls-files -z)
+  if [ "$tracked" = 1 ] && [ "$surviving" = 0 ]; then
+    echo "wt done: restoring gutted checkout in $PWD"
+    git restore --source=HEAD --worktree -- .
+  fi
+fi
+'
+b=$(git branch --show-current)
+dirty=$(git status --porcelain)
+if [ -z "$b" ] || [ -n "$dirty" ]; then
+  [ "$DONE_COMMIT" = 1 ] || { echo 'wt done: uncommitted or detached work requires --commit' >&2; exit 1; }
+  original=$b
+  if [ -z "$b" ]; then b=$(wt done-free-name -- "detached-$(git rev-parse --short=12 HEAD)");
+  elif [ "$b" = '{{ default_branch }}' ]; then b=$(wt done-free-name -- wip); fi
+  [ "$b" = "$original" ] || git switch -c "$b"
+  if [ -n "$dirty" ]; then wt step commit; fi
+  [ "$original" != '{{ default_branch }}' ] || git switch "$original"
+fi
+'''
 
 [pre-start]
 # Stamp the new worktree with the omp session that ran `wt`, before anything can edit it. The stamp lives in git's own

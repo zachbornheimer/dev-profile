@@ -114,6 +114,85 @@ preservation (including comments and literals), shell file discovery, and error
 propagation. The same regression runs in doctor/CI. Shell extensions, dotfiles
 and shebang dispatch remain enabled; dprint's stable-format check stays on.
 
+## Park or retire a clone
+
+`wt done` uses native Worktrunk aliases to commit worktrees, snapshot stashes,
+restack checked-out branches, push local tips to origin, and prune integrated
+worktrees. It keeps the clone. `wt retire`, `wt drop`, and `wt done --drop` run
+the same lifecycle and then move the clone to Trash. `wt done -- --drop` also
+works when forwarding the flag explicitly.
+
+Commit and push hooks, scanners, and configured signing remain active. A failed
+hook or push stops cleanup. Diverged branches go to `backup/conflicts/<clone>/`
+without force-pushing; prior backup tips are never overwritten. Stashes become
+signed worktree commits on their original base, including untracked files.
+Ignored files are not pushed and remain in the retained clone or Trash.
+Linked worktrees with ignored files are retained, including files written by removal
+hooks. Removal preserves the original user/project hooks and appends a final
+preservation check; a hook that changes work or moves HEAD prevents removal.
+Native Worktrunk's prune plan selects integrated worktrees and branches; every
+worktree removal is rechecked against that plan after its hooks.
+The lifecycle uses the profile's existing Bun and jq tools for native configuration
+and prune-plan composition.
+The existing `wt` shim carries explicit global `--config` and `-y`/`--yes`
+through nested native invocations; it does not grant approval unless requested.
+
+`wt done -- --dry-run` shows status without fetching, committing, pushing or deleting.
+`--no-pr`,
+`--no-prune`, `--no-commit`, and `--no-push` retain their explicit controls;
+retirement refuses unpublished work or remaining linked worktrees. Nested
+repositories and files above `DEV_PROFILE_SYNC_MAX_FILE_MB` (default 50 MiB)
+stop preservation. Finish ongoing merges or rebases before running `wt done`.
+A checkout with every tracked path missing and no staged changes is restored
+from HEAD before parking, matching the existing lost-checkout safeguard.
+Staged repository-wide deletions and partial deletions remain intentional.
+
+`mise run test:done-native` deploys the **complete** source configuration with
+the real mise merge entry over a stale legacy installation, then exercises the
+native Worktrunk CLI against local bare remotes. This deployment proof requires
+the profile's mise build with `dot apply`; the portable `mise run test:done`
+consumer safety suite uses the same complete config directly and remains in
+`doctor` for upstream-mise CI. Only forge, Trash, commit-message generation and
+workstation-specific hook adapters are sandboxed; Git hooks and signing remain
+active. No fixture reconstructs a test-only alias subset.
+
+## Native worktree aliases
+
+`wt sync` rebases the current branch with `wt step rebase` onto
+`origin/<default-branch>`, or its explicit `branch.<name>.gh-merge-base` parent.
+It does not infer stacks or ask an agent to repair conflicts. A failed rebase or
+push propagates failure and leaves the worktree available for resolution.
+
+- `-u`, `-f`, `--fetch`: fetch origin before rebasing.
+- `-p`, `--push`: publish to the existing upstream after rebasing, using an exact
+  lease on its observed remote-tracking tip. Branches without upstreams are
+  reported and skipped; first publication stays explicit (`git push -u`).
+- `--push-only`: publish without fetching or rebasing.
+- `--branch=NAME`: select a worktree; `--all` visits all checked-out worktrees
+  through native `wt step for-each`, not dependency-ordered stack inference.
+- `-P`, `--prune`: run native integrated-worktree pruning after successful sync.
+- `-n`, `--dry-run`: report options without fetching, rebasing, pushing or pruning.
+- `--stack`, `--force`, and unknown options are rejected before mutation. Select
+  a branch explicitly or preserve dirty work with `wt done` instead.
+
+`wt prune` delegates to native `wt step prune`. Preservation and retirement use
+only the `done` lifecycle; the old `dev-profile-sync`, `dev-profile-prune`, and
+`dev-profile-retire` implementations and their bypassing fixtures are removed.
+`wt-sync` is no longer called, even if an old installation remains on PATH.
+
+`wt pr`, `wt pr-draft`, and `wt pr-auto` share one native worktree-selection
+alias. The latter two select the publication mode and forward to `wt pr`;
+`--create=NAME` and an optional post-create command retain their existing forms.
+The `dev-profile-pr`/`dev-profile-pr-watch` adapters remain because they own forge
+publication and CI watching, not worktree lifecycle. Existing commit-fix,
+benchmark, worktree-copy, application-reap and legacy-hook-cleanup adapters keep
+their unrelated responsibilities. The `bin/wt` shim still only forwards native
+commands, commit-fix, benchmarking, explicit config and approval inheritance.
+
+`mise run test:native-aliases` exercises native sync against real signed scratch
+repositories, including dry-run, upstream leases, failed push hooks, selected
+worktrees, all-worktree scope and unsupported options.
+
 ## Timing a slow `wt land`
 
 Set `WT_BENCH=1` to time every `wt` call and the `gh`, commit and push calls inside `wt land` and `wt pr-auto`; `WT_BENCH=2` also writes worktrunk's own span trace. Run `dev-profile-bench report` for the timeline and slowest calls, or `dev-profile-bench runs` for recent runs. Records go to `~/.local/state/dev-profile/wt-bench.tsv` (override with `WT_BENCH_LOG`). Unset, the `wt` shim runs the real binary untouched.
