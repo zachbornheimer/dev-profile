@@ -143,6 +143,9 @@ through nested native invocations; it does not grant approval unless requested.
 retirement refuses unpublished work or remaining linked worktrees. Nested
 repositories and files above `DEV_PROFILE_SYNC_MAX_FILE_MB` (default 50 MiB)
 stop preservation. Finish ongoing merges or rebases before running `wt done`.
+A checkout with every tracked path missing and no staged changes is restored
+from HEAD before parking, matching the existing lost-checkout safeguard.
+Staged repository-wide deletions and partial deletions remain intentional.
 
 `mise run test:done-native` deploys the **complete** source configuration with
 the real mise merge entry over a stale legacy installation, then exercises the
