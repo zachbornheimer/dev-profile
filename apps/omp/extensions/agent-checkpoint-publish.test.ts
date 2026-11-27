@@ -8,14 +8,14 @@ import install, { type Job, jobPath, miseSettled, readJob, writeJob } from "./ag
 const source = path.resolve(import.meta.dir, "agent-checkpoint-publish.ts");
 const dirs: string[] = [];
 // Real detached subprocesses cannot share fake timers; await their durable state.
-let saved = { ...process.env };
+const saved = { ...process.env };
 afterEach(() => {
   process.env = { ...saved };
   for (const dir of dirs.splice(0)) fs.rmSync(dir, { recursive: true, force: true });
 });
 function git(repo: string, ...args: string[]) {
   const r = spawnSync("git", args, { cwd: repo, encoding: "utf8", env: process.env });
-  if (r.status) throw new Error(`${args.join(" ")}: ${r.stderr}`);
+  if (r.status !== 0) throw new Error(`${args.join(" ")}: exit=${r.status} signal=${r.signal} ${r.stderr}`);
   return r.stdout.toString().trim();
 }
 function fixture() {
@@ -78,7 +78,9 @@ function fixture() {
     },
   };
   const event = async (name: string, data = {}) => {
-    await handlers.get(name)?.(data, ctx);
+    const handler = handlers.get(name);
+    if (!handler) throw new Error(`Missing lifecycle handler: ${name}`);
+    await handler(data, ctx);
   };
   const commit = (message = "checkpoint", signed = true) => {
     git(repo, "-c", `commit.gpgsign=${signed}`, "commit", "--allow-empty", "-m", message);
@@ -108,11 +110,12 @@ async function worker(job: Job) {
   writeJob(job);
   const proc = spawn("bun", [source, "--worker", jobPath(job.key)], {
     env: process.env,
-    stdio: ["ignore", "pipe", "pipe"],
+    stdio: "ignore",
+    timeout: 30_000,
   });
   const { promise, resolve, reject } = Promise.withResolvers<void>();
   proc.once("error", reject);
-  proc.once("exit", code => code ? reject(new Error(`worker exit ${code}`)) : resolve());
+  proc.once("close", (code, signal) => code === 0 ? resolve() : reject(new Error(`worker exit ${code} signal=${signal}`)));
   await promise;
   return readJob(jobPath(job.key));
 }
