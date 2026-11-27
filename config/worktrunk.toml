@@ -563,6 +563,21 @@ wt done-check-tree
 for op in rebase-merge rebase-apply MERGE_HEAD CHERRY_PICK_HEAD; do
   [ ! -e "$(git rev-parse --git-path "$op")" ] || { echo "wt done: finish $op first; work retained" >&2; exit 1; }
 done
+# Recover an externally lost checkout, never staged or partial deletions.
+bash -eu -c '
+if git rev-parse --verify -q HEAD >/dev/null && git diff --cached --quiet; then
+  tracked=0
+  surviving=0
+  while IFS= read -r -d "" path; do
+    tracked=1
+    if [ -e "$path" ] || [ -L "$path" ]; then surviving=1; break; fi
+  done < <(git ls-files -z)
+  if [ "$tracked" = 1 ] && [ "$surviving" = 0 ]; then
+    echo "wt done: restoring gutted checkout in $PWD"
+    git restore --source=HEAD --worktree -- .
+  fi
+fi
+'
 b=$(git branch --show-current)
 dirty=$(git status --porcelain)
 if [ -z "$b" ] || [ -n "$dirty" ]; then
