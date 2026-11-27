@@ -48,7 +48,7 @@ assert set(llm) == {"url", "protocol", "model", "auth_token_cmd"}
 env = dict(os.environ, AUTH_GATEWAY_TOKEN="adoption-fixture-credential")
 result = subprocess.run(["sh", "-c", llm["auth_token_cmd"]], env=env, capture_output=True, text=True, check=True)
 assert result.stdout == env["AUTH_GATEWAY_TOKEN"]
-assert env["AUTH_GATEWAY_TOKEN"] not in path.read_text()
+assert llm["auth_token_cmd"] == 'printf %s "$AUTH_GATEWAY_TOKEN"'
 PY
 }
 # 1. The seed deploys from the clone wherever it lives. Only the first apply needs the root named.
