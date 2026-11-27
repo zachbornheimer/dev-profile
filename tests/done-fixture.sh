@@ -2,11 +2,15 @@
 # Behavior at the real native wt CLI boundary, with signed Git commits/hooks.
 set -euo pipefail
 source "$(dirname "$0")/done-support.sh"
+repo=${repo:-}
+origin=${origin:-}
+work=${work:?fixture workspace missing}
+root=${root:?fixture source root missing}
 
 setup_clone keep
 printf 'dirty\n' >"$repo/base.txt"
 printf 'untracked\n' >"$repo/new file.txt"
-run_done done --no-pr --no-prune >"$work/keep.out" 2>&1 || fail "plain done: $(cat "$work/keep.out")"
+run_done 'done' --no-pr --no-prune >"$work/keep.out" 2>&1 || fail "plain done: $(cat "$work/keep.out")"
 [[ -d "$repo" ]] || fail 'plain done must retain clone'
 [[ "$(git -C "$origin" show wip:base.txt)" == dirty ]] || fail 'tracked edit not published'
 [[ "$(git -C "$origin" show 'wip:new file.txt')" == untracked ]] || fail 'untracked file not published'
@@ -50,7 +54,7 @@ setup_clone detached
 git -C "$repo" switch -q --detach
 commit_file "$repo" detached.txt detached
 detached=$(git -C "$repo" rev-parse HEAD)
-run_done done --no-pr --no-prune >"$work/detached.out" 2>&1 || fail "detached HEAD: $(cat "$work/detached.out")"
+run_done 'done' --no-pr --no-prune >"$work/detached.out" 2>&1 || fail "detached HEAD: $(cat "$work/detached.out")"
 [[ -n "$(git -C "$origin" for-each-ref --contains "$detached" refs/heads)" ]] || fail 'detached tip not published'
 
 setup_clone stashclash
@@ -77,18 +81,18 @@ git -C "$origin" fetch -q "$repo" feature:feature
 git -C "$repo" reset --hard -q main
 commit_file "$repo" base.txt local-version
 local_tip=$(git -C "$repo" rev-parse feature)
-run_done done --no-pr --no-prune >"$work/conflict.out" 2>&1 || fail "diverged branch: $(cat "$work/conflict.out")"
+run_done 'done' --no-pr --no-prune >"$work/conflict.out" 2>&1 || fail "diverged branch: $(cat "$work/conflict.out")"
 [[ "$(git -C "$origin" show feature:base.txt)" == remote-version ]] || fail 'remote overwritten'
 [[ "$(git -C "$origin" rev-parse backup/conflicts/conflict/feature)" == "$local_tip" ]] || fail 'conflict backup missing'
 commit_file "$repo" extra.txt later
-run_done done --no-pr --no-prune >"$work/conflict2.out" 2>&1 || fail "second diverged snapshot: $(cat "$work/conflict2.out")"
+run_done 'done' --no-pr --no-prune >"$work/conflict2.out" 2>&1 || fail "second diverged snapshot: $(cat "$work/conflict2.out")"
 [[ "$(git -C "$origin" rev-parse backup/conflicts/conflict/feature)" == "$local_tip" ]] || fail 'prior conflict backup overwritten'
 
 setup_clone linked
 git -C "$repo" worktree add -q -b topic "$work/linked-topic"
 printf 'linked\n' >"$work/linked-topic/linked.txt"
 git -C "$repo" worktree lock "$work/linked-topic"
-run_done done --no-pr >"$work/linked-keep.out" 2>&1 || fail "locked worktree: $(cat "$work/linked-keep.out")"
+run_done 'done' --no-pr >"$work/linked-keep.out" 2>&1 || fail "locked worktree: $(cat "$work/linked-keep.out")"
 [[ -d "$work/linked-topic" ]] || fail 'plain done removed locked worktree'
 run_done drop --no-pr >"$work/linked-drop.out" 2>&1 || fail "explicit locked drop: $(cat "$work/linked-drop.out")"
 [[ ! -d "$repo" && ! -d "$work/linked-topic" ]] || fail 'explicit drop must remove linked worktree and trash primary'
@@ -107,7 +111,7 @@ if run_done drop --no-pr >"$work/nested.out" 2>&1; then fail 'nested repo must s
 setup_clone dry
 printf 'unchanged\n' >"$repo/dry.txt"
 before=$(git -C "$repo" status --porcelain)
-run_done done -- --drop --dry-run >"$work/dry.out" 2>&1 || fail "dry run: $(cat "$work/dry.out")"
+run_done 'done' -- --drop --dry-run >"$work/dry.out" 2>&1 || fail "dry run: $(cat "$work/dry.out")"
 [[ -d "$repo" && "$(git -C "$repo" status --porcelain)" == "$before" ]] || fail 'dry run changed work'
 
 setup_clone no-push
@@ -119,7 +123,7 @@ setup_clone staged
 printf 'staged\n' >"$repo/staged.txt"
 git -C "$repo" add staged.txt
 rm "$repo/base.txt"
-run_done done --no-pr --no-prune >"$work/staged.out" 2>&1 || fail "staged/deletion: $(cat "$work/staged.out")"
+run_done 'done' --no-pr --no-prune >"$work/staged.out" 2>&1 || fail "staged/deletion: $(cat "$work/staged.out")"
 [[ "$(git -C "$origin" show wip:staged.txt)" == staged ]] || fail 'staged bytes missing'
 if git -C "$origin" cat-file -e wip:base.txt 2>/dev/null; then fail 'intentional deletion resurrected'; fi
 
@@ -128,7 +132,7 @@ git -C "$repo" switch -q -c orphan-work
 commit_file "$repo" branch.txt branch-only
 branch_tip=$(git -C "$repo" rev-parse HEAD)
 git -C "$repo" switch -q main
-run_done done --no-pr --no-prune >"$work/branch-only.out" 2>&1 || fail "branch-only: $(cat "$work/branch-only.out")"
+run_done 'done' --no-pr --no-prune >"$work/branch-only.out" 2>&1 || fail "branch-only: $(cat "$work/branch-only.out")"
 [[ "$(git -C "$origin" rev-parse orphan-work)" == "$branch_tip" ]] || fail 'branch without worktree missing'
 
 setup_clone secondary
@@ -151,7 +155,7 @@ printf 'second\n' >"$repo/base.txt"
 printf 'second-only\n' >"$repo/second.txt"
 git -C "$repo" stash push -u -q
 git -C "$origin" fetch -q "$repo" main:refs/heads/wip/remote
-run_done done --no-pr --no-prune >"$work/multi-stash.out" 2>&1 || fail "multiple stashes: $(cat "$work/multi-stash.out")"
+run_done 'done' --no-pr --no-prune >"$work/multi-stash.out" 2>&1 || fail "multiple stashes: $(cat "$work/multi-stash.out")"
 [[ "$(git -C "$origin" show wip-2:base.txt)" == second ]] || fail 'latest stash conflict bytes missing'
 [[ "$(git -C "$origin" show wip-2:second.txt)" == second-only ]] || fail 'latest stash untracked missing'
 [[ "$(git -C "$origin" show wip-3:base.txt)" == first ]] || fail 'older stash conflict bytes missing'
@@ -162,7 +166,7 @@ setup_clone ignored
 git -C "$repo" worktree add -q -b ignored-topic "$work/ignored-topic"
 printf 'private.bin\n' >"$repo/.git/info/exclude"
 printf 'private bytes\n' >"$work/ignored-topic/private.bin"
-run_done done --no-pr >"$work/ignored-keep.out" 2>&1 || fail "ignored keep: $(cat "$work/ignored-keep.out")"
+run_done 'done' --no-pr >"$work/ignored-keep.out" 2>&1 || fail "ignored keep: $(cat "$work/ignored-keep.out")"
 [[ "$(cat "$work/ignored-topic/private.bin")" == 'private bytes' ]] || fail 'plain prune discarded ignored data'
 if run_done retire --no-pr >"$work/ignored-drop.out" 2>&1; then fail 'retirement must reject unpreserved linked ignored data'; fi
 [[ -d "$repo" && "$(cat "$work/ignored-topic/private.bin")" == 'private bytes' ]] || fail 'retirement lost linked ignored data'
@@ -200,7 +204,7 @@ open(p,'w').write(s)
 PY
 
 # Project hooks run after user hooks; the final native hook must guard both.
-for operation in done drop; do
+for operation in 'done' drop; do
 	setup_clone "ignored-hook-$operation"
 	git -C "$repo" worktree add -q -b hook-topic "$work/ignored-hook-$operation-topic"
 	printf 'hook-private.bin\n' >>"$repo/.git/info/exclude"
@@ -239,7 +243,7 @@ git -C "$repo" switch -q -c upstream-advance main
 commit_file "$repo" advanced.txt advanced
 git -C "$origin" fetch -q "$repo" upstream-advance:main
 git -C "$repo" switch -q feature
-run_done done --no-pr --no-prune >"$work/restack.out" 2>&1 || fail "restack: $(cat "$work/restack.out")"
+run_done 'done' --no-pr --no-prune >"$work/restack.out" 2>&1 || fail "restack: $(cat "$work/restack.out")"
 [[ "$(git -C "$origin" rev-parse "backup/restack/$original")" == "$original" ]] || fail 'original restack tip not preserved'
 git -C "$repo" merge-base --is-ancestor origin/main feature || fail 'feature not restacked'
 
@@ -253,7 +257,7 @@ fetch_before=$(git -C "$repo" hash-object .git/FETCH_HEAD)
 fetch_mtime=$(python3 -c 'import os,sys; print(os.stat(sys.argv[1]).st_mtime_ns)' "$repo/.git/FETCH_HEAD")
 status_before=$(git -C "$repo" --no-optional-locks status --porcelain)
 stash_before=$(git -C "$repo" stash list --format=%H)
-for command in done retire drop; do
+for command in 'done' retire drop; do
 	run_done "$command" --help >"$work/$command-help.out" 2>&1 || fail "$command help"
 	run_done "$command" -- --dry-run >"$work/$command-dry.out" 2>&1 || fail "$command dry-run"
 done

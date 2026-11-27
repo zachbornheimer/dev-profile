@@ -2,9 +2,13 @@
 # Public aliases invoke the installed Worktrunk; only forge and Trash are substitutes.
 set -euo pipefail
 source "$(dirname "$0")/done-support.sh"
+repo=${repo:-}
+origin=${origin:-}
+work=${work:?fixture workspace missing}
+root=${root:?fixture source root missing}
 setup_clone native
 printf 'keep me\n' >"$repo/local.txt"
-run_done done --drop --no-pr --no-prune >"$work/native.out" 2>&1 || fail "explicit done --drop must retire through native wt: $(cat "$work/native.out")"
+run_done 'done' --drop --no-pr --no-prune >"$work/native.out" 2>&1 || fail "explicit done --drop must retire through native wt: $(cat "$work/native.out")"
 [[ ! -d "$repo" ]] || fail 'explicit retirement must trash the clone'
 [[ "$(git -C "$origin" show wip:local.txt)" == 'keep me' ]] || fail 'dirty work must reach origin'
 [[ -d "$TRASH_DIR/native" ]] || fail 'trash must retain the clone'
@@ -13,7 +17,7 @@ run_done done --drop --no-pr --no-prune >"$work/native.out" 2>&1 || fail "explic
 setup_clone explicit-config
 printf 'explicit config\n' >"$repo/explicit.txt"
 config=$WORKTRUNK_CONFIG_PATH
-(cd "$repo" && unset WORKTRUNK_CONFIG_PATH && "$root/bin/wt" -y --config "$config" done -- --drop --no-pr --no-prune) >"$work/explicit-config.out" 2>&1 || fail "--config inheritance: $(cat "$work/explicit-config.out")"
+(cd "$repo" && unset WORKTRUNK_CONFIG_PATH && "$root/bin/wt" -y --config "$config" 'done' -- --drop --no-pr --no-prune) >"$work/explicit-config.out" 2>&1 || fail "--config inheritance: $(cat "$work/explicit-config.out")"
 [[ ! -d "$repo" && "$(git -C "$origin" show wip:explicit.txt)" == 'explicit config' ]] || fail 'explicit --config not inherited'
 
 setup_clone relative-config
