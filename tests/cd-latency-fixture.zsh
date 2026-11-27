@@ -8,6 +8,16 @@ export MISE_DATA_DIR=${MISE_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/mise}
 [[ -n ${CD_TEST_ROOT:-} ]] && root=$CD_TEST_ROOT
 work=$(mktemp -d)
 trap 'zpty -d prompttest 2>/dev/null || true; rm -rf "$work"' EXIT
+# Resolve through the real shell boundary before timing anything. A missing tool
+# is a setup failure, not evidence that a renderer blocked the prompt.
+if ! (
+	export XDG_CACHE_HOME="$work/cache"
+	builtin source "$root/shell/zsh/10-init-cache.zsh"
+	native=$(_zsh_binpath zoxide) && "$native" --version >/dev/null
+); then
+	print -u2 -- 'FAIL: native zoxide unavailable; run mise install (Homebrew on macOS)'
+	exit 1
+fi
 mkfifo "$work/render"
 export CD_TEST_ROOT=$root CD_TEST_WORK=$work
 zpty -b prompttest zsh -dfi
