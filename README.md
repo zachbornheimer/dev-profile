@@ -222,7 +222,7 @@ The cd fixture uses an isolated database, a failing shim, and a held
 exclusion.
 Linux installs zoxide from the shared mise pin, including on Relay and CI;
 macOS uses Homebrew. The fixture checks the native binary before opening its PTY
-and restores the direnv resolver stub before testing other tools.
+and uses the real resolver with a scratch direnv executable, without a resolver stub.
 
 The mise config-stamp ancestry walk stops at the filesystem root or an unchanged
 parent, so shells started in deleted directories finish startup.

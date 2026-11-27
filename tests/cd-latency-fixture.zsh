@@ -90,7 +90,7 @@ mkfifo "$work/direnv"
 mkdir -p "$work/home/.local/bin"
 printf '#!/bin/sh\nexit 0\n' >"$work/home/.local/bin/direnv"
 chmod +x "$work/home/.local/bin/direnv"
-zpty -w prompttest 'HOME="$CD_TEST_WORK/home"; add-zsh-hook -D precmd _dev_profile_mise_refresh; add-zsh-hook -D chpwd _dev_profile_mise_refresh; functions[_cd_fixture_binpath]=$functions[_zsh_binpath]; _zsh_binpath() { print -r -- /fixture/direnv; }; builtin source "$CD_TEST_ROOT/shell/zsh/40-direnv.defer.zsh"; functions[_zsh_binpath]=$functions[_cd_fixture_binpath]; unfunction _cd_fixture_binpath; _dev_profile_direnv_run() { read -r < "$CD_TEST_WORK/direnv"; print -r -- "export CD_FIXTURE_DIRENV=applied"; }; _p_starship_prompt="\${CD_FIXTURE_DIRENV:-pending}READY> "; _dev_profile_direnv_hook; print -r -- DIRENVQUEUED'
+zpty -w prompttest 'HOME="$CD_TEST_WORK/home"; builtin source "$CD_TEST_ROOT/shell/zsh/10-init-cache.zsh"; add-zsh-hook -D precmd _dev_profile_mise_refresh; add-zsh-hook -D chpwd _dev_profile_mise_refresh; builtin source "$CD_TEST_ROOT/shell/zsh/40-direnv.defer.zsh"; _dev_profile_direnv_run() { read -r < "$CD_TEST_WORK/direnv"; print -r -- "export CD_FIXTURE_DIRENV=applied"; }; _p_starship_prompt="\${CD_FIXTURE_DIRENV:-pending}READY> "; _dev_profile_direnv_hook; print -r -- DIRENVQUEUED'
 expect $'\r\nDIRENVQUEUED\r\n'
 expect 'pendingREADY> ' 1
 exec {direnv_fd}<>"$work/direnv"
