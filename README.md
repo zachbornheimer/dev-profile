@@ -32,6 +32,14 @@ mise dot apply
 
 `mise run test:adoption` proves all of this with the real mise in a scratch HOME. The shell file linked at ~/.local/share/dev-profile/shell.zsh is what a new shell should source.
 
+OpenCodeReview uses `config/opencodereview.json`, deployed as
+`~/.opencodereview/config.json`. It selects DeepSeek V4.1 Flash through the
+OpenAI-compatible gateway at `mcp-gateway.tail158749.ts.net:4000/v1`.
+The calling environment must supply `AUTH_GATEWAY_TOKEN` at runtime; the
+configuration reads it through `auth_token_cmd` and stores no credential.
+`mise run test:adoption` checks the installed JSON and credential lookup with
+a synthetic value, including a repeated apply without `MISE_DOTFILES_ROOT`.
+
 ## Make it yours
 
 - **Owners.** `config/owners` lists the GitHub logins whose repositories the profile treats as its own (trusted mise config, its formatters and hooks apply). Set `DEV_PROFILE_OWNERS` to another file to replace the list without editing a script. `mise run test:owners` covers it.

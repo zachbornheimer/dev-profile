@@ -31,9 +31,28 @@ mkdir -p "${HOME}/.config/mise"
 cp "${clone}/config/mise.toml" "${MISE_GLOBAL_CONFIG_FILE}"
 cd "${HOME}"
 
+check_review_config() {
+	python3 - "${HOME}/.opencodereview/config.json" <<'PY'
+import json, os, pathlib, subprocess, sys
+
+path = pathlib.Path(sys.argv[1])
+config = json.loads(path.read_text())
+assert config["model"] == "deepseek/deepseek-v4.1-flash"
+llm = config["llm"]
+assert llm["model"] == config["model"]
+assert llm["protocol"] == "openai"
+assert llm["url"] == "http://mcp-gateway.tail158749.ts.net:4000/v1"
+assert set(llm) == {"url", "protocol", "model", "auth_token_cmd"}
+# Resolve a synthetic credential at use, never from a stored JSON token.
+env = dict(os.environ, AUTH_GATEWAY_TOKEN="adoption-fixture-credential")
+result = subprocess.run(["sh", "-c", llm["auth_token_cmd"]], env=env, capture_output=True, text=True, check=True)
+assert result.stdout == env["AUTH_GATEWAY_TOKEN"]
+assert env["AUTH_GATEWAY_TOKEN"] not in path.read_text()
+PY
+}
 # 1. The seed deploys from the clone wherever it lives. Only the first apply needs the root named.
 applied="$(MISE_DOTFILES_ROOT="${clone}" mise dot apply --yes 2>&1 | grep -v 'WARN' || true)"
-for target in .config/hk/config.pkl .omp/agent/extensions/handler-timing.ts .omp/agent/extensions/extension-timeout-repair.ts .config/dprint/dprint.jsonc .local/share/dev-profile/bin .stylelintrc.json .omp/agent/extensions/agent-checkpoint-publish.ts .config/agent-checkpoints/enrollment.toml; do
+for target in .opencodereview/config.json .config/hk/config.pkl .omp/agent/extensions/handler-timing.ts .omp/agent/extensions/extension-timeout-repair.ts .config/dprint/dprint.jsonc .local/share/dev-profile/bin .stylelintrc.json .omp/agent/extensions/agent-checkpoint-publish.ts .config/agent-checkpoints/enrollment.toml; do
 	[ -L "${HOME}/${target}" ] || fail "${target} was not linked. apply said: ${applied}"
 	case "$(realpath "${HOME}/${target}")" in
 	"${clone}"/*) ;;
@@ -46,6 +65,8 @@ for target in .config/hk/config.pkl .omp/agent/extensions/handler-timing.ts .omp
 	*) fail "${target} links through a path outside the scratch home: $(readlink "${HOME}/${target}")" ;;
 	esac
 done
+
+check_review_config
 
 # 2. The seed names no machine path in any source.
 if grep -nE 'source = "(~|/)' "${clone}/config/mise.toml" >&2; then
@@ -62,6 +83,9 @@ done
 	fail "dotfiles.root is $(mise settings get dotfiles.root), not the clone ${clone}"
 mise dot status --json 2>/dev/null | grep -Eq '"state": "(missing|differs|source_missing)"' &&
 	fail "an entry is not applied when the root comes from the fragment"
+
+mise dot apply --yes >/dev/null 2>&1 || fail "repeat apply failed without MISE_DOTFILES_ROOT"
+check_review_config
 
 # 5. The personal code-root targets are absent until the overlay is linked.
 [ ! -e "${HOME}/Developer" ] || fail "personal targets deployed without the personal overlay"
