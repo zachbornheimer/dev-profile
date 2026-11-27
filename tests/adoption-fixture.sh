@@ -35,6 +35,9 @@ check_review_config() {
 	python3 - "${1:-${HOME}/.opencodereview/config.json}" <<'PY'
 import json, os, pathlib, subprocess, sys
 
+if not __debug__:
+    raise SystemExit("adoption checks require assertions; unset PYTHONOPTIMIZE")
+
 path = pathlib.Path(sys.argv[1])
 config = json.loads(path.read_text())
 assert set(config) == {"llm"}
