@@ -37,6 +37,7 @@ import json, os, pathlib, subprocess, sys
 
 path = pathlib.Path(sys.argv[1])
 config = json.loads(path.read_text())
+assert set(config) == {"model", "llm"}
 assert config["model"] == "deepseek/deepseek-v4.1-flash"
 llm = config["llm"]
 assert llm["model"] == config["model"]
