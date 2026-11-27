@@ -144,12 +144,14 @@ retirement refuses unpublished work or remaining linked worktrees. Nested
 repositories and files above `DEV_PROFILE_SYNC_MAX_FILE_MB` (default 50 MiB)
 stop preservation. Finish ongoing merges or rebases before running `wt done`.
 
-`mise run test:done-native` and `mise run test:done` deploy the **complete** source
-configuration with the real mise merge entry over a stale legacy installation,
-then exercise the native Worktrunk CLI against local bare remotes. Only forge,
-Trash, commit-message generation and workstation-specific hook adapters are
-sandboxed; Git hooks and signing remain active. This catches stale `done` and
-`retire` pointers instead of reconstructing a test-only alias subset.
+`mise run test:done-native` deploys the **complete** source configuration with
+the real mise merge entry over a stale legacy installation, then exercises the
+native Worktrunk CLI against local bare remotes. This deployment proof requires
+the profile's mise build with `dot apply`; the portable `mise run test:done`
+consumer safety suite uses the same complete config directly and remains in
+`doctor` for upstream-mise CI. Only forge, Trash, commit-message generation and
+workstation-specific hook adapters are sandboxed; Git hooks and signing remain
+active. No fixture reconstructs a test-only alias subset.
 
 ## Native worktree aliases
 
