@@ -1,4 +1,4 @@
-import { Registry, runtimeRegistry, type Registration } from "./registry";
+import { type Registration, Registry, runtimeRegistry } from "./registry";
 
 export type LeaseOwner = Readonly<{ session: string; cwd: string }>;
 export type LeaseTimer = Timer;
@@ -43,8 +43,11 @@ export function ownLease(host: LeaseHost, options: LeaseOptions): () => void {
     active = undefined;
     if (!previous) return;
     if (previous.timer !== undefined) previous.ctx.clearTimer(previous.timer);
-    try { registry.revoke(previous.registration); }
-    catch { options.report({ kind: "failed", reason: "cleanup" }); }
+    try {
+      registry.revoke(previous.registration);
+    } catch {
+      options.report({ kind: "failed", reason: "cleanup" });
+    }
   }
 
   async function tick(activation: Activation): Promise<void> {
@@ -67,9 +70,15 @@ export function ownLease(host: LeaseHost, options: LeaseOptions): () => void {
 
   function start(ctx: LeaseContext): void {
     if (stopped) return;
-    if (ctx.hasUI !== true || ctx.agent?.kind !== "main") { cleanup(); return; }
+    if (ctx.hasUI !== true || ctx.agent?.kind !== "main") {
+      cleanup();
+      return;
+    }
     const session = ctx.sessionManager.getSessionId();
-    if (!session) { cleanup(); return; }
+    if (!session) {
+      cleanup();
+      return;
+    }
     if (active?.owner.session === session || failedSession === session) return;
     cleanup();
     failedSession = undefined;
@@ -77,11 +86,16 @@ export function ownLease(host: LeaseHost, options: LeaseOptions): () => void {
       const registration = registry.activate(session);
       if (!registration) return;
       const activation: Activation = {
-        owner: Object.freeze({ session, cwd: ctx.cwd }), registration, ctx, busy: false,
+        owner: Object.freeze({ session, cwd: ctx.cwd }),
+        registration,
+        ctx,
+        busy: false,
       };
       active = activation;
       process.env.ATASK_RUNTIME_ROOT = registry.root;
-      activation.timer = ctx.setInterval(() => { void tick(activation); }, intervalMs);
+      activation.timer = ctx.setInterval(() => {
+        void tick(activation);
+      }, intervalMs);
     } catch {
       failedSession = session;
       cleanup();
@@ -97,7 +111,10 @@ export function ownLease(host: LeaseHost, options: LeaseOptions): () => void {
       start(ctx);
     });
   }
-  const stop = () => { stopped = true; cleanup(); };
+  const stop = () => {
+    stopped = true;
+    cleanup();
+  };
   host.on("session_shutdown", stop);
   return stop;
 }

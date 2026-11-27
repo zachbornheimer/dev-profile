@@ -31,12 +31,16 @@ export class Registry {
   activate(session: string): Registration | undefined {
     if (this.#registrations.has(session)) return undefined;
     const registration = Object.freeze({ session });
-    writeFileSync(this.#path(session), JSON.stringify({
-      session,
-      pid: process.pid,
-      incarnation,
-      capability: randomBytes(SECRET_BYTES).toString("hex"),
-    }), { mode: PRIVATE_FILE, flag: "wx" });
+    writeFileSync(
+      this.#path(session),
+      JSON.stringify({
+        session,
+        pid: process.pid,
+        incarnation,
+        capability: randomBytes(SECRET_BYTES).toString("hex"),
+      }),
+      { mode: PRIVATE_FILE, flag: "wx" },
+    );
     this.#registrations.set(session, registration);
     return registration;
   }
