@@ -37,10 +37,9 @@ import json, os, pathlib, subprocess, sys
 
 path = pathlib.Path(sys.argv[1])
 config = json.loads(path.read_text())
-assert set(config) == {"model", "llm"}
-assert config["model"] == "deepseek/deepseek-v4.1-flash"
+assert set(config) == {"llm"}
 llm = config["llm"]
-assert llm["model"] == config["model"]
+assert llm["model"] == "deepseek/deepseek-v4.1-flash"
 assert llm["protocol"] == "openai"
 assert llm["url"] == "http://mcp-gateway.tail158749.ts.net:4000/v1"
 assert set(llm) == {"url", "protocol", "model", "auth_token_cmd"}
@@ -78,7 +77,7 @@ done
 
 check_review_config
 
-# A changed command must be rejected before it can cause any side effect.
+# The fixture must validate its command literal before executing config content.
 python3 - "${HOME}/.opencodereview/config.json" "${scratch}" <<'PY'
 import json, pathlib, shlex, sys
 
