@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -uo pipefail
+# dev-profile-done — the completion entrypoint other components call by name:
+# Relay's exit gate (boot.sh revisions before dev-env PR #213 invoked it directly),
+# tools/vps/vps-idle-reaper.sh, and tests/done-support.sh. `wt done` owns the
+# lifecycle (config/worktrunk.toml), so this delegates to it rather than keeping a
+# second implementation that can drift.
+if ! command -v wt >/dev/null 2>&1; then
+	echo "dev-profile-done: wt not found on PATH" >&2
+	exit 127
+fi
+exec wt done "$@"
