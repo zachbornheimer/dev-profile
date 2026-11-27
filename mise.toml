@@ -161,7 +161,7 @@ run = "bun test apps/omp/extensions/atask-lease/lease.test.ts"
 
 [tasks."test:lease"]
 description = "Real CLI ownership across three short test leases"
-run = "ATASK_INTERACTIVE_HOST=$PWD/apps/omp/extensions/atask-lease/host-proof.ts mise -C ${ATASK_ENGINE_SOURCE:?Set ATASK_ENGINE_SOURCE to the ai-task checkout} run test:lease"
+run = "ATASK_INTERACTIVE_HOST=$PWD/apps/omp/extensions/atask-lease/host-proof.ts mise -C \"${ATASK_ENGINE_SOURCE:?Set ATASK_ENGINE_SOURCE to the ai-task checkout}\" run test:lease"
 
 [tasks."fmt:lease"]
 run = "dprint fmt --config config/dprint.jsonc apps/omp/extensions/atask-lease config/mise.toml mise.toml .github/workflows/interactive-lease.yml"

@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { writeFileSync } from "node:fs";
-import { join } from "node:path";
 import { type LeaseContext, registerLease } from "./index";
 
 const binary = process.env.ATASK_LEASE_CLI;
@@ -126,6 +125,7 @@ try {
   await cli(["log", "--done", "session only"], first.session, "", false);
   await cli(["claim", "release"], first.session, first.root);
   assert.equal((await cli(["claim", "renew", "--runtime"], first.session, first.root)).renewed, 0);
+  assert.ok(!observations.includes("failed"), "host reported lost authority during proof");
   await cli(["verify", "complete"], second.session, second.root);
   assert.equal((await cli(["claim", "renew", "--runtime"], second.session, second.root)).renewed, 0);
   console.log(

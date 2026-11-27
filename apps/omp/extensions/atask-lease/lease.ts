@@ -6,7 +6,7 @@ export interface LeaseContext {
   hasUI: boolean;
   cwd: string;
   agent: { kind: string };
-  sessionManager: { getSessionId(): string | undefined };
+  sessionManager?: { getSessionId?(): string | undefined };
   setInterval(callback: () => void, intervalMs: number): LeaseTimer;
   clearTimer(timer: LeaseTimer): void;
 }
@@ -74,7 +74,7 @@ export function ownLease(host: LeaseHost, options: LeaseOptions): () => void {
       cleanup();
       return;
     }
-    const session = ctx.sessionManager.getSessionId();
+    const session = ctx.sessionManager?.getSessionId?.();
     if (!session) {
       cleanup();
       return;
@@ -84,7 +84,10 @@ export function ownLease(host: LeaseHost, options: LeaseOptions): () => void {
     failedSession = undefined;
     try {
       const registration = registry.activate(session);
-      if (!registration) return;
+      if (!registration) {
+        options.report({ kind: "failed", reason: "registration" });
+        return;
+      }
       const activation: Activation = {
         owner: Object.freeze({ session, cwd: ctx.cwd }),
         registration,
