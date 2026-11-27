@@ -8,14 +8,15 @@ import install, { type Job, jobPath, miseSettled, readJob, writeJob } from "./ag
 const source = path.resolve(import.meta.dir, "agent-checkpoint-publish.ts");
 const dirs: string[] = [];
 // Real detached subprocesses cannot share fake timers; await their durable state.
-let saved = { ...process.env };
+const saved = { ...process.env };
 afterEach(() => {
   process.env = { ...saved };
   for (const dir of dirs.splice(0)) fs.rmSync(dir, { recursive: true, force: true });
 });
 function git(repo: string, ...args: string[]) {
   const r = spawnSync("git", args, { cwd: repo, encoding: "utf8", env: process.env });
-  if (r.status) throw new Error(`${args.join(" ")}: ${r.stderr}`);
+  if (r.error) throw r.error;
+  if (r.status !== 0) throw new Error(`${args.join(" ")}: ${r.stderr}`);
   return r.stdout.toString().trim();
 }
 function fixture() {
@@ -36,9 +37,7 @@ function fixture() {
   const key = path.join(root, "signing");
   const gen = spawnSync("ssh-keygen", ["-q", "-t", "ed25519", "-N", "", "-f", key]);
   expect(gen.status).toBe(0);
-  const publicKey = fs.openSync(path.join(root, "signing.pub"), "r");
-  fs.writeFileSync(path.join(root, "allowed"), `checkpoint@example.test ${fs.readFileSync(publicKey, "utf8")}`);
-  fs.closeSync(publicKey);
+  fs.writeFileSync(path.join(root, "allowed"), `checkpoint@example.test ${fs.readFileSync(`${key}.pub`, "utf8")}`);
   git(repo, "config", "gpg.format", "ssh");
   git(repo, "config", "user.signingkey", key);
   git(repo, "config", "gpg.ssh.allowedSignersFile", path.join(root, "allowed"));
@@ -78,7 +77,9 @@ function fixture() {
     },
   };
   const event = async (name: string, data = {}) => {
-    await handlers.get(name)?.(data, ctx);
+    const handler = handlers.get(name);
+    if (!handler) throw new Error(`Missing lifecycle subscription: ${name}`);
+    await handler(data, ctx);
   };
   const commit = (message = "checkpoint", signed = true) => {
     git(repo, "-c", `commit.gpgsign=${signed}`, "commit", "--allow-empty", "-m", message);
@@ -108,11 +109,16 @@ async function worker(job: Job) {
   writeJob(job);
   const proc = spawn("bun", [source, "--worker", jobPath(job.key)], {
     env: process.env,
-    stdio: ["ignore", "pipe", "pipe"],
+    stdio: "ignore",
+    timeout: 30_000,
+    killSignal: "SIGKILL",
   });
   const { promise, resolve, reject } = Promise.withResolvers<void>();
   proc.once("error", reject);
-  proc.once("exit", code => code ? reject(new Error(`worker exit ${code}`)) : resolve());
+  proc.once(
+    "close",
+    (code, signal) => code === 0 ? resolve() : reject(new Error(`worker exit ${code}, signal ${signal}`)),
+  );
   await promise;
   return readJob(jobPath(job.key));
 }
@@ -121,6 +127,7 @@ async function settled(timeoutMs = 15_000) {
   const end = Date.now() + timeoutMs;
   while (Date.now() < end) {
     const files = fs.existsSync(dir) ? fs.readdirSync(dir).filter(f => f.endsWith(".json")) : [];
+    if (files.length > 1) throw new Error(`Expected one checkpoint job, found ${files.length}`);
     if (files.length) {
       const job = readJob(path.join(dir, files[0]));
       if (["verified", "failed", "expired"].includes(job.state)) return job;
@@ -384,6 +391,7 @@ const hasOmp = !!Bun.which("omp"); // runners without omp skip it
 
 // Real OMP lifecycle, no host config, credentials, or live provider.
 function localModel(agentDir: string) {
+  const children = new Set<ReturnType<typeof spawn>>();
   const server = Bun.serve({
     hostname: "127.0.0.1",
     port: 0,
@@ -435,15 +443,26 @@ function localModel(agentDir: string) {
         cwd,
         env: { ...process.env, PI_CODING_AGENT_DIR: agentDir },
         timeout: 60_000,
+        killSignal: "SIGKILL",
         stdio: ["ignore", "pipe", "pipe"],
       });
+      children.add(child);
       let stdout = "", stderr = "";
       child.stdout.on("data", data => stdout += data);
       child.stderr.on("data", data => stderr += data);
       child.on("error", reject);
-      child.on("close", status => resolve({ status, stdout, stderr }));
+      child.on("close", status => {
+        children.delete(child);
+        resolve({ status, stdout, stderr });
+      });
     });
-  return { turn, stop: () => server.stop(true) };
+  return {
+    turn,
+    stop: () => {
+      for (const child of children) child.kill("SIGKILL");
+      server.stop(true);
+    },
+  };
 }
 test.skipIf(!hasOmp)("real omp session publishes one verified ref and reports it next turn", async () => {
   const f = fixture();
@@ -483,19 +502,21 @@ test("slow pre-push: handler returns pending first, the detached worker verifies
   expect(f.refs()).not.toBe(before);
 }, 40000);
 
-test("worker killed mid-push then restarted yields one push", async () => {
+test("worker killed mid-push then restarted yields one additional remote ref", async () => {
   const f = fixture(), sha = f.commit(), job = f.makeJob(sha);
   fs.writeFileSync(path.join(f.repo, ".git/hooks/pre-push"), "#!/bin/sh\nsleep 2\n", { mode: 0o755 });
   writeJob(job);
   const before = f.refs(), jobFile = jobPath(job.key);
   const child = spawn("bun", [source, "--worker", jobFile], { env: process.env, stdio: "ignore", detached: true });
-  const { promise, resolve } = Promise.withResolvers<void>();
-  const watcher = fs.watch(path.dirname(jobFile), () => {
-    if (readJob(jobFile).state === "pushing") resolve();
-  });
-  await promise;
-  watcher.close();
-  process.kill(-child.pid!, "SIGKILL");
+  try {
+    const deadline = Date.now() + 10_000;
+    while (readJob(jobFile).state !== "pushing") {
+      if (Date.now() >= deadline) throw new Error("worker did not enter pushing within 10 seconds");
+      await Bun.sleep(20);
+    }
+  } finally {
+    if (child.pid && child.exitCode === null && child.signalCode === null) process.kill(-child.pid, "SIGKILL");
+  }
   expect(readJob(jobFile).state).not.toBe("verified");
   const result = await worker(readJob(jobFile));
   expect(result.state).toBe("verified");
