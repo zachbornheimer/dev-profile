@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Public sync uses native operations; forge/Trash and host hooks use done-support's sandbox.
 set -euo pipefail
+export DONE_DEPLOY_CONFIG=1
 source "$(dirname "$0")/done-support.sh"
 repo=${repo:-}
 origin=${origin:-}

@@ -27,13 +27,16 @@ export TRASH_DIR="$work/trash" FORGE_LOG="$work/forge.log"
 mkdir -p "$work/tools" "$TRASH_DIR"
 # Real test-local SSH signatures avoid dependence on the private user keyring.
 ssh-keygen -q -t ed25519 -N '' -C done-fixture -f "$work/signing-key"
-principal=$(git config user.email)
+principal=done-fixture@example.com
 printf '%s %s\n' "$principal" "$(cat "$work/signing-key.pub")" >"$work/allowed-signers"
 # Deploy the complete profile-owned config over the stale live shape that caused
 # the regression. Keep this inside a scratch HOME, never the user's installation.
 python3 - "$root" "$work" <<'PY'
 import json, os, pathlib, subprocess, sys, tomllib
 root, work = map(pathlib.Path, sys.argv[1:])
+if os.environ.get('DONE_DEPLOY_CONFIG') != '1':
+    (work / 'worktrunk.toml').write_text((root / 'config/worktrunk.toml').read_text())
+    sys.exit(0)
 source = tomllib.loads((root / 'config/mise.toml').read_text())
 entry = source['dotfile_groups']['dev-profile']['entries']['~/.config/worktrunk/config.toml/dev-profile']
 home = work / 'home'
@@ -84,6 +87,8 @@ setup_clone() {
 	repo="$work/$1"
 	git init -q --bare --initial-branch=main "$origin"
 	git clone -q "$origin" "$repo"
+	git -C "$repo" config user.name 'Worktrunk fixture'
+	git -C "$repo" config user.email "$principal"
 	git -C "$repo" config gpg.format ssh
 	git -C "$repo" config user.signingkey "$work/signing-key"
 	git -C "$repo" config commit.gpgsign true

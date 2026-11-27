@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Public aliases invoke the installed Worktrunk; only forge and Trash are substitutes.
 set -euo pipefail
+export DONE_DEPLOY_CONFIG=1
 source "$(dirname "$0")/done-support.sh"
 repo=${repo:-}
 origin=${origin:-}
