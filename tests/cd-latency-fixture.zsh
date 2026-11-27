@@ -8,6 +8,16 @@ export MISE_DATA_DIR=${MISE_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/mise}
 [[ -n ${CD_TEST_ROOT:-} ]] && root=$CD_TEST_ROOT
 work=$(mktemp -d)
 trap 'zpty -d prompttest 2>/dev/null || true; rm -rf "$work"' EXIT
+# Resolve through the real shell boundary before timing anything. A missing tool
+# is a setup failure, not evidence that a renderer blocked the prompt.
+if ! (
+	export XDG_CACHE_HOME="$work/cache"
+	builtin source "$root/shell/zsh/10-init-cache.zsh"
+	native=$(_zsh_binpath zoxide) && "$native" --version >/dev/null
+); then
+	print -u2 -- 'FAIL: native zoxide unavailable; run mise install (Homebrew on macOS)'
+	exit 1
+fi
 mkfifo "$work/render"
 export CD_TEST_ROOT=$root CD_TEST_WORK=$work
 zpty -b prompttest zsh -dfi
@@ -80,7 +90,7 @@ mkfifo "$work/direnv"
 mkdir -p "$work/home/.local/bin"
 printf '#!/bin/sh\nexit 0\n' >"$work/home/.local/bin/direnv"
 chmod +x "$work/home/.local/bin/direnv"
-zpty -w prompttest 'HOME="$CD_TEST_WORK/home"; add-zsh-hook -D precmd _dev_profile_mise_refresh; add-zsh-hook -D chpwd _dev_profile_mise_refresh; _zsh_binpath() { print -r -- /fixture/direnv; }; builtin source "$CD_TEST_ROOT/shell/zsh/40-direnv.defer.zsh"; _dev_profile_direnv_run() { read -r < "$CD_TEST_WORK/direnv"; print -r -- "export CD_FIXTURE_DIRENV=applied"; }; _p_starship_prompt="\${CD_FIXTURE_DIRENV:-pending}READY> "; _dev_profile_direnv_hook; print -r -- DIRENVQUEUED'
+zpty -w prompttest 'HOME="$CD_TEST_WORK/home"; builtin source "$CD_TEST_ROOT/shell/zsh/10-init-cache.zsh"; add-zsh-hook -D precmd _dev_profile_mise_refresh; add-zsh-hook -D chpwd _dev_profile_mise_refresh; builtin source "$CD_TEST_ROOT/shell/zsh/40-direnv.defer.zsh"; _dev_profile_direnv_run() { read -r < "$CD_TEST_WORK/direnv"; print -r -- "export CD_FIXTURE_DIRENV=applied"; }; _p_starship_prompt="\${CD_FIXTURE_DIRENV:-pending}READY> "; _dev_profile_direnv_hook; print -r -- DIRENVQUEUED'
 expect $'\r\nDIRENVQUEUED\r\n'
 expect 'pendingREADY> ' 1
 exec {direnv_fd}<>"$work/direnv"
