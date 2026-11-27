@@ -199,6 +199,18 @@ Set `WT_BENCH=1` to time every `wt` call and the `gh`, commit and push calls ins
 
 ## Checks
 
+`mise run test:agent-checkpoints` exercises real OMP sessions against a loopback
+streaming model fixture, signed scratch repositories, and real mise history in
+isolated directories. It does not copy host model roles or credentials, call a
+live model, or inherit the launcher's history sync policy. The scratch config
+still tests both sync and fetch-only safeguards.
+
+`mise run test:rules` checks the installed, mise-dot-tracked rule set. Its
+`rule_conditions.test.ts` must keep one positive fixture per installed rule,
+including additions and removals, while retaining the negative/self-match cases.
+Reconcile the fixture with the installed rules; do not filter missing fixtures
+or skip the coverage check to make an installed gate pass.
+
 Run mise run doctor. Run mise dot apply --dry-run before changing live links.
 Hook fixtures use Git from mise when configured, otherwise the installed Git
 on PATH (Homebrew on macOS).
